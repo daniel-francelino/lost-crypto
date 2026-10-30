@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Lost Crypto API",
-    "description": "Backend da plataforma Lost Crypto: dados de mercado, estrat\u00e9gias e backtests.",
-    "version": "0.2.0"
+    "description": "Backend da plataforma Lost Crypto: dados de mercado, estrat\u00e9gias, backtests e paper trading.",
+    "version": "0.3.0"
   },
   "paths": {
     "/api/v1/health": {
@@ -581,10 +581,824 @@
           }
         }
       }
+    },
+    "/api/v1/bots": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Create Bot",
+        "description": "Create a paper-trading bot. It starts stopped; call ``/start`` to run it.",
+        "operationId": "create_bot_api_v1_bots_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BotCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "List Bots",
+        "operationId": "list_bots_api_v1_bots_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BotOut"
+                  },
+                  "title": "Response List Bots Api V1 Bots Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Get Bot",
+        "operationId": "get_bot_api_v1_bots__bot_id__get",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Update Bot",
+        "description": "Change the configuration of a stopped bot (creates a new config version).",
+        "operationId": "update_bot_api_v1_bots__bot_id__patch",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BotUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/start": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Start Bot",
+        "description": "Ask the worker to run the bot (or resume it). Poll the bot for ``observed_state``.",
+        "operationId": "start_bot_api_v1_bots__bot_id__start_post",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/pause": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Pause Bot",
+        "description": "Stop evaluating the strategy; the session and its state are kept.",
+        "operationId": "pause_bot_api_v1_bots__bot_id__pause_post",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/stop": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Stop Bot",
+        "description": "End the session. The virtual portfolio (including any open position) is kept.",
+        "operationId": "stop_bot_api_v1_bots__bot_id__stop_post",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/reset-portfolio": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Reset Portfolio",
+        "description": "Restart the virtual portfolio from the initial capital (stopped bots only).",
+        "operationId": "reset_portfolio_api_v1_bots__bot_id__reset_portfolio_post",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/orders": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Get Orders",
+        "operationId": "get_orders_api_v1_bots__bot_id__orders_get",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrderOut"
+                  },
+                  "title": "Response Get Orders Api V1 Bots  Bot Id  Orders Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/signals": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Get Signals",
+        "description": "Strategy signals and what the risk layer decided (approved / rejected / discarded_stale).",
+        "operationId": "get_signals_api_v1_bots__bot_id__signals_get",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SignalOut"
+                  },
+                  "title": "Response Get Signals Api V1 Bots  Bot Id  Signals Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/portfolio": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Get Portfolio",
+        "operationId": "get_portfolio_api_v1_bots__bot_id__portfolio_get",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/performance": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Get Performance",
+        "description": "Performance metrics net of fees (null until the bot has produced a snapshot).",
+        "operationId": "get_performance_api_v1_bots__bot_id__performance_get",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MetricsOut"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Performance Api V1 Bots  Bot Id  Performance Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/equity": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Get Equity",
+        "operationId": "get_equity_api_v1_bots__bot_id__equity_get",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 500,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EquityPointOut"
+                  },
+                  "title": "Response Get Equity Api V1 Bots  Bot Id  Equity Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/kill-switch": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Get Kill Switch",
+        "operationId": "get_kill_switch_api_v1_system_kill_switch_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KillSwitchOut"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Set Kill Switch",
+        "description": "Emergency stop. While active, the worker pauses every running bot and no new entries\nare approved. Releasing it does not resume bots: start them again explicitly.",
+        "operationId": "set_kill_switch_api_v1_system_kill_switch_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KillSwitchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KillSwitchOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit-events": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "List Audit Events",
+        "description": "Append-only trail of commands, state changes, orders and risk events (newest first).",
+        "operationId": "list_audit_events_api_v1_audit_events_get",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Bot Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEventOut"
+                  },
+                  "title": "Response List Audit Events Api V1 Audit Events Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AuditEventOut": {
+        "properties": {
+          "occurred_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurred At"
+          },
+          "actor": {
+            "type": "string",
+            "title": "Actor"
+          },
+          "event_type": {
+            "type": "string",
+            "title": "Event Type"
+          },
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type"
+          },
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "bot_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bot Id"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "occurred_at",
+          "actor",
+          "event_type",
+          "entity_type",
+          "entity_id",
+          "bot_id",
+          "payload"
+        ],
+        "title": "AuditEventOut"
+      },
       "BacktestCreate": {
         "properties": {
           "strategy_type": {
@@ -836,6 +1650,338 @@
         ],
         "title": "BacktestOut"
       },
+      "BotCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "strategy_type": {
+            "type": "string",
+            "title": "Strategy Type",
+            "examples": [
+              "ema_crossover"
+            ]
+          },
+          "strategy_params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Strategy Params"
+          },
+          "symbol": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+            "title": "Symbol",
+            "default": "BTC/USDT"
+          },
+          "timeframe": {
+            "$ref": "#/components/schemas/Timeframe",
+            "default": "1h"
+          },
+          "initial_capital": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Initial Capital",
+            "default": "1000"
+          },
+          "fee_rate": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMaximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Fee Rate",
+            "default": "0.001"
+          },
+          "slippage_bps": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMaximum": 10000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Slippage Bps",
+            "default": "5"
+          },
+          "risk": {
+            "$ref": "#/components/schemas/RiskIn-Input"
+          },
+          "mode": {
+            "type": "string",
+            "const": "paper",
+            "title": "Mode",
+            "default": "paper"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "strategy_type"
+        ],
+        "title": "BotCreate"
+      },
+      "BotOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "strategy_type": {
+            "type": "string",
+            "title": "Strategy Type"
+          },
+          "strategy_params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Strategy Params"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "timeframe": {
+            "$ref": "#/components/schemas/Timeframe"
+          },
+          "initial_capital": {
+            "type": "string",
+            "title": "Initial Capital"
+          },
+          "fee_rate": {
+            "type": "string",
+            "title": "Fee Rate"
+          },
+          "slippage_bps": {
+            "type": "string",
+            "title": "Slippage Bps"
+          },
+          "risk": {
+            "$ref": "#/components/schemas/RiskIn-Output"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ExecutionMode"
+          },
+          "desired_state": {
+            "$ref": "#/components/schemas/BotState"
+          },
+          "observed_state": {
+            "$ref": "#/components/schemas/BotState"
+          },
+          "config_version": {
+            "type": "integer",
+            "title": "Config Version"
+          },
+          "last_heartbeat_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heartbeat At"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "strategy_type",
+          "strategy_params",
+          "symbol",
+          "timeframe",
+          "initial_capital",
+          "fee_rate",
+          "slippage_bps",
+          "risk",
+          "mode",
+          "desired_state",
+          "observed_state",
+          "config_version",
+          "last_heartbeat_at",
+          "last_error",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "BotOut"
+      },
+      "BotState": {
+        "type": "string",
+        "enum": [
+          "stopped",
+          "running",
+          "paused",
+          "error"
+        ],
+        "title": "BotState"
+      },
+      "BotUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "strategy_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Type"
+          },
+          "strategy_params": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Params"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "timeframe": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Timeframe"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "initial_capital": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Capital"
+          },
+          "fee_rate": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMaximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee Rate"
+          },
+          "slippage_bps": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMaximum": 10000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slippage Bps"
+          },
+          "risk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskIn-Input"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "BotUpdate",
+        "description": "Every field optional. Only allowed while the bot is stopped."
+      },
       "CandleOut": {
         "properties": {
           "open_time": {
@@ -949,6 +2095,13 @@
           "equity"
         ],
         "title": "EquityPointOut"
+      },
+      "ExecutionMode": {
+        "type": "string",
+        "enum": [
+          "paper"
+        ],
+        "title": "ExecutionMode"
       },
       "GapOut": {
         "properties": {
@@ -1159,6 +2312,69 @@
         "title": "JobStatus",
         "description": "Lifecycle shared by the DB-backed jobs the worker executes."
       },
+      "KillSwitchIn": {
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "active"
+        ],
+        "title": "KillSwitchIn"
+      },
+      "KillSwitchOut": {
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "changed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "active",
+          "reason",
+          "changed_at"
+        ],
+        "title": "KillSwitchOut"
+      },
       "MetricsOut": {
         "properties": {
           "initial_capital": {
@@ -1258,6 +2474,99 @@
         ],
         "title": "MetricsOut"
       },
+      "OrderOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "client_order_id": {
+            "type": "string",
+            "title": "Client Order Id"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "quantity": {
+            "type": "string",
+            "title": "Quantity"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          },
+          "filled_quantity": {
+            "type": "string",
+            "title": "Filled Quantity"
+          },
+          "avg_fill_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Fill Price"
+          },
+          "reject_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reject Reason"
+          },
+          "bar_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Bar Time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "client_order_id",
+          "symbol",
+          "side",
+          "quantity",
+          "status",
+          "filled_quantity",
+          "avg_fill_price",
+          "reject_reason",
+          "bar_time",
+          "created_at"
+        ],
+        "title": "OrderOut"
+      },
+      "OrderStatus": {
+        "type": "string",
+        "enum": [
+          "INTENT",
+          "SUBMITTING",
+          "OPEN",
+          "PARTIALLY_FILLED",
+          "FILLED",
+          "CANCELED",
+          "REJECTED",
+          "EXPIRED",
+          "UNKNOWN"
+        ],
+        "title": "OrderStatus"
+      },
       "ParamOut": {
         "properties": {
           "name": {
@@ -1297,6 +2606,152 @@
         ],
         "title": "ParamOut"
       },
+      "PortfolioOut": {
+        "properties": {
+          "initial_capital": {
+            "type": "string",
+            "title": "Initial Capital"
+          },
+          "cash": {
+            "type": "string",
+            "title": "Cash"
+          },
+          "quantity": {
+            "type": "string",
+            "title": "Quantity"
+          },
+          "avg_entry_price": {
+            "type": "string",
+            "title": "Avg Entry Price"
+          },
+          "last_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Price"
+          },
+          "equity": {
+            "type": "string",
+            "title": "Equity"
+          },
+          "unrealized_pnl": {
+            "type": "string",
+            "title": "Unrealized Pnl"
+          },
+          "realized_pnl": {
+            "type": "string",
+            "title": "Realized Pnl"
+          },
+          "fees_paid": {
+            "type": "string",
+            "title": "Fees Paid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "initial_capital",
+          "cash",
+          "quantity",
+          "avg_entry_price",
+          "last_price",
+          "equity",
+          "unrealized_pnl",
+          "realized_pnl",
+          "fees_paid"
+        ],
+        "title": "PortfolioOut"
+      },
+      "RiskIn-Input": {
+        "properties": {
+          "max_position_fraction": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Max Position Fraction",
+            "default": "1"
+          },
+          "max_order_notional": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Order Notional"
+          },
+          "max_daily_loss_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Daily Loss Pct",
+            "default": "10"
+          }
+        },
+        "type": "object",
+        "title": "RiskIn"
+      },
+      "RiskIn-Output": {
+        "properties": {
+          "max_position_fraction": {
+            "type": "string",
+            "title": "Max Position Fraction",
+            "default": "1"
+          },
+          "max_order_notional": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Order Notional"
+          },
+          "max_daily_loss_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Daily Loss Pct",
+            "default": "10"
+          }
+        },
+        "type": "object",
+        "title": "RiskIn"
+      },
       "Side": {
         "type": "string",
         "enum": [
@@ -1304,6 +2759,64 @@
           "sell"
         ],
         "title": "Side"
+      },
+      "SignalKind": {
+        "type": "string",
+        "enum": [
+          "entry",
+          "exit"
+        ],
+        "title": "SignalKind"
+      },
+      "SignalOut": {
+        "properties": {
+          "bar_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Bar Time"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SignalKind"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "decision": {
+            "type": "string",
+            "title": "Decision"
+          },
+          "decision_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Reason"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bar_time",
+          "side",
+          "kind",
+          "reason",
+          "decision",
+          "decision_reason",
+          "created_at"
+        ],
+        "title": "SignalOut"
       },
       "StrategyOut": {
         "properties": {
@@ -1444,6 +2957,18 @@
     {
       "name": "backtests",
       "description": "Execu\u00e7\u00e3o (ass\u00edncrona, via worker) e resultados de backtests. Simula\u00e7\u00f5es em dados hist\u00f3ricos \u2014 n\u00e3o s\u00e3o previs\u00e3o de retorno."
+    },
+    {
+      "name": "bots",
+      "description": "Bots de paper trading: configura\u00e7\u00e3o, comandos (start/pause/stop, executados pelo worker), ordens, portf\u00f3lio virtual e performance. Sem dinheiro real."
+    },
+    {
+      "name": "system",
+      "description": "Kill switch global: pausa todos os bots e bloqueia novas entradas."
+    },
+    {
+      "name": "audit",
+      "description": "Trilha de auditoria append-only."
     }
   ]
 }

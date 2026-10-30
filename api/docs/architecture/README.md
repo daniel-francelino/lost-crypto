@@ -56,3 +56,13 @@ Architectural reference for the Lost Crypto backend. **Documentation only** — 
 | Order | Intent submitted to a venue, tracked through its state machine |
 | Venue | Where orders go: simulated engine, testnet, or live exchange |
 | Trading session | One continuous run of a bot in a given mode |
+
+## Implementation notes (deviations from the conceptual model)
+
+| Phase | Simplification | Revisit when |
+|---|---|---|
+| 2 | `bot_portfolios` (cash + one position per bot) replaces `balances` + `positions` + `ledger_entries`; orders, fills and snapshots are the history | multi-symbol bots, shared accounts, testnet/live reconciliation |
+| 2 | No separate `strategy_configs` table: the bot row holds the current config and `config_version`; sessions record the version they ran | config history must be queried or diffed |
+| 2 | One supervisor loop iterates all bots sequentially (failures isolated per bot) instead of one asyncio task per bot | many bots or slow strategies |
+| 2 | Paper orders are created and filled in one transaction; the INTENT→SUBMITTING→UNKNOWN states exist in the domain for testnet/live | testnet adapter (Phase 4) |
+| 2 | Paper reference price is the close of the signal candle (no live ticker call) | tick-level strategies |
