@@ -17,6 +17,7 @@ from sqlalchemy import text
 from container import JobRunner, build_container, build_job_runner
 from core.config import Settings
 from factories import MARKET
+from fakes import fake_registry
 from main import create_app
 from modules.market_data.domain.models import Candle, MarketInfo, Timeframe
 
@@ -58,7 +59,12 @@ async def stack() -> AsyncIterator[tuple[httpx.AsyncClient, JobRunner]]:
         await _cleanup(container)
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-            yield client, build_job_runner(build_container(settings), SyntheticSource())
+            yield (
+                client,
+                build_job_runner(
+                    build_container(settings, exchanges=fake_registry(SyntheticSource()))
+                ),
+            )
         await _cleanup(container)
 
 
@@ -66,6 +72,12 @@ async def _cleanup(container: Any) -> None:
     async with container.engine.begin() as conn:
         for table in ("backtest_runs", "candle_import_jobs", "candles"):
             await conn.execute(text(f"DELETE FROM {table} WHERE symbol = :s"), {"s": SYMBOL})
+        await conn.execute(
+            text(
+                "DELETE FROM backtest_sweeps WHERE id NOT IN "
+                "(SELECT sweep_id FROM backtest_runs WHERE sweep_id IS NOT NULL)"
+            )
+        )
 
 
 async def _drain(runner: JobRunner) -> None:
@@ -140,9 +152,88 @@ async def test_failed_job_is_marked_failed_with_error(
         async def fetch_candles(self, *args: Any, **kwargs: Any) -> list[Candle]:
             raise RuntimeError("exchange exploded")
 
-    runner = build_job_runner(build_container(Settings()), BrokenSource())  # type: ignore[call-arg]
+    runner = build_job_runner(
+        build_container(Settings(), exchanges=fake_registry(BrokenSource()))  # type: ignore[call-arg]
+    )
     body = {"symbol": SYMBOL, "timeframe": "1h", "start": START.isoformat(), "end": END.isoformat()}
     resp = await client.post("/api/v1/market-data/imports", json=body)
     await _drain(runner)
     job = (await client.get(f"/api/v1/market-data/imports/{resp.json()['id']}")).json()
     assert job["status"] == "failed" and "exchange exploded" in job["error"]
+
+
+async def _import_candles(client: httpx.AsyncClient, runner: JobRunner) -> dict[str, str]:
+    body = {"symbol": SYMBOL, "timeframe": "1h", "start": START.isoformat(), "end": END.isoformat()}
+    assert (await client.post("/api/v1/market-data/imports", json=body)).status_code == 202
+    await _drain(runner)
+    return body
+
+
+async def test_train_test_split_reports_both_segments(
+    stack: tuple[httpx.AsyncClient, JobRunner],
+) -> None:
+    client, runner = stack
+    body = await _import_candles(client, runner)
+    spec = {**body, "strategy_type": "ema_crossover", "test_fraction": "0.3"}
+    resp = await client.post("/api/v1/backtests", json=spec)
+    assert resp.status_code == 202
+    await _drain(runner)
+
+    run = (await client.get(f"/api/v1/backtests/{resp.json()['id']}")).json()
+    assert run["status"] == "completed", run["error"]
+    segments = run["segments"]
+    assert Decimal(segments["test_fraction"]) == Decimal("0.3")
+    assert segments["split_at"].startswith("2024-01-1")  # 70% of 600 hourly candles in
+    assert segments["train"]["fills"] + segments["test"]["fills"] == run["metrics"]["fills"]
+    assert Decimal(segments["test"]["initial_capital"]) > 0
+
+    plain = await client.post("/api/v1/backtests", json={**body, "strategy_type": "ema_crossover"})
+    await _drain(runner)
+    assert (await client.get(f"/api/v1/backtests/{plain.json()['id']}")).json()["segments"] is None
+
+
+async def test_parameter_sweep_ranks_runs_and_skips_invalid_combinations(
+    stack: tuple[httpx.AsyncClient, JobRunner],
+) -> None:
+    client, runner = stack
+    body = await _import_candles(client, runner)
+    grid = {"fast_period": [3, 9], "slow_period": [5, 21, 2]}  # (9,5), (3,2), (9,2) are invalid
+    spec = {**body, "strategy_type": "ema_crossover", "grid": grid, "test_fraction": "0.3"}
+    resp = await client.post("/api/v1/backtests/sweeps", json=spec)
+    assert resp.status_code == 202, resp.text
+    assert resp.json()["run_count"] == 3 and len(resp.json()["skipped"]) == 3
+    await _drain(runner)
+
+    sweep = (await client.get(f"/api/v1/backtests/sweeps/{resp.json()['id']}")).json()
+    assert (sweep["completed"], sweep["failed"], sweep["ranked_by"]) == (3, 0, "test_return_pct")
+    scores = [Decimal(r["test_return_pct"]) for r in sweep["runs"]]
+    assert scores == sorted(scores, reverse=True)  # best out-of-sample result first
+    assert all(
+        r["strategy_params"]["fast_period"] < r["strategy_params"]["slow_period"]
+        for r in sweep["runs"]
+    )
+
+    ids = [r["id"] for r in sweep["runs"][:2]]
+    compared = (await client.get("/api/v1/backtests/compare", params={"ids": ids})).json()
+    assert [c["id"] for c in compared] == ids  # same order as requested
+    assert all(c["sweep_id"] == sweep["id"] and c["segments"] for c in compared)
+
+    without_split = {k: v for k, v in spec.items() if k != "test_fraction"}
+    plain = (await client.post("/api/v1/backtests/sweeps", json=without_split)).json()
+    assert plain["ranked_by"] == "total_return_pct" and "overfit" in plain["note"]
+
+
+async def test_sweep_input_is_validated(stack: tuple[httpx.AsyncClient, JobRunner]) -> None:
+    client, runner = stack
+    body = await _import_candles(client, runner)
+    base = {**body, "strategy_type": "ema_crossover"}
+    huge = {"fast_period": list(range(2, 16)), "slow_period": list(range(20, 50))}  # 420 runs
+    assert (
+        await client.post("/api/v1/backtests/sweeps", json={**base, "grid": huge})
+    ).status_code == 422
+    unknown = {"grid": {"nonexistent": [1, 2]}}
+    assert (
+        await client.post("/api/v1/backtests/sweeps", json={**base, **unknown})
+    ).status_code == 422
+    missing = "00000000-0000-0000-0000-000000000000"
+    assert (await client.get(f"/api/v1/backtests/sweeps/{missing}")).status_code == 404
