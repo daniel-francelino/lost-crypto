@@ -2,8 +2,8 @@ from decimal import Decimal
 
 import pytest
 
-from lost_crypto.core.errors import InvalidAmountError
-from lost_crypto.core.money import round_down_to_step, to_decimal
+from core.errors import InvalidAmountError
+from core.money import round_down_to_step, to_decimal
 
 
 def test_to_decimal_accepts_str_int_and_decimal() -> None:

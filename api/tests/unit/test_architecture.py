@@ -3,7 +3,7 @@
 import ast
 from pathlib import Path
 
-SRC = Path(__file__).resolve().parents[2] / "src" / "lost_crypto"
+SRC = Path(__file__).resolve().parents[2] / "src"
 
 FORBIDDEN_IN_DOMAIN = {"fastapi", "sqlalchemy", "ccxt", "redis", "pydantic", "celery", "httpx"}
 # Pure core modules must stay framework-free as well.

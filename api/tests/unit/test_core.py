@@ -3,10 +3,10 @@ from datetime import UTC
 
 import pytest
 
-from lost_crypto.core.clock import SystemClock
-from lost_crypto.core.config import AppEnv, Settings
-from lost_crypto.core.ids import UuidGenerator
-from lost_crypto.worker import run_worker
+from core.clock import SystemClock
+from core.config import AppEnv, Settings
+from core.ids import UuidGenerator
+from worker import run_worker
 
 
 def test_system_clock_is_timezone_aware_utc() -> None:

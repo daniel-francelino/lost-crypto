@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     # Live trading is disabled unless explicitly enabled in the worker environment.
     live_trading_enabled: bool = False
     worker_heartbeat_seconds: float = 5.0
+    worker_poll_seconds: float = 2.0
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
 
 

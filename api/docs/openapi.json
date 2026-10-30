@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Lost Crypto API",
-    "description": "Backend da plataforma Lost Crypto: bots, estrat\u00e9gias, backtests e execu\u00e7\u00e3o.",
-    "version": "0.1.0"
+    "description": "Backend da plataforma Lost Crypto: dados de mercado, estrat\u00e9gias e backtests.",
+    "version": "0.2.0"
   },
   "paths": {
     "/api/v1/health": {
@@ -49,10 +49,945 @@
           }
         }
       }
+    },
+    "/api/v1/strategies": {
+      "get": {
+        "tags": [
+          "strategies"
+        ],
+        "summary": "List Strategies",
+        "description": "Available strategy types and their configurable parameters.",
+        "operationId": "list_strategies_api_v1_strategies_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StrategyOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Strategies Api V1 Strategies Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/market-data/imports": {
+      "post": {
+        "tags": [
+          "market-data"
+        ],
+        "summary": "Request Import",
+        "description": "Queue a historical candle import. The worker runs it; poll the job for progress.",
+        "operationId": "request_import_api_v1_market_data_imports_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportJobOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "market-data"
+        ],
+        "summary": "List Imports",
+        "operationId": "list_imports_api_v1_market_data_imports_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ImportJobOut"
+                  },
+                  "title": "Response List Imports Api V1 Market Data Imports Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/market-data/imports/{job_id}": {
+      "get": {
+        "tags": [
+          "market-data"
+        ],
+        "summary": "Get Import",
+        "operationId": "get_import_api_v1_market_data_imports__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportJobOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/market-data/candles": {
+      "get": {
+        "tags": [
+          "market-data"
+        ],
+        "summary": "Get Candles",
+        "description": "Stored candles with ``start <= open_time < end`` (at most ``limit``, oldest first).",
+        "operationId": "get_candles_api_v1_market_data_candles_get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+              "examples": [
+                "BTC/USDT"
+              ],
+              "title": "Symbol"
+            }
+          },
+          {
+            "name": "timeframe",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Timeframe"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "End"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5000,
+              "minimum": 1,
+              "default": 1000,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CandleOut"
+                  },
+                  "title": "Response Get Candles Api V1 Market Data Candles Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/market-data/coverage": {
+      "get": {
+        "tags": [
+          "market-data"
+        ],
+        "summary": "Get Coverage",
+        "description": "What is stored for a series, including detected gaps.",
+        "operationId": "get_coverage_api_v1_market_data_coverage_get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+              "examples": [
+                "BTC/USDT"
+              ],
+              "title": "Symbol"
+            }
+          },
+          {
+            "name": "timeframe",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Timeframe"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverageOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/backtests": {
+      "post": {
+        "tags": [
+          "backtests"
+        ],
+        "summary": "Create Backtest",
+        "description": "Queue a backtest. The worker executes it; poll ``GET /backtests/{id}`` for the result.\n\nResults are simulations on historical data, not a forecast of future returns.",
+        "operationId": "create_backtest_api_v1_backtests_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BacktestCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacktestOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "backtests"
+        ],
+        "summary": "List Backtests",
+        "operationId": "list_backtests_api_v1_backtests_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BacktestOut"
+                  },
+                  "title": "Response List Backtests Api V1 Backtests Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/backtests/{run_id}": {
+      "get": {
+        "tags": [
+          "backtests"
+        ],
+        "summary": "Get Backtest",
+        "operationId": "get_backtest_api_v1_backtests__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacktestOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/backtests/{run_id}/trades": {
+      "get": {
+        "tags": [
+          "backtests"
+        ],
+        "summary": "Get Trades",
+        "description": "Simulated fills (buys and sells) in chronological order.",
+        "operationId": "get_trades_api_v1_backtests__run_id__trades_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TradeOut"
+                  },
+                  "title": "Response Get Trades Api V1 Backtests  Run Id  Trades Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/backtests/{run_id}/equity": {
+      "get": {
+        "tags": [
+          "backtests"
+        ],
+        "summary": "Get Equity",
+        "description": "Equity curve marked at every candle close (empty until the run completes).",
+        "operationId": "get_equity_api_v1_backtests__run_id__equity_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EquityPointOut"
+                  },
+                  "title": "Response Get Equity Api V1 Backtests  Run Id  Equity Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "BacktestCreate": {
+        "properties": {
+          "strategy_type": {
+            "type": "string",
+            "title": "Strategy Type",
+            "examples": [
+              "ema_crossover"
+            ]
+          },
+          "strategy_params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Strategy Params",
+            "examples": [
+              {
+                "fast_period": 9,
+                "slow_period": 21
+              }
+            ]
+          },
+          "symbol": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+            "title": "Symbol",
+            "default": "BTC/USDT"
+          },
+          "timeframe": {
+            "$ref": "#/components/schemas/Timeframe",
+            "default": "1h"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "initial_capital": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Initial Capital",
+            "default": "1000"
+          },
+          "fee_rate": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMaximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Fee Rate",
+            "description": "Fraction of notional (0.001 = 0.1%)",
+            "default": "0.001"
+          },
+          "slippage_bps": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMaximum": 10000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Slippage Bps",
+            "description": "Adverse slippage per fill, in bps",
+            "default": "5"
+          },
+          "seed": {
+            "type": "integer",
+            "title": "Seed",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "strategy_type",
+          "start",
+          "end"
+        ],
+        "title": "BacktestCreate"
+      },
+      "BacktestOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "strategy_type": {
+            "type": "string",
+            "title": "Strategy Type"
+          },
+          "strategy_params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Strategy Params"
+          },
+          "exchange": {
+            "type": "string",
+            "title": "Exchange"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "timeframe": {
+            "$ref": "#/components/schemas/Timeframe"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "initial_capital": {
+            "type": "string",
+            "title": "Initial Capital"
+          },
+          "fee_rate": {
+            "type": "string",
+            "title": "Fee Rate"
+          },
+          "slippage_bps": {
+            "type": "string",
+            "title": "Slippage Bps"
+          },
+          "seed": {
+            "type": "integer",
+            "title": "Seed"
+          },
+          "data_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Hash"
+          },
+          "candles_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candles Count"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "strategy_type",
+          "strategy_params",
+          "exchange",
+          "symbol",
+          "timeframe",
+          "start",
+          "end",
+          "initial_capital",
+          "fee_rate",
+          "slippage_bps",
+          "seed",
+          "data_hash",
+          "candles_count",
+          "metrics",
+          "error",
+          "created_at",
+          "started_at",
+          "finished_at"
+        ],
+        "title": "BacktestOut"
+      },
+      "CandleOut": {
+        "properties": {
+          "open_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Open Time"
+          },
+          "open": {
+            "type": "string",
+            "title": "Open"
+          },
+          "high": {
+            "type": "string",
+            "title": "High"
+          },
+          "low": {
+            "type": "string",
+            "title": "Low"
+          },
+          "close": {
+            "type": "string",
+            "title": "Close"
+          },
+          "volume": {
+            "type": "string",
+            "title": "Volume"
+          }
+        },
+        "type": "object",
+        "required": [
+          "open_time",
+          "open",
+          "high",
+          "low",
+          "close",
+          "volume"
+        ],
+        "title": "CandleOut"
+      },
+      "CoverageOut": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "timeframe": {
+            "$ref": "#/components/schemas/Timeframe"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "first": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First"
+          },
+          "last": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last"
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/GapOut"
+            },
+            "type": "array",
+            "title": "Gaps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "timeframe",
+          "count",
+          "first",
+          "last",
+          "gaps"
+        ],
+        "title": "CoverageOut"
+      },
+      "EquityPointOut": {
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Time"
+          },
+          "equity": {
+            "type": "string",
+            "title": "Equity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time",
+          "equity"
+        ],
+        "title": "EquityPointOut"
+      },
+      "GapOut": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "missing": {
+            "type": "integer",
+            "title": "Missing"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "missing"
+        ],
+        "title": "GapOut"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
       "HealthResponse": {
         "properties": {
           "status": {
@@ -84,6 +1019,412 @@
           "status"
         ],
         "title": "HealthResponse"
+      },
+      "ImportJobOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "exchange": {
+            "type": "string",
+            "title": "Exchange"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "timeframe": {
+            "$ref": "#/components/schemas/Timeframe"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "candles_imported": {
+            "type": "integer",
+            "title": "Candles Imported"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "exchange",
+          "symbol",
+          "timeframe",
+          "start",
+          "end",
+          "status",
+          "candles_imported",
+          "error",
+          "created_at",
+          "started_at",
+          "finished_at"
+        ],
+        "title": "ImportJobOut"
+      },
+      "ImportRequest": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+            "title": "Symbol",
+            "default": "BTC/USDT",
+            "examples": [
+              "BTC/USDT"
+            ]
+          },
+          "timeframe": {
+            "$ref": "#/components/schemas/Timeframe",
+            "default": "1h"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start",
+            "description": "Inclusive, timezone-aware (UTC recommended)"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End",
+            "description": "Exclusive. Candles still in progress are skipped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "ImportRequest"
+      },
+      "JobStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "running",
+          "completed",
+          "failed"
+        ],
+        "title": "JobStatus",
+        "description": "Lifecycle shared by the DB-backed jobs the worker executes."
+      },
+      "MetricsOut": {
+        "properties": {
+          "initial_capital": {
+            "type": "string",
+            "title": "Initial Capital"
+          },
+          "final_equity": {
+            "type": "string",
+            "title": "Final Equity"
+          },
+          "net_pnl": {
+            "type": "string",
+            "title": "Net Pnl"
+          },
+          "total_return_pct": {
+            "type": "string",
+            "title": "Total Return Pct"
+          },
+          "buy_and_hold_return_pct": {
+            "type": "string",
+            "title": "Buy And Hold Return Pct"
+          },
+          "max_drawdown_pct": {
+            "type": "string",
+            "title": "Max Drawdown Pct"
+          },
+          "fees_paid": {
+            "type": "string",
+            "title": "Fees Paid"
+          },
+          "fills": {
+            "type": "integer",
+            "title": "Fills"
+          },
+          "round_trips": {
+            "type": "integer",
+            "title": "Round Trips"
+          },
+          "win_rate_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Win Rate Pct"
+          },
+          "profit_factor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit Factor"
+          },
+          "avg_trade_pnl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Trade Pnl"
+          },
+          "open_position": {
+            "type": "boolean",
+            "title": "Open Position"
+          },
+          "rejected_signals": {
+            "type": "integer",
+            "title": "Rejected Signals"
+          }
+        },
+        "type": "object",
+        "required": [
+          "initial_capital",
+          "final_equity",
+          "net_pnl",
+          "total_return_pct",
+          "buy_and_hold_return_pct",
+          "max_drawdown_pct",
+          "fees_paid",
+          "fills",
+          "round_trips",
+          "win_rate_pct",
+          "profit_factor",
+          "avg_trade_pnl",
+          "open_position",
+          "rejected_signals"
+        ],
+        "title": "MetricsOut"
+      },
+      "ParamOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "default": {
+            "title": "Default"
+          },
+          "minimum": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "default",
+          "minimum",
+          "description"
+        ],
+        "title": "ParamOut"
+      },
+      "Side": {
+        "type": "string",
+        "enum": [
+          "buy",
+          "sell"
+        ],
+        "title": "Side"
+      },
+      "StrategyOut": {
+        "properties": {
+          "type_key": {
+            "type": "string",
+            "title": "Type Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "parameters": {
+            "items": {
+              "$ref": "#/components/schemas/ParamOut"
+            },
+            "type": "array",
+            "title": "Parameters"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type_key",
+          "name",
+          "description",
+          "parameters"
+        ],
+        "title": "StrategyOut"
+      },
+      "Timeframe": {
+        "type": "string",
+        "enum": [
+          "1m",
+          "5m",
+          "15m",
+          "1h",
+          "4h",
+          "1d"
+        ],
+        "title": "Timeframe"
+      },
+      "TradeOut": {
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Time"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "quantity": {
+            "type": "string",
+            "title": "Quantity"
+          },
+          "price": {
+            "type": "string",
+            "title": "Price"
+          },
+          "fee": {
+            "type": "string",
+            "title": "Fee"
+          },
+          "notional": {
+            "type": "string",
+            "title": "Notional"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time",
+          "side",
+          "quantity",
+          "price",
+          "fee",
+          "notional"
+        ],
+        "title": "TradeOut"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
       }
     }
   },
@@ -91,6 +1432,18 @@
     {
       "name": "health",
       "description": "Liveness e readiness da API."
+    },
+    {
+      "name": "strategies",
+      "description": "Estrat\u00e9gias dispon\u00edveis e seus par\u00e2metros."
+    },
+    {
+      "name": "market-data",
+      "description": "Importa\u00e7\u00e3o (ass\u00edncrona, via worker) e consulta de candles hist\u00f3ricos."
+    },
+    {
+      "name": "backtests",
+      "description": "Execu\u00e7\u00e3o (ass\u00edncrona, via worker) e resultados de backtests. Simula\u00e7\u00f5es em dados hist\u00f3ricos \u2014 n\u00e3o s\u00e3o previs\u00e3o de retorno."
     }
   ]
 }

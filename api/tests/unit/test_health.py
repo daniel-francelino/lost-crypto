@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
-from lost_crypto.core.config import Settings
-from lost_crypto.main import create_app
+from core.config import Settings
+from main import create_app
 
 
 def _client() -> TestClient:

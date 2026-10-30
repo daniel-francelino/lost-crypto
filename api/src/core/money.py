@@ -2,7 +2,7 @@
 
 from decimal import ROUND_DOWN, Decimal
 
-from lost_crypto.core.errors import InvalidAmountError
+from core.errors import InvalidAmountError
 
 
 def to_decimal(value: Decimal | int | str) -> Decimal:

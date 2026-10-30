@@ -1,4 +1,5 @@
 UV ?= uv
+export PYTHONPATH := src
 COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
@@ -34,10 +35,10 @@ db: ## Sobe só o postgres (para rodar a API localmente)
 
 # --- Execução local (sem containers de api/worker) --------------------------
 dev: ## API local com reload em http://localhost:8000 (requer: make db)
-	$(UV) run uvicorn lost_crypto.main:app --reload --port 8000
+	$(UV) run uvicorn main:app --reload --port 8000
 
 worker: ## Worker local (requer: make db)
-	$(UV) run python -m lost_crypto.worker
+	$(UV) run python -m worker
 
 # --- Banco -------------------------------------------------------------------
 migrate: ## Aplica as migrations (alembic upgrade head)
@@ -68,5 +69,5 @@ check: lint typecheck test ## lint + tipos + testes unitários
 
 # --- Documentação da API -----------------------------------------------------
 openapi: ## Exporta o contrato OpenAPI para docs/openapi.json
-	$(UV) run python -c "import json; from lost_crypto.main import app; print(json.dumps(app.openapi(), indent=2))" > docs/openapi.json
+	$(UV) run python -c "import json; from main import app; print(json.dumps(app.openapi(), indent=2))" > docs/openapi.json
 	@echo "Gerado: docs/openapi.json"

@@ -3,10 +3,11 @@ import asyncio
 from alembic import context
 from sqlalchemy.engine import Connection
 
-from lost_crypto.core.config import get_settings
-from lost_crypto.core.db import Base, create_engine
-
-# Import each module's ORM models here so autogenerate sees them (none yet in Phase 0).
+# Import each module's ORM models here so autogenerate sees them.
+import modules.backtesting.infrastructure.orm
+import modules.market_data.infrastructure.orm  # noqa: F401
+from core.config import get_settings
+from core.db import Base, create_engine
 
 target_metadata = Base.metadata
 

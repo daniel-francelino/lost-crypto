@@ -1,8 +1,8 @@
 import pytest
 from sqlalchemy import text
 
-from lost_crypto.core.config import get_settings
-from lost_crypto.core.db import SqlAlchemyUnitOfWork, create_engine, create_session_factory
+from core.config import get_settings
+from core.db import SqlAlchemyUnitOfWork, create_engine, create_session_factory
 
 pytestmark = pytest.mark.integration
 
