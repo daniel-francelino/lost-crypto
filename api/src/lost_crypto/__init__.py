@@ -1,0 +1,1 @@
+"""Lost Crypto backend."""

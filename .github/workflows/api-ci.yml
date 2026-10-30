@@ -1,0 +1,36 @@
+name: api-ci
+
+on:
+  push:
+    paths: ["api/**", ".github/workflows/api-ci.yml"]
+  pull_request:
+    paths: ["api/**", ".github/workflows/api-ci.yml"]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: lostcrypto
+          POSTGRES_PASSWORD: lostcrypto
+          POSTGRES_DB: lostcrypto
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U lostcrypto" --health-interval 5s
+          --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://lostcrypto:lostcrypto@localhost:5432/lostcrypto
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run pytest -m "integration or not integration"
+      - run: uv run alembic upgrade head

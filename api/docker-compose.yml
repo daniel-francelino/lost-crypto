@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: lostcrypto
+      POSTGRES_PASSWORD: lostcrypto
+      POSTGRES_DB: lostcrypto
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lostcrypto -d lostcrypto"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    environment: &app-env
+      APP_ENV: local
+      DATABASE_URL: postgresql+asyncpg://lostcrypto:lostcrypto@postgres:5432/lostcrypto
+      # LIVE_TRADING_ENABLED is intentionally not defined here (defaults to false).
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/live')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  worker:
+    build: .
+    command: ["python", "-m", "lost_crypto.worker"]
+    environment: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+volumes:
+  pgdata:
