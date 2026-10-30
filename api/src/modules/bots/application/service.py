@@ -41,6 +41,21 @@ class PortfolioView:
     unrealized_pnl: Decimal
     realized_pnl: Decimal
     fees_paid: Decimal
+    stop_price: Decimal | None
+    take_profit_price: Decimal | None
+
+
+@dataclass(frozen=True, slots=True)
+class BotOverview:
+    """One row of the side-by-side comparison of bots."""
+
+    bot: Bot
+    equity: Decimal
+    return_pct: Decimal
+    realized_pnl: Decimal
+    fees_paid: Decimal
+    in_position: bool
+    last_price: Decimal | None
 
 
 class BotService:
@@ -160,7 +175,28 @@ class BotService:
             else Decimal(0),
             realized_pnl=state.realized_pnl,
             fees_paid=state.fees_paid,
+            stop_price=state.stop_price,
+            take_profit_price=state.take_profit_price,
         )
+
+    async def overview(self) -> list[BotOverview]:
+        """All bots with their current equity and return, to compare strategies side by side."""
+        rows: list[BotOverview] = []
+        for bot in await self.list_bots(500):
+            view = await self.portfolio(bot.id)
+            capital = view.initial_capital
+            rows.append(
+                BotOverview(
+                    bot=bot,
+                    equity=view.equity,
+                    return_pct=(view.equity - capital) / capital * 100,
+                    realized_pnl=view.realized_pnl,
+                    fees_paid=view.fees_paid,
+                    in_position=view.quantity > 0,
+                    last_price=view.last_price,
+                )
+            )
+        return rows
 
     async def performance(self, bot_id: UUID) -> Metrics | None:
         """Same metrics as backtests, from the bot's snapshots and fills (net of fees)."""

@@ -7,6 +7,7 @@ import pytest
 from factories import T0
 from modules.exchanges.errors import ExchangeError, TransientExchangeError, UnknownSymbolError
 from modules.exchanges.infrastructure import ccxt_adapter
+from modules.exchanges.infrastructure.binance import binance_market_info
 from modules.exchanges.infrastructure.ccxt_adapter import CcxtMarketDataSource
 from modules.market_data.domain.models import Timeframe
 
@@ -56,7 +57,7 @@ def _no_backoff_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_fetch_candles_converts_to_decimal_candles() -> None:
-    source = CcxtMarketDataSource(client=FakeClient())
+    source = CcxtMarketDataSource("binance", client=FakeClient())
     (candle,) = await source.fetch_candles("BTC/USDT", Timeframe.H1, T0, 1000)
     assert candle.open_time == T0
     assert str(candle.open) == "100.5" and str(candle.low) == "99.25"
@@ -65,19 +66,20 @@ async def test_fetch_candles_converts_to_decimal_candles() -> None:
 
 async def test_transient_errors_are_retried_then_succeed() -> None:
     client = FakeClient(failures=2)
-    source = CcxtMarketDataSource(client=client)
+    source = CcxtMarketDataSource("binance", client=client)
     assert len(await source.fetch_candles("BTC/USDT", Timeframe.H1, T0, 1000)) == 1
     assert client.calls == 3
 
 
 async def test_gives_up_after_max_attempts() -> None:
-    source = CcxtMarketDataSource(client=FakeClient(failures=99))
+    source = CcxtMarketDataSource("binance", client=FakeClient(failures=99))
     with pytest.raises(TransientExchangeError):
         await source.fetch_candles("BTC/USDT", Timeframe.H1, T0, 1000)
 
 
 async def test_market_info_uses_exact_binance_filters() -> None:
-    info = await CcxtMarketDataSource(client=FakeClient()).fetch_market_info("BTC/USDT")
+    source = CcxtMarketDataSource("binance", client=FakeClient(), market_parser=binance_market_info)
+    info = await source.fetch_market_info("BTC/USDT")
     assert (info.step_size, info.tick_size) == (Decimal("0.00001"), Decimal("0.01"))
     assert (info.min_quantity, info.min_notional) == (Decimal("0.00001"), Decimal(5))
 
@@ -87,7 +89,9 @@ async def test_market_info_falls_back_to_ccxt_precision_and_limits() -> None:
         "precision": {"amount": 0.001, "price": 0.01},
         "limits": {"amount": {"min": 0.002}, "cost": {"min": 10}},
     }
-    info = await CcxtMarketDataSource(client=FakeClient(market)).fetch_market_info("BTC/USDT")
+    info = await CcxtMarketDataSource("binance", client=FakeClient(market)).fetch_market_info(
+        "BTC/USDT"
+    )
     assert (info.step_size, info.tick_size, info.min_quantity, info.min_notional) == (
         Decimal("0.001"),
         Decimal("0.01"),
@@ -97,8 +101,10 @@ async def test_market_info_falls_back_to_ccxt_precision_and_limits() -> None:
 
 
 async def test_unknown_symbol_and_missing_precision() -> None:
-    source = CcxtMarketDataSource(client=FakeClient())
+    source = CcxtMarketDataSource("binance", client=FakeClient())
     with pytest.raises(UnknownSymbolError):
         await source.fetch_market_info("NOPE/USDT")
     with pytest.raises(ExchangeError):
-        await CcxtMarketDataSource(client=FakeClient({"info": {}})).fetch_market_info("BTC/USDT")
+        await CcxtMarketDataSource("binance", client=FakeClient({"info": {}})).fetch_market_info(
+            "BTC/USDT"
+        )

@@ -51,9 +51,7 @@ class BacktestRunRow(Base):
     slippage_bps: Mapped[Decimal] = mapped_column(MONEY)
     seed: Mapped[int] = mapped_column(Integer)
     test_fraction: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
-    sweep_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("backtest_sweeps.id"), nullable=True
-    )
+    sweep_id: Mapped[UUID | None] = mapped_column(ForeignKey("backtest_sweeps.id"), nullable=True)
     strategy_type: Mapped[str] = mapped_column(Text)
     strategy_params: Mapped[dict[str, Any]] = mapped_column(JSONB)
     market_info: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)

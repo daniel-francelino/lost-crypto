@@ -118,6 +118,27 @@ class PortfolioOut(BaseModel):
     unrealized_pnl: Decimal
     realized_pnl: Decimal
     fees_paid: Decimal
+    stop_price: Decimal | None
+    take_profit_price: Decimal | None
+
+
+class BotOverviewOut(BaseModel):
+    id: UUID
+    name: str
+    exchange: str
+    symbol: str
+    timeframe: Timeframe
+    strategy_type: str
+    strategy_params: dict[str, Any]
+    desired_state: BotState
+    observed_state: BotState
+    equity: Decimal
+    return_pct: Decimal
+    realized_pnl: Decimal
+    fees_paid: Decimal
+    in_position: bool
+    last_price: Decimal | None
+    last_heartbeat_at: datetime | None
 
 
 class EquityPointOut(BaseModel):
@@ -193,6 +214,33 @@ async def create_bot(body: BotCreate, request: Request) -> BotOut:
 @router.get("", response_model=list[BotOut])
 async def list_bots(request: Request, limit: Limit = 100) -> list[BotOut]:
     return [_out(b) for b in await _container(request).bots.list_bots(limit)]
+
+
+@router.get("/overview", response_model=list[BotOverviewOut])
+async def get_overview(request: Request) -> list[BotOverviewOut]:
+    """Every bot with its current equity and return, for side-by-side comparison."""
+    rows = await _container(request).bots.overview()
+    return [
+        BotOverviewOut(
+            id=r.bot.id,
+            name=r.bot.config.name,
+            exchange=r.bot.config.exchange,
+            symbol=r.bot.config.symbol,
+            timeframe=r.bot.config.timeframe,
+            strategy_type=r.bot.config.strategy_type,
+            strategy_params=dict(r.bot.config.strategy_params),
+            desired_state=r.bot.desired_state,
+            observed_state=r.bot.observed_state,
+            equity=r.equity,
+            return_pct=r.return_pct,
+            realized_pnl=r.realized_pnl,
+            fees_paid=r.fees_paid,
+            in_position=r.in_position,
+            last_price=r.last_price,
+            last_heartbeat_at=r.bot.last_heartbeat_at,
+        )
+        for r in rows
+    ]
 
 
 @router.get("/{bot_id}", response_model=BotOut)
@@ -287,6 +335,8 @@ async def get_portfolio(bot_id: UUID, request: Request) -> PortfolioOut:
         unrealized_pnl=view.unrealized_pnl,
         realized_pnl=view.realized_pnl,
         fees_paid=view.fees_paid,
+        stop_price=view.stop_price,
+        take_profit_price=view.take_profit_price,
     )
 
 

@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
+from datetime import timedelta
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
@@ -24,6 +25,7 @@ from modules.risk_management.application.service import KillSwitchService
 from modules.risk_management.domain.models import GlobalRiskLimits
 from modules.strategies.domain.registry import StrategyRegistry, default_registry
 from modules.trading.application.ports import TradingStore
+from modules.trading.application.status import StatusService
 from modules.trading.application.supervisor import BotSupervisor
 from modules.trading.application.trader import BotTrader
 from modules.trading.infrastructure.store import SqlAlchemyStore
@@ -46,6 +48,7 @@ class Container:
     bots: BotService
     kill_switch: KillSwitchService
     audit: AuditService
+    status: StatusService
 
 
 def build_container(
@@ -78,6 +81,12 @@ def build_container(
         bots=BotService(trading_stores, registry, exchanges, clock, ids),
         kill_switch=KillSwitchService(trading_stores),
         audit=AuditService(trading_stores),
+        status=StatusService(
+            trading_stores,
+            clock,
+            exchanges.exchange_ids,
+            timedelta(seconds=settings.worker_stale_after_seconds),
+        ),
     )
 
 
