@@ -24,7 +24,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             await engine.dispose()
 
-    app = FastAPI(title="Lost Crypto API", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(
+        title="Lost Crypto API",
+        version="0.1.0",
+        description="Backend da plataforma Lost Crypto: bots, estratégias, backtests e execução.",
+        openapi_tags=[{"name": "health", "description": "Liveness e readiness da API."}],
+        lifespan=lifespan,
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
