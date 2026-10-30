@@ -1,4 +1,11 @@
-"""CCXT-backed market data source. The only module in the codebase that imports ccxt."""
+"""Shared base for exchanges integrated through CCXT (Template Method).
+
+It implements the parts of the ``Exchange`` contract that are identical for every CCXT exchange
+(candle conversion, retries, error translation, generic market rules). A concrete exchange
+subclasses it, declares its ``PROFILE`` and overrides only the hooks where it differs. This is
+the only module that imports ``ccxt``. An exchange that does not use CCXT subclasses
+``Exchange`` directly instead.
+"""
 
 import asyncio
 import logging
@@ -10,8 +17,11 @@ from typing import Any
 import ccxt
 import ccxt.async_support as ccxt_async
 
+from modules.exchanges.application.exchange import Exchange
+from modules.exchanges.application.ports import MarketOrderRequest, VenueOrder
 from modules.exchanges.errors import (
     ExchangeError,
+    TradingNotEnabled,
     TransientExchangeError,
     UnknownSymbolError,
 )
@@ -19,28 +29,30 @@ from modules.market_data.domain.models import Candle, MarketInfo, Timeframe
 
 logger = logging.getLogger(__name__)
 
-# Exchange-specific strategy that reads exact trading rules from CCXT's raw market dict.
-MarketInfoParser = Callable[[str, dict[str, Any]], MarketInfo | None]
-
 _MAX_ATTEMPTS = 4
 _BASE_DELAY_SECONDS = 1.0
 
 
-class CcxtMarketDataSource:
-    """Public market data only: no credentials are used or accepted."""
+class CcxtExchange(Exchange):
+    """Public market data over CCXT. Real order placement is disabled until it is built behind
+    credentials, the vault and reconciliation (Phase 4)."""
 
-    def __init__(
-        self,
-        exchange_id: str,
-        client: Any | None = None,
-        market_parser: MarketInfoParser | None = None,
-    ) -> None:
-        self.exchange_id = exchange_id
-        self._market_parser = market_parser
-        self._client: Any = client or getattr(ccxt_async, exchange_id)({"enableRateLimit": True})
+    def __init__(self, client: Any | None = None) -> None:
+        # Public data only: no credentials are read or accepted here.
+        self._client: Any = client or getattr(ccxt_async, self.PROFILE.exchange_id)(
+            {"enableRateLimit": True}
+        )
 
-    async def aclose(self) -> None:
-        await self._client.close()
+    # --- hooks a concrete exchange may override ----------------------------------------------
+
+    def parse_market(self, symbol: str, market: dict[str, Any]) -> MarketInfo | None:
+        """Exact trading rules from the exchange's raw CCXT market dict, if it exposes them.
+
+        Return None to fall back to CCXT's generic ``precision`` / ``limits``.
+        """
+        return None
+
+    # --- market data -------------------------------------------------------------------------
 
     async def fetch_candles(
         self, symbol: str, timeframe: Timeframe, since: datetime, limit: int
@@ -69,13 +81,9 @@ class CcxtMarketDataSource:
             market = self._client.market(symbol)
         except ccxt.BadSymbol as exc:
             raise UnknownSymbolError(f"unknown symbol: {symbol}") from exc
-        return self._market_info(symbol, market)
-
-    def _market_info(self, symbol: str, market: dict[str, Any]) -> MarketInfo:
-        if self._market_parser is not None:
-            exact = self._market_parser(symbol, market)  # exchange-specific, most precise
-            if exact is not None:
-                return exact
+        exact = self.parse_market(symbol, market)
+        if exact is not None:
+            return exact
         limits = market.get("limits") or {}
         return MarketInfo(
             symbol=symbol,
@@ -84,6 +92,22 @@ class CcxtMarketDataSource:
             min_quantity=Decimal(str((limits.get("amount") or {}).get("min") or 0)),
             min_notional=Decimal(str((limits.get("cost") or {}).get("min") or 0)),
         )
+
+    # --- trading: not enabled yet ------------------------------------------------------------
+
+    async def create_market_order(self, request: MarketOrderRequest) -> VenueOrder:
+        raise TradingNotEnabled(f"real orders on {self.PROFILE.exchange_id} are not enabled yet")
+
+    async def fetch_order(self, symbol: str, client_order_id: str) -> VenueOrder | None:
+        raise TradingNotEnabled(f"real orders on {self.PROFILE.exchange_id} are not enabled yet")
+
+    async def cancel_order(self, symbol: str, client_order_id: str) -> VenueOrder:
+        raise TradingNotEnabled(f"real orders on {self.PROFILE.exchange_id} are not enabled yet")
+
+    async def aclose(self) -> None:
+        await self._client.close()
+
+    # --- internals ---------------------------------------------------------------------------
 
     def _increment(self, precision: Any) -> Decimal:
         if precision is None:

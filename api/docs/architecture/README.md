@@ -68,7 +68,7 @@ Architectural reference for the Lost Crypto backend. **Documentation only** — 
 | 2 | Paper orders are created and filled in one transaction; the INTENT→SUBMITTING→UNKNOWN states exist in the domain for testnet/live | testnet adapter (Phase 4) |
 | 2 | Paper reference price is the close of the signal candle (no live ticker call) | tick-level strategies |
 | 3 | Stop-loss / take-profit are monitored by the bot per closed candle (low/high), not placed as native exchange orders | Binance testnet/live gateway (Phase 4): use `native_stop_orders` |
-| 3 | `ExchangeGateway` has only the paper implementation; there is no account/balances port | credentials + reconciliation (Phase 4) |
+| 3 | Real order methods of the `Exchange` contract raise `TradingNotEnabled` in `CcxtExchange`; only the paper venue (`ExchangeGateway`) places orders, and there is no account/balances port | credentials + reconciliation (Phase 4) |
 | 3 | Backtests apply stop/take-profit from the signal but still size trades all-in (no `assess_signal` sizing) | backtests must mirror bot risk sizing |
 | 3 | Global risk limits come from environment variables (`RISK_MAX_*`) and use cost basis, not mark-to-market | portfolio-level risk (VaR, correlation) |
 | 3 | "Cooldown after losses" is implemented as a pause after N consecutive losing round trips | time-based cooldown is needed |

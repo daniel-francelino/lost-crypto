@@ -21,6 +21,14 @@ class UnknownOrder(ExchangeError):
     """No order with that client order id exists on the exchange."""
 
 
+class TradingNotEnabled(ExchangeError):
+    """Placing real orders is not enabled for this integration yet."""
+
+
+class ExchangeConfigurationError(LostCryptoError):
+    """The exchange setup is wrong (misconfigured class or unknown name in ENABLED_EXCHANGES)."""
+
+
 class UnknownExchangeError(DomainError):
     """The requested exchange is not registered."""
 

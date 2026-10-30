@@ -99,7 +99,9 @@ Configuração (`PATCH /bots/{id}`) e `POST /bots/{id}/reset-portfolio` só func
 
 ### Exchanges (trocar de exchange sem mexer em estratégia/risco)
 
-Bots, backtests e importações têm o campo `exchange` (padrão `binance`). A taxa (`fee_rate`) é opcional: sem ela vale a taxa taker da exchange. Como adicionar outra exchange: [docs/architecture/10-exchanges.md](docs/architecture/10-exchanges.md).
+Uma exchange é **uma classe em um arquivo** (`exchanges/infrastructure/binance.py`) que implementa o contrato único `Exchange` (`exchanges/application/exchange.py`: candles, regras de mercado, ordens). Quem escolhe quais ficam ativas é o catálogo (`exchanges/infrastructure/catalog.py`) junto com a variável `ENABLED_EXCHANGES` (padrão `binance`). Bots, backtests e importações têm o campo `exchange`; a taxa (`fee_rate`) é opcional e, sem ela, vale a taxa taker da exchange.
+
+Para adicionar outra: copie `binance.py`, ajuste o perfil, registre no catálogo e habilite em `ENABLED_EXCHANGES`. Passo a passo e padrões de projeto: [docs/architecture/10-exchanges.md](docs/architecture/10-exchanges.md).
 
 ### Stop-loss, take-profit e limites de risco
 

@@ -61,7 +61,7 @@ def build_container(
     clock = clock or SystemClock()
     ids = UuidGenerator()
     registry = default_registry()
-    exchanges = exchanges or build_exchange_registry()
+    exchanges = exchanges or build_exchange_registry(settings.enabled_exchange_ids)
     import_stores = make_store_factory(session_factory, SqlAlchemyImportStore)
     backtest_stores = make_store_factory(session_factory, SqlAlchemyBacktestStore)
     trading_stores = make_store_factory(session_factory, SqlAlchemyStore)

@@ -119,7 +119,7 @@ async def test_exchange_defaults_and_validation(env: Env) -> None:
 
     body = {"name": "itest-unknown-exchange", "strategy_type": "ema_crossover", "exchange": "ftx"}
     created = await env.http.post("/api/v1/bots", json=body)
-    assert created.status_code == 422 and "unknown exchange" in created.json()["detail"]
+    assert created.status_code == 422 and "unknown or disabled exchange" in created.json()["detail"]
 
     window = {"start": "2024-01-01T00:00:00Z", "end": "2024-01-02T00:00:00Z"}
     backtest = {"strategy_type": "ema_crossover", "exchange": "ftx", **window}

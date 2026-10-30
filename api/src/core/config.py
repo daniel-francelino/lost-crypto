@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     )
     # Live trading is disabled unless explicitly enabled in the worker environment.
     live_trading_enabled: bool = False
+    # Exchange integrations to enable, comma separated (see exchanges/infrastructure/catalog.py).
+    enabled_exchanges: str = "binance"
     worker_heartbeat_seconds: float = 5.0
     worker_poll_seconds: float = 2.0
     worker_stale_after_seconds: float = 60.0
@@ -29,6 +31,10 @@ class Settings(BaseSettings):
     risk_max_open_positions: int | None = None
     risk_max_total_exposure: Decimal | None = None
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+
+    @property
+    def enabled_exchange_ids(self) -> list[str]:
+        return [e.strip() for e in self.enabled_exchanges.split(",") if e.strip()]
 
 
 @lru_cache

@@ -1,4 +1,8 @@
-"""Everything that is specific to Binance spot, in one place."""
+"""Binance spot: the single file with everything specific to this exchange.
+
+Implements the ``Exchange`` contract on top of the shared CCXT base. To add another exchange,
+copy this file, change the profile and the hooks, and register the class in ``catalog.py``.
+"""
 
 from decimal import Decimal
 from typing import Any
@@ -9,7 +13,7 @@ from modules.exchanges.domain.models import (
     FeeSchedule,
     OrderType,
 )
-from modules.exchanges.infrastructure.ccxt_adapter import CcxtMarketDataSource
+from modules.exchanges.infrastructure.ccxt_exchange import CcxtExchange
 from modules.market_data.domain.models import MarketInfo, Timeframe
 
 BINANCE_ID = "binance"
@@ -31,22 +35,21 @@ BINANCE_PROFILE = ExchangeProfile(
 )
 
 
-def binance_market_info(symbol: str, market: dict[str, Any]) -> MarketInfo | None:
-    """Exact trading rules from Binance's exchange filters (None if they are not present)."""
-    filters = {f["filterType"]: f for f in (market.get("info") or {}).get("filters", [])}
-    lot = filters.get("LOT_SIZE")
-    price = filters.get("PRICE_FILTER")
-    notional = filters.get("NOTIONAL") or filters.get("MIN_NOTIONAL")
-    if not (lot and price):
-        return None
-    return MarketInfo(
-        symbol=symbol,
-        step_size=Decimal(lot["stepSize"]),
-        tick_size=Decimal(price["tickSize"]),
-        min_quantity=Decimal(lot["minQty"]),
-        min_notional=Decimal((notional or {}).get("minNotional", "0")),
-    )
+class BinanceExchange(CcxtExchange):
+    PROFILE = BINANCE_PROFILE
 
-
-def create_binance_market_data() -> CcxtMarketDataSource:
-    return CcxtMarketDataSource(BINANCE_ID, market_parser=binance_market_info)
+    def parse_market(self, symbol: str, market: dict[str, Any]) -> MarketInfo | None:
+        """Exact rules from Binance's exchange filters (None when they are not present)."""
+        filters = {f["filterType"]: f for f in (market.get("info") or {}).get("filters", [])}
+        lot = filters.get("LOT_SIZE")
+        price = filters.get("PRICE_FILTER")
+        notional = filters.get("NOTIONAL") or filters.get("MIN_NOTIONAL")
+        if not (lot and price):
+            return None
+        return MarketInfo(
+            symbol=symbol,
+            step_size=Decimal(lot["stepSize"]),
+            tick_size=Decimal(price["tickSize"]),
+            min_quantity=Decimal(lot["minQty"]),
+            min_notional=Decimal((notional or {}).get("minNotional", "0")),
+        )
