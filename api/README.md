@@ -94,3 +94,64 @@ Configuração (`PATCH /bots/{id}`) e `POST /bots/{id}/reset-portfolio` só func
 - **Reinício do worker:** estado em Postgres; a sessão continua de onde parou, sem duplicar.
 - **Falhas:** backoff exponencial por bot; após 5 seguidas o bot vai para `error` e é pausado. Um bot com problema não afeta os outros.
 - **Risco:** fração máxima do capital por posição, teto de notional por ordem, perda diária máxima (pausa o bot) e kill switch global. Saídas continuam permitidas com o kill switch ativo.
+
+## Fase 3 — exchanges, risco e pesquisa de estratégias
+
+### Exchanges (trocar de exchange sem mexer em estratégia/risco)
+
+Bots, backtests e importações têm o campo `exchange` (padrão `binance`). A taxa (`fee_rate`) é opcional: sem ela vale a taxa taker da exchange. Como adicionar outra exchange: [docs/architecture/10-exchanges.md](docs/architecture/10-exchanges.md).
+
+### Stop-loss, take-profit e limites de risco
+
+A estratégia EMA aceita `stop_loss_pct` e `take_profit_pct` (% sobre o preço de entrada); o risco valida os níveis e o bot os monitora a cada candle (pela mínima/máxima; se os dois estiverem no candle, assume-se que o stop veio primeiro). O backtest aplica exatamente a mesma regra.
+
+```bash
+curl -X POST $B/bots -H 'content-type: application/json' -d '{
+  "name": "ema-stop", "strategy_type": "ema_crossover",
+  "strategy_params": {"fast_period": 9, "slow_period": 21, "stop_loss_pct": 2, "take_profit_pct": 6},
+  "risk": {
+    "max_position_fraction": "1",     "max_order_notional": "500",
+    "max_risk_per_trade_pct": "1",    "require_stop_loss": true,
+    "max_daily_loss_pct": "5",        "max_drawdown_pct": "15",
+    "max_consecutive_losses": 4,      "max_candle_range_pct": "25"
+  }
+}'
+```
+
+| Limite (por bot) | Efeito |
+|---|---|
+| `max_risk_per_trade_pct` | dimensiona a posição para perder no máximo esse % do capital se o stop for atingido |
+| `require_stop_loss` | recusa entradas sem stop |
+| `max_daily_loss_pct`, `max_drawdown_pct`, `max_consecutive_losses` | **pausam** o bot (motivo em `last_error`) |
+| `max_candle_range_pct` | recusa entradas em candle suspeito (dado ruim); saídas continuam permitidas |
+
+Limites **globais** (todos os bots) ficam no ambiente do worker, não na API: `RISK_MAX_OPEN_POSITIONS` e `RISK_MAX_TOTAL_EXPOSURE`.
+
+### Pesquisa de estratégias
+
+```bash
+# Treino/teste: reserva o fim da série como out-of-sample e reporta os dois lados em `segments`
+curl -X POST $B/backtests -H 'content-type: application/json' -d '{
+  "strategy_type": "ema_crossover", "start": "2024-01-01T00:00:00Z", "end": "2024-07-01T00:00:00Z",
+  "test_fraction": "0.3"
+}'
+
+# Varredura: uma execução por combinação (combinações inválidas, ex. fast >= slow, são puladas)
+curl -X POST $B/backtests/sweeps -H 'content-type: application/json' -d '{
+  "strategy_type": "ema_crossover", "start": "2024-01-01T00:00:00Z", "end": "2024-07-01T00:00:00Z",
+  "test_fraction": "0.3", "grid": {"fast_period": [5, 9, 20], "slow_period": [21, 50, 100]}
+}'
+curl $B/backtests/sweeps/<id>                                  # ranking (por retorno no TESTE)
+curl "$B/backtests/compare?ids=<id1>&ids=<id2>"                # lado a lado
+```
+
+Ranqueie pelo **retorno no teste**: o melhor parâmetro do treino costuma ser sobreajuste. Sem `test_fraction` o ranking usa o período todo e a resposta avisa disso.
+
+### Observabilidade
+
+```bash
+curl $B/system/status     # worker vivo? bots 'running' sem heartbeat recente (stale_bots)? kill switch?
+curl $B/bots/overview     # todos os bots lado a lado: equity, retorno %, PnL, taxas, posição
+```
+
+`worker.alive` fica falso se o worker não gravar heartbeat por mais de `WORKER_STALE_AFTER_SECONDS` (60 s); aponte um monitor para esse endpoint, porque stops são monitorados pelo bot e não protegem com o worker parado.

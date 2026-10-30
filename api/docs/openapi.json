@@ -269,6 +269,16 @@
               "default": 1000,
               "title": "Limit"
             }
+          },
+          {
+            "name": "exchange",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "binance",
+              "title": "Exchange"
+            }
           }
         ],
         "responses": {
@@ -327,6 +337,16 @@
             "required": true,
             "schema": {
               "$ref": "#/components/schemas/Timeframe"
+            }
+          },
+          {
+            "name": "exchange",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "binance",
+              "title": "Exchange"
             }
           }
         ],
@@ -426,6 +446,144 @@
                     "$ref": "#/components/schemas/BacktestOut"
                   },
                   "title": "Response List Backtests Api V1 Backtests Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/backtests/sweeps": {
+      "post": {
+        "tags": [
+          "backtests"
+        ],
+        "summary": "Create Sweep",
+        "description": "Queue one backtest per parameter combination of ``grid`` and compare them.\n\nCombinations the strategy rejects (e.g. fast >= slow) are skipped and reported. With\n``test_fraction`` set, rank by the test (out-of-sample) return to avoid picking an overfit\nparameter set.",
+        "operationId": "create_sweep_api_v1_backtests_sweeps_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SweepCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SweepOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/backtests/compare": {
+      "get": {
+        "tags": [
+          "backtests"
+        ],
+        "summary": "Compare Backtests",
+        "description": "Several backtests side by side, in the order requested.",
+        "operationId": "compare_backtests_api_v1_backtests_compare_get",
+        "parameters": [
+          {
+            "name": "ids",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "minItems": 2,
+              "maxItems": 10,
+              "title": "Ids"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BacktestOut"
+                  },
+                  "title": "Response Compare Backtests Api V1 Backtests Compare Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/backtests/sweeps/{sweep_id}": {
+      "get": {
+        "tags": [
+          "backtests"
+        ],
+        "summary": "Get Sweep",
+        "operationId": "get_sweep_api_v1_backtests_sweeps__sweep_id__get",
+        "parameters": [
+          {
+            "name": "sweep_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Sweep Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SweepOut"
                 }
               }
             }
@@ -664,6 +822,32 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/overview": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Get Overview",
+        "description": "Every bot with its current equity and return, for side-by-side comparison.",
+        "operationId": "get_overview_api_v1_bots_overview_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BotOverviewOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get Overview Api V1 Bots Overview Get"
                 }
               }
             }
@@ -1269,6 +1453,28 @@
         }
       }
     },
+    "/api/v1/system/status": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Get Status",
+        "description": "Is the worker alive and is every running bot advancing? Poll this from a monitor.",
+        "operationId": "get_status_api_v1_system_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatusOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/audit-events": {
       "get": {
         "tags": [
@@ -1401,6 +1607,11 @@
       },
       "BacktestCreate": {
         "properties": {
+          "exchange": {
+            "type": "string",
+            "title": "Exchange",
+            "default": "binance"
+          },
           "strategy_type": {
             "type": "string",
             "title": "Strategy Type",
@@ -1461,11 +1672,13 @@
               },
               {
                 "type": "string"
+              },
+              {
+                "type": "null"
               }
             ],
             "title": "Fee Rate",
-            "description": "Fraction of notional (0.001 = 0.1%)",
-            "default": "0.001"
+            "description": "Fraction of notional (0.001 = 0.1%). Defaults to the exchange's taker fee."
           },
           "slippage_bps": {
             "anyOf": [
@@ -1486,6 +1699,23 @@
             "type": "integer",
             "title": "Seed",
             "default": 0
+          },
+          "test_fraction": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMaximum": 1.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Fraction",
+            "description": "Hold out this share of the series (at the end) as an out-of-sample test part. Train and test metrics are then reported separately in `segments`."
           }
         },
         "type": "object",
@@ -1552,6 +1782,29 @@
             "type": "integer",
             "title": "Seed"
           },
+          "test_fraction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Fraction"
+          },
+          "sweep_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sweep Id"
+          },
           "data_hash": {
             "anyOf": [
               {
@@ -1578,6 +1831,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/MetricsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "segments": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SegmentsOut"
               },
               {
                 "type": "null"
@@ -1640,9 +1903,12 @@
           "fee_rate",
           "slippage_bps",
           "seed",
+          "test_fraction",
+          "sweep_id",
           "data_hash",
           "candles_count",
           "metrics",
+          "segments",
           "error",
           "created_at",
           "started_at",
@@ -1657,6 +1923,11 @@
             "maxLength": 60,
             "minLength": 1,
             "title": "Name"
+          },
+          "exchange": {
+            "type": "string",
+            "title": "Exchange",
+            "default": "binance"
           },
           "strategy_type": {
             "type": "string",
@@ -1702,10 +1973,13 @@
               },
               {
                 "type": "string"
+              },
+              {
+                "type": "null"
               }
             ],
             "title": "Fee Rate",
-            "default": "0.001"
+            "description": "Defaults to the exchange's taker fee"
           },
           "slippage_bps": {
             "anyOf": [
@@ -1748,6 +2022,10 @@
           "name": {
             "type": "string",
             "title": "Name"
+          },
+          "exchange": {
+            "type": "string",
+            "title": "Exchange"
           },
           "strategy_type": {
             "type": "string",
@@ -1831,6 +2109,7 @@
         "required": [
           "id",
           "name",
+          "exchange",
           "strategy_type",
           "strategy_params",
           "symbol",
@@ -1849,6 +2128,108 @@
           "updated_at"
         ],
         "title": "BotOut"
+      },
+      "BotOverviewOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "exchange": {
+            "type": "string",
+            "title": "Exchange"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "timeframe": {
+            "$ref": "#/components/schemas/Timeframe"
+          },
+          "strategy_type": {
+            "type": "string",
+            "title": "Strategy Type"
+          },
+          "strategy_params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Strategy Params"
+          },
+          "desired_state": {
+            "$ref": "#/components/schemas/BotState"
+          },
+          "observed_state": {
+            "$ref": "#/components/schemas/BotState"
+          },
+          "equity": {
+            "type": "string",
+            "title": "Equity"
+          },
+          "return_pct": {
+            "type": "string",
+            "title": "Return Pct"
+          },
+          "realized_pnl": {
+            "type": "string",
+            "title": "Realized Pnl"
+          },
+          "fees_paid": {
+            "type": "string",
+            "title": "Fees Paid"
+          },
+          "in_position": {
+            "type": "boolean",
+            "title": "In Position"
+          },
+          "last_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Price"
+          },
+          "last_heartbeat_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heartbeat At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "exchange",
+          "symbol",
+          "timeframe",
+          "strategy_type",
+          "strategy_params",
+          "desired_state",
+          "observed_state",
+          "equity",
+          "return_pct",
+          "realized_pnl",
+          "fees_paid",
+          "in_position",
+          "last_price",
+          "last_heartbeat_at"
+        ],
+        "title": "BotOverviewOut"
       },
       "BotState": {
         "type": "string",
@@ -1874,6 +2255,17 @@
               }
             ],
             "title": "Name"
+          },
+          "exchange": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exchange"
           },
           "strategy_type": {
             "anyOf": [
@@ -2023,6 +2415,10 @@
       },
       "CoverageOut": {
         "properties": {
+          "exchange": {
+            "type": "string",
+            "title": "Exchange"
+          },
           "symbol": {
             "type": "string",
             "title": "Symbol"
@@ -2068,6 +2464,7 @@
         },
         "type": "object",
         "required": [
+          "exchange",
           "symbol",
           "timeframe",
           "count",
@@ -2268,6 +2665,11 @@
       },
       "ImportRequest": {
         "properties": {
+          "exchange": {
+            "type": "string",
+            "title": "Exchange",
+            "default": "binance"
+          },
           "symbol": {
             "type": "string",
             "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
@@ -2650,6 +3052,28 @@
           "fees_paid": {
             "type": "string",
             "title": "Fees Paid"
+          },
+          "stop_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Price"
+          },
+          "take_profit_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Take Profit Price"
           }
         },
         "type": "object",
@@ -2662,7 +3086,9 @@
           "equity",
           "unrealized_pnl",
           "realized_pnl",
-          "fees_paid"
+          "fees_paid",
+          "stop_price",
+          "take_profit_price"
         ],
         "title": "PortfolioOut"
       },
@@ -2713,6 +3139,71 @@
             ],
             "title": "Max Daily Loss Pct",
             "default": "10"
+          },
+          "max_drawdown_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Pct"
+          },
+          "max_consecutive_losses": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Consecutive Losses"
+          },
+          "max_risk_per_trade_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Risk Per Trade Pct"
+          },
+          "require_stop_loss": {
+            "type": "boolean",
+            "title": "Require Stop Loss",
+            "default": false
+          },
+          "max_candle_range_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Candle Range Pct",
+            "default": "25"
           }
         },
         "type": "object",
@@ -2747,10 +3238,88 @@
             ],
             "title": "Max Daily Loss Pct",
             "default": "10"
+          },
+          "max_drawdown_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Pct"
+          },
+          "max_consecutive_losses": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Consecutive Losses"
+          },
+          "max_risk_per_trade_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Risk Per Trade Pct"
+          },
+          "require_stop_loss": {
+            "type": "boolean",
+            "title": "Require Stop Loss",
+            "default": false
+          },
+          "max_candle_range_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Candle Range Pct",
+            "default": "25"
           }
         },
         "type": "object",
         "title": "RiskIn"
+      },
+      "SegmentsOut": {
+        "properties": {
+          "split_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Split At"
+          },
+          "test_fraction": {
+            "type": "string",
+            "title": "Test Fraction"
+          },
+          "train": {
+            "$ref": "#/components/schemas/MetricsOut"
+          },
+          "test": {
+            "$ref": "#/components/schemas/MetricsOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "split_at",
+          "test_fraction",
+          "train",
+          "test"
+        ],
+        "title": "SegmentsOut"
       },
       "Side": {
         "type": "string",
@@ -2818,6 +3387,49 @@
         ],
         "title": "SignalOut"
       },
+      "StaleBotOut": {
+        "properties": {
+          "bot_id": {
+            "type": "string",
+            "title": "Bot Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "last_heartbeat_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heartbeat At"
+          },
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bot_id",
+          "name",
+          "last_heartbeat_at",
+          "age_seconds"
+        ],
+        "title": "StaleBotOut"
+      },
       "StrategyOut": {
         "properties": {
           "type_key": {
@@ -2848,6 +3460,363 @@
           "parameters"
         ],
         "title": "StrategyOut"
+      },
+      "SweepCreate": {
+        "properties": {
+          "exchange": {
+            "type": "string",
+            "title": "Exchange",
+            "default": "binance"
+          },
+          "strategy_type": {
+            "type": "string",
+            "title": "Strategy Type",
+            "examples": [
+              "ema_crossover"
+            ]
+          },
+          "strategy_params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Strategy Params",
+            "examples": [
+              {
+                "fast_period": 9,
+                "slow_period": 21
+              }
+            ]
+          },
+          "symbol": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+            "title": "Symbol",
+            "default": "BTC/USDT"
+          },
+          "timeframe": {
+            "$ref": "#/components/schemas/Timeframe",
+            "default": "1h"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "initial_capital": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Initial Capital",
+            "default": "1000"
+          },
+          "fee_rate": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMaximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee Rate",
+            "description": "Fraction of notional (0.001 = 0.1%). Defaults to the exchange's taker fee."
+          },
+          "slippage_bps": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMaximum": 10000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Slippage Bps",
+            "description": "Adverse slippage per fill, in bps",
+            "default": "5"
+          },
+          "seed": {
+            "type": "integer",
+            "title": "Seed",
+            "default": 0
+          },
+          "test_fraction": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMaximum": 1.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Fraction",
+            "description": "Hold out this share of the series (at the end) as an out-of-sample test part. Train and test metrics are then reported separately in `segments`."
+          },
+          "grid": {
+            "additionalProperties": {
+              "items": {},
+              "type": "array"
+            },
+            "type": "object",
+            "minProperties": 1,
+            "title": "Grid",
+            "description": "Parameter name -> values to try. One run per combination (max 200).",
+            "examples": [
+              {
+                "fast_period": [
+                  5,
+                  9,
+                  12
+                ],
+                "slow_period": [
+                  21,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "strategy_type",
+          "start",
+          "end",
+          "grid"
+        ],
+        "title": "SweepCreate"
+      },
+      "SweepOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "strategy_type": {
+            "type": "string",
+            "title": "Strategy Type"
+          },
+          "grid": {
+            "additionalProperties": {
+              "items": {},
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Grid"
+          },
+          "run_count": {
+            "type": "integer",
+            "title": "Run Count"
+          },
+          "completed": {
+            "type": "integer",
+            "title": "Completed"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "skipped": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Skipped"
+          },
+          "ranked_by": {
+            "type": "string",
+            "title": "Ranked By"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/SweepRunOut"
+            },
+            "type": "array",
+            "title": "Runs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "created_at",
+          "strategy_type",
+          "grid",
+          "run_count",
+          "completed",
+          "failed",
+          "skipped",
+          "ranked_by",
+          "note",
+          "runs"
+        ],
+        "title": "SweepOut"
+      },
+      "SweepRunOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "strategy_params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Strategy Params"
+          },
+          "total_return_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Return Pct"
+          },
+          "test_return_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Return Pct"
+          },
+          "max_drawdown_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Pct"
+          },
+          "round_trips": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Round Trips"
+          },
+          "buy_and_hold_return_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buy And Hold Return Pct"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "strategy_params",
+          "total_return_pct",
+          "test_return_pct",
+          "max_drawdown_pct",
+          "round_trips",
+          "buy_and_hold_return_pct",
+          "error"
+        ],
+        "title": "SweepRunOut"
+      },
+      "SystemStatusOut": {
+        "properties": {
+          "worker": {
+            "$ref": "#/components/schemas/WorkerOut"
+          },
+          "kill_switch": {
+            "$ref": "#/components/schemas/KillSwitchOut"
+          },
+          "bots_by_state": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Bots By State"
+          },
+          "stale_bots": {
+            "items": {
+              "$ref": "#/components/schemas/StaleBotOut"
+            },
+            "type": "array",
+            "title": "Stale Bots"
+          },
+          "exchanges": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Exchanges"
+          }
+        },
+        "type": "object",
+        "required": [
+          "worker",
+          "kill_switch",
+          "bots_by_state",
+          "stale_bots",
+          "exchanges"
+        ],
+        "title": "SystemStatusOut"
       },
       "Timeframe": {
         "type": "string",
@@ -2938,6 +3907,44 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WorkerOut": {
+        "properties": {
+          "alive": {
+            "type": "boolean",
+            "title": "Alive"
+          },
+          "last_heartbeat_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heartbeat At"
+          },
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "alive",
+          "last_heartbeat_at",
+          "age_seconds"
+        ],
+        "title": "WorkerOut"
       }
     }
   },
