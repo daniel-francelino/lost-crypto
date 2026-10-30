@@ -1,12 +1,14 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from api_router import api_router
 from container import build_container
 from core.config import Settings, get_settings
+from core.errors import ConflictError, DomainError, NotFoundError
 from core.logging import configure_logging
 
 OPENAPI_TAGS = [
@@ -21,7 +23,26 @@ OPENAPI_TAGS = [
         "description": "Execução (assíncrona, via worker) e resultados de backtests. "
         "Simulações em dados históricos — não são previsão de retorno.",
     },
+    {
+        "name": "bots",
+        "description": "Bots de paper trading: configuração, comandos (start/pause/stop, "
+        "executados pelo worker), ordens, portfólio virtual e performance. Sem dinheiro real.",
+    },
+    {
+        "name": "system",
+        "description": "Kill switch global: pausa todos os bots e bloqueia novas entradas.",
+    },
+    {"name": "audit", "description": "Trilha de auditoria append-only."},
 ]
+
+ErrorHandler = Callable[[Request, Exception], Awaitable[JSONResponse]]
+
+
+def _error_handler(status_code: int) -> ErrorHandler:
+    async def handle(_: Request, exc: Exception) -> JSONResponse:
+        return JSONResponse(status_code=status_code, content={"detail": str(exc)})
+
+    return handle
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -40,8 +61,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Lost Crypto API",
-        version="0.2.0",
-        description="Backend da plataforma Lost Crypto: dados de mercado, estratégias e backtests.",
+        version="0.3.0",
+        description=(
+            "Backend da plataforma Lost Crypto: dados de mercado, estratégias, backtests "
+            "e paper trading."
+        ),
         openapi_tags=OPENAPI_TAGS,
         lifespan=lifespan,
     )
@@ -52,6 +76,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(api_router)
+
+    # Domain errors map to HTTP in one place (most specific class wins).
+    app.add_exception_handler(NotFoundError, _error_handler(404))
+    app.add_exception_handler(ConflictError, _error_handler(409))
+    app.add_exception_handler(DomainError, _error_handler(422))
     return app
 
 

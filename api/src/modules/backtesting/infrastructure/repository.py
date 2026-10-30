@@ -8,8 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.jobs import JobStatus
 from modules.backtesting.application.ports import BacktestRun
-from modules.backtesting.domain.models import BacktestConfig, EquityPoint, Fill
+from modules.backtesting.domain.models import BacktestConfig, EquityPoint
 from modules.backtesting.infrastructure.orm import BacktestRunRow, BacktestTradeRow
+from modules.execution.domain.orders import Fill
 from modules.market_data.domain.models import MarketInfo, Timeframe
 from modules.market_data.infrastructure.repository import SqlAlchemyCandleRepository
 from modules.strategies.domain.types import Side

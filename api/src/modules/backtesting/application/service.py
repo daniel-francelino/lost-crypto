@@ -15,9 +15,9 @@ from modules.backtesting.domain.engine import run_backtest
 from modules.backtesting.domain.models import (
     BacktestConfig,
     EquityPoint,
-    Fill,
     hash_candles,
 )
+from modules.execution.domain.orders import Fill
 from modules.market_data.application.ports import MarketDataSource
 from modules.strategies.domain.registry import StrategyRegistry
 

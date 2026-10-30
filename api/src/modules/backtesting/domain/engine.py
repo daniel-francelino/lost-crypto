@@ -7,8 +7,9 @@ Timeline per candle ``i`` (no look-ahead):
   3. the strategy sees candle ``i`` (closed) and may emit signals for candle ``i+1``.
 Signals emitted on the last candle can never be filled and are only counted.
 
-Sizing here is deliberately trivial (buy with all cash, sell the whole position); in the live
-pipeline that responsibility belongs to the risk module.
+Fills use the same simulation as paper trading (``execution.domain.fills``). Sizing here is
+deliberately trivial (buy with all cash, sell the whole position); in the live pipeline that
+responsibility belongs to the risk module.
 """
 
 from collections.abc import Sequence
@@ -19,15 +20,18 @@ from modules.backtesting.domain.models import (
     BacktestConfig,
     BacktestOutcome,
     EquityPoint,
-    Fill,
     InvalidBacktestConfig,
     RejectedSignal,
 )
-from modules.execution.domain.normalizer import OrderRejected, normalize_quantity
+from modules.execution.domain.fills import (
+    affordable_buy_quantity,
+    simulate_market_fill,
+    slipped_price,
+)
+from modules.execution.domain.normalizer import OrderRejected
+from modules.execution.domain.orders import Fill
 from modules.market_data.domain.models import Candle, MarketInfo
 from modules.strategies.domain.types import Side, Signal, Strategy, StrategyContext
-
-_BPS = Decimal(10_000)
 
 
 def run_backtest(
@@ -46,32 +50,38 @@ def run_backtest(
     rejected: list[RejectedSignal] = []
     state = strategy.initial_state()
     pending: tuple[Signal, ...] = ()
-    slippage = config.slippage_bps / _BPS
 
     for candle in candles:
         for signal in pending:
             try:
                 if signal.side is Side.BUY:
-                    price = candle.open * (1 + slippage)
                     if quantity > 0:
                         raise OrderRejected("already in position")
-                    affordable = cash / (price * (1 + config.fee_rate))
-                    qty = normalize_quantity(affordable, price, market)
-                    fee = qty * price * config.fee_rate
-                    cash -= qty * price + fee
-                    quantity += qty
+                    price = slipped_price(Side.BUY, candle.open, config.slippage_bps)
+                    wanted = affordable_buy_quantity(cash, price, config.fee_rate, market)
                 else:
-                    price = candle.open * (1 - slippage)
                     if quantity <= 0:
                         raise OrderRejected("no position to sell")
-                    qty = normalize_quantity(quantity, price, market)
-                    fee = qty * price * config.fee_rate
-                    cash += qty * price - fee
-                    quantity -= qty
+                    wanted = quantity
+                fill = simulate_market_fill(
+                    signal.side,
+                    wanted,
+                    candle.open,
+                    config.fee_rate,
+                    config.slippage_bps,
+                    market,
+                    candle.open_time,
+                )
             except OrderRejected as exc:
                 rejected.append(RejectedSignal(candle.open_time, signal.side, str(exc)))
                 continue
-            fills.append(Fill(candle.open_time, signal.side, qty, price, fee))
+            if signal.side is Side.BUY:
+                cash -= fill.notional + fill.fee
+                quantity += fill.quantity
+            else:
+                cash += fill.notional - fill.fee
+                quantity -= fill.quantity
+            fills.append(fill)
 
         equity.append(EquityPoint(candle.close_time, cash + quantity * candle.close))
 

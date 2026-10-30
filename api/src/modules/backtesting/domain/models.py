@@ -6,6 +6,7 @@ from decimal import Decimal
 from typing import Any
 
 from core.errors import DomainError
+from modules.execution.domain.orders import Fill
 from modules.market_data.domain.models import Candle, Timeframe
 from modules.strategies.domain.types import Side
 
@@ -37,19 +38,6 @@ class BacktestConfig:
             raise InvalidBacktestConfig("fee_rate must be in [0, 1)")
         if not (0 <= self.slippage_bps < 10_000):
             raise InvalidBacktestConfig("slippage_bps must be in [0, 10000)")
-
-
-@dataclass(frozen=True, slots=True)
-class Fill:
-    time: datetime
-    side: Side
-    quantity: Decimal
-    price: Decimal
-    fee: Decimal
-
-    @property
-    def notional(self) -> Decimal:
-        return self.quantity * self.price
 
 
 @dataclass(frozen=True, slots=True)

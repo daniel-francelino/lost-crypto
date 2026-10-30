@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
-from typing import Protocol
+from typing import Any, Protocol
 
 from modules.market_data.domain.models import Candle
 
@@ -47,3 +47,9 @@ class Strategy[StateT](Protocol):
     def initial_state(self) -> StateT: ...
 
     def evaluate(self, ctx: StrategyContext, state: StateT) -> StrategyResult[StateT]: ...
+
+    def serialize_state(self, state: StateT) -> dict[str, Any]:
+        """JSON-compatible form, so a bot can resume after a restart."""
+        ...
+
+    def deserialize_state(self, raw: dict[str, Any]) -> StateT: ...

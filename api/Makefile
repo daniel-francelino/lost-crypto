@@ -62,7 +62,12 @@ typecheck: ## mypy (strict)
 test: ## Testes unitários (não precisam de banco)
 	$(UV) run pytest
 
-test-integration: ## Testes de integração (requer: make db)
+# Roda em um banco separado (lostcrypto_test) para nunca tocar nos seus bots/dados de dev.
+TEST_DB_URL ?= postgresql+asyncpg://lostcrypto:lostcrypto@localhost:5432/lostcrypto_test
+test-integration: export DATABASE_URL := $(TEST_DB_URL)
+test-integration: ## Testes de integração em banco separado (requer: make db)
+	-$(COMPOSE) exec -T postgres psql -U lostcrypto -c "CREATE DATABASE lostcrypto_test"
+	$(UV) run alembic upgrade head
 	$(UV) run pytest -m integration
 
 check: lint typecheck test ## lint + tipos + testes unitários

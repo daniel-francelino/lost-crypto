@@ -79,6 +79,20 @@ class EmaCrossoverStrategy:
     def initial_state(self) -> EmaCrossoverState:
         return EmaCrossoverState()
 
+    def serialize_state(self, state: EmaCrossoverState) -> dict[str, Any]:
+        return {
+            "closes": [str(c) for c in state.closes],
+            "fast": None if state.fast is None else str(state.fast),
+            "slow": None if state.slow is None else str(state.slow),
+        }
+
+    def deserialize_state(self, raw: dict[str, Any]) -> EmaCrossoverState:
+        return EmaCrossoverState(
+            closes=tuple(Decimal(c) for c in raw["closes"]),
+            fast=None if raw["fast"] is None else Decimal(raw["fast"]),
+            slow=None if raw["slow"] is None else Decimal(raw["slow"]),
+        )
+
     def evaluate(
         self, ctx: StrategyContext, state: EmaCrossoverState
     ) -> StrategyResult[EmaCrossoverState]:

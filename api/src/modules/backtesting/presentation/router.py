@@ -9,6 +9,7 @@ from pydantic import AwareDatetime, BaseModel, Field
 from container import EXCHANGE, Container
 from core.errors import DomainError
 from core.jobs import JobStatus
+from modules.analytics.presentation.schemas import MetricsOut
 from modules.backtesting.application.ports import BacktestRun
 from modules.backtesting.application.service import BacktestNotFound
 from modules.backtesting.domain.models import BacktestConfig
@@ -37,23 +38,6 @@ class BacktestCreate(BaseModel):
         default=Decimal("5"), ge=0, lt=10000, description="Adverse slippage per fill, in bps"
     )
     seed: int = 0
-
-
-class MetricsOut(BaseModel):
-    initial_capital: Decimal
-    final_equity: Decimal
-    net_pnl: Decimal
-    total_return_pct: Decimal
-    buy_and_hold_return_pct: Decimal
-    max_drawdown_pct: Decimal
-    fees_paid: Decimal
-    fills: int
-    round_trips: int
-    win_rate_pct: Decimal | None
-    profit_factor: Decimal | None
-    avg_trade_pnl: Decimal | None
-    open_position: bool
-    rejected_signals: int
 
 
 class BacktestOut(BaseModel):

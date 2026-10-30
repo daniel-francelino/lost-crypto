@@ -5,7 +5,8 @@ from dataclasses import asdict, dataclass
 from decimal import Decimal
 from typing import Any
 
-from modules.backtesting.domain.models import EquityPoint, Fill
+from modules.backtesting.domain.models import EquityPoint
+from modules.execution.domain.orders import Fill
 from modules.strategies.domain.types import Side
 
 _PCT = Decimal(100)

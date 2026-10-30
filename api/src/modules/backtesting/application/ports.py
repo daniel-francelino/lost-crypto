@@ -4,7 +4,8 @@ from typing import Any, Protocol
 from uuid import UUID
 
 from core.jobs import JobStatus
-from modules.backtesting.domain.models import BacktestConfig, EquityPoint, Fill
+from modules.backtesting.domain.models import BacktestConfig, EquityPoint
+from modules.execution.domain.orders import Fill
 from modules.market_data.application.ports import CandleRepository
 from modules.market_data.domain.models import MarketInfo
 

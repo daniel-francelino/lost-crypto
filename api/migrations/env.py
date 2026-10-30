@@ -3,9 +3,7 @@ import asyncio
 from alembic import context
 from sqlalchemy.engine import Connection
 
-# Import each module's ORM models here so autogenerate sees them.
-import modules.backtesting.infrastructure.orm
-import modules.market_data.infrastructure.orm  # noqa: F401
+import orm_models  # noqa: F401  (registers every ORM model on Base.metadata)
 from core.config import get_settings
 from core.db import Base, create_engine
 
