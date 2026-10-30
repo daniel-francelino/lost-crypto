@@ -16,6 +16,7 @@ def _to_bot(row: BotRow) -> Bot:
         id=row.id,
         config=BotConfig(
             name=row.name,
+            exchange=row.exchange,
             strategy_type=row.strategy_type,
             strategy_params=row.strategy_params,
             symbol=row.symbol,
@@ -27,6 +28,11 @@ def _to_bot(row: BotRow) -> Bot:
                 max_position_fraction=row.max_position_fraction,
                 max_order_notional=row.max_order_notional,
                 max_daily_loss_pct=row.max_daily_loss_pct,
+                max_drawdown_pct=row.max_drawdown_pct,
+                max_consecutive_losses=row.max_consecutive_losses,
+                max_risk_per_trade_pct=row.max_risk_per_trade_pct,
+                require_stop_loss=row.require_stop_loss,
+                max_candle_range_pct=row.max_candle_range_pct,
             ),
             mode=ExecutionMode(row.mode),
         ),
@@ -43,6 +49,7 @@ def _to_bot(row: BotRow) -> Bot:
 def _config_values(config: BotConfig) -> dict[str, object]:
     return {
         "name": config.name,
+        "exchange": config.exchange,
         "strategy_type": config.strategy_type,
         "strategy_params": dict(config.strategy_params),
         "symbol": config.symbol,
@@ -53,6 +60,11 @@ def _config_values(config: BotConfig) -> dict[str, object]:
         "max_position_fraction": config.risk.max_position_fraction,
         "max_order_notional": config.risk.max_order_notional,
         "max_daily_loss_pct": config.risk.max_daily_loss_pct,
+        "max_drawdown_pct": config.risk.max_drawdown_pct,
+        "max_consecutive_losses": config.risk.max_consecutive_losses,
+        "max_risk_per_trade_pct": config.risk.max_risk_per_trade_pct,
+        "require_stop_loss": config.risk.require_stop_loss,
+        "max_candle_range_pct": config.risk.max_candle_range_pct,
         "mode": config.mode.value,
     }
 

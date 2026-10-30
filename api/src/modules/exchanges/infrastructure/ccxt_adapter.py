@@ -19,6 +19,9 @@ from modules.market_data.domain.models import Candle, MarketInfo, Timeframe
 
 logger = logging.getLogger(__name__)
 
+# Exchange-specific strategy that reads exact trading rules from CCXT's raw market dict.
+MarketInfoParser = Callable[[str, dict[str, Any]], MarketInfo | None]
+
 _MAX_ATTEMPTS = 4
 _BASE_DELAY_SECONDS = 1.0
 
@@ -26,8 +29,14 @@ _BASE_DELAY_SECONDS = 1.0
 class CcxtMarketDataSource:
     """Public market data only: no credentials are used or accepted."""
 
-    def __init__(self, exchange_id: str = "binance", client: Any | None = None) -> None:
+    def __init__(
+        self,
+        exchange_id: str,
+        client: Any | None = None,
+        market_parser: MarketInfoParser | None = None,
+    ) -> None:
         self.exchange_id = exchange_id
+        self._market_parser = market_parser
         self._client: Any = client or getattr(ccxt_async, exchange_id)({"enableRateLimit": True})
 
     async def aclose(self) -> None:
@@ -63,19 +72,10 @@ class CcxtMarketDataSource:
         return self._market_info(symbol, market)
 
     def _market_info(self, symbol: str, market: dict[str, Any]) -> MarketInfo:
-        filters = {f["filterType"]: f for f in (market.get("info") or {}).get("filters", [])}
-        lot = filters.get("LOT_SIZE")
-        price = filters.get("PRICE_FILTER")
-        notional = filters.get("NOTIONAL") or filters.get("MIN_NOTIONAL")
-        if lot and price:  # exact Binance filters
-            min_notional = (notional or {}).get("minNotional", "0")
-            return MarketInfo(
-                symbol=symbol,
-                step_size=Decimal(lot["stepSize"]),
-                tick_size=Decimal(price["tickSize"]),
-                min_quantity=Decimal(lot["minQty"]),
-                min_notional=Decimal(min_notional),
-            )
+        if self._market_parser is not None:
+            exact = self._market_parser(symbol, market)  # exchange-specific, most precise
+            if exact is not None:
+                return exact
         limits = market.get("limits") or {}
         return MarketInfo(
             symbol=symbol,

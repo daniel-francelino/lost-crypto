@@ -17,8 +17,8 @@ from modules.backtesting.domain.models import (
     EquityPoint,
     hash_candles,
 )
+from modules.exchanges.application.registry import ExchangeRegistry
 from modules.execution.domain.orders import Fill
-from modules.market_data.application.ports import MarketDataSource
 from modules.strategies.domain.registry import StrategyRegistry
 
 logger = logging.getLogger(__name__)
@@ -47,15 +47,18 @@ class BacktestService:
         self,
         stores: BacktestStoreFactory,
         registry: StrategyRegistry,
+        exchanges: ExchangeRegistry,
         clock: Clock,
         ids: IdGenerator,
     ) -> None:
         self._stores = stores
         self._registry = registry
+        self._exchanges = exchanges
         self._clock = clock
         self._ids = ids
 
     async def create(self, config: BacktestConfig) -> BacktestRun:
+        self._exchanges.require(config.exchange, config.timeframe)
         self._registry.create(config.strategy_type, config.strategy_params)  # validates
         run = BacktestRun(
             id=self._ids.new_id(),
@@ -107,11 +110,11 @@ class BacktestExecutor:
     """Worker-side: claims queued runs, executes them and persists the results."""
 
     def __init__(
-        self, stores: BacktestStoreFactory, registry: StrategyRegistry, source: MarketDataSource
+        self, stores: BacktestStoreFactory, registry: StrategyRegistry, exchanges: ExchangeRegistry
     ) -> None:
         self._stores = stores
         self._registry = registry
-        self._source = source
+        self._exchanges = exchanges
 
     async def recover(self) -> int:
         async with self._stores() as store:
@@ -143,7 +146,7 @@ class BacktestExecutor:
             candles = await store.candles.get_range(
                 config.exchange, config.symbol, config.timeframe, config.start, config.end
             )
-        market = await self._source.fetch_market_info(config.symbol)
+        market = await self._exchanges.market_data(config.exchange).fetch_market_info(config.symbol)
         strategy = self._registry.create(config.strategy_type, config.strategy_params)
 
         # CPU-bound: keep the event loop (heartbeats, shutdown handling) responsive.

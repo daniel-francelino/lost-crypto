@@ -67,6 +67,18 @@ def default_registry() -> StrategyRegistry:
                         "Slow EMA (must be greater than fast_period)",
                         3,
                     ),
+                    ParamSpec(
+                        "stop_loss_pct",
+                        "number",
+                        None,
+                        "Optional stop-loss, % below the entry price (0-100)",
+                    ),
+                    ParamSpec(
+                        "take_profit_pct",
+                        "number",
+                        None,
+                        "Optional take-profit, % above the entry price (0-100)",
+                    ),
                 ),
                 factory=lambda raw: ema_crossover.EmaCrossoverStrategy(
                     ema_crossover.EmaCrossoverParams.from_mapping(raw)

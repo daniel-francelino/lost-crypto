@@ -1,10 +1,13 @@
 """Paper-trading cycle of one bot.
 
-Each closed candle is processed in ONE database transaction: strategy evaluation, signal
-records, risk decision, order + fills, portfolio, snapshot, strategy state and audit commit
-together. The candle's ``bar_time`` is the idempotency key (via the deterministic client order
-id and the persisted ``last_processed_bar_time``), so a crash or a repeated run can never place
-the same order twice.
+Each closed candle is processed in ONE database transaction: protective exits, strategy
+evaluation, signal records, risk decision, order + fills, portfolio, snapshot, strategy state
+and audit commit together. The candle's ``bar_time`` is the idempotency key (via the
+deterministic client order id and the persisted ``last_processed_bar_time``), so a crash or a
+repeated run can never place the same order twice.
+
+Orders go through the ``ExchangeGateway`` port (here the paper venue), so moving a bot to
+another venue or exchange does not touch this flow.
 """
 
 import logging
@@ -16,18 +19,29 @@ from typing import Any
 
 from core.clock import Clock
 from core.ids import IdGenerator
+from modules.analytics.domain.metrics import round_trip_pnls
 from modules.audit.models import AuditEvent
 from modules.bots.domain.models import Bot, BotState
+from modules.exchanges.application.ports import ExchangeGateway, MarketOrderRequest
+from modules.exchanges.application.registry import ExchangeRegistry
+from modules.exchanges.errors import ExchangeRejected
 from modules.execution.application.ports import SignalRecord
-from modules.execution.domain.fills import simulate_market_fill
-from modules.execution.domain.normalizer import OrderRejected
 from modules.execution.domain.orders import Order, make_client_order_id
-from modules.market_data.application.ports import MarketDataSource
+from modules.execution.venues.paper import PaperExchangeGateway, StaticPriceFeed
 from modules.market_data.domain.models import Candle, MarketInfo, floor_to_timeframe
 from modules.portfolio.domain.models import PortfolioSnapshot, PortfolioState
-from modules.risk_management.domain.models import assess_signal, daily_loss_breached
+from modules.risk_management.domain.models import (
+    GlobalExposure,
+    GlobalRiskLimits,
+    assess_signal,
+    candle_range_pct,
+    consecutive_losses_breached,
+    daily_loss_breached,
+    drawdown_breached,
+)
+from modules.risk_management.domain.stops import ExitReason, check_protective_exit
 from modules.strategies.domain.registry import StrategyRegistry
-from modules.strategies.domain.types import Signal, Strategy, StrategyContext
+from modules.strategies.domain.types import Side, Signal, SignalKind, Strategy, StrategyContext
 from modules.trading.application.ports import TradingStore
 from modules.trading.domain.models import WARMUP_CANDLES, TradingSession, max_signal_age
 
@@ -38,42 +52,68 @@ TradingStoreFactory = Callable[[], AbstractAsyncContextManager[TradingStore]]
 CANDLE_CLOSE_GRACE = timedelta(seconds=2)  # let the exchange publish the closed candle
 FETCH_LIMIT = 1000
 
+# (audit event type, bot.last_error text) of a risk limit that pauses the bot
+Breach = tuple[str, str]
+
+
+class _CachedRules:
+    """Market rules for the paper gateway, served from the trader's cache."""
+
+    def __init__(self, trader: "BotTrader", exchange: str) -> None:
+        self._trader = trader
+        self._exchange = exchange
+
+    async def fetch_market_info(self, symbol: str) -> MarketInfo:
+        return await self._trader.market_info(self._exchange, symbol)
+
 
 class BotTrader:
     def __init__(
         self,
         stores: TradingStoreFactory,
         registry: StrategyRegistry,
-        source: MarketDataSource,
+        exchanges: ExchangeRegistry,
         clock: Clock,
         ids: IdGenerator,
+        global_limits: GlobalRiskLimits | None = None,
     ) -> None:
         self._stores = stores
         self._registry = registry
-        self._source = source
+        self._exchanges = exchanges
         self._clock = clock
         self._ids = ids
-        self._markets: dict[str, MarketInfo] = {}
+        self._global_limits = global_limits or GlobalRiskLimits()
+        self._markets: dict[tuple[str, str], MarketInfo] = {}
+        self._prices = StaticPriceFeed()
+
+    async def market_info(self, exchange: str, symbol: str) -> MarketInfo:
+        key = (exchange, symbol)
+        if key not in self._markets:
+            self._markets[key] = await self._exchanges.market_data(exchange).fetch_market_info(
+                symbol
+            )
+        return self._markets[key]
 
     async def process(self, bot: Bot) -> None:
         """Process every newly closed candle of a running bot."""
+        cfg = bot.config
         async with self._stores() as store:
             session = await store.sessions.get_active(bot.id)
         if session is None:
             return  # the supervisor creates the session when it starts the bot
 
-        timeframe = bot.config.timeframe
         now = self._clock.now()
         last = session.last_processed_bar_time
         if last is not None:
-            next_bar = last + timeframe.delta
-            if now < next_bar + timeframe.delta + CANDLE_CLOSE_GRACE:
+            next_bar = last + cfg.timeframe.delta
+            if now < next_bar + cfg.timeframe.delta + CANDLE_CLOSE_GRACE:
                 return  # the next candle has not closed yet: no network call
             since = next_bar
         else:
-            since = floor_to_timeframe(now, timeframe) - WARMUP_CANDLES * timeframe.delta
+            since = floor_to_timeframe(now, cfg.timeframe) - WARMUP_CANDLES * cfg.timeframe.delta
 
-        fetched = await self._source.fetch_candles(bot.config.symbol, timeframe, since, FETCH_LIMIT)
+        source = self._exchanges.market_data(cfg.exchange)
+        fetched = await source.fetch_candles(cfg.symbol, cfg.timeframe, since, FETCH_LIMIT)
         candles = sorted(
             (c for c in fetched if c.close_time <= now and (last is None or c.open_time > last)),
             key=lambda c: c.open_time,
@@ -81,8 +121,8 @@ class BotTrader:
         if not candles:
             return
 
-        market = await self._market(bot.config.symbol)
-        strategy = self._registry.create(bot.config.strategy_type, bot.config.strategy_params)
+        market = await self.market_info(cfg.exchange, cfg.symbol)
+        strategy = self._registry.create(cfg.strategy_type, cfg.strategy_params)
         state = (
             strategy.deserialize_state(session.strategy_state)
             if session.strategy_state is not None
@@ -94,11 +134,6 @@ class BotTrader:
             )
             if paused:
                 break
-
-    async def _market(self, symbol: str) -> MarketInfo:
-        if symbol not in self._markets:
-            self._markets[symbol] = await self._source.fetch_market_info(symbol)
-        return self._markets[symbol]
 
     async def _process_candle(
         self,
@@ -121,10 +156,43 @@ class BotTrader:
                 bot.id, cfg.initial_capital
             )
             kill_switch = await store.flags.get_kill_switch()
+            sold = False
+
+            # 1. Protective exits. Allowed even on stale candles: a native exchange stop would
+            #    have fired regardless of whether the worker was running.
+            if not warmup and portfolio.quantity > 0:
+                hit = check_protective_exit(
+                    candle, portfolio.stop_price, portfolio.take_profit_price
+                )
+                if hit is not None:
+                    exit_signal = Signal(
+                        Side.SELL,
+                        cfg.symbol,
+                        SignalKind.EXIT,
+                        f"{hit.reason.value} triggered at {hit.trigger_price}",
+                    )
+                    await self._record(store, bot, session, candle, exit_signal, "approved", None)
+                    # A stop is a market order (adverse slippage); a target is a limit order.
+                    slippage = (
+                        cfg.slippage_bps if hit.reason is ExitReason.STOP_LOSS else Decimal(0)
+                    )
+                    sold = await self._execute(
+                        store,
+                        bot,
+                        session,
+                        exit_signal,
+                        portfolio.quantity,
+                        candle,
+                        hit.trigger_price,
+                        slippage,
+                        portfolio,
+                        now,
+                    )
+
+            # 2. Strategy.
             result = strategy.evaluate(
                 StrategyContext(cfg.symbol, candle, portfolio.quantity), state
             )
-
             for signal in result.signals:
                 if warmup:
                     continue
@@ -140,6 +208,9 @@ class BotTrader:
                     slippage_bps=cfg.slippage_bps,
                     limits=cfg.risk,
                     kill_switch_active=kill_switch.active,
+                    candle_range=candle_range_pct(candle.high, candle.low),
+                    global_limits=self._global_limits,
+                    exposure=await self._exposure(store, signal),
                 )
                 if not decision.approved or decision.quantity is None:
                     await self._record(
@@ -157,34 +228,61 @@ class BotTrader:
                     )
                     continue
                 await self._record(store, bot, session, candle, signal, "approved", None)
-                await self._execute(
-                    store, bot, session, signal, decision.quantity, candle, portfolio, market
+                filled = await self._execute(
+                    store,
+                    bot,
+                    session,
+                    signal,
+                    decision.quantity,
+                    candle,
+                    candle.close,
+                    cfg.slippage_bps,
+                    portfolio,
+                    now,
                 )
+                if filled and signal.side is Side.BUY:
+                    portfolio.stop_price = signal.stop_loss
+                    portfolio.take_profit_price = signal.take_profit
+                sold = sold or (filled and signal.side is Side.SELL)
 
-            breached = False
+            # 3. Bookkeeping and risk circuit breakers.
+            breach: Breach | None = None
             if not warmup and fresh:
-                breached = await self._snapshot_and_check_loss(
-                    store, bot, session, candle, portfolio
-                )
+                breach = await self._snapshot_and_check(store, bot, session, candle, portfolio)
+            if breach is None and sold and not warmup:
+                pnls = round_trip_pnls(await store.orders.list_fills(bot.id))
+                if consecutive_losses_breached(pnls, cfg.risk):
+                    breach = ("risk.consecutive_losses", "max consecutive losses reached")
+
             await store.portfolio.save(portfolio)
             await store.sessions.save_progress(
                 session.id, strategy.serialize_state(result.state), candle.open_time
             )
-            if breached:
+            if breach is not None:
+                event_type, message = breach
                 await store.bots.set_desired(bot.id, BotState.PAUSED)
-                await store.bots.set_observed(bot.id, BotState.PAUSED, "daily loss limit breached")
+                await store.bots.set_observed(bot.id, BotState.PAUSED, message)
                 await store.audit.add(
                     AuditEvent(
-                        "risk.daily_loss_breached",
+                        event_type,
                         "bot",
                         str(bot.id),
                         actor="worker",
                         bot_id=bot.id,
-                        payload={"max_daily_loss_pct": str(cfg.risk.max_daily_loss_pct)},
+                        payload={"reason": message},
                     )
                 )
             await store.commit()
-        return result.state, breached
+        return result.state, breach is not None
+
+    async def _exposure(self, store: TradingStore, signal: Signal) -> GlobalExposure:
+        limits = self._global_limits
+        if signal.side is not Side.BUY or (
+            limits.max_open_positions is None and limits.max_total_exposure is None
+        ):
+            return GlobalExposure()
+        count, notional = await store.portfolio.open_exposure()
+        return GlobalExposure(count, notional)
 
     async def _record(
         self,
@@ -211,6 +309,17 @@ class BotTrader:
             )
         )
 
+    def _gateway(self, bot: Bot, slippage_bps: Decimal) -> ExchangeGateway:
+        """The venue for this bot's mode. Only the paper venue exists for now."""
+        cfg = bot.config
+        return PaperExchangeGateway(
+            self._exchanges.profile(cfg.exchange).capabilities,
+            _CachedRules(self, cfg.exchange),
+            self._prices,
+            cfg.fee_rate,
+            slippage_bps,
+        )
+
     async def _execute(
         self,
         store: TradingStore,
@@ -219,11 +328,13 @@ class BotTrader:
         signal: Signal,
         quantity: Decimal,
         candle: Candle,
+        reference_price: Decimal,
+        slippage_bps: Decimal,
         portfolio: PortfolioState,
-        market: MarketInfo,
-    ) -> None:
+        now: datetime,
+    ) -> bool:
+        """Place a market order via the gateway; True when it filled and the portfolio moved."""
         cfg = bot.config
-        now = self._clock.now()
         order = Order(
             id=self._ids.new_id(),
             bot_id=bot.id,
@@ -236,24 +347,26 @@ class BotTrader:
             created_at=now,
         )
         order.submit()
-        fill = None
+        self._prices.set(cfg.symbol, reference_price, now)
         try:
-            # Paper venue: the reference price is the close of the signal candle.
-            fill = simulate_market_fill(
-                signal.side, quantity, candle.close, cfg.fee_rate, cfg.slippage_bps, market, now
+            venue_order = await self._gateway(bot, slippage_bps).create_market_order(
+                MarketOrderRequest(order.client_order_id, cfg.symbol, signal.side, quantity)
             )
-            order.apply_fill(fill)
-        except OrderRejected as exc:
+            for fill in venue_order.fills:
+                order.apply_fill(fill)
+        except ExchangeRejected as exc:
             order.reject(str(exc))
 
         if not await store.orders.add_if_absent(order):
             logger.warning("duplicate order %s ignored", order.client_order_id)
-            return
-        if fill is not None:
+            return False
+        filled = bool(order.fills)
+        for fill in order.fills:
             portfolio.apply_fill(fill)
+        last_fill = order.fills[-1] if order.fills else None
         await store.audit.add(
             AuditEvent(
-                "order.filled" if fill is not None else "order.rejected",
+                "order.filled" if filled else "order.rejected",
                 "order",
                 str(order.id),
                 actor="worker",
@@ -262,21 +375,23 @@ class BotTrader:
                     "client_order_id": order.client_order_id,
                     "side": order.side.value,
                     "quantity": str(order.quantity),
-                    "price": str(fill.price) if fill else None,
-                    "fee": str(fill.fee) if fill else None,
+                    "price": str(last_fill.price) if last_fill else None,
+                    "fee": str(last_fill.fee) if last_fill else None,
                     "reason": order.reject_reason,
                 },
             )
         )
+        return filled
 
-    async def _snapshot_and_check_loss(
+    async def _snapshot_and_check(
         self,
         store: TradingStore,
         bot: Bot,
         session: TradingSession,
         candle: Candle,
         portfolio: PortfolioState,
-    ) -> bool:
+    ) -> Breach | None:
+        limits = bot.config.risk
         equity = portfolio.equity(candle.close)
         day_start = datetime.combine(candle.close_time.date(), datetime.min.time(), tzinfo=UTC)
         reference = (
@@ -284,6 +399,7 @@ class BotTrader:
             or await store.portfolio.first_snapshot_equity(bot.id)
             or bot.config.initial_capital
         )
+        peak = max(await store.portfolio.peak_equity(bot.id) or equity, equity)
         await store.portfolio.add_snapshot(
             PortfolioSnapshot(
                 bot_id=bot.id,
@@ -295,4 +411,8 @@ class BotTrader:
                 equity=equity,
             )
         )
-        return daily_loss_breached(equity, reference, bot.config.risk)
+        if daily_loss_breached(equity, reference, limits):
+            return "risk.daily_loss_breached", "daily loss limit breached"
+        if drawdown_breached(equity, peak, limits):
+            return "risk.drawdown_breached", "max drawdown limit breached"
+        return None

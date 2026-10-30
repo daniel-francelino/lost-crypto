@@ -22,7 +22,21 @@ class BacktestRun:
     candles_count: int | None = None
     market_info: MarketInfo | None = None
     metrics: dict[str, Any] | None = None
+    segments: dict[str, Any] | None = None  # train/test metrics when test_fraction is set
+    sweep_id: UUID | None = None
     error: str | None = None
+
+
+@dataclass(slots=True)
+class BacktestSweep:
+    """A grid of runs of one strategy over the same data, to compare parameter sets."""
+
+    id: UUID
+    created_at: datetime
+    strategy_type: str
+    grid: dict[str, list[Any]]
+    skipped: list[dict[str, Any]]  # combinations the strategy rejected, with the reason
+    run_count: int
 
 
 class BacktestStore(Protocol):
@@ -33,6 +47,9 @@ class BacktestStore(Protocol):
 
     async def add_run(self, run: BacktestRun) -> None: ...
     async def get_run(self, run_id: UUID) -> BacktestRun | None: ...
+    async def add_sweep(self, sweep: BacktestSweep) -> None: ...
+    async def get_sweep(self, sweep_id: UUID) -> BacktestSweep | None: ...
+    async def list_sweep_runs(self, sweep_id: UUID) -> list[BacktestRun]: ...
     async def list_runs(self, limit: int) -> list[BacktestRun]: ...
     async def claim_next_queued(self) -> BacktestRun | None: ...
     async def requeue_running(self) -> int: ...
@@ -44,6 +61,7 @@ class BacktestStore(Protocol):
         candles_count: int,
         market_info: MarketInfo,
         metrics: dict[str, Any],
+        segments: dict[str, Any] | None,
         equity_curve: list[EquityPoint],
         fills: list[Fill],
     ) -> None: ...

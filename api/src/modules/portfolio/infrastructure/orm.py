@@ -22,6 +22,8 @@ class BotPortfolioRow(Base):
     avg_entry_price: Mapped[Decimal] = mapped_column(MONEY)
     realized_pnl: Mapped[Decimal] = mapped_column(MONEY)
     fees_paid: Mapped[Decimal] = mapped_column(MONEY)
+    stop_price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
+    take_profit_price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

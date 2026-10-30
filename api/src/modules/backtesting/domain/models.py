@@ -28,6 +28,7 @@ class BacktestConfig:
     strategy_type: str
     strategy_params: Mapping[str, Any] = field(default_factory=dict)
     seed: int = 0  # recorded for reproducibility; the current fill model is deterministic
+    test_fraction: Decimal | None = None  # share of the series (at the end) held out as test
 
     def __post_init__(self) -> None:
         if self.start >= self.end:
@@ -38,6 +39,8 @@ class BacktestConfig:
             raise InvalidBacktestConfig("fee_rate must be in [0, 1)")
         if not (0 <= self.slippage_bps < 10_000):
             raise InvalidBacktestConfig("slippage_bps must be in [0, 10000)")
+        if self.test_fraction is not None and not (0 < self.test_fraction < 1):
+            raise InvalidBacktestConfig("test_fraction must be between 0 and 1 (exclusive)")
 
 
 @dataclass(frozen=True, slots=True)

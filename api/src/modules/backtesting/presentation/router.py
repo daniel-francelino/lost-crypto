@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import AwareDatetime, BaseModel, Field
 
-from container import EXCHANGE, Container
+from container import Container
 from core.errors import DomainError
 from core.jobs import JobStatus
 from modules.analytics.presentation.schemas import MetricsOut
@@ -22,6 +22,7 @@ Symbol = Annotated[str, Field(pattern=r"^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$")]
 
 
 class BacktestCreate(BaseModel):
+    exchange: str = "binance"
     strategy_type: str = Field(examples=["ema_crossover"])
     strategy_params: dict[str, Any] = Field(
         default_factory=dict, examples=[{"fast_period": 9, "slow_period": 21}]
@@ -31,8 +32,11 @@ class BacktestCreate(BaseModel):
     start: AwareDatetime
     end: AwareDatetime
     initial_capital: Decimal = Field(default=Decimal("1000"), gt=0)
-    fee_rate: Decimal = Field(
-        default=Decimal("0.001"), ge=0, lt=1, description="Fraction of notional (0.001 = 0.1%)"
+    fee_rate: Decimal | None = Field(
+        default=None,
+        ge=0,
+        lt=1,
+        description="Fraction of notional (0.001 = 0.1%). Defaults to the exchange's taker fee.",
     )
     slippage_bps: Decimal = Field(
         default=Decimal("5"), ge=0, lt=10000, description="Adverse slippage per fill, in bps"
@@ -112,13 +116,17 @@ async def create_backtest(body: BacktestCreate, request: Request) -> BacktestOut
     container: Container = request.app.state.container
     try:
         config = BacktestConfig(
-            exchange=EXCHANGE,
+            exchange=body.exchange,
             symbol=body.symbol,
             timeframe=body.timeframe,
             start=body.start,
             end=body.end,
             initial_capital=body.initial_capital,
-            fee_rate=body.fee_rate,
+            fee_rate=(
+                body.fee_rate
+                if body.fee_rate is not None
+                else container.exchanges.profile(body.exchange).fees.taker_rate
+            ),
             slippage_bps=body.slippage_bps,
             strategy_type=body.strategy_type,
             strategy_params=body.strategy_params,

@@ -24,6 +24,9 @@ class Signal:
     symbol: str
     kind: SignalKind
     reason: str
+    # Protective levels a strategy may propose with an entry (price levels, quote currency).
+    stop_loss: Decimal | None = None
+    take_profit: Decimal | None = None
 
 
 @dataclass(frozen=True, slots=True)

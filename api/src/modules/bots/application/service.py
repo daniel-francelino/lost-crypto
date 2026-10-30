@@ -13,6 +13,7 @@ from modules.audit.models import AuditEvent
 from modules.backtesting.domain.models import EquityPoint
 from modules.bots.application.ports import BotStore
 from modules.bots.domain.models import Bot, BotConfig, BotState
+from modules.exchanges.application.registry import ExchangeRegistry
 from modules.execution.application.ports import SignalRecord
 from modules.execution.domain.orders import Order
 from modules.portfolio.domain.models import PortfolioState
@@ -46,14 +47,25 @@ class BotService:
     """API-side bot use cases. Commands only change ``desired_state``; the worker acts on it."""
 
     def __init__(
-        self, stores: BotStoreFactory, registry: StrategyRegistry, clock: Clock, ids: IdGenerator
+        self,
+        stores: BotStoreFactory,
+        registry: StrategyRegistry,
+        exchanges: ExchangeRegistry,
+        clock: Clock,
+        ids: IdGenerator,
     ) -> None:
         self._stores = stores
         self._registry = registry
+        self._exchanges = exchanges
         self._clock = clock
         self._ids = ids
 
+    def default_fee_rate(self, exchange: str) -> Decimal:
+        """The exchange's taker fee: market orders are takers."""
+        return self._exchanges.profile(exchange).fees.taker_rate
+
     async def create(self, config: BotConfig) -> Bot:
+        self._exchanges.require(config.exchange, config.timeframe)
         self._registry.create(config.strategy_type, config.strategy_params)  # validates
         now = self._clock.now()
         bot = Bot(
@@ -77,6 +89,7 @@ class BotService:
             bot = await self._get(store, bot_id)
             bot.ensure_editable()
             config = replace(bot.config, **changes)
+            self._exchanges.require(config.exchange, config.timeframe)
             self._registry.create(config.strategy_type, config.strategy_params)
             version = bot.config_version + 1
             if not await store.bots.update_config(bot_id, config, version):

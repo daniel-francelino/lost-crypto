@@ -9,11 +9,8 @@ from core.clock import Clock
 from core.errors import DomainError
 from core.ids import IdGenerator
 from core.jobs import JobStatus
-from modules.market_data.application.ports import (
-    ImportJob,
-    ImportStore,
-    MarketDataSource,
-)
+from modules.exchanges.application.registry import ExchangeRegistry
+from modules.market_data.application.ports import ImportJob, ImportStore
 from modules.market_data.domain.models import (
     Candle,
     Gap,
@@ -35,6 +32,7 @@ class InvalidImportRequest(DomainError):
 
 @dataclass(frozen=True, slots=True)
 class Coverage:
+    exchange: str
     symbol: str
     timeframe: Timeframe
     count: int
@@ -47,21 +45,26 @@ class MarketDataService:
     """API-side use cases: queue imports, query stored candles and coverage."""
 
     def __init__(
-        self, stores: ImportStoreFactory, exchange: str, clock: Clock, ids: IdGenerator
+        self,
+        stores: ImportStoreFactory,
+        exchanges: ExchangeRegistry,
+        clock: Clock,
+        ids: IdGenerator,
     ) -> None:
         self._stores = stores
-        self._exchange = exchange
+        self._exchanges = exchanges
         self._clock = clock
         self._ids = ids
 
     async def request_import(
-        self, symbol: str, timeframe: Timeframe, start: datetime, end: datetime
+        self, exchange: str, symbol: str, timeframe: Timeframe, start: datetime, end: datetime
     ) -> ImportJob:
         if start >= end:
             raise InvalidImportRequest("start must be before end")
+        self._exchanges.require(exchange, timeframe)
         job = ImportJob(
             id=self._ids.new_id(),
-            exchange=self._exchange,
+            exchange=exchange,
             symbol=symbol,
             timeframe=timeframe,
             start=start,
@@ -87,21 +90,23 @@ class MarketDataService:
             return await store.list_jobs(limit)
 
     async def candles(
-        self, symbol: str, timeframe: Timeframe, start: datetime, end: datetime
+        self, exchange: str, symbol: str, timeframe: Timeframe, start: datetime, end: datetime
     ) -> list[Candle]:
+        self._exchanges.profile(exchange)
         async with self._stores() as store:
-            return await store.candles.get_range(self._exchange, symbol, timeframe, start, end)
+            return await store.candles.get_range(exchange, symbol, timeframe, start, end)
 
-    async def coverage(self, symbol: str, timeframe: Timeframe) -> Coverage:
+    async def coverage(self, exchange: str, symbol: str, timeframe: Timeframe) -> Coverage:
+        self._exchanges.profile(exchange)
         async with self._stores() as store:
-            count, first, last = await store.candles.bounds(self._exchange, symbol, timeframe)
+            count, first, last = await store.candles.bounds(exchange, symbol, timeframe)
             gaps: list[Gap] = []
             if first is not None and last is not None:
                 times = await store.candles.open_times(
-                    self._exchange, symbol, timeframe, first, last + timeframe.delta
+                    exchange, symbol, timeframe, first, last + timeframe.delta
                 )
                 gaps = find_gaps(times, timeframe)
-        return Coverage(symbol, timeframe, count, first, last, gaps)
+        return Coverage(exchange, symbol, timeframe, count, first, last, gaps)
 
 
 class CandleImporter:
@@ -109,11 +114,10 @@ class CandleImporter:
     job interrupted by a crash can simply run again."""
 
     def __init__(
-        self, stores: ImportStoreFactory, source: MarketDataSource, exchange: str, clock: Clock
+        self, stores: ImportStoreFactory, exchanges: ExchangeRegistry, clock: Clock
     ) -> None:
         self._stores = stores
-        self._source = source
-        self._exchange = exchange
+        self._exchanges = exchanges
         self._clock = clock
 
     async def recover(self) -> int:
@@ -145,17 +149,18 @@ class CandleImporter:
 
     async def _import(self, job: ImportJob) -> int:
         timeframe = job.timeframe
+        source = self._exchanges.market_data(job.exchange)
         cursor = floor_to_timeframe(job.start, timeframe)
         # Only closed candles: the one containing "now" is still in progress.
         end = min(job.end, floor_to_timeframe(self._clock.now(), timeframe))
         total = 0
         while cursor < end:
-            batch = await self._source.fetch_candles(job.symbol, timeframe, cursor, BATCH_SIZE)
+            batch = await source.fetch_candles(job.symbol, timeframe, cursor, BATCH_SIZE)
             batch = [c for c in batch if cursor <= c.open_time < end]
             if not batch:
                 break
             async with self._stores() as store:
-                total += await store.candles.upsert_many(self._exchange, batch)
+                total += await store.candles.upsert_many(job.exchange, batch)
                 await store.set_progress(job.id, total)
                 await store.commit()
             next_cursor = max(c.open_time for c in batch) + timeframe.delta

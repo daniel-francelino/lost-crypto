@@ -1,0 +1,54 @@
+"""What the rest of the system may know about an exchange: static facts, never SDK details."""
+
+from dataclasses import dataclass
+from decimal import Decimal
+from enum import StrEnum
+
+from core.errors import DomainError
+from modules.market_data.domain.models import Timeframe
+
+
+class OrderType(StrEnum):
+    MARKET = "market"
+    LIMIT = "limit"
+    STOP_LOSS = "stop_loss"
+    TAKE_PROFIT = "take_profit"
+
+
+@dataclass(frozen=True, slots=True)
+class ExchangeCapabilities:
+    """Declared by each exchange profile; callers branch on these, never on the exchange name."""
+
+    exchange_id: str
+    name: str
+    order_types: frozenset[OrderType]
+    native_stop_orders: bool  # stops live on the exchange and survive a worker outage
+    max_client_order_id_length: int
+    has_testnet: bool
+    timeframes: frozenset[Timeframe]
+
+
+class InvalidFeeSchedule(DomainError):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class FeeSchedule:
+    """Default fee rates (fractions of notional). Market orders are takers."""
+
+    maker_rate: Decimal
+    taker_rate: Decimal
+
+    def __post_init__(self) -> None:
+        if not (0 <= self.maker_rate < 1 and 0 <= self.taker_rate < 1):
+            raise InvalidFeeSchedule("fee rates must be in [0, 1)")
+
+
+@dataclass(frozen=True, slots=True)
+class ExchangeProfile:
+    capabilities: ExchangeCapabilities
+    fees: FeeSchedule
+
+    @property
+    def exchange_id(self) -> str:
+        return self.capabilities.exchange_id

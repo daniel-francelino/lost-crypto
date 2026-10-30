@@ -10,7 +10,6 @@ from container import JobRunner, build_container, build_job_runner
 from core.clock import Clock
 from core.config import Settings, get_settings
 from core.logging import configure_logging
-from modules.exchanges.infrastructure.ccxt_adapter import CcxtMarketDataSource
 
 logger = logging.getLogger("worker")
 
@@ -54,8 +53,7 @@ async def _main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
     container = build_container(settings)
-    source = CcxtMarketDataSource()
-    jobs = build_job_runner(container, source)
+    jobs = build_job_runner(container)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -66,7 +64,7 @@ async def _main() -> None:
     except asyncio.CancelledError:
         stop.set()
     finally:
-        await source.aclose()
+        await container.exchanges.aclose()
         await container.engine.dispose()
 
 

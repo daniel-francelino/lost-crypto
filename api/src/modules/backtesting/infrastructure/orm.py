@@ -21,6 +21,17 @@ from core.db import Base
 MONEY = Numeric(38, 18)
 
 
+class BacktestSweepRow(Base):
+    __tablename__ = "backtest_sweeps"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    strategy_type: Mapped[str] = mapped_column(Text)
+    grid: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    skipped: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
+    run_count: Mapped[int] = mapped_column(Integer)
+
+
 class BacktestRunRow(Base):
     __tablename__ = "backtest_runs"
     __table_args__ = (
@@ -39,12 +50,17 @@ class BacktestRunRow(Base):
     fee_rate: Mapped[Decimal] = mapped_column(MONEY)
     slippage_bps: Mapped[Decimal] = mapped_column(MONEY)
     seed: Mapped[int] = mapped_column(Integer)
+    test_fraction: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
+    sweep_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("backtest_sweeps.id"), nullable=True
+    )
     strategy_type: Mapped[str] = mapped_column(Text)
     strategy_params: Mapped[dict[str, Any]] = mapped_column(JSONB)
     market_info: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     data_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
     candles_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     metrics: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    segments: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     equity_curve: Mapped[list[list[str]] | None] = mapped_column(JSONB, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

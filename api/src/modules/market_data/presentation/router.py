@@ -18,6 +18,7 @@ Symbol = Annotated[str, Field(pattern=r"^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$", exampl
 
 
 class ImportRequest(BaseModel):
+    exchange: str = "binance"
     symbol: Symbol = "BTC/USDT"
     timeframe: Timeframe = Timeframe.H1
     start: AwareDatetime = Field(description="Inclusive, timezone-aware (UTC recommended)")
@@ -55,6 +56,7 @@ class GapOut(BaseModel):
 
 
 class CoverageOut(BaseModel):
+    exchange: str
     symbol: str
     timeframe: Timeframe
     count: int
@@ -86,7 +88,7 @@ async def request_import(body: ImportRequest, request: Request) -> ImportJobOut:
     container: Container = request.app.state.container
     try:
         job = await container.market_data.request_import(
-            body.symbol, body.timeframe, body.start, body.end
+            body.exchange, body.symbol, body.timeframe, body.start, body.end
         )
     except InvalidImportRequest as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
@@ -118,10 +120,11 @@ async def get_candles(
     start: AwareDatetime,
     end: AwareDatetime,
     limit: Annotated[int, Query(ge=1, le=5000)] = 1000,
+    exchange: str = "binance",
 ) -> list[CandleOut]:
     """Stored candles with ``start <= open_time < end`` (at most ``limit``, oldest first)."""
     container: Container = request.app.state.container
-    candles = await container.market_data.candles(symbol, timeframe, start, end)
+    candles = await container.market_data.candles(exchange, symbol, timeframe, start, end)
     return [
         CandleOut(
             open_time=c.open_time,
@@ -136,11 +139,14 @@ async def get_candles(
 
 
 @router.get("/coverage", response_model=CoverageOut)
-async def get_coverage(request: Request, symbol: Symbol, timeframe: Timeframe) -> CoverageOut:
+async def get_coverage(
+    request: Request, symbol: Symbol, timeframe: Timeframe, exchange: str = "binance"
+) -> CoverageOut:
     """What is stored for a series, including detected gaps."""
     container: Container = request.app.state.container
-    cov = await container.market_data.coverage(symbol, timeframe)
+    cov = await container.market_data.coverage(exchange, symbol, timeframe)
     return CoverageOut(
+        exchange=cov.exchange,
         symbol=cov.symbol,
         timeframe=cov.timeframe,
         count=cov.count,

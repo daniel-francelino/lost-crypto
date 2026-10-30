@@ -3,7 +3,15 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, DateTime, Integer, Numeric, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Integer,
+    Numeric,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,6 +33,7 @@ class BotRow(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(Text)
+    exchange: Mapped[str] = mapped_column(Text, server_default="binance")
     strategy_type: Mapped[str] = mapped_column(Text)
     strategy_params: Mapped[dict[str, Any]] = mapped_column(JSONB)
     symbol: Mapped[str] = mapped_column(Text)
@@ -35,6 +44,11 @@ class BotRow(Base):
     max_position_fraction: Mapped[Decimal] = mapped_column(MONEY)
     max_order_notional: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     max_daily_loss_pct: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
+    max_drawdown_pct: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
+    max_consecutive_losses: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_risk_per_trade_pct: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
+    require_stop_loss: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    max_candle_range_pct: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     mode: Mapped[str] = mapped_column(Text)
     desired_state: Mapped[str] = mapped_column(Text)
     observed_state: Mapped[str] = mapped_column(Text)

@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +25,8 @@ class SqlAlchemyPortfolioRepository:
             avg_entry_price=row.avg_entry_price,
             realized_pnl=row.realized_pnl,
             fees_paid=row.fees_paid,
+            stop_price=row.stop_price,
+            take_profit_price=row.take_profit_price,
         )
 
     async def save(self, state: PortfolioState) -> None:
@@ -34,6 +36,8 @@ class SqlAlchemyPortfolioRepository:
             "avg_entry_price": state.avg_entry_price,
             "realized_pnl": state.realized_pnl,
             "fees_paid": state.fees_paid,
+            "stop_price": state.stop_price,
+            "take_profit_price": state.take_profit_price,
         }
         stmt = insert(BotPortfolioRow).values(bot_id=state.bot_id, **values)
         await self._session.execute(
@@ -100,3 +104,23 @@ class SqlAlchemyPortfolioRepository:
             .limit(1)
         )
         return result.scalar_one_or_none()
+
+    async def peak_equity(self, bot_id: UUID) -> Decimal | None:
+        result = await self._session.execute(
+            select(func.max(PortfolioSnapshotRow.equity)).where(
+                PortfolioSnapshotRow.bot_id == bot_id
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def open_exposure(self) -> tuple[int, Decimal]:
+        result = await self._session.execute(
+            select(
+                func.count(),
+                func.coalesce(
+                    func.sum(BotPortfolioRow.quantity * BotPortfolioRow.avg_entry_price), 0
+                ),
+            ).where(BotPortfolioRow.quantity > 0)
+        )
+        count, notional = result.one()
+        return int(count), Decimal(notional)

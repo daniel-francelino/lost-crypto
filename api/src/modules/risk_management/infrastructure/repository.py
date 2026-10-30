@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,6 +8,7 @@ from modules.risk_management.domain.models import KillSwitchState
 from modules.risk_management.infrastructure.orm import SystemFlagRow
 
 KILL_SWITCH = "kill_switch"
+WORKER_HEARTBEAT = "worker_heartbeat"
 
 
 class SqlAlchemySystemFlagsRepository:
@@ -31,3 +34,15 @@ class SqlAlchemySystemFlagsRepository:
         await self._session.flush()
         self._session.expire_all()
         return await self.get_kill_switch()
+
+    async def set_worker_heartbeat(self, at: datetime) -> None:
+        stmt = insert(SystemFlagRow).values(
+            key=WORKER_HEARTBEAT, active=True, reason=None, changed_at=at
+        )
+        await self._session.execute(
+            stmt.on_conflict_do_update(index_elements=["key"], set_={"changed_at": at})
+        )
+
+    async def get_worker_heartbeat(self) -> datetime | None:
+        row = await self._session.get(SystemFlagRow, WORKER_HEARTBEAT)
+        return row.changed_at if row else None

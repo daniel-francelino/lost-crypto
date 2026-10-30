@@ -7,9 +7,13 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.jobs import JobStatus
-from modules.backtesting.application.ports import BacktestRun
+from modules.backtesting.application.ports import BacktestRun, BacktestSweep
 from modules.backtesting.domain.models import BacktestConfig, EquityPoint
-from modules.backtesting.infrastructure.orm import BacktestRunRow, BacktestTradeRow
+from modules.backtesting.infrastructure.orm import (
+    BacktestRunRow,
+    BacktestSweepRow,
+    BacktestTradeRow,
+)
 from modules.execution.domain.orders import Fill
 from modules.market_data.domain.models import MarketInfo, Timeframe
 from modules.market_data.infrastructure.repository import SqlAlchemyCandleRepository
@@ -52,6 +56,7 @@ def _to_run(row: BacktestRunRow) -> BacktestRun:
             strategy_type=row.strategy_type,
             strategy_params=row.strategy_params,
             seed=row.seed,
+            test_fraction=row.test_fraction,
         ),
         created_at=row.created_at,
         started_at=row.started_at,
@@ -60,6 +65,8 @@ def _to_run(row: BacktestRunRow) -> BacktestRun:
         candles_count=row.candles_count,
         market_info=_market_from_json(row.market_info) if row.market_info else None,
         metrics=row.metrics,
+        segments=row.segments,
+        sweep_id=row.sweep_id,
         error=row.error,
     )
 
@@ -84,6 +91,8 @@ class SqlAlchemyBacktestStore:
                 fee_rate=c.fee_rate,
                 slippage_bps=c.slippage_bps,
                 seed=c.seed,
+                test_fraction=c.test_fraction,
+                sweep_id=run.sweep_id,
                 strategy_type=c.strategy_type,
                 strategy_params=dict(c.strategy_params),
                 created_at=run.created_at,
@@ -94,6 +103,40 @@ class SqlAlchemyBacktestStore:
     async def get_run(self, run_id: UUID) -> BacktestRun | None:
         row = await self._session.get(BacktestRunRow, run_id)
         return _to_run(row) if row else None
+
+    async def add_sweep(self, sweep: BacktestSweep) -> None:
+        self._session.add(
+            BacktestSweepRow(
+                id=sweep.id,
+                created_at=sweep.created_at,
+                strategy_type=sweep.strategy_type,
+                grid=sweep.grid,
+                skipped=sweep.skipped,
+                run_count=sweep.run_count,
+            )
+        )
+        await self._session.flush()
+
+    async def get_sweep(self, sweep_id: UUID) -> BacktestSweep | None:
+        row = await self._session.get(BacktestSweepRow, sweep_id)
+        if row is None:
+            return None
+        return BacktestSweep(
+            id=row.id,
+            created_at=row.created_at,
+            strategy_type=row.strategy_type,
+            grid=row.grid,
+            skipped=row.skipped,
+            run_count=row.run_count,
+        )
+
+    async def list_sweep_runs(self, sweep_id: UUID) -> list[BacktestRun]:
+        result = await self._session.execute(
+            select(BacktestRunRow)
+            .where(BacktestRunRow.sweep_id == sweep_id)
+            .order_by(BacktestRunRow.created_at)
+        )
+        return [_to_run(r) for r in result.scalars()]
 
     async def list_runs(self, limit: int) -> list[BacktestRun]:
         result = await self._session.execute(
@@ -134,6 +177,7 @@ class SqlAlchemyBacktestStore:
         candles_count: int,
         market_info: MarketInfo,
         metrics: dict[str, Any],
+        segments: dict[str, Any] | None,
         equity_curve: list[EquityPoint],
         fills: list[Fill],
     ) -> None:
@@ -146,6 +190,7 @@ class SqlAlchemyBacktestStore:
                 candles_count=candles_count,
                 market_info=_market_to_json(market_info),
                 metrics=metrics,
+                segments=segments,
                 equity_curve=[[p.time.isoformat(), str(p.equity)] for p in equity_curve],
                 finished_at=func.now(),
             )

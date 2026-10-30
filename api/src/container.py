@@ -15,17 +15,18 @@ from modules.backtesting.application.ports import BacktestStore
 from modules.backtesting.application.service import BacktestExecutor, BacktestService
 from modules.backtesting.infrastructure.repository import SqlAlchemyBacktestStore
 from modules.bots.application.service import BotService
-from modules.market_data.application.ports import ImportStore, MarketDataSource
+from modules.exchanges.application.registry import ExchangeRegistry
+from modules.exchanges.infrastructure.catalog import build_exchange_registry
+from modules.market_data.application.ports import ImportStore
 from modules.market_data.application.service import CandleImporter, MarketDataService
 from modules.market_data.infrastructure.repository import SqlAlchemyImportStore
 from modules.risk_management.application.service import KillSwitchService
+from modules.risk_management.domain.models import GlobalRiskLimits
 from modules.strategies.domain.registry import StrategyRegistry, default_registry
 from modules.trading.application.ports import TradingStore
 from modules.trading.application.supervisor import BotSupervisor
 from modules.trading.application.trader import BotTrader
 from modules.trading.infrastructure.store import SqlAlchemyStore
-
-EXCHANGE = "binance"
 
 
 @dataclass(slots=True)
@@ -36,6 +37,7 @@ class Container:
     clock: Clock
     ids: IdGenerator
     registry: StrategyRegistry
+    exchanges: ExchangeRegistry
     import_stores: Callable[[], AbstractAsyncContextManager[ImportStore]]
     backtest_stores: Callable[[], AbstractAsyncContextManager[BacktestStore]]
     trading_stores: Callable[[], AbstractAsyncContextManager[TradingStore]]
@@ -46,12 +48,17 @@ class Container:
     audit: AuditService
 
 
-def build_container(settings: Settings, clock: Clock | None = None) -> Container:
+def build_container(
+    settings: Settings,
+    clock: Clock | None = None,
+    exchanges: ExchangeRegistry | None = None,
+) -> Container:
     engine = create_engine(settings.database_url)
     session_factory = create_session_factory(engine)
     clock = clock or SystemClock()
     ids = UuidGenerator()
     registry = default_registry()
+    exchanges = exchanges or build_exchange_registry()
     import_stores = make_store_factory(session_factory, SqlAlchemyImportStore)
     backtest_stores = make_store_factory(session_factory, SqlAlchemyBacktestStore)
     trading_stores = make_store_factory(session_factory, SqlAlchemyStore)
@@ -62,12 +69,13 @@ def build_container(settings: Settings, clock: Clock | None = None) -> Container
         clock=clock,
         ids=ids,
         registry=registry,
+        exchanges=exchanges,
         import_stores=import_stores,
         backtest_stores=backtest_stores,
         trading_stores=trading_stores,
-        market_data=MarketDataService(import_stores, EXCHANGE, clock, ids),
-        backtests=BacktestService(backtest_stores, registry, clock, ids),
-        bots=BotService(trading_stores, registry, clock, ids),
+        market_data=MarketDataService(import_stores, exchanges, clock, ids),
+        backtests=BacktestService(backtest_stores, registry, exchanges, clock, ids),
+        bots=BotService(trading_stores, registry, exchanges, clock, ids),
         kill_switch=KillSwitchService(trading_stores),
         audit=AuditService(trading_stores),
     )
@@ -97,13 +105,22 @@ class JobRunner:
         return await self._importer.run_next() or await self._executor.run_next()
 
 
-def build_job_runner(container: Container, source: MarketDataSource) -> JobRunner:
+def build_job_runner(container: Container) -> JobRunner:
+    settings = container.settings
     trader = BotTrader(
-        container.trading_stores, container.registry, source, container.clock, container.ids
+        container.trading_stores,
+        container.registry,
+        container.exchanges,
+        container.clock,
+        container.ids,
+        GlobalRiskLimits(
+            max_open_positions=settings.risk_max_open_positions,
+            max_total_exposure=settings.risk_max_total_exposure,
+        ),
     )
     return JobRunner(
-        CandleImporter(container.import_stores, source, EXCHANGE, container.clock),
-        BacktestExecutor(container.backtest_stores, container.registry, source),
+        CandleImporter(container.import_stores, container.exchanges, container.clock),
+        BacktestExecutor(container.backtest_stores, container.registry, container.exchanges),
         BotSupervisor(
             container.trading_stores, trader, container.registry, container.clock, container.ids
         ),

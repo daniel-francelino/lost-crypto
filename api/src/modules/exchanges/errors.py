@@ -1,4 +1,4 @@
-from core.errors import LostCryptoError
+from core.errors import DomainError, LostCryptoError
 
 
 class ExchangeError(LostCryptoError):
@@ -11,3 +11,19 @@ class TransientExchangeError(ExchangeError):
 
 class UnknownSymbolError(ExchangeError):
     """The exchange does not list the requested symbol."""
+
+
+class ExchangeRejected(ExchangeError):
+    """The exchange refused the order (permanent: do not retry as-is)."""
+
+
+class UnknownOrder(ExchangeError):
+    """No order with that client order id exists on the exchange."""
+
+
+class UnknownExchangeError(DomainError):
+    """The requested exchange is not registered."""
+
+
+class UnsupportedTimeframeError(DomainError):
+    """The exchange does not offer candles for the requested timeframe."""

@@ -1,5 +1,6 @@
 """Risk rules as pure functions: every signal goes through ``assess_signal`` before an order."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -20,17 +21,44 @@ class InvalidRiskLimits(DomainError):
 
 @dataclass(frozen=True, slots=True)
 class RiskLimits:
+    """Per-bot limits. ``None`` disables a limit."""
+
     max_position_fraction: Decimal = Decimal(1)  # share of equity a position may use (0, 1]
     max_order_notional: Decimal | None = None  # hard cap per order, in quote currency
-    max_daily_loss_pct: Decimal | None = Decimal(10)  # pause the bot beyond this loss in a UTC day
+    max_daily_loss_pct: Decimal | None = Decimal(10)  # pause beyond this loss in a UTC day
+    max_drawdown_pct: Decimal | None = None  # pause beyond this drop from the equity peak
+    max_consecutive_losses: int | None = None  # pause after N losing round trips in a row
+    max_risk_per_trade_pct: Decimal | None = None  # equity % lost if the stop is hit (sizing)
+    require_stop_loss: bool = False  # refuse entries that come without a stop-loss
+    max_candle_range_pct: Decimal | None = Decimal(25)  # refuse entries on suspect candles
 
     def __post_init__(self) -> None:
         if not (0 < self.max_position_fraction <= 1):
             raise InvalidRiskLimits("max_position_fraction must be in (0, 1]")
         if self.max_order_notional is not None and self.max_order_notional <= 0:
             raise InvalidRiskLimits("max_order_notional must be positive")
-        if self.max_daily_loss_pct is not None and not (0 < self.max_daily_loss_pct <= 100):
-            raise InvalidRiskLimits("max_daily_loss_pct must be in (0, 100]")
+        for name in ("max_daily_loss_pct", "max_drawdown_pct", "max_risk_per_trade_pct"):
+            value = getattr(self, name)
+            if value is not None and not (0 < value <= 100):
+                raise InvalidRiskLimits(f"{name} must be in (0, 100]")
+        if self.max_consecutive_losses is not None and self.max_consecutive_losses < 1:
+            raise InvalidRiskLimits("max_consecutive_losses must be at least 1")
+        if self.max_candle_range_pct is not None and self.max_candle_range_pct <= 0:
+            raise InvalidRiskLimits("max_candle_range_pct must be positive")
+
+
+@dataclass(frozen=True, slots=True)
+class GlobalRiskLimits:
+    """Limits across all bots. Configured by the operator (environment), not via the API."""
+
+    max_open_positions: int | None = None
+    max_total_exposure: Decimal | None = None  # sum of open position cost, quote currency
+
+
+@dataclass(frozen=True, slots=True)
+class GlobalExposure:
+    open_positions: int = 0
+    notional: Decimal = Decimal(0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +79,10 @@ class KillSwitchState:
     changed_at: datetime | None = None
 
 
+def candle_range_pct(high: Decimal, low: Decimal) -> Decimal:
+    return (high - low) / low * _PCT if low > 0 else Decimal(0)
+
+
 def assess_signal(
     signal: Signal,
     portfolio: PortfolioState,
@@ -61,27 +93,68 @@ def assess_signal(
     slippage_bps: Decimal,
     limits: RiskLimits,
     kill_switch_active: bool,
+    candle_range: Decimal = Decimal(0),
+    global_limits: GlobalRiskLimits | None = None,
+    exposure: GlobalExposure | None = None,
 ) -> RiskDecision:
     """Approve and size a signal, or reject it with a reason.
 
-    The kill switch blocks new entries only: exits stay allowed because they reduce risk.
+    The kill switch and every entry check block new positions only: exits stay allowed
+    because they reduce risk.
     """
-    if signal.side is Side.BUY:
-        if kill_switch_active:
-            return RiskDecision.reject("kill switch is active")
-        if portfolio.quantity > 0:
-            return RiskDecision.reject("already in position")
-        budget = min(portfolio.cash, portfolio.equity(price) * limits.max_position_fraction)
-        if limits.max_order_notional is not None:
-            budget = min(budget, limits.max_order_notional)
-        try:
-            quantity = affordable_buy_quantity(
-                budget, slipped_price(Side.BUY, price, slippage_bps), fee_rate, market
-            )
-        except OrderRejected as exc:
-            return RiskDecision.reject(str(exc))
-        return RiskDecision(approved=True, quantity=quantity)
+    global_limits = global_limits or GlobalRiskLimits()
+    exposure = exposure or GlobalExposure()
+    if signal.side is Side.SELL:
+        return _assess_exit(portfolio, price, market, slippage_bps)
 
+    if kill_switch_active:
+        return RiskDecision.reject("kill switch is active")
+    if portfolio.quantity > 0:
+        return RiskDecision.reject("already in position")
+    if limits.max_candle_range_pct is not None and candle_range > limits.max_candle_range_pct:
+        return RiskDecision.reject(
+            f"candle range {candle_range:.1f}% exceeds "
+            f"{limits.max_candle_range_pct}% (suspect data)"
+        )
+    if limits.require_stop_loss and signal.stop_loss is None:
+        return RiskDecision.reject("a stop-loss is required but the signal has none")
+    if signal.stop_loss is not None and signal.stop_loss >= price:
+        return RiskDecision.reject("stop-loss must be below the entry price")
+    if signal.take_profit is not None and signal.take_profit <= price:
+        return RiskDecision.reject("take-profit must be above the entry price")
+    if (
+        global_limits.max_open_positions is not None
+        and exposure.open_positions >= global_limits.max_open_positions
+    ):
+        return RiskDecision.reject("global limit of open positions reached")
+
+    entry = slipped_price(Side.BUY, price, slippage_bps)
+    equity = portfolio.equity(price)
+    budget = min(portfolio.cash, equity * limits.max_position_fraction)
+    if limits.max_order_notional is not None:
+        budget = min(budget, limits.max_order_notional)
+    if limits.max_risk_per_trade_pct is not None and signal.stop_loss is not None:
+        # Size so that being stopped out loses at most the configured share of equity.
+        quantity_at_risk = (
+            equity * limits.max_risk_per_trade_pct / _PCT / (entry - signal.stop_loss)
+        )
+        budget = min(budget, quantity_at_risk * entry * (1 + fee_rate))
+    if global_limits.max_total_exposure is not None:
+        remaining = global_limits.max_total_exposure - exposure.notional
+        if remaining <= 0:
+            return RiskDecision.reject("global exposure limit reached")
+        budget = min(budget, remaining)
+
+    try:
+        quantity = affordable_buy_quantity(budget, entry, fee_rate, market)
+    except OrderRejected as exc:
+        return RiskDecision.reject(str(exc))
+    return RiskDecision(approved=True, quantity=quantity)
+
+
+def _assess_exit(
+    portfolio: PortfolioState, price: Decimal, market: MarketInfo, slippage_bps: Decimal
+) -> RiskDecision:
     if portfolio.quantity <= 0:
         return RiskDecision.reject("no position to sell")
     try:
@@ -96,5 +169,17 @@ def assess_signal(
 def daily_loss_breached(equity: Decimal, day_start_equity: Decimal, limits: RiskLimits) -> bool:
     if limits.max_daily_loss_pct is None or day_start_equity <= 0:
         return False
-    loss_pct = (day_start_equity - equity) / day_start_equity * _PCT
-    return loss_pct >= limits.max_daily_loss_pct
+    return (day_start_equity - equity) / day_start_equity * _PCT >= limits.max_daily_loss_pct
+
+
+def drawdown_breached(equity: Decimal, peak_equity: Decimal, limits: RiskLimits) -> bool:
+    if limits.max_drawdown_pct is None or peak_equity <= 0:
+        return False
+    return (peak_equity - equity) / peak_equity * _PCT >= limits.max_drawdown_pct
+
+
+def consecutive_losses_breached(round_trip_pnls: Sequence[Decimal], limits: RiskLimits) -> bool:
+    n = limits.max_consecutive_losses
+    if n is None or len(round_trip_pnls) < n:
+        return False
+    return all(pnl < 0 for pnl in round_trip_pnls[-n:])

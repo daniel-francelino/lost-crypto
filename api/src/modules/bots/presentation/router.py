@@ -24,16 +24,24 @@ class RiskIn(BaseModel):
     max_position_fraction: Decimal = Field(default=Decimal(1), gt=0, le=1)
     max_order_notional: Decimal | None = Field(default=None, gt=0)
     max_daily_loss_pct: Decimal | None = Field(default=Decimal(10), gt=0, le=100)
+    max_drawdown_pct: Decimal | None = Field(default=None, gt=0, le=100)
+    max_consecutive_losses: int | None = Field(default=None, ge=1)
+    max_risk_per_trade_pct: Decimal | None = Field(default=None, gt=0, le=100)
+    require_stop_loss: bool = False
+    max_candle_range_pct: Decimal | None = Field(default=Decimal(25), gt=0)
 
 
 class BotCreate(BaseModel):
     name: str = Field(min_length=1, max_length=60)
+    exchange: str = "binance"
     strategy_type: str = Field(examples=["ema_crossover"])
     strategy_params: dict[str, Any] = Field(default_factory=dict)
     symbol: Symbol = "BTC/USDT"
     timeframe: Timeframe = Timeframe.H1
     initial_capital: Decimal = Field(default=Decimal(1000), gt=0)
-    fee_rate: Decimal = Field(default=Decimal("0.001"), ge=0, lt=1)
+    fee_rate: Decimal | None = Field(
+        default=None, ge=0, lt=1, description="Defaults to the exchange's taker fee"
+    )
     slippage_bps: Decimal = Field(default=Decimal(5), ge=0, lt=10000)
     risk: RiskIn = Field(default_factory=RiskIn)
     mode: Literal["paper"] = "paper"  # testnet/live are not available yet
@@ -43,6 +51,7 @@ class BotUpdate(BaseModel):
     """Every field optional. Only allowed while the bot is stopped."""
 
     name: str | None = Field(default=None, min_length=1, max_length=60)
+    exchange: str | None = None
     strategy_type: str | None = None
     strategy_params: dict[str, Any] | None = None
     symbol: Symbol | None = None
@@ -56,6 +65,7 @@ class BotUpdate(BaseModel):
 class BotOut(BaseModel):
     id: UUID
     name: str
+    exchange: str
     strategy_type: str
     strategy_params: dict[str, Any]
     symbol: str
@@ -120,6 +130,7 @@ def _out(bot: Bot) -> BotOut:
     return BotOut(
         id=bot.id,
         name=c.name,
+        exchange=c.exchange,
         strategy_type=c.strategy_type,
         strategy_params=dict(c.strategy_params),
         symbol=c.symbol,
@@ -131,6 +142,11 @@ def _out(bot: Bot) -> BotOut:
             max_position_fraction=c.risk.max_position_fraction,
             max_order_notional=c.risk.max_order_notional,
             max_daily_loss_pct=c.risk.max_daily_loss_pct,
+            max_drawdown_pct=c.risk.max_drawdown_pct,
+            max_consecutive_losses=c.risk.max_consecutive_losses,
+            max_risk_per_trade_pct=c.risk.max_risk_per_trade_pct,
+            require_stop_loss=c.risk.require_stop_loss,
+            max_candle_range_pct=c.risk.max_candle_range_pct,
         ),
         mode=c.mode,
         desired_state=bot.desired_state,
@@ -144,7 +160,7 @@ def _out(bot: Bot) -> BotOut:
 
 
 def _risk(risk: RiskIn) -> RiskLimits:
-    return RiskLimits(risk.max_position_fraction, risk.max_order_notional, risk.max_daily_loss_pct)
+    return RiskLimits(**risk.model_dump())
 
 
 def _container(request: Request) -> Container:
@@ -155,19 +171,23 @@ def _container(request: Request) -> Container:
 @router.post("", response_model=BotOut, status_code=status.HTTP_201_CREATED)
 async def create_bot(body: BotCreate, request: Request) -> BotOut:
     """Create a paper-trading bot. It starts stopped; call ``/start`` to run it."""
+    bots = _container(request).bots
     config = BotConfig(
         name=body.name,
+        exchange=body.exchange,
         strategy_type=body.strategy_type,
         strategy_params=body.strategy_params,
         symbol=body.symbol,
         timeframe=body.timeframe,
         initial_capital=body.initial_capital,
-        fee_rate=body.fee_rate,
+        fee_rate=(
+            body.fee_rate if body.fee_rate is not None else bots.default_fee_rate(body.exchange)
+        ),
         slippage_bps=body.slippage_bps,
         risk=_risk(body.risk),
         mode=ExecutionMode(body.mode),
     )
-    return _out(await _container(request).bots.create(config))
+    return _out(await bots.create(config))
 
 
 @router.get("", response_model=list[BotOut])

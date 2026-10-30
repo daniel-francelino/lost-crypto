@@ -43,6 +43,7 @@ class BotConfig:
     slippage_bps: Decimal
     risk: RiskLimits = field(default_factory=RiskLimits)
     mode: ExecutionMode = ExecutionMode.PAPER
+    exchange: str = "binance"
 
     def __post_init__(self) -> None:
         if not self.name.strip():

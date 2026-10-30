@@ -7,6 +7,10 @@ Timeline per candle ``i`` (no look-ahead):
   3. the strategy sees candle ``i`` (closed) and may emit signals for candle ``i+1``.
 Signals emitted on the last candle can never be filled and are only counted.
 
+A long position's stop-loss / take-profit (proposed by the strategy's entry signal) is checked
+against each candle's low/high, exactly as the paper trader does; the stop wins when both
+levels fall inside the same candle.
+
 Fills use the same simulation as paper trading (``execution.domain.fills``). Sizing here is
 deliberately trivial (buy with all cash, sell the whole position); in the live pipeline that
 responsibility belongs to the risk module.
@@ -31,6 +35,7 @@ from modules.execution.domain.fills import (
 from modules.execution.domain.normalizer import OrderRejected
 from modules.execution.domain.orders import Fill
 from modules.market_data.domain.models import Candle, MarketInfo
+from modules.risk_management.domain.stops import ExitReason, check_protective_exit
 from modules.strategies.domain.types import Side, Signal, Strategy, StrategyContext
 
 
@@ -50,6 +55,8 @@ def run_backtest(
     rejected: list[RejectedSignal] = []
     state = strategy.initial_state()
     pending: tuple[Signal, ...] = ()
+    stop_price: Decimal | None = None
+    take_profit_price: Decimal | None = None
 
     for candle in candles:
         for signal in pending:
@@ -78,10 +85,34 @@ def run_backtest(
             if signal.side is Side.BUY:
                 cash -= fill.notional + fill.fee
                 quantity += fill.quantity
+                stop_price, take_profit_price = signal.stop_loss, signal.take_profit
             else:
                 cash += fill.notional - fill.fee
                 quantity -= fill.quantity
             fills.append(fill)
+
+        if quantity > 0:
+            hit = check_protective_exit(candle, stop_price, take_profit_price)
+            if hit is not None:
+                slippage = config.slippage_bps if hit.reason is ExitReason.STOP_LOSS else Decimal(0)
+                try:
+                    exit_fill = simulate_market_fill(
+                        Side.SELL,
+                        quantity,
+                        hit.trigger_price,
+                        config.fee_rate,
+                        slippage,
+                        market,
+                        candle.open_time,
+                    )
+                except OrderRejected as exc:
+                    rejected.append(RejectedSignal(candle.open_time, Side.SELL, str(exc)))
+                else:
+                    cash += exit_fill.notional - exit_fill.fee
+                    quantity -= exit_fill.quantity
+                    fills.append(exit_fill)
+        if quantity <= 0:
+            stop_price = take_profit_price = None
 
         equity.append(EquityPoint(candle.close_time, cash + quantity * candle.close))
 

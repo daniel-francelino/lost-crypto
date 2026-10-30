@@ -26,6 +26,9 @@ class PortfolioState:
     avg_entry_price: Decimal = Decimal(0)
     realized_pnl: Decimal = Decimal(0)
     fees_paid: Decimal = Decimal(0)
+    # Protective levels of the open position (cleared when it is closed).
+    stop_price: Decimal | None = None
+    take_profit_price: Decimal | None = None
 
     @classmethod
     def new(cls, bot_id: UUID, initial_capital: Decimal) -> "PortfolioState":
@@ -51,6 +54,8 @@ class PortfolioState:
             self.cash += fill.notional - fill.fee
             if self.quantity == 0:
                 self.avg_entry_price = Decimal(0)
+                self.stop_price = None
+                self.take_profit_price = None
         self.fees_paid += fill.fee
 
 

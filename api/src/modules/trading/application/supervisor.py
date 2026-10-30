@@ -56,10 +56,12 @@ class BotSupervisor:
                     running.append(bot.id)
             except Exception as exc:
                 await self._on_failure(bot, exc)
-        if running:
-            async with self._stores() as store:
-                await store.bots.heartbeat(running, self._clock.now())
-                await store.commit()
+        async with self._stores() as store:
+            now = self._clock.now()
+            if running:
+                await store.bots.heartbeat(running, now)
+            await store.flags.set_worker_heartbeat(now)  # lets the API tell if the worker is alive
+            await store.commit()
 
     async def _handle(self, bot: Bot) -> None:
         if bot.desired_state is BotState.RUNNING:
