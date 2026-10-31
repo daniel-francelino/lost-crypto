@@ -136,9 +136,23 @@ export function ConnectionFormPage() {
                   <AlertTitle>Dinheiro real</AlertTitle>
                   <AlertDescription>
                     Use uma chave somente de trade, sem permissão de saque ou transferência e
-                    restrita ao IP do servidor. O worker recusa chaves mais permissivas.
+                    restrita ao IP do servidor. O worker recusa chaves mais permissivas e volta a
+                    conferi-las todo dia.
                   </AlertDescription>
                 </Alert>
+                <div className="space-y-1 text-sm">
+                  <p className="font-medium">Como criar a chave na Binance</p>
+                  <ol className="list-decimal space-y-0.5 pl-5 text-muted-foreground">
+                    <li>Gerenciamento de API → criar chave (tipo gerada pelo sistema).</li>
+                    <li>Marque só “Enable Spot &amp; Margin Trading”.</li>
+                    <li>Deixe desmarcados saques e transferências universais.</li>
+                    <li>Em restrição de acesso, restrinja ao IP do servidor do worker.</li>
+                  </ol>
+                  <p className="text-muted-foreground">
+                    Risco de contraparte: a exchange guarda o dinheiro. Deixe nela só o capital que
+                    os bots usam.
+                  </p>
+                </div>
                 <FormCheckbox
                   label="Entendo que esta conexão usa dinheiro real."
                   value={confirmed}

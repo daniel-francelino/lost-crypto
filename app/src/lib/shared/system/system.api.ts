@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { request } from "@/lib/shared/api/client";
 import { HttpMethod } from "@/lib/shared/api/http";
-import { nullableTimestampSchema } from "@/lib/shared/api/schemas";
+import {
+  decimalSchema,
+  nullableDecimalSchema,
+  nullableTimestampSchema,
+} from "@/lib/shared/api/schemas";
 
 const killSwitchSchema = z.object({
   active: z.boolean(),
@@ -9,6 +13,15 @@ const killSwitchSchema = z.object({
   changed_at: nullableTimestampSchema,
 });
 export type KillSwitch = z.infer<typeof killSwitchSchema>;
+
+const backupRecordSchema = z.object({
+  at: z.string(),
+  ok: z.boolean(),
+  file: z.string().nullable(),
+  size_bytes: z.number().nullable(),
+  detail: z.string().nullable(),
+});
+export type BackupRecord = z.infer<typeof backupRecordSchema>;
 
 const statusSchema = z.object({
   worker: z.object({
@@ -27,6 +40,33 @@ const statusSchema = z.object({
     }),
   ),
   exchanges: z.array(z.string()),
+  unprotected_positions: z
+    .array(
+      z.object({
+        bot_id: z.string(),
+        name: z.string(),
+        symbol: z.string(),
+        mode: z.string(),
+        quantity: decimalSchema,
+        stop_price: nullableDecimalSchema,
+      }),
+    )
+    .optional(),
+  clock: z
+    .object({
+      skew_ms: z.number().nullable(),
+      measured_at: nullableTimestampSchema,
+      warning: z.boolean(),
+      blocking_live: z.boolean(),
+    })
+    .nullish(),
+  backup: z
+    .object({
+      last_backup: backupRecordSchema.nullable(),
+      last_restore_check: backupRecordSchema.nullable(),
+      overdue: z.boolean(),
+    })
+    .nullish(),
 });
 export type SystemStatus = z.infer<typeof statusSchema>;
 
@@ -56,3 +96,5 @@ export const setKillSwitch = (active: boolean, reason: string | null): Promise<K
     schema: killSwitchSchema,
     body: { active, reason },
   });
+
+export const WORKER_HEALTH_PATH = "/health/worker";

@@ -44,6 +44,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/health/worker": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Worker
+         * @description Is the worker alive? 503 when its heartbeat is older than WORKER_STALE_AFTER_SECONDS.
+         *
+         *     For a monitor OUTSIDE this host (book 1 ch. 4, O3): the only way to learn that the whole
+         *     machine is down while nobody has the app open. Unauthenticated and without sensitive data.
+         */
+        get: operations["worker_api_v1_health_worker_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -949,6 +972,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/exchange-connections/{connection_id}/recheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recheck Connection
+         * @description Ask the exchange now what this ACTIVE key may do (the worker also does it daily).
+         *
+         *     A key that turned unacceptable keeps working for exits but gets ``permission_warning``,
+         *     which blocks new entries until it is fixed and checked again.
+         */
+        post: operations["recheck_connection_api_v1_exchange_connections__connection_id__recheck_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1156,6 +1202,32 @@ export interface components {
             started_at: string | null;
             /** Finished At */
             finished_at: string | null;
+        };
+        /** BackupOut */
+        BackupOut: {
+            last_backup: components["schemas"]["BackupRecordOut"] | null;
+            last_restore_check: components["schemas"]["BackupRecordOut"] | null;
+            /**
+             * Overdue
+             * @description No successful backup in 26 h, or the last restore check failed.
+             */
+            overdue: boolean;
+        };
+        /** BackupRecordOut */
+        BackupRecordOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Ok */
+            ok: boolean;
+            /** File */
+            file: string | null;
+            /** Size Bytes */
+            size_bytes: number | null;
+            /** Detail */
+            detail: string | null;
         };
         /** BotCreate */
         BotCreate: {
@@ -1410,6 +1482,26 @@ export interface components {
             /** Detail */
             detail: string;
         };
+        /** ClockOut */
+        ClockOut: {
+            /**
+             * Skew Ms
+             * @description Local clock minus the exchange's, in ms.
+             */
+            skew_ms: number | null;
+            /** Measured At */
+            measured_at: string | null;
+            /**
+             * Warning
+             * @description Beyond 1 s.
+             */
+            warning: boolean;
+            /**
+             * Blocking Live
+             * @description Beyond 5 s: no new live positions are opened.
+             */
+            blocking_live: boolean;
+        };
         /** ConnectionCreate */
         ConnectionCreate: {
             /**
@@ -1467,6 +1559,20 @@ export interface components {
             created_at: string;
             /** Verified At */
             verified_at: string | null;
+            /** @description What the key could do at the last check. */
+            permissions?: components["schemas"]["PermissionsOut"] | null;
+            /**
+             * Status Reason
+             * @description Why the last check refused the key (null when accepted).
+             */
+            status_reason?: string | null;
+            /** Last Checked At */
+            last_checked_at?: string | null;
+            /**
+             * Permission Warning
+             * @description An ACTIVE key that later became unacceptable: new entries are refused, exits continue, until the key is fixed and checked again.
+             */
+            permission_warning?: string | null;
         };
         /**
          * ConnectionStatus
@@ -1982,6 +2088,19 @@ export interface components {
             /** Periods */
             periods: components["schemas"]["PeriodOut"][];
         };
+        /** PermissionsOut */
+        PermissionsOut: {
+            /** Can Read */
+            can_read: boolean;
+            /** Can Trade */
+            can_trade: boolean;
+            /** Can Withdraw */
+            can_withdraw: boolean;
+            /** Can Transfer */
+            can_transfer: boolean;
+            /** Ip Restricted */
+            ip_restricted: boolean;
+        };
         /** PortfolioOut */
         PortfolioOut: {
             /** Initial Capital */
@@ -2482,6 +2601,13 @@ export interface components {
             stale_bots: components["schemas"]["StaleBotOut"][];
             /** Exchanges */
             exchanges: string[];
+            /**
+             * Unprotected Positions
+             * @description Testnet/live positions with no stop resting on the exchange: exposed while the worker is down.
+             */
+            unprotected_positions?: components["schemas"]["UnprotectedPositionOut"][];
+            clock?: components["schemas"]["ClockOut"] | null;
+            backup?: components["schemas"]["BackupOut"] | null;
         };
         /**
          * Timeframe
@@ -2539,6 +2665,24 @@ export interface components {
             /** Notional */
             notional: string;
         };
+        /** UnprotectedPositionOut */
+        UnprotectedPositionOut: {
+            /** Bot Id */
+            bot_id: string;
+            /** Name */
+            name: string;
+            /** Symbol */
+            symbol: string;
+            /** Mode */
+            mode: string;
+            /** Quantity */
+            quantity: string;
+            /**
+             * Stop Price
+             * @description Stop watched by the worker only (none on the exchange), when set.
+             */
+            stop_price: string | null;
+        };
         /** UserCreate */
         UserCreate: {
             /** Username */
@@ -2588,6 +2732,18 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** WorkerHealthResponse */
+        WorkerHealthResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "stale";
+            /** Last Heartbeat At */
+            last_heartbeat_at: string | null;
+            /** Age Seconds */
+            age_seconds: number | null;
         };
         /** WorkerOut */
         WorkerOut: {
@@ -2643,6 +2799,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    worker_api_v1_health_worker_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerHealthResponse"];
                 };
             };
         };
@@ -4170,6 +4346,37 @@ export interface operations {
         };
     };
     disable_connection_api_v1_exchange_connections__connection_id__disable_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recheck_connection_api_v1_exchange_connections__connection_id__recheck_post: {
         parameters: {
             query?: never;
             header?: never;

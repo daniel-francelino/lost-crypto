@@ -4,6 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "lost-ui/ui/card";
 import { QueryBoundary } from "@/components/shared/feedback/query-boundary";
 import { UpdatedAt } from "@/components/shared/feedback/updated-at";
 import { StatTile } from "@/components/shared/metrics/stat-tile";
+import {
+  ExternalMonitorCard,
+  OperationsTiles,
+  UnprotectedPositions,
+} from "@/components/system/operations-cards";
 import { useCapabilities, useSystemStatus } from "@/hooks/shared/use-system";
 import { formatAge, formatDateTime } from "@/lib/shared/dates";
 import { botStateLabel } from "@/lib/shared/labels";
@@ -43,6 +48,8 @@ export function SystemPage() {
               <StatTile label="Exchanges registradas" value={data.exchanges.join(", ") || "—"} />
               <StatTile label="Bots sem heartbeat" value={String(data.stale_bots.length)} />
             </div>
+            <OperationsTiles status={data} />
+            <UnprotectedPositions status={data} />
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Bots por estado</CardTitle>
@@ -72,6 +79,7 @@ export function SystemPage() {
                 </CardContent>
               </Card>
             )}
+            <ExternalMonitorCard alive={data.worker.alive} />
           </div>
         )}
       </QueryBoundary>

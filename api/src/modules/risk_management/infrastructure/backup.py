@@ -23,9 +23,12 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from modules.risk_management.domain.models import BackupRecord
 
 CHECKED_TABLES = (
+    "users",
     "bots",
+    "bot_portfolios",
     "orders",
-    "fills",
+    "order_fills",
+    "trading_signals",
     "audit_events",
     "exchange_connections",
     "backtest_runs",

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { DataTable, type DataTableColumn } from "lost-ui/data/data-table";
 import { Empty } from "lost-ui/data/empty";
+import { Alert, AlertDescription, AlertTitle } from "lost-ui/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "lost-ui/ui/card";
 import { ErrorBlock, QueryBoundary } from "@/components/shared/feedback/query-boundary";
 import { MetricsGrid } from "@/components/shared/metrics/metrics-grid";
@@ -9,6 +10,7 @@ import { UnderwaterChart } from "@/components/shared/metrics/underwater-chart";
 import { StatTile } from "@/components/shared/metrics/stat-tile";
 import { OrderStatusBadge, SideBadge } from "@/components/shared/status/badges";
 import { SignedValue } from "@/components/shared/status/signed-value";
+import { useConnections } from "@/hooks/shared/use-catalog";
 import {
   useBotEquity,
   useOrders,
@@ -18,7 +20,9 @@ import {
 } from "@/hooks/bots/use-bots";
 import type { Bot, Order, Signal } from "@/lib/bots/bots.api";
 import { formatDateTime, formatUtcShort } from "@/lib/shared/dates";
+import { ExecutionMode } from "@/lib/shared/enums";
 import {
+  compareDecimal,
   formatMoney,
   formatPrice,
   formatQuantity,
@@ -35,6 +39,27 @@ const DECISION_LABELS: Record<string, string> = {
   discarded_stale: "Descartado (atrasado)",
 };
 
+const usesExchange = (mode: string): boolean =>
+  mode === ExecutionMode.Testnet || mode === ExecutionMode.Live;
+
+function ConnectionWarning({ bot }: { bot: Bot }) {
+  const connections = useConnections();
+  const connection = connections.data?.find((item) => item.id === bot.connection_id);
+  if (connection === undefined || !connection.permission_warning) return null;
+  return (
+    <Alert variant="destructive">
+      <AlertTitle>Novas entradas bloqueadas: a chave “{connection.label}” mudou</AlertTitle>
+      <AlertDescription>
+        <p className="font-mono text-xs">{connection.permission_warning}</p>
+        <p>
+          Saídas e stops continuam funcionando. Corrija a chave na exchange e verifique de novo em
+          Conexões.
+        </p>
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 export function SummaryTab({ bot }: { bot: Bot }) {
   const portfolio = usePortfolio(bot.id);
   const equity = useBotEquity(bot.id);
@@ -42,6 +67,19 @@ export function SummaryTab({ bot }: { bot: Bot }) {
 
   return (
     <div className="space-y-4">
+      <ConnectionWarning bot={bot} />
+      {portfolio.data !== undefined &&
+      usesExchange(bot.mode) &&
+      compareDecimal(portfolio.data.quantity, "0") > 0 &&
+      !portfolio.data.native_stop_active ? (
+        <Alert className="border-warning/50">
+          <AlertTitle>Sem stop na exchange — exposto se o worker cair</AlertTitle>
+          <AlertDescription>
+            Esta posição não tem stop guardado na exchange. Enquanto o worker estiver no ar ele
+            vigia o stop; numa queda do servidor, nada protege a posição.
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <QueryBoundary query={portfolio}>
         {(data) => (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
