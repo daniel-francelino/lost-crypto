@@ -11,6 +11,7 @@ import {
   SkeletonBlock,
 } from "@/components/shared/feedback/query-boundary";
 import { CostLadderCard } from "@/components/backtests/cost-ladder-card";
+import { DataQualityCard } from "@/components/backtests/data-quality-card";
 import { PeriodsCard } from "@/components/backtests/periods-card";
 import { ScreeningPanel } from "@/components/backtests/screening-panel";
 import { EquityChart } from "@/components/shared/metrics/equity-chart";
@@ -26,6 +27,7 @@ import { Capability, can } from "@/lib/shared/capability";
 import { formatDateTime, formatUtc, formatUtcDay } from "@/lib/shared/dates";
 import { JobStatus } from "@/lib/shared/enums";
 import {
+  formatFraction,
   formatMoney,
   formatPercent,
   formatPrice,
@@ -136,6 +138,9 @@ export function BacktestDetailPage({ runId }: { runId: string }) {
         <ToleranceNotice tolerance={run.tolerance} />
       )}
       {run.metrics === null ? null : <ScreeningPanel run={run} metrics={run.metrics} />}
+      {run.data_quality === null || run.data_quality === undefined ? null : (
+        <DataQualityCard run={run} quality={run.data_quality} />
+      )}
       {run.metrics === null ? null : (
         <section className="space-y-3" aria-label="Métricas">
           <h2 className="text-base font-semibold">Resultado completo</h2>
@@ -146,8 +151,8 @@ export function BacktestDetailPage({ runId }: { runId: string }) {
         <section className="space-y-3" aria-label="Treino e teste">
           <h2 className="text-base font-semibold">Treino × teste (fora da amostra)</h2>
           <p className="text-sm text-muted-foreground">
-            O corte está em {formatUtc(run.segments.split_at)}. O teste usa os últimos{" "}
-            {run.segments.test_fraction} da série e vale tanto quanto o treino.
+            O corte está em {formatUtc(run.segments.split_at)}. O teste usa a fração final de{" "}
+            {formatFraction(run.segments.test_fraction)} da série e vale tanto quanto o treino.
           </p>
           <div className="grid gap-6 lg:grid-cols-2">
             <div className="space-y-2">

@@ -3,7 +3,14 @@ import { request, requestPaged } from "@/lib/shared/api/client";
 import { HttpMethod } from "@/lib/shared/api/http";
 import { decimalSchema, lenientEnum, nullableDecimalSchema } from "@/lib/shared/api/schemas";
 import { equityPointSchema, metricsSchema, tradeSchema } from "@/lib/shared/analytics";
-import { BreakEvenStatus, JobStatus, PeriodGranularity, SweepRankBy } from "@/lib/shared/enums";
+import {
+  BreakEvenStatus,
+  CandleProblem,
+  JobStatus,
+  PeriodGranularity,
+  RobustnessVerdict,
+  SweepRankBy,
+} from "@/lib/shared/enums";
 
 const segmentsSchema = z.object({
   split_at: z.string(),
@@ -56,6 +63,43 @@ const toleranceSchema = z.object({
 });
 export type Tolerance = z.infer<typeof toleranceSchema>;
 
+const dataQualitySchema = z.object({
+  gaps: z
+    .object({
+      expected: z.number(),
+      present: z.number(),
+      missing: z.number(),
+      gap_count: z.number(),
+      largest_gap_candles: z.number(),
+      largest_gap_seconds: z.number(),
+      over_limit: z.boolean(),
+      allowed: z.boolean(),
+      gaps: z.array(z.object({ start: z.string(), end: z.string(), missing: z.number() })),
+    })
+    .nullish(),
+  invalid_candles: z.number().nullish(),
+  invalid_samples: z
+    .array(z.object({ open_time: z.string(), problems: z.array(lenientEnum(CandleProblem)) }))
+    .optional(),
+  outlier_sigmas: nullableDecimalSchema.optional(),
+  outliers: z.number().nullish(),
+  outlier_samples: z
+    .array(z.object({ open_time: z.string(), return_pct: decimalSchema, sigmas: decimalSchema }))
+    .optional(),
+  sample: z
+    .object({
+      free_parameters: z.number(),
+      bars: z.number(),
+      round_trips: z.number(),
+      min_bars: z.number(),
+      min_round_trips: z.number(),
+      meets_bar_rule: z.boolean(),
+      meets_trade_rule: z.boolean(),
+    })
+    .nullish(),
+});
+export type DataQuality = z.infer<typeof dataQualitySchema>;
+
 export const backtestSchema = z.object({
   id: z.string(),
   status: lenientEnum(JobStatus),
@@ -74,6 +118,7 @@ export const backtestSchema = z.object({
   cost_sensitivity: z.boolean().optional(),
   max_drawdown_tolerance_pct: nullableDecimalSchema.optional(),
   max_drawdown_tolerance_days: z.number().nullish(),
+  allow_gaps: z.boolean().optional(),
   sweep_id: z.string().nullable(),
   data_hash: z.string().nullable(),
   candles_count: z.number().nullable(),
@@ -82,6 +127,7 @@ export const backtestSchema = z.object({
   periods: periodsSchema.nullish(),
   cost_ladder: costLadderSchema.nullish(),
   tolerance: toleranceSchema.nullish(),
+  data_quality: dataQualitySchema.nullish(),
   error: z.string().nullable(),
   created_at: z.string(),
   started_at: z.string().nullable(),
@@ -118,6 +164,21 @@ const sweepSchema = z.object({
   trials: z.number().optional(),
   prior_trials: z.number().optional(),
   ranked_by: lenientEnum(SweepRankBy),
+  robustness: z
+    .object({
+      verdict: lenientEnum(RobustnessVerdict),
+      metric: lenientEnum(SweepRankBy),
+      winner_score: nullableDecimalSchema,
+      neighbours: z.number(),
+      neighbour_mean: nullableDecimalSchema,
+      neighbour_min: nullableDecimalSchema,
+      neighbour_ratio: nullableDecimalSchema,
+      profitable_share: nullableDecimalSchema,
+      median: nullableDecimalSchema,
+      top3_mean: nullableDecimalSchema,
+      scored: z.number(),
+    })
+    .nullish(),
   note: z.string(),
   runs: z.array(sweepRunSchema),
 });
@@ -139,6 +200,7 @@ export type BacktestInput = {
   cost_sensitivity: boolean;
   max_drawdown_tolerance_pct: string | null;
   max_drawdown_tolerance_days: number | null;
+  allow_gaps: boolean;
 };
 
 export const listBacktests = (limit: number, offset: number, signal?: AbortSignal) =>

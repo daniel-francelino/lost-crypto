@@ -1,6 +1,7 @@
 import type { BacktestInput } from "@/lib/backtests/backtests.api";
 import { dayEndUtcIso, dayStartUtcIso, daysAgoString } from "@/lib/shared/dates";
 import { Timeframe } from "@/lib/shared/enums";
+import { compareDecimal } from "@/lib/shared/format";
 import {
   type ParamValues,
   buildStrategyParams,
@@ -29,6 +30,7 @@ export type BacktestFormValues = {
   costSensitivity: boolean;
   toleranceDrawdownPct: string;
   toleranceDrawdownDays: string;
+  allowGaps: boolean;
   sweep: boolean;
   grid: Record<string, string>;
 };
@@ -52,6 +54,7 @@ export const defaultBacktestValues = (
   costSensitivity: false,
   toleranceDrawdownPct: "",
   toleranceDrawdownDays: "",
+  allowGaps: false,
   sweep: false,
   grid: {},
 });
@@ -106,5 +109,32 @@ export const toBacktestInput = (
     cost_sensitivity: values.costSensitivity && !values.sweep,
     max_drawdown_tolerance_pct: tolerancePct === "" ? null : tolerancePct,
     max_drawdown_tolerance_days: toleranceDays === "" ? null : Number.parseInt(toleranceDays, 10),
+    allow_gaps: values.allowGaps,
   };
+};
+
+export const MIN_TEST_FRACTION = "0.25";
+export const BARS_PER_PARAMETER = 252;
+export const MAX_PARAMETERS = 5;
+
+export const testFractionWarning = (fraction: string): string | undefined => {
+  const text = fraction.trim();
+  if (text === "" || compareDecimal(text, "0") <= 0) return undefined;
+  if (compareDecimal(text, MIN_TEST_FRACTION) >= 0) return undefined;
+  return "O livro sugere o teste com pelo menos ⅓ do treino (fração ≥ 0.25): com menos, o resultado fora da amostra pesa pouco.";
+};
+
+export const freeParameterCount = (strategy: Strategy | undefined, values: ParamValues): number =>
+  (strategy?.parameters ?? []).filter((param) => (values[param.name] ?? "").trim() !== "").length;
+
+export type SampleAdvice = { freeParameters: number; minBars: number; enough: boolean };
+
+export const sampleAdvice = (
+  strategy: Strategy | undefined,
+  values: ParamValues,
+  expectedBars: number,
+): SampleAdvice => {
+  const freeParameters = freeParameterCount(strategy, values);
+  const minBars = BARS_PER_PARAMETER * freeParameters;
+  return { freeParameters, minBars, enough: expectedBars >= minBars };
 };

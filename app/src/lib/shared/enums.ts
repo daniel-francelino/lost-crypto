@@ -44,6 +44,30 @@ export const PeriodGranularity = {
 } as const;
 export type PeriodGranularity = ValueOf<typeof PeriodGranularity>;
 
+export const CandleProblem = {
+  NonPositivePrice: "non_positive_price",
+  NegativeVolume: "negative_volume",
+  HighBelowBody: "high_below_body",
+  LowAboveBody: "low_above_body",
+  MisalignedTime: "misaligned_time",
+} as const;
+export type CandleProblem = ValueOf<typeof CandleProblem>;
+
+export const ListingStatus = {
+  Active: "active",
+  Inactive: "inactive",
+  Delisted: "delisted",
+} as const;
+export type ListingStatus = ValueOf<typeof ListingStatus>;
+
+export const RobustnessVerdict = {
+  Plateau: "plateau",
+  Peak: "peak",
+  Unprofitable: "unprofitable",
+  Insufficient: "insufficient",
+} as const;
+export type RobustnessVerdict = ValueOf<typeof RobustnessVerdict>;
+
 export const JobStatus = {
   Queued: "queued",
   Running: "running",

@@ -1,8 +1,9 @@
-import type { Backtest } from "@/lib/backtests/backtests.api";
+import type { Backtest, DataQuality } from "@/lib/backtests/backtests.api";
 import type { Metrics } from "@/lib/shared/analytics";
 import { toMs } from "@/lib/shared/dates";
 import {
   compareDecimal,
+  formatFraction,
   formatDuration,
   formatPercent,
   formatRatio,
@@ -23,6 +24,7 @@ export const CHAN_THRESHOLDS = {
   maxDrawdownDays: 120,
   minRoundTripsPerYear: 12,
   minExposurePct: "20",
+  minTestFraction: "0.25",
 } as const;
 
 const DAY_MS = 24 * 3600 * 1000;
@@ -134,14 +136,77 @@ const segmentFlags = (run: Pick<Backtest, "segments">): ScreeningFlag[] => {
   ];
 };
 
+const dataFlags = (quality: DataQuality | null | undefined): ScreeningFlag[] => {
+  if (quality === null || quality === undefined) return [];
+  const flags: ScreeningFlag[] = [];
+  const outliers = quality.outliers ?? 0;
+  if (outliers > 0) {
+    flags.push({
+      id: "outliers",
+      level: ScreeningLevel.Warning,
+      text: `${outliers} movimento(s) fora do comum nos dados: o resultado pode depender de dados errados. Confira em "Qualidade dos dados".`,
+    });
+  }
+  if ((quality.invalid_candles ?? 0) > 0) {
+    flags.push({
+      id: "invalid-candles",
+      level: ScreeningLevel.Warning,
+      text: `${quality.invalid_candles ?? 0} candle(s) inválido(s) no período.`,
+    });
+  }
+  if (quality.gaps?.over_limit === true) {
+    flags.push({
+      id: "gaps",
+      level: ScreeningLevel.Warning,
+      text: `Rodado com lacunas acima do limite (${quality.gaps.missing} candles faltando): operações que atravessam um buraco são executadas depois dele.`,
+    });
+  }
+  const sample = quality.sample;
+  if (sample !== null && sample !== undefined && !sample.meets_bar_rule) {
+    flags.push({
+      id: "sample-bars",
+      level: ScreeningLevel.Warning,
+      text: `Amostra pequena para ${sample.free_parameters} parâmetros: ${sample.bars} candles, e a regra prática pede ${sample.min_bars}.`,
+    });
+  }
+  if (sample !== null && sample !== undefined && !sample.meets_trade_rule) {
+    flags.push({
+      id: "sample-trades",
+      level: ScreeningLevel.Info,
+      text: `Só ${sample.round_trips} operações independentes (menos de ${sample.min_round_trips}): cada uma pesa muito no resultado.`,
+    });
+  }
+  return flags;
+};
+
+const fractionFlags = (fraction: string | null | undefined): ScreeningFlag[] =>
+  fraction !== null &&
+  fraction !== undefined &&
+  compareDecimal(fraction, CHAN_THRESHOLDS.minTestFraction) < 0
+    ? [
+        {
+          id: "small-test",
+          level: ScreeningLevel.Info,
+          text: `Fração de teste de ${formatFraction(fraction)}: o livro sugere o teste com pelo menos ⅓ do treino (fração ≥ 0.25).`,
+        },
+      ]
+    : [];
+
 export const screeningFlags = (
-  run: Pick<Backtest, "start" | "end" | "segments"> & { metrics: Metrics },
+  run: Pick<Backtest, "start" | "end" | "segments"> & {
+    metrics: Metrics;
+    data_quality?: DataQuality | null | undefined;
+    test_fraction?: string | null | undefined;
+  },
 ): ScreeningFlag[] => {
+  const sampleKnown = run.data_quality?.sample !== null && run.data_quality?.sample !== undefined;
   const flags = [
     ...sharpeFlags(run.metrics),
     ...drawdownFlags(run.metrics),
-    ...activityFlags(run.metrics, run),
+    ...activityFlags(run.metrics, run).filter((flag) => !(sampleKnown && flag.id === "few-trades")),
     ...segmentFlags(run),
+    ...dataFlags(run.data_quality),
+    ...fractionFlags(run.test_fraction),
   ];
   return [
     ...flags.filter((flag) => flag.level === ScreeningLevel.Warning),

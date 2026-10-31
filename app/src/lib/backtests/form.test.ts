@@ -4,6 +4,8 @@ import {
   combinationCount,
   defaultBacktestValues,
   gridError,
+  sampleAdvice,
+  testFractionWarning,
   toBacktestInput,
 } from "@/lib/backtests/form";
 import { toMs } from "@/lib/shared/dates";
@@ -82,5 +84,21 @@ describe("backtest form", () => {
     const plain = toBacktestInput(defaultBacktestValues(STRATEGY, NOW), STRATEGY);
     expect(plain.max_drawdown_tolerance_pct).toBeNull();
     expect(plain.max_drawdown_tolerance_days).toBeNull();
+  });
+
+  it("warns about a small test part and short samples, and sends allow_gaps", () => {
+    expect(testFractionWarning("0.2")).toContain("0.25");
+    expect(testFractionWarning("0.25")).toBeUndefined();
+    expect(testFractionWarning("0.3")).toBeUndefined();
+    expect(testFractionWarning("")).toBeUndefined();
+    const values = defaultBacktestValues(STRATEGY, NOW);
+    expect(sampleAdvice(STRATEGY, values.params, 400)).toEqual({
+      freeParameters: 2,
+      minBars: 504,
+      enough: false,
+    });
+    const withStop = { ...values.params, stop_loss_pct: "3" };
+    expect(sampleAdvice(STRATEGY, withStop, 2000).freeParameters).toBe(3);
+    expect(toBacktestInput({ ...values, allowGaps: true }, STRATEGY).allow_gaps).toBe(true);
   });
 });

@@ -3,6 +3,8 @@ import {
   Sign,
   formatMoney,
   formatDuration,
+  formatFraction,
+  formatFractionAsPercent,
   formatPercent,
   formatRatio,
   formatPrice,
@@ -69,5 +71,15 @@ describe("format", () => {
     expect(formatDuration(86400)).toBe("1 dia");
     expect(formatDuration(36 * 3600)).toBe("1,5 dias");
     expect(formatDuration(120 * 86400)).toBe("120 dias");
+  });
+
+  it("formats a fraction as a whole percent", () => {
+    expect(plain(formatFractionAsPercent("0.8512"))).toBe("85%");
+    expect(formatFractionAsPercent(null)).toBe("—");
+  });
+
+  it("formats a fraction without trailing zeros", () => {
+    expect(formatFraction("0.300000000000000000")).toBe("0,3");
+    expect(formatFraction("0.25")).toBe("0,25");
   });
 });

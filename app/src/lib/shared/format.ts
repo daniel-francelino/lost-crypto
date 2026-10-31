@@ -93,3 +93,13 @@ export const formatDuration = (seconds: number | null | undefined): string => {
   const text = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 }).format(days);
   return days === 1 ? "1 dia" : `${text} dias`;
 };
+
+export const formatFractionAsPercent = (value: string | null | undefined): string => {
+  if (value === null || value === undefined || !isDecimal(value)) return EMPTY;
+  return new Intl.NumberFormat(LOCALE, { style: "percent", maximumFractionDigits: 0 }).format(
+    value,
+  );
+};
+
+export const formatFraction = (value: string | null | undefined): string =>
+  decimal(value, { min: 0, max: 4 });

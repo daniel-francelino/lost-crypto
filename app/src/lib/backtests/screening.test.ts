@@ -82,4 +82,39 @@ describe("screening flags (Chan's rules of thumb)", () => {
     delete old.drawdown_open;
     expect(ids(old)).toEqual([]);
   });
+
+  it("flags data problems and small samples from data_quality", () => {
+    const quality = {
+      outliers: 2,
+      invalid_candles: 0,
+      gaps: {
+        expected: 100,
+        present: 90,
+        missing: 10,
+        gap_count: 1,
+        largest_gap_candles: 10,
+        largest_gap_seconds: 36000,
+        over_limit: true,
+        allowed: true,
+        gaps: [],
+      },
+      sample: {
+        free_parameters: 2,
+        bars: 300,
+        round_trips: 30,
+        min_bars: 504,
+        min_round_trips: 30,
+        meets_bar_rule: false,
+        meets_trade_rule: true,
+      },
+    };
+    const flags = screeningFlags({ ...YEAR, metrics: BASE, data_quality: quality });
+    expect(flags.map((flag) => flag.id)).toEqual(["outliers", "gaps", "sample-bars"]);
+  });
+
+  it("flags a small test part", () => {
+    const flags = screeningFlags({ ...YEAR, metrics: BASE, test_fraction: "0.1" });
+    expect(flags.map((flag) => flag.id)).toEqual(["small-test"]);
+    expect(screeningFlags({ ...YEAR, metrics: BASE, test_fraction: "0.3" })).toEqual([]);
+  });
 });

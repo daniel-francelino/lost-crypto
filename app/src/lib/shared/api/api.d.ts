@@ -289,9 +289,54 @@ export interface paths {
         };
         /**
          * Get Coverage
-         * @description What is stored for a series, including detected gaps.
+         * @description What is stored for a series, including detected gaps (and those inside start/end).
          */
         get: operations["get_coverage_api_v1_market_data_coverage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market-data/outliers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Outliers
+         * @description Close-to-close moves beyond ``k`` standard deviations (Chan suggests ~4) to review.
+         *
+         *     Flags, never deletes: crashes are real. Each one comes with the same-candle move of
+         *     BTC/USDT when stored, as a hint of a market-wide move.
+         */
+        get: operations["get_outliers_api_v1_market_data_outliers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market-data/listings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Listings
+         * @description Pairs the exchange listed, from daily snapshots taken by the worker.
+         *
+         *     The history starts on the day the snapshots began: older delistings are unknown.
+         */
+        get: operations["get_listings_api_v1_market_data_listings_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1034,6 +1079,12 @@ export interface components {
              * @description Longest drawdown (days below the peak) the operator accepts.
              */
             max_drawdown_tolerance_days?: number | null;
+            /**
+             * Allow Gaps
+             * @description Run even when the range misses more than 1% of its candles or has a hole longer than 24 h (otherwise 422). The gaps are reported in `data_quality.gaps`.
+             * @default false
+             */
+            allow_gaps: boolean;
         };
         /** BacktestOut */
         BacktestOut: {
@@ -1080,6 +1131,8 @@ export interface components {
             max_drawdown_tolerance_pct: string | null;
             /** Max Drawdown Tolerance Days */
             max_drawdown_tolerance_days: number | null;
+            /** Allow Gaps */
+            allow_gaps: boolean;
             /** Sweep Id */
             sweep_id: string | null;
             /** Data Hash */
@@ -1091,6 +1144,7 @@ export interface components {
             periods: components["schemas"]["PeriodsOut"] | null;
             cost_ladder: components["schemas"]["CostLadderOut"] | null;
             tolerance: components["schemas"]["ToleranceOut"] | null;
+            data_quality: components["schemas"]["DataQualityOut"] | null;
             /** Error */
             error: string | null;
             /**
@@ -1300,6 +1354,16 @@ export interface components {
             /** Volume */
             volume: string;
         };
+        /** CandleSampleOut */
+        CandleSampleOut: {
+            /**
+             * Open Time
+             * Format: date-time
+             */
+            open_time: string;
+            /** Problems */
+            problems: string[];
+        };
         /**
          * CapabilitiesOut
          * @description What this deployment allows, so the UI can explain instead of letting a user try and fail.
@@ -1459,8 +1523,34 @@ export interface components {
             first: string | null;
             /** Last */
             last: string | null;
-            /** Gaps */
+            /**
+             * Gaps
+             * @description Gaps of the whole stored series.
+             */
             gaps: components["schemas"]["GapOut"][];
+            /** @description Gaps inside start/end, when both were given. */
+            in_range?: components["schemas"]["RangeCoverageOut"] | null;
+        };
+        /**
+         * DataQualityOut
+         * @description What the result rests on. Older runs miss some or all of it.
+         */
+        DataQualityOut: {
+            gaps?: components["schemas"]["GapsSummaryOut"] | null;
+            /** Invalid Candles */
+            invalid_candles?: number | null;
+            /** Invalid Samples */
+            invalid_samples?: components["schemas"]["CandleSampleOut"][];
+            /** Outlier Sigmas */
+            outlier_sigmas?: string | null;
+            /**
+             * Outliers
+             * @description Close-to-close moves beyond outlier_sigmas std. deviations.
+             */
+            outliers?: number | null;
+            /** Outlier Samples */
+            outlier_samples?: components["schemas"]["OutlierSampleOut"][];
+            sample?: components["schemas"]["SampleCheckOut"] | null;
         };
         /**
          * Environment
@@ -1482,6 +1572,21 @@ export interface components {
          * @enum {string}
          */
         ExecutionMode: "paper" | "testnet" | "live";
+        /** GapItemOut */
+        GapItemOut: {
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Missing */
+            missing: number;
+        };
         /** GapOut */
         GapOut: {
             /**
@@ -1496,6 +1601,30 @@ export interface components {
             end: string;
             /** Missing */
             missing: number;
+        };
+        /** GapsSummaryOut */
+        GapsSummaryOut: {
+            /** Expected */
+            expected: number;
+            /** Present */
+            present: number;
+            /** Missing */
+            missing: number;
+            /** Gap Count */
+            gap_count: number;
+            /** Largest Gap Candles */
+            largest_gap_candles: number;
+            /** Largest Gap Seconds */
+            largest_gap_seconds: number;
+            /** Over Limit */
+            over_limit: boolean;
+            /** Allowed */
+            allowed: boolean;
+            /**
+             * Gaps
+             * @description Up to 20 gaps.
+             */
+            gaps: components["schemas"]["GapItemOut"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1548,6 +1677,25 @@ export interface components {
             started_at: string | null;
             /** Finished At */
             finished_at: string | null;
+            /**
+             * Candles Rejected
+             * @description Invalid candles (e.g. high below close) that were not stored.
+             * @default 0
+             */
+            candles_rejected: number;
+            /**
+             * Candles Changed
+             * @description Stored candles the exchange now reports differently (updated).
+             * @default 0
+             */
+            candles_changed: number;
+            /**
+             * Rejection Samples
+             * @description Up to 20 rejected candles with their problem codes.
+             */
+            rejection_samples?: {
+                [key: string]: unknown;
+            }[];
         };
         /** ImportRequest */
         ImportRequest: {
@@ -1598,6 +1746,31 @@ export interface components {
             reason: string | null;
             /** Changed At */
             changed_at: string | null;
+        };
+        /** ListingOut */
+        ListingOut: {
+            /** Exchange */
+            exchange: string;
+            /** Symbol */
+            symbol: string;
+            /**
+             * Status
+             * @description `active`, `inactive` (listed but halted) or `delisted`.
+             */
+            status: string;
+            /**
+             * First Seen
+             * Format: date-time
+             * @description First daily snapshot that listed the pair.
+             */
+            first_seen: string;
+            /**
+             * Last Seen
+             * Format: date-time
+             */
+            last_seen: string;
+            /** Delisted At */
+            delisted_at: string | null;
         };
         /** LoginIn */
         LoginIn: {
@@ -1735,6 +1908,39 @@ export interface components {
          * @enum {string}
          */
         OrderStatus: "INTENT" | "SUBMITTING" | "OPEN" | "PARTIALLY_FILLED" | "FILLED" | "CANCELED" | "REJECTED" | "EXPIRED" | "UNKNOWN";
+        /** OutlierOut */
+        OutlierOut: {
+            /**
+             * Open Time
+             * Format: date-time
+             */
+            open_time: string;
+            /** Close */
+            close: string;
+            /** Return Pct */
+            return_pct: string;
+            /** Sigmas */
+            sigmas: string;
+            /** Reference Symbol */
+            reference_symbol: string | null;
+            /**
+             * Reference Return Pct
+             * @description Same-candle move of the reference pair: if it also moved, it was probably a market-wide move, not bad data.
+             */
+            reference_return_pct: string | null;
+        };
+        /** OutlierSampleOut */
+        OutlierSampleOut: {
+            /**
+             * Open Time
+             * Format: date-time
+             */
+            open_time: string;
+            /** Return Pct */
+            return_pct: string;
+            /** Sigmas */
+            sigmas: string;
+        };
         /** ParamOut */
         ParamOut: {
             /** Name */
@@ -1836,6 +2042,35 @@ export interface components {
              */
             connection_id: string;
         };
+        /** RangeCoverageOut */
+        RangeCoverageOut: {
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /**
+             * Expected
+             * @description Closed candles the range should have.
+             */
+            expected: number;
+            /** Present */
+            present: number;
+            /** Missing */
+            missing: number;
+            /**
+             * Largest Gap
+             * @description Candles missing in the largest single hole.
+             */
+            largest_gap: number;
+            /** Gaps */
+            gaps: components["schemas"]["GapOut"][];
+        };
         /** ReadinessOut */
         ReadinessOut: {
             /** Ready */
@@ -1905,11 +2140,64 @@ export interface components {
              */
             max_candle_range_pct: string | null;
         };
+        /** RobustnessOut */
+        RobustnessOut: {
+            /**
+             * Verdict
+             * @description `plateau`, `peak`, `unprofitable` or `insufficient`.
+             */
+            verdict: string;
+            metric: components["schemas"]["SweepRankBy"];
+            /** Winner Score */
+            winner_score: string | null;
+            /** Neighbours */
+            neighbours: number;
+            /** Neighbour Mean */
+            neighbour_mean: string | null;
+            /** Neighbour Min */
+            neighbour_min: string | null;
+            /**
+             * Neighbour Ratio
+             * @description Neighbour mean / winner score.
+             */
+            neighbour_ratio: string | null;
+            /**
+             * Profitable Share
+             * @description % of scored combinations above 0.
+             */
+            profitable_share: string | null;
+            /** Median */
+            median: string | null;
+            /** Top3 Mean */
+            top3_mean: string | null;
+            /** Scored */
+            scored: number;
+        };
         /**
          * Role
          * @enum {string}
          */
         Role: "admin" | "viewer";
+        /** SampleCheckOut */
+        SampleCheckOut: {
+            /** Free Parameters */
+            free_parameters: number;
+            /** Bars */
+            bars: number;
+            /** Round Trips */
+            round_trips: number;
+            /**
+             * Min Bars
+             * @description 252 x free parameters (Chan's rule of thumb).
+             */
+            min_bars: number;
+            /** Min Round Trips */
+            min_round_trips: number;
+            /** Meets Bar Rule */
+            meets_bar_rule: boolean;
+            /** Meets Trade Rule */
+            meets_trade_rule: boolean;
+        };
         /** SegmentsOut */
         SegmentsOut: {
             /**
@@ -1982,6 +2270,13 @@ export interface components {
             description: string;
             /** Parameters */
             parameters: components["schemas"]["ParamOut"][];
+            /**
+             * Parameter Count
+             * @description Configurable parameters. Chan's rule of thumb: at most 5 (book 1 ch. 3).
+             */
+            parameter_count: number;
+            /** Too Many Parameters */
+            too_many_parameters: boolean;
         };
         /** SweepCreate */
         SweepCreate: {
@@ -2065,6 +2360,12 @@ export interface components {
              */
             max_drawdown_tolerance_days?: number | null;
             /**
+             * Allow Gaps
+             * @description Run even when the range misses more than 1% of its candles or has a hole longer than 24 h (otherwise 422). The gaps are reported in `data_quality.gaps`.
+             * @default false
+             */
+            allow_gaps: boolean;
+            /**
              * Grid
              * @description Parameter name -> values to try. One run per combination (max 200).
              * @example {
@@ -2124,6 +2425,7 @@ export interface components {
             ranked_by: components["schemas"]["SweepRankBy"];
             /** Note */
             note: string;
+            robustness: components["schemas"]["RobustnessOut"] | null;
             /** Runs */
             runs: components["schemas"]["SweepRunOut"][];
         };
@@ -2739,6 +3041,8 @@ export interface operations {
                 symbol: string;
                 timeframe: components["schemas"]["Timeframe"];
                 exchange?: string;
+                start?: string | null;
+                end?: string | null;
             };
             header?: never;
             path?: never;
@@ -2753,6 +3057,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CoverageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_outliers_api_v1_market_data_outliers_get: {
+        parameters: {
+            query: {
+                symbol: string;
+                timeframe: components["schemas"]["Timeframe"];
+                start: string;
+                end: string;
+                k?: number | string;
+                exchange?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutlierOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_listings_api_v1_market_data_listings_get: {
+        parameters: {
+            query?: {
+                exchange?: string;
+                symbol?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingOut"][];
                 };
             };
             /** @description Validation Error */

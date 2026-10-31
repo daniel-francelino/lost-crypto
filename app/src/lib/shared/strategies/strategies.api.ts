@@ -15,6 +15,8 @@ const strategySchema = z.object({
   name: z.string(),
   description: z.string(),
   parameters: z.array(parameterSchema),
+  parameter_count: z.number().optional(),
+  too_many_parameters: z.boolean().optional(),
 });
 export type Strategy = z.infer<typeof strategySchema>;
 

@@ -36,7 +36,7 @@ const drawdownHint = (metrics: Metrics): string => {
   const when =
     peak === null || trough === null
       ? ""
-      : ` · queda mais funda de ${formatUtcShort(peak)} a ${formatUtcShort(trough)} UTC`;
+      : ` · queda mais funda de ${formatUtcShort(peak)} a ${formatUtcShort(trough)}`;
   return `Maior tempo abaixo do pico: ${formatDuration(seconds)}${when}`;
 };
 
