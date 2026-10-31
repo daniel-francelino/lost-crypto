@@ -15,7 +15,13 @@ from core.config import Settings
 from factories import MARKET, T0
 from fakes import FakeCcxtClient
 from modules.exchanges.application.exchange import Exchange
-from modules.exchanges.application.ports import ExchangeGateway, MarketOrderRequest, VenueOrder
+from modules.exchanges.application.ports import (
+    Balance,
+    ExchangeGateway,
+    MarketOrderRequest,
+    StopOrderRequest,
+    VenueOrder,
+)
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.exchanges.domain.models import (
     ExchangeCapabilities,
@@ -89,6 +95,15 @@ def _exchange_class(
 
         async def cancel_order(self, symbol: str, client_order_id: str) -> VenueOrder:
             raise TradingNotEnabled(exchange_id)
+
+        async def create_stop_order(self, request: StopOrderRequest) -> VenueOrder:
+            raise TradingNotEnabled(exchange_id)
+
+        async def fetch_open_orders(self, symbol: str) -> list[VenueOrder]:
+            return []
+
+        async def fetch_balances(self) -> dict[str, Balance]:
+            return {}
 
         async def aclose(self) -> None:
             closed.append(True)

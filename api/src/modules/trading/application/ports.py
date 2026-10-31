@@ -4,6 +4,7 @@ from uuid import UUID
 
 from modules.audit.models import AuditRepository
 from modules.bots.application.ports import BotRepository
+from modules.exchanges.application.connections import ConnectionRepository
 from modules.execution.application.ports import OrderRepository, SignalRepository
 from modules.portfolio.application.ports import PortfolioRepository
 from modules.risk_management.application.ports import SystemFlagsRepository
@@ -17,6 +18,14 @@ class SessionRepository(Protocol):
         self, session_id: UUID, strategy_state: dict[str, Any], last_bar_time: datetime
     ) -> None: ...
     async def end(self, session_id: UUID, reason: str) -> None: ...
+
+
+class ReconciliationRepository(Protocol):
+    async def add(
+        self, connection_id: UUID, started_at: datetime, status: str, details: dict[str, Any]
+    ) -> None: ...
+
+    async def latest(self, connection_id: UUID) -> tuple[datetime, str, dict[str, Any]] | None: ...
 
 
 class TradingStore(Protocol):
@@ -40,5 +49,9 @@ class TradingStore(Protocol):
     def flags(self) -> SystemFlagsRepository: ...
     @property
     def audit(self) -> AuditRepository: ...
+    @property
+    def connections(self) -> ConnectionRepository: ...
+    @property
+    def reconciliations(self) -> ReconciliationRepository: ...
 
     async def commit(self) -> None: ...

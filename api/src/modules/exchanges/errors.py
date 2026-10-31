@@ -25,6 +25,26 @@ class TradingNotEnabled(ExchangeError):
     """Placing real orders is not enabled for this integration yet."""
 
 
+class NotAuthenticated(TradingNotEnabled):
+    """The integration was created without credentials: only public data is available."""
+
+
+class AuthenticationFailed(ExchangeError):
+    """The exchange rejected the credentials (invalid, expired or missing permissions)."""
+
+
+class UnknownOutcome(ExchangeError):
+    """A write may or may not have reached the exchange (timeout, dropped connection).
+
+    The only safe reaction is to look the order up by its client id (reconciliation); never to
+    send it again blindly.
+    """
+
+
+class UnsupportedFeeAsset(ExchangeError):
+    """A fill was charged in an asset the portfolio cannot value (e.g. BNB)."""
+
+
 class ExchangeConfigurationError(LostCryptoError):
     """The exchange setup is wrong (misconfigured class or unknown name in ENABLED_EXCHANGES)."""
 

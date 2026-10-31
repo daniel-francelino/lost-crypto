@@ -35,6 +35,7 @@ def _to_bot(row: BotRow) -> Bot:
                 max_candle_range_pct=row.max_candle_range_pct,
             ),
             mode=ExecutionMode(row.mode),
+            connection_id=row.exchange_connection_id,
         ),
         desired_state=BotState(row.desired_state),
         observed_state=BotState(row.observed_state),
@@ -66,6 +67,7 @@ def _config_values(config: BotConfig) -> dict[str, object]:
         "require_stop_loss": config.risk.require_stop_loss,
         "max_candle_range_pct": config.risk.max_candle_range_pct,
         "mode": config.mode.value,
+        "exchange_connection_id": config.connection_id,
     }
 
 

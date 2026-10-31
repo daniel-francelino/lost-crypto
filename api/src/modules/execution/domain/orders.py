@@ -29,11 +29,22 @@ _ALLOWED: dict[OrderStatus, frozenset[OrderStatus]] = {
             OrderStatus.OPEN,
             OrderStatus.PARTIALLY_FILLED,
             OrderStatus.FILLED,
+            OrderStatus.CANCELED,
+            OrderStatus.EXPIRED,
             OrderStatus.REJECTED,
             OrderStatus.UNKNOWN,
         }
     ),
-    OrderStatus.UNKNOWN: frozenset({OrderStatus.OPEN, OrderStatus.FILLED, OrderStatus.REJECTED}),
+    OrderStatus.UNKNOWN: frozenset(
+        {
+            OrderStatus.OPEN,
+            OrderStatus.PARTIALLY_FILLED,
+            OrderStatus.FILLED,
+            OrderStatus.CANCELED,
+            OrderStatus.EXPIRED,
+            OrderStatus.REJECTED,
+        }
+    ),
     OrderStatus.OPEN: frozenset(
         {
             OrderStatus.PARTIALLY_FILLED,
@@ -62,11 +73,18 @@ class Fill:
     side: Side
     quantity: Decimal
     price: Decimal
-    fee: Decimal
+    fee: Decimal  # charged in the quote currency
+    fee_base: Decimal = Decimal(0)  # charged in the base asset (units), e.g. Binance buys
+    trade_id: str | None = None  # the exchange's id for this execution (None in simulations)
 
     @property
     def notional(self) -> Decimal:
         return self.quantity * self.price
+
+    @property
+    def total_fee(self) -> Decimal:
+        """All fees valued in the quote currency."""
+        return self.fee + self.fee_base * self.price
 
 
 @dataclass(slots=True)
@@ -88,6 +106,23 @@ class Order:
     avg_fill_price: Decimal | None = None
     reject_reason: str | None = None
     fills: list[Fill] = field(default_factory=list)
+    order_type: str = "market"  # market | stop_loss
+    stop_price: Decimal | None = None  # trigger of a stop_loss order
+    exchange_order_id: str | None = None
+    # Capital held while the order is in flight (released when it reaches a final state).
+    reserved_cash: Decimal = Decimal(0)
+    reserved_quantity: Decimal = Decimal(0)
+    # Protective levels of the position this BUY opens, applied once it fills.
+    planned_stop_price: Decimal | None = None
+    planned_take_profit_price: Decimal | None = None
+
+    @property
+    def is_final(self) -> bool:
+        return not _ALLOWED[self.status]
+
+    @property
+    def is_unresolved(self) -> bool:
+        return self.status in (OrderStatus.SUBMITTING, OrderStatus.UNKNOWN)
 
     def transition(self, new: OrderStatus) -> None:
         if new not in _ALLOWED[self.status]:
@@ -110,6 +145,11 @@ class Order:
         self.avg_fill_price = (previous_value + fill.notional) / self.filled_quantity
         done = self.filled_quantity == self.quantity
         self.transition(OrderStatus.FILLED if done else OrderStatus.PARTIALLY_FILLED)
+
+
+def make_stop_client_order_id(entry_client_order_id: str) -> str:
+    """The protective stop of an entry order: derived, so it is idempotent too."""
+    return f"{entry_client_order_id[:33]}-sl"
 
 
 def make_client_order_id(bot_id: UUID, bar_time: datetime, side: Side) -> str:

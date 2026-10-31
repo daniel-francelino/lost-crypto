@@ -10,6 +10,8 @@ from container import build_container
 from core.config import Settings, get_settings
 from core.errors import ConflictError, DomainError, NotFoundError
 from core.logging import configure_logging
+from core.security.auth import assert_secure_configuration
+from core.security.vault import VaultNotConfigured
 
 OPENAPI_TAGS = [
     {"name": "health", "description": "Liveness e readiness da API."},
@@ -33,6 +35,11 @@ OPENAPI_TAGS = [
         "description": "Kill switch global: pausa todos os bots e bloqueia novas entradas.",
     },
     {"name": "audit", "description": "Trilha de auditoria append-only."},
+    {
+        "name": "exchange-connections",
+        "description": "Credenciais de exchange (testnet), guardadas criptografadas e nunca "
+        "devolvidas. Exige API_TOKEN configurado.",
+    },
 ]
 
 ErrorHandler = Callable[[Request, Exception], Awaitable[JSONResponse]]
@@ -48,6 +55,7 @@ def _error_handler(status_code: int) -> ErrorHandler:
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
+    assert_secure_configuration(settings)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -81,6 +89,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_exception_handler(NotFoundError, _error_handler(404))
     app.add_exception_handler(ConflictError, _error_handler(409))
     app.add_exception_handler(DomainError, _error_handler(422))
+    app.add_exception_handler(VaultNotConfigured, _error_handler(503))
     return app
 
 

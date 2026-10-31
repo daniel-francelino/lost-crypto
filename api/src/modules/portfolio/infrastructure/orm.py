@@ -2,7 +2,16 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Numeric, UniqueConstraint, func
+from sqlalchemy import (
+    BigInteger,
+    DateTime,
+    ForeignKey,
+    Index,
+    Numeric,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base
@@ -24,6 +33,9 @@ class BotPortfolioRow(Base):
     fees_paid: Mapped[Decimal] = mapped_column(MONEY)
     stop_price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     take_profit_price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
+    reserved_cash: Mapped[Decimal] = mapped_column(MONEY, server_default="0")
+    reserved_quantity: Mapped[Decimal] = mapped_column(MONEY, server_default="0")
+    stop_order_client_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

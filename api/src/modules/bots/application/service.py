@@ -6,14 +6,15 @@ from typing import Any
 from uuid import UUID
 
 from core.clock import Clock
-from core.errors import ConflictError, NotFoundError
+from core.errors import ConflictError, DomainError, NotFoundError
 from core.ids import IdGenerator
 from modules.analytics.domain.metrics import Metrics, compute_metrics
 from modules.audit.models import AuditEvent
 from modules.backtesting.domain.models import EquityPoint
 from modules.bots.application.ports import BotStore
-from modules.bots.domain.models import Bot, BotConfig, BotState
+from modules.bots.domain.models import Bot, BotConfig, BotState, ExecutionMode
 from modules.exchanges.application.registry import ExchangeRegistry
+from modules.exchanges.domain.connections import ConnectionStatus, Environment
 from modules.execution.application.ports import SignalRecord
 from modules.execution.domain.orders import Order
 from modules.portfolio.domain.models import PortfolioState
@@ -30,6 +31,10 @@ class BotNameTaken(ConflictError):
     pass
 
 
+class InvalidBotConnection(DomainError):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class PortfolioView:
     initial_capital: Decimal
@@ -43,6 +48,8 @@ class PortfolioView:
     fees_paid: Decimal
     stop_price: Decimal | None
     take_profit_price: Decimal | None
+    reserved_cash: Decimal
+    native_stop_active: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +100,7 @@ class BotService:
             updated_at=now,
         )
         async with self._stores() as store:
+            await self._check_connection(store, config)
             if not await store.bots.add(bot):
                 raise BotNameTaken(f"a bot named {config.name!r} already exists")
             await store.audit.add(self._event("bot.created", bot, {"name": config.name}))
@@ -106,6 +114,7 @@ class BotService:
             config = replace(bot.config, **changes)
             self._exchanges.require(config.exchange, config.timeframe)
             self._registry.create(config.strategy_type, config.strategy_params)
+            await self._check_connection(store, config)
             version = bot.config_version + 1
             if not await store.bots.update_config(bot_id, config, version):
                 raise BotNameTaken(f"a bot named {config.name!r} already exists")
@@ -117,6 +126,24 @@ class BotService:
             await store.commit()
         bot.config, bot.config_version = config, version
         return bot
+
+    @staticmethod
+    async def _check_connection(store: BotStore, config: BotConfig) -> None:
+        """A testnet bot must point at an active testnet connection of its own exchange."""
+        if config.mode is not ExecutionMode.TESTNET:
+            return
+        assert config.connection_id is not None  # guaranteed by BotConfig
+        connection = await store.connections.get(config.connection_id)
+        if connection is None:
+            raise InvalidBotConnection("the exchange connection does not exist")
+        if connection.status is not ConnectionStatus.ACTIVE:
+            raise InvalidBotConnection(f"the exchange connection is {connection.status.value}")
+        if connection.environment is not Environment.TESTNET:
+            raise InvalidBotConnection("testnet bots need a testnet connection")
+        if connection.exchange != config.exchange:
+            raise InvalidBotConnection(
+                f"the connection is for {connection.exchange}, the bot trades on {config.exchange}"
+            )
 
     async def get(self, bot_id: UUID) -> Bot:
         async with self._stores() as store:
@@ -177,6 +204,8 @@ class BotService:
             fees_paid=state.fees_paid,
             stop_price=state.stop_price,
             take_profit_price=state.take_profit_price,
+            reserved_cash=state.reserved_cash,
+            native_stop_active=state.stop_order_client_id is not None,
         )
 
     async def overview(self) -> list[BotOverview]:

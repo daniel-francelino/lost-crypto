@@ -16,20 +16,22 @@ from contextlib import AbstractAsyncContextManager
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from core.clock import Clock
 from core.ids import IdGenerator
 from modules.analytics.domain.metrics import round_trip_pnls
 from modules.audit.models import AuditEvent
-from modules.bots.domain.models import Bot, BotState
+from modules.bots.domain.models import Bot, BotState, ExecutionMode
 from modules.exchanges.application.ports import ExchangeGateway, MarketOrderRequest
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.exchanges.errors import ExchangeRejected
 from modules.execution.application.ports import SignalRecord
+from modules.execution.domain.fills import slipped_price
 from modules.execution.domain.orders import Order, make_client_order_id
 from modules.execution.venues.paper import PaperExchangeGateway, StaticPriceFeed
 from modules.market_data.domain.models import Candle, MarketInfo, floor_to_timeframe
-from modules.portfolio.domain.models import PortfolioSnapshot, PortfolioState
+from modules.portfolio.domain.models import InsufficientFunds, PortfolioSnapshot, PortfolioState
 from modules.risk_management.domain.models import (
     GlobalExposure,
     GlobalRiskLimits,
@@ -43,6 +45,7 @@ from modules.risk_management.domain.stops import ExitReason, check_protective_ex
 from modules.strategies.domain.base import Strategy
 from modules.strategies.domain.registry import StrategyRegistry
 from modules.strategies.domain.types import Side, Signal, SignalKind, StrategyContext
+from modules.trading.application.orders import OrderExecutor
 from modules.trading.application.ports import TradingStore
 from modules.trading.domain.models import WARMUP_CANDLES, TradingSession, max_signal_age
 
@@ -77,6 +80,7 @@ class BotTrader:
         clock: Clock,
         ids: IdGenerator,
         global_limits: GlobalRiskLimits | None = None,
+        executor: OrderExecutor | None = None,
     ) -> None:
         self._stores = stores
         self._registry = registry
@@ -86,6 +90,8 @@ class BotTrader:
         self._global_limits = global_limits or GlobalRiskLimits()
         self._markets: dict[tuple[str, str], MarketInfo] = {}
         self._prices = StaticPriceFeed()
+        self._executor = executor
+        self._pending: list[UUID] = []  # orders created this candle, sent after the commit
 
     async def market_info(self, exchange: str, symbol: str) -> MarketInfo:
         key = (exchange, symbol)
@@ -133,8 +139,19 @@ class BotTrader:
             state, paused = await self._process_candle(
                 bot, session, strategy, state, candle, market
             )
+            await self._submit_pending(bot)
             if paused:
                 break
+
+    async def _submit_pending(self, bot: Bot) -> None:
+        """Phase 2 for real-exchange bots: send the intents the candle transaction created."""
+        pending, self._pending = self._pending, []
+        if not pending:
+            return
+        if self._executor is None:
+            raise RuntimeError("testnet bots need an OrderExecutor")
+        for order_id in pending:
+            await self._executor.submit(bot, order_id)
 
     async def _process_candle(
         self,
@@ -151,6 +168,7 @@ class BotTrader:
         # recorded or traded. Later candles processed too late are "stale": state only.
         warmup = candle.close_time <= session.started_at
         fresh = now - candle.close_time <= max_signal_age(cfg.timeframe)
+        self._pending = []
 
         async with self._stores() as store:
             portfolio = await store.portfolio.get(bot.id) or PortfolioState.new(
@@ -158,12 +176,21 @@ class BotTrader:
             )
             kill_switch = await store.flags.get_kill_switch()
             sold = False
+            # Real exchanges: never stack a new order on one whose outcome is still unknown.
+            blocked = (
+                cfg.mode is ExecutionMode.TESTNET
+                and await store.orders.count_unresolved(bot.id) > 0
+            )
 
             # 1. Protective exits. Allowed even on stale candles: a native exchange stop would
             #    have fired regardless of whether the worker was running.
-            if not warmup and portfolio.quantity > 0:
+            if not warmup and not blocked and portfolio.available_quantity > 0:
+                # A stop resting on the exchange is the authority; only the target is watched here.
+                native_stop = portfolio.stop_order_client_id is not None
                 hit = check_protective_exit(
-                    candle, portfolio.stop_price, portfolio.take_profit_price
+                    candle,
+                    None if native_stop else portfolio.stop_price,
+                    portfolio.take_profit_price,
                 )
                 if hit is not None:
                     exit_signal = Signal(
@@ -182,7 +209,7 @@ class BotTrader:
                         bot,
                         session,
                         exit_signal,
-                        portfolio.quantity,
+                        portfolio.available_quantity,
                         candle,
                         hit.trigger_price,
                         slippage,
@@ -199,6 +226,17 @@ class BotTrader:
                     continue
                 if not fresh:
                     await self._record(store, bot, session, candle, signal, "discarded_stale", None)
+                    continue
+                if blocked:
+                    await self._record(
+                        store,
+                        bot,
+                        session,
+                        candle,
+                        signal,
+                        "rejected",
+                        "an earlier order is still unresolved (waiting for reconciliation)",
+                    )
                     continue
                 decision = assess_signal(
                     signal,
@@ -334,8 +372,26 @@ class BotTrader:
         portfolio: PortfolioState,
         now: datetime,
     ) -> bool:
-        """Place a market order via the gateway; True when it filled and the portfolio moved."""
+        """Place a market order via the gateway; True when it filled and the portfolio moved.
+
+        On a real exchange nothing fills inside this transaction: an intent is recorded and
+        sent afterwards, so this returns False there (the executor applies the result).
+        """
         cfg = bot.config
+        if cfg.mode is ExecutionMode.TESTNET:
+            await self._create_intent(
+                store,
+                bot,
+                session,
+                signal,
+                quantity,
+                candle,
+                reference_price,
+                slippage_bps,
+                portfolio,
+                now,
+            )
+            return False
         order = Order(
             id=self._ids.new_id(),
             bot_id=bot.id,
@@ -383,6 +439,65 @@ class BotTrader:
             )
         )
         return filled
+
+    async def _create_intent(
+        self,
+        store: TradingStore,
+        bot: Bot,
+        session: TradingSession,
+        signal: Signal,
+        quantity: Decimal,
+        candle: Candle,
+        reference_price: Decimal,
+        slippage_bps: Decimal,
+        portfolio: PortfolioState,
+        now: datetime,
+    ) -> None:
+        """Phase 1: persist the order as SUBMITTING and reserve its capital (no network)."""
+        cfg = bot.config
+        order = Order(
+            id=self._ids.new_id(),
+            bot_id=bot.id,
+            session_id=session.id,
+            client_order_id=make_client_order_id(bot.id, candle.open_time, signal.side),
+            symbol=cfg.symbol,
+            side=signal.side,
+            quantity=quantity,
+            bar_time=candle.open_time,
+            created_at=now,
+            planned_stop_price=signal.stop_loss if signal.side is Side.BUY else None,
+            planned_take_profit_price=signal.take_profit if signal.side is Side.BUY else None,
+        )
+        try:
+            OrderExecutor.reserve(
+                order,
+                portfolio,
+                slipped_price(signal.side, reference_price, slippage_bps),
+                cfg.fee_rate,
+            )
+        except InsufficientFunds as exc:
+            logger.warning("order %s not created: %s", order.client_order_id, exc)
+            return
+        order.submit()
+        if not await store.orders.add_if_absent(order):
+            portfolio.release(order.reserved_cash, order.reserved_quantity)
+            logger.warning("duplicate order %s ignored", order.client_order_id)
+            return
+        self._pending.append(order.id)
+        await store.audit.add(
+            AuditEvent(
+                "order.intent",
+                "order",
+                str(order.id),
+                actor="worker",
+                bot_id=bot.id,
+                payload={
+                    "client_order_id": order.client_order_id,
+                    "side": order.side.value,
+                    "quantity": str(order.quantity),
+                },
+            )
+        )
 
     async def _snapshot_and_check(
         self,

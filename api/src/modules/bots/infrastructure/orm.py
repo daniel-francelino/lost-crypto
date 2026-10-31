@@ -7,6 +7,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
+    ForeignKey,
     Integer,
     Numeric,
     Text,
@@ -28,12 +29,15 @@ class BotRow(Base):
         CheckConstraint(
             "observed_state IN ('stopped','running','paused','error')", name="observed_valid"
         ),
-        CheckConstraint("mode IN ('paper')", name="mode_valid"),
+        CheckConstraint("mode IN ('paper','testnet')", name="mode_valid"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(Text)
     exchange: Mapped[str] = mapped_column(Text, server_default="binance")
+    exchange_connection_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("exchange_connections.id"), nullable=True
+    )
     strategy_type: Mapped[str] = mapped_column(Text)
     strategy_params: Mapped[dict[str, Any]] = mapped_column(JSONB)
     symbol: Mapped[str] = mapped_column(Text)

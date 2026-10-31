@@ -130,7 +130,7 @@ def assess_signal(
 
     entry = slipped_price(Side.BUY, price, slippage_bps)
     equity = portfolio.equity(price)
-    budget = min(portfolio.cash, equity * limits.max_position_fraction)
+    budget = min(portfolio.available_cash, equity * limits.max_position_fraction)
     if limits.max_order_notional is not None:
         budget = min(budget, limits.max_order_notional)
     if limits.max_risk_per_trade_pct is not None and signal.stop_loss is not None:
@@ -155,11 +155,11 @@ def assess_signal(
 def _assess_exit(
     portfolio: PortfolioState, price: Decimal, market: MarketInfo, slippage_bps: Decimal
 ) -> RiskDecision:
-    if portfolio.quantity <= 0:
+    if portfolio.available_quantity <= 0:
         return RiskDecision.reject("no position to sell")
     try:
         quantity = normalize_quantity(
-            portfolio.quantity, slipped_price(Side.SELL, price, slippage_bps), market
+            portfolio.available_quantity, slipped_price(Side.SELL, price, slippage_bps), market
         )
     except OrderRejected as exc:
         return RiskDecision.reject(str(exc))

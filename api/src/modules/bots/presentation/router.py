@@ -44,7 +44,10 @@ class BotCreate(BaseModel):
     )
     slippage_bps: Decimal = Field(default=Decimal(5), ge=0, lt=10000)
     risk: RiskIn = Field(default_factory=RiskIn)
-    mode: Literal["paper"] = "paper"  # testnet/live are not available yet
+    mode: Literal["paper", "testnet"] = "paper"  # live is not available yet
+    connection_id: UUID | None = Field(
+        default=None, description="Required for testnet bots: the exchange connection to use"
+    )
 
 
 class BotUpdate(BaseModel):
@@ -60,6 +63,8 @@ class BotUpdate(BaseModel):
     fee_rate: Decimal | None = Field(default=None, ge=0, lt=1)
     slippage_bps: Decimal | None = Field(default=None, ge=0, lt=10000)
     risk: RiskIn | None = None
+    mode: Literal["paper", "testnet"] | None = None
+    connection_id: UUID | None = None
 
 
 class BotOut(BaseModel):
@@ -75,6 +80,7 @@ class BotOut(BaseModel):
     slippage_bps: Decimal
     risk: RiskIn
     mode: ExecutionMode
+    connection_id: UUID | None
     desired_state: BotState
     observed_state: BotState
     config_version: int
@@ -87,6 +93,8 @@ class BotOut(BaseModel):
 class OrderOut(BaseModel):
     id: UUID
     client_order_id: str
+    order_type: str
+    exchange_order_id: str | None
     symbol: str
     side: Side
     quantity: Decimal
@@ -120,6 +128,8 @@ class PortfolioOut(BaseModel):
     fees_paid: Decimal
     stop_price: Decimal | None
     take_profit_price: Decimal | None
+    reserved_cash: Decimal
+    native_stop_active: bool
 
 
 class BotOverviewOut(BaseModel):
@@ -170,6 +180,7 @@ def _out(bot: Bot) -> BotOut:
             max_candle_range_pct=c.risk.max_candle_range_pct,
         ),
         mode=c.mode,
+        connection_id=c.connection_id,
         desired_state=bot.desired_state,
         observed_state=bot.observed_state,
         config_version=bot.config_version,
@@ -207,6 +218,7 @@ async def create_bot(body: BotCreate, request: Request) -> BotOut:
         slippage_bps=body.slippage_bps,
         risk=_risk(body.risk),
         mode=ExecutionMode(body.mode),
+        connection_id=body.connection_id,
     )
     return _out(await bots.create(config))
 
@@ -255,6 +267,8 @@ async def update_bot(bot_id: UUID, body: BotUpdate, request: Request) -> BotOut:
     changes = {k: v for k, v in changes.items() if v is not None}
     if body.risk is not None:
         changes["risk"] = _risk(body.risk)
+    if body.mode is not None:
+        changes["mode"] = ExecutionMode(body.mode)
     return _out(await _container(request).bots.update(bot_id, changes))
 
 
@@ -290,6 +304,8 @@ async def get_orders(bot_id: UUID, request: Request, limit: Limit = 100) -> list
         OrderOut(
             id=o.id,
             client_order_id=o.client_order_id,
+            order_type=o.order_type,
+            exchange_order_id=o.exchange_order_id,
             symbol=o.symbol,
             side=o.side,
             quantity=o.quantity,
@@ -337,6 +353,8 @@ async def get_portfolio(bot_id: UUID, request: Request) -> PortfolioOut:
         fees_paid=view.fees_paid,
         stop_price=view.stop_price,
         take_profit_price=view.take_profit_price,
+        reserved_cash=view.reserved_cash,
+        native_stop_active=view.native_stop_active,
     )
 
 

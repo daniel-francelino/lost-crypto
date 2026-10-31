@@ -5,7 +5,12 @@ import ccxt
 
 from factories import T0
 from modules.exchanges.application.exchange import Exchange
-from modules.exchanges.application.ports import MarketOrderRequest, VenueOrder
+from modules.exchanges.application.ports import (
+    Balance,
+    MarketOrderRequest,
+    StopOrderRequest,
+    VenueOrder,
+)
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.exchanges.errors import TradingNotEnabled
 from modules.exchanges.infrastructure.binance import BINANCE_PROFILE
@@ -51,6 +56,46 @@ class FakeCcxtClient:
     async def close(self) -> None:
         self.closed = True
 
+    # --- order endpoints: tests script responses/errors through these attributes ---------------
+    order_response: dict[str, Any] | None = None
+    order_error: Exception | None = None
+    lookup_response: dict[str, Any] | None = None
+    lookup_error: Exception | None = None
+    my_trades: list[dict[str, Any]] | None = None
+    open_orders_response: list[dict[str, Any]] | None = None
+    balance_response: dict[str, Any] | None = None
+    last_create: tuple[Any, ...] | None = None
+    last_lookup: tuple[Any, ...] | None = None
+
+    async def create_order(self, *args: Any) -> dict[str, Any]:
+        self.last_create = args
+        if self.order_error is not None:
+            raise self.order_error
+        assert self.order_response is not None
+        return self.order_response
+
+    async def fetch_order(self, *args: Any) -> dict[str, Any]:
+        self.last_lookup = args
+        if self.lookup_error is not None:
+            raise self.lookup_error
+        assert self.lookup_response is not None
+        return self.lookup_response
+
+    async def cancel_order(self, *args: Any) -> dict[str, Any]:
+        self.last_lookup = args
+        if self.lookup_error is not None:
+            raise self.lookup_error
+        return self.lookup_response or {"status": "canceled", "side": "sell", "amount": 1}
+
+    async def fetch_my_trades(self, *args: Any) -> list[dict[str, Any]]:
+        return self.my_trades or []
+
+    async def fetch_open_orders(self, symbol: str) -> list[dict[str, Any]]:
+        return self.open_orders_response or []
+
+    async def fetch_balance(self) -> dict[str, Any]:
+        return self.balance_response or {"total": {}, "free": {}, "used": {}}
+
 
 class FakeExchange(Exchange):
     """A fully working integration serving data from any ``MarketDataSource`` (for tests)."""
@@ -77,6 +122,15 @@ class FakeExchange(Exchange):
     async def cancel_order(self, symbol: str, client_order_id: str) -> VenueOrder:
         raise TradingNotEnabled("fake exchange")
 
+    async def create_stop_order(self, request: StopOrderRequest) -> VenueOrder:
+        raise TradingNotEnabled("fake exchange")
+
+    async def fetch_open_orders(self, symbol: str) -> list[VenueOrder]:
+        raise TradingNotEnabled("fake exchange")
+
+    async def fetch_balances(self) -> dict[str, Balance]:
+        raise TradingNotEnabled("fake exchange")
+
     async def aclose(self) -> None:
         return None
 
@@ -85,4 +139,13 @@ def fake_registry(source: MarketDataSource) -> ExchangeRegistry:
     """An exchange registry whose 'binance' serves deterministic data instead of the network."""
     registry = ExchangeRegistry()
     registry.register(FakeExchange, lambda: FakeExchange(source))
+    return registry
+
+
+def sim_registry(exchange: Exchange) -> ExchangeRegistry:
+    """A registry whose 'binance' (public and authenticated) is one simulated account."""
+    registry = ExchangeRegistry()
+    registry.register(
+        type(exchange), lambda: exchange, authenticated=lambda credentials, environment: exchange
+    )
     return registry

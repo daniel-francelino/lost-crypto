@@ -13,6 +13,7 @@ from sqlalchemy import text
 from container import Container, JobRunner
 from factories import MARKET
 from modules.market_data.domain.models import Candle, MarketInfo, Timeframe
+from simulated_exchange import SimulatedExchange
 
 START = datetime(2024, 1, 1, tzinfo=UTC)
 SYMBOL = "TST/USDT"
@@ -127,7 +128,56 @@ async def cleanup(container: Container) -> None:
             f"DELETE FROM trading_sessions WHERE bot_id IN {bots}",
             f"DELETE FROM audit_events WHERE bot_id IN {bots}",
             "DELETE FROM bots WHERE name LIKE 'itest-%'",
+            "DELETE FROM reconciliation_runs WHERE connection_id IN "
+            "(SELECT id FROM exchange_connections WHERE label LIKE 'itest-%')",
+            "DELETE FROM exchange_connections WHERE label LIKE 'itest-%'",
             "DELETE FROM system_flags WHERE key IN ('kill_switch', 'worker_heartbeat')",
         ]
         for statement in statements:
             await conn.execute(text(statement))
+
+
+API_TOKEN = "itest-token"
+API_KEY = "itest-api-key-ABCD1234"
+API_SECRET = "itest-api-secret-WXYZ9876"
+
+
+@dataclass
+class TestnetEnv(Env):
+    """Env plus a simulated exchange account, an authenticated API and a vault."""
+
+    __test__ = False  # not a pytest test class
+
+    sim: SimulatedExchange | None = None
+    anonymous: httpx.AsyncClient | None = None  # same API, no token
+    api_container: Container | None = None
+
+    async def create_connection(self, label: str | None = None) -> str:
+        body = {
+            "exchange": "binance",
+            "environment": "testnet",
+            "label": label or f"itest-{uuid4().hex[:6]}",
+            "api_key": API_KEY,
+            "api_secret": API_SECRET,
+        }
+        resp = await self.http.post("/api/v1/exchange-connections", json=body)
+        assert resp.status_code == 201, resp.text
+        return str(resp.json()["id"])
+
+    async def create_testnet_bot(self, connection_id: str, **overrides: Any) -> str:
+        return await self.create_bot(mode="testnet", connection_id=connection_id, **overrides)
+
+    async def portfolio(self, bot_id: str) -> dict[str, Any]:
+        return dict((await self.http.get(f"/api/v1/bots/{bot_id}/portfolio")).json())
+
+    async def reconciliations(self, connection_id: str) -> list[tuple[str, dict[str, Any]]]:
+        assert self.api_container is not None
+        async with self.api_container.engine.connect() as conn:
+            rows = await conn.execute(
+                text(
+                    "SELECT status, details FROM reconciliation_runs "
+                    "WHERE connection_id = :c ORDER BY started_at, id"
+                ),
+                {"c": connection_id},
+            )
+            return [(r[0], r[1]) for r in rows]

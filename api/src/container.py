@@ -11,11 +11,13 @@ from core.clock import Clock, SystemClock
 from core.config import Settings
 from core.db import create_engine, create_session_factory, make_store_factory
 from core.ids import IdGenerator, UuidGenerator
+from core.security.vault import CredentialVault
 from modules.audit.service import AuditService
 from modules.backtesting.application.ports import BacktestStore
 from modules.backtesting.application.service import BacktestExecutor, BacktestService
 from modules.backtesting.infrastructure.repository import SqlAlchemyBacktestStore
 from modules.bots.application.service import BotService
+from modules.exchanges.application.connections import ConnectionResolver, ConnectionService
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.exchanges.infrastructure.catalog import build_exchange_registry
 from modules.market_data.application.ports import ImportStore
@@ -25,7 +27,9 @@ from modules.risk_management.application.service import KillSwitchService
 from modules.risk_management.domain.models import GlobalRiskLimits
 from modules.strategies.catalog import build_strategy_registry
 from modules.strategies.domain.registry import StrategyRegistry
+from modules.trading.application.orders import OrderExecutor
 from modules.trading.application.ports import TradingStore
+from modules.trading.application.reconciler import Reconciler
 from modules.trading.application.status import StatusService
 from modules.trading.application.supervisor import BotSupervisor
 from modules.trading.application.trader import BotTrader
@@ -50,6 +54,8 @@ class Container:
     kill_switch: KillSwitchService
     audit: AuditService
     status: StatusService
+    connections: ConnectionService
+    resolver: ConnectionResolver
 
 
 def build_container(
@@ -66,6 +72,8 @@ def build_container(
     import_stores = make_store_factory(session_factory, SqlAlchemyImportStore)
     backtest_stores = make_store_factory(session_factory, SqlAlchemyBacktestStore)
     trading_stores = make_store_factory(session_factory, SqlAlchemyStore)
+    keys = settings.master_keys
+    vault = CredentialVault(keys) if keys else None  # None: connections are unavailable
     return Container(
         settings=settings,
         engine=engine,
@@ -82,6 +90,8 @@ def build_container(
         bots=BotService(trading_stores, registry, exchanges, clock, ids),
         kill_switch=KillSwitchService(trading_stores),
         audit=AuditService(trading_stores),
+        connections=ConnectionService(trading_stores, vault, exchanges, clock, ids),
+        resolver=ConnectionResolver(trading_stores, vault, exchanges),
         status=StatusService(
             trading_stores,
             clock,
@@ -117,6 +127,14 @@ class JobRunner:
 
 def build_job_runner(container: Container) -> JobRunner:
     settings = container.settings
+    executor = OrderExecutor(
+        container.trading_stores,
+        container.resolver,
+        container.clock,
+        container.ids,
+        timedelta(seconds=settings.reconcile_absent_after_seconds),
+    )
+    reconciler = Reconciler(container.trading_stores, container.resolver, executor, container.clock)
     trader = BotTrader(
         container.trading_stores,
         container.registry,
@@ -127,11 +145,22 @@ def build_job_runner(container: Container) -> JobRunner:
             max_open_positions=settings.risk_max_open_positions,
             max_total_exposure=settings.risk_max_total_exposure,
         ),
+        executor,
     )
     return JobRunner(
         CandleImporter(container.import_stores, container.exchanges, container.clock),
         BacktestExecutor(container.backtest_stores, container.registry, container.exchanges),
         BotSupervisor(
-            container.trading_stores, trader, container.registry, container.clock, container.ids
+            container.trading_stores,
+            trader,
+            container.registry,
+            container.clock,
+            container.ids,
+            resolver=container.resolver,
+            executor=executor,
+            reconciler=reconciler,
+            testnet_enabled=settings.testnet_trading_enabled,
+            reconcile_interval=timedelta(seconds=settings.reconcile_interval_seconds),
+            stop_poll_interval=timedelta(seconds=settings.native_stop_poll_seconds),
         ),
     )

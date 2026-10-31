@@ -12,8 +12,9 @@ from modules.risk_management.domain.models import RiskLimits
 
 
 class ExecutionMode(StrEnum):
-    PAPER = "paper"
-    # TESTNET = "testnet" and LIVE = "live" arrive in later phases, behind their safeguards.
+    PAPER = "paper"  # simulated fills at real prices, no exchange account
+    TESTNET = "testnet"  # real orders on the exchange sandbox (fake money), needs a connection
+    # LIVE = "live" arrives in a later phase, behind its safeguards.
 
 
 class BotState(StrEnum):
@@ -44,6 +45,7 @@ class BotConfig:
     risk: RiskLimits = field(default_factory=RiskLimits)
     mode: ExecutionMode = ExecutionMode.PAPER
     exchange: str = "binance"
+    connection_id: UUID | None = None  # credentials used by testnet bots
 
     def __post_init__(self) -> None:
         if not self.name.strip():
@@ -54,6 +56,10 @@ class BotConfig:
             raise InvalidBotConfig("fee_rate must be in [0, 1)")
         if not (0 <= self.slippage_bps < 10_000):
             raise InvalidBotConfig("slippage_bps must be in [0, 10000)")
+        if self.mode is ExecutionMode.TESTNET and self.connection_id is None:
+            raise InvalidBotConfig("a testnet bot needs an exchange connection (connection_id)")
+        if self.mode is ExecutionMode.PAPER and self.connection_id is not None:
+            raise InvalidBotConfig("paper bots do not use an exchange connection")
 
 
 @dataclass(slots=True)

@@ -51,9 +51,9 @@ def round_trip_pnls(fills: Sequence[Fill]) -> list[Decimal]:
     entry_cost: Decimal | None = None
     for fill in fills:
         if fill.side is Side.BUY:
-            entry_cost = fill.notional + fill.fee
+            entry_cost = fill.notional + fill.total_fee
         elif entry_cost is not None:
-            pnls.append(fill.notional - fill.fee - entry_cost)
+            pnls.append(fill.notional - fill.total_fee - entry_cost)
             entry_cost = None
     return pnls
 
@@ -82,7 +82,7 @@ def compute_metrics(
         total_return_pct=(net_pnl / initial_capital * _PCT).quantize(_Q_PCT),
         buy_and_hold_return_pct=((last_price / first_price - 1) * _PCT).quantize(_Q_PCT),
         max_drawdown_pct=max_drawdown_pct(equity_curve).quantize(_Q_PCT),
-        fees_paid=sum((f.fee for f in fills), Decimal(0)).quantize(_Q_MONEY),
+        fees_paid=sum((f.total_fee for f in fills), Decimal(0)).quantize(_Q_MONEY),
         fills=len(fills),
         round_trips=len(pnls),
         win_rate_pct=(Decimal(len(wins)) / len(pnls) * _PCT).quantize(_Q_PCT) if pnls else None,

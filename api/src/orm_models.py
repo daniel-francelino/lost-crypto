@@ -3,6 +3,7 @@
 import modules.audit.orm
 import modules.backtesting.infrastructure.orm
 import modules.bots.infrastructure.orm
+import modules.exchanges.infrastructure.orm
 import modules.execution.infrastructure.orm
 import modules.market_data.infrastructure.orm
 import modules.portfolio.infrastructure.orm

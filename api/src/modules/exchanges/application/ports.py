@@ -16,6 +16,27 @@ class MarketOrderRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class StopOrderRequest:
+    """A protective sell that rests on the exchange and fires at ``stop_price`` (market)."""
+
+    client_order_id: str
+    symbol: str
+    quantity: Decimal
+    stop_price: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class Balance:
+    asset: str
+    free: Decimal
+    locked: Decimal
+
+    @property
+    def total(self) -> Decimal:
+        return self.free + self.locked
+
+
+@dataclass(frozen=True, slots=True)
 class VenueOrder:
     """An order as the venue reports it."""
 
@@ -27,6 +48,8 @@ class VenueOrder:
     status: OrderStatus
     filled_quantity: Decimal
     fills: tuple[Fill, ...]
+    order_type: str = "market"  # market | stop_loss
+    stop_price: Decimal | None = None
 
 
 class ExchangeGateway(Protocol):

@@ -14,7 +14,12 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import ClassVar
 
-from modules.exchanges.application.ports import MarketOrderRequest, VenueOrder
+from modules.exchanges.application.ports import (
+    Balance,
+    MarketOrderRequest,
+    StopOrderRequest,
+    VenueOrder,
+)
 from modules.exchanges.domain.models import ExchangeCapabilities, ExchangeProfile
 from modules.market_data.domain.models import Candle, MarketInfo, Timeframe
 
@@ -50,8 +55,8 @@ class Exchange(ABC):
     async def create_market_order(self, request: MarketOrderRequest) -> VenueOrder:
         """Place a market order. Idempotent on ``request.client_order_id``: repeating the call
         returns the existing order, never a second one. Raises ``ExchangeRejected`` when the
-        exchange refuses it, ``UnknownOutcome``-style ambiguity must be resolved by
-        ``fetch_order`` (never by blindly retrying)."""
+        exchange refuses it and ``UnknownOutcome`` when it cannot tell whether the order was
+        placed; the latter is resolved with ``fetch_order``, never by blindly retrying."""
 
     @abstractmethod
     async def fetch_order(self, symbol: str, client_order_id: str) -> VenueOrder | None:
@@ -60,6 +65,22 @@ class Exchange(ABC):
     @abstractmethod
     async def cancel_order(self, symbol: str, client_order_id: str) -> VenueOrder:
         """Cancel an open order. Raises ``UnknownOrder`` / ``ExchangeRejected``."""
+
+    @abstractmethod
+    async def create_stop_order(self, request: StopOrderRequest) -> VenueOrder:
+        """Rest a protective sell on the exchange that fires at ``request.stop_price`` (market).
+
+        Same idempotency and error rules as ``create_market_order``. Only call it when
+        ``capabilities.native_stop_orders`` is true.
+        """
+
+    @abstractmethod
+    async def fetch_open_orders(self, symbol: str) -> list[VenueOrder]:
+        """Every order still open on the account for ``symbol`` (ours and foreign)."""
+
+    @abstractmethod
+    async def fetch_balances(self) -> dict[str, Balance]:
+        """Account balances by asset (only assets holding something)."""
 
     # --- lifecycle ---------------------------------------------------------------------------
 

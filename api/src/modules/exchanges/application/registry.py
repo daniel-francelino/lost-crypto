@@ -1,6 +1,8 @@
 from collections.abc import Callable
+from uuid import UUID
 
 from modules.exchanges.application.exchange import Exchange
+from modules.exchanges.domain.connections import Credentials, Environment
 from modules.exchanges.domain.models import ExchangeProfile
 from modules.exchanges.errors import (
     ExchangeConfigurationError,
@@ -9,6 +11,8 @@ from modules.exchanges.errors import (
 )
 from modules.market_data.application.ports import MarketDataSource
 from modules.market_data.domain.models import Timeframe
+
+AuthenticatedFactory = Callable[[Credentials, Environment], Exchange]
 
 
 class ExchangeRegistry:
@@ -23,9 +27,15 @@ class ExchangeRegistry:
         self._profiles: dict[str, ExchangeProfile] = {}
         self._factories: dict[str, Callable[[], Exchange]] = {}
         self._instances: dict[str, Exchange] = {}
+        self._classes: dict[str, type[Exchange]] = {}
+        self._auth_factories: dict[str, AuthenticatedFactory] = {}
+        self._authenticated: dict[UUID, Exchange] = {}
 
     def register(
-        self, exchange_cls: type[Exchange], factory: Callable[[], Exchange] | None = None
+        self,
+        exchange_cls: type[Exchange],
+        factory: Callable[[], Exchange] | None = None,
+        authenticated: AuthenticatedFactory | None = None,
     ) -> None:
         profile = getattr(exchange_cls, "PROFILE", None)
         if not isinstance(profile, ExchangeProfile):
@@ -34,6 +44,9 @@ class ExchangeRegistry:
             )
         self._profiles[profile.exchange_id] = profile
         self._factories[profile.exchange_id] = factory or exchange_cls
+        self._classes[profile.exchange_id] = exchange_cls
+        if authenticated is not None:
+            self._auth_factories[profile.exchange_id] = authenticated
 
     def exchange_ids(self) -> list[str]:
         return sorted(self._profiles)
@@ -61,11 +74,34 @@ class ExchangeRegistry:
             self._instances[exchange_id] = self._factories[exchange_id]()
         return self._instances[exchange_id]
 
+    def authenticated(
+        self,
+        exchange_id: str,
+        connection_id: UUID,
+        credentials: Credentials,
+        environment: Environment,
+    ) -> Exchange:
+        """An integration bound to one connection's credentials and environment (cached).
+
+        Public data keeps using the shared credential-less instance from ``exchange()``.
+        """
+        self.profile(exchange_id)
+        if connection_id not in self._authenticated:
+            factory = self._auth_factories.get(exchange_id)
+            if factory is None:
+                self._authenticated[connection_id] = self._classes[exchange_id](  # type: ignore[call-arg]
+                    credentials=credentials, sandbox=environment is Environment.TESTNET
+                )
+            else:
+                self._authenticated[connection_id] = factory(credentials, environment)
+        return self._authenticated[connection_id]
+
     def market_data(self, exchange_id: str) -> MarketDataSource:
         """The read-only market data view of an exchange."""
         return self.exchange(exchange_id)
 
     async def aclose(self) -> None:
-        for exchange in self._instances.values():
+        for exchange in [*self._instances.values(), *self._authenticated.values()]:
             await exchange.aclose()
         self._instances.clear()
+        self._authenticated.clear()

@@ -4,6 +4,7 @@ from uuid import UUID
 
 from modules.audit.models import AuditRepository
 from modules.bots.domain.models import Bot, BotConfig, BotState
+from modules.exchanges.application.connections import ConnectionRepository
 from modules.execution.application.ports import OrderRepository, SignalRepository
 from modules.portfolio.application.ports import PortfolioRepository
 
@@ -41,5 +42,7 @@ class BotStore(Protocol):
     def portfolio(self) -> PortfolioRepository: ...
     @property
     def audit(self) -> AuditRepository: ...
+    @property
+    def connections(self) -> ConnectionRepository: ...
 
     async def commit(self) -> None: ...

@@ -27,6 +27,9 @@ class SqlAlchemyPortfolioRepository:
             fees_paid=row.fees_paid,
             stop_price=row.stop_price,
             take_profit_price=row.take_profit_price,
+            reserved_cash=row.reserved_cash,
+            reserved_quantity=row.reserved_quantity,
+            stop_order_client_id=row.stop_order_client_id,
         )
 
     async def save(self, state: PortfolioState) -> None:
@@ -38,6 +41,9 @@ class SqlAlchemyPortfolioRepository:
             "fees_paid": state.fees_paid,
             "stop_price": state.stop_price,
             "take_profit_price": state.take_profit_price,
+            "reserved_cash": state.reserved_cash,
+            "reserved_quantity": state.reserved_quantity,
+            "stop_order_client_id": state.stop_order_client_id,
         }
         stmt = insert(BotPortfolioRow).values(bot_id=state.bot_id, **values)
         await self._session.execute(

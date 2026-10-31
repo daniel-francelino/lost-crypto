@@ -30,6 +30,12 @@ class OrderRow(Base):
     avg_fill_price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     status: Mapped[str] = mapped_column(Text)
     reject_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    exchange_order_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stop_price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
+    reserved_cash: Mapped[Decimal] = mapped_column(MONEY, server_default="0")
+    reserved_quantity: Mapped[Decimal] = mapped_column(MONEY, server_default="0")
+    planned_stop_price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
+    planned_take_profit_price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     bar_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
@@ -46,6 +52,7 @@ class OrderFillRow(Base):
     quantity: Mapped[Decimal] = mapped_column(MONEY)
     price: Mapped[Decimal] = mapped_column(MONEY)
     fee: Mapped[Decimal] = mapped_column(MONEY)
+    fee_base: Mapped[Decimal] = mapped_column(MONEY, server_default="0")
 
 
 class TradingSignalRow(Base):
