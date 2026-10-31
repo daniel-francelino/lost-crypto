@@ -95,6 +95,10 @@ Backend refusals (422 strings: worker switch off, `APP_ENV` not prod, caps missi
 
 `GET /system/status`, `GET/PUT /system/kill-switch`. Worker (alive, last heartbeat, age), bots by state, stale bots, the registered exchange ids, and the kill switch with its reason and `changed_at`. This is also the page the safety strip links to. The kill switch control is described in [07](07-ux-rules.md#kill-switch).
 
+### Alerts indicator and screen — `/alerts`
+
+`GET /alerts/summary` (5 s) feeds a badge in the safety strip (bell + unread count, "crítico" when a critical alert is still open; on screens under `sm` it sits below the top bar so the strip does not overflow). It links to `/alerts`: `GET /alerts?unread&severity&limit&offset` (`X-Total-Count`), a `DataTable` of severity, kind, message, opened at, situation (open or resolved at) and read state, filters by severity and unread, and pagination. Admins get "Marcar como lido" per row and "Marcar todos como lidos" (`POST /alerts/{id}/read`, `POST /alerts/read-all`); viewers read only. The screen lives in the `system` module; the data layer (`lib/shared/alerts`, `hooks/shared/use-alerts.ts`) is in `shared` because the indicator is part of the layout. Alert messages come from the backend verbatim; kind and severity labels are in Portuguese in `lib/shared/labels.ts`.
+
 ## 11. Audit — `/audit`
 
 `GET /audit-events?bot_id&limit`: `DataTable` of time, actor, event type, entity, bot, expandable `payload` (rendered as formatted text). Filters on the client over the loaded window, with a visible "mostrando os últimos N" (see [04](04-api-client.md#lists)). Read-only for everyone.

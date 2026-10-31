@@ -30,7 +30,7 @@ They mirror the backend modules, so a backend change has an obvious frontend hom
 | `backtests` | `/backtests/*` | run form, results, sweeps, compare |
 | `market-data` | `/market-data/*` | coverage, imports, candles |
 | `exchanges` | `/exchange-connections/*` | connections page and creation form (the read side lives in `shared`, see below) |
-| `system` | `/system/*` | the *Status* page (the safety strip and the kill switch are in `shared/layout`) |
+| `system` | `/system/*`, `/alerts` | the *Status* page and the *Alertas* page (the safety strip, the alerts indicator and the kill switch are in `shared/layout`; the alerts data layer is in `shared`) |
 | `audit` | `/audit-events` | event log |
 | `shared` | — | API client, `ApiError`, enums, query keys, formatting, dates, layout wiring, hooks used by 2+ modules |
 

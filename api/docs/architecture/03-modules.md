@@ -169,6 +169,7 @@ Arrows mean "depends on the public interface of". There are no cycles: `risk` re
 | Module | Role |
 |---|---|
 | `audit` | Append-only audit events; subscribed to domain events |
+| `notifications` | In-app failure alerts: one open alert per episode (`dedupe_key`), cooldown before a flapping condition opens a new one, resolved when the condition stops. The worker evaluates bot, kill switch and candle conditions; the API process evaluates `worker_down` (a dead worker cannot report itself). Critical episodes are also written to `audit_events` |
 | `settings`/`core.config` | Typed environment configuration, feature flags (`LIVE_TRADING_ENABLED=false`) |
 | `auth` (minimal) | Single-user API authentication (static token/JWT) for MVP |
 | `health` | Liveness/readiness, worker heartbeat |

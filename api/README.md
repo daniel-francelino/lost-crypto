@@ -77,6 +77,9 @@ curl $B/bots/<id>/portfolio         # caixa, posição, PnL realizado/não reali
 curl $B/bots/<id>/performance       # mesmas métricas do backtest, líquidas de taxas
 curl $B/bots/<id>/equity            # curva de capital (1 ponto por candle)
 curl "$B/audit-events?bot_id=<id>"  # trilha de auditoria
+curl "$B/alerts?unread=true"        # alertas de falha (worker parado, bot com erro, candles atrasados...)
+curl $B/alerts/summary               # não lidos / em aberto / críticos em aberto
+curl -X POST $B/alerts/<id>/read     # marca como lido (admin); POST /alerts/read-all marca todos
 
 # Emergência: pausa todos os bots e bloqueia novas entradas (soltar NÃO retoma os bots)
 curl -X PUT $B/system/kill-switch -H 'content-type: application/json' -d '{"active": true, "reason": "teste"}'

@@ -45,7 +45,9 @@ export function SafetyStrip() {
           </Badge>
         ) : null}
       </Link>
-      <AlertsIndicator />
+      <div className="hidden sm:block">
+        <AlertsIndicator />
+      </div>
       <KillSwitchControl />
     </div>
   );
@@ -58,6 +60,9 @@ export function SystemBanners() {
 
   return (
     <div className="space-y-3 empty:hidden">
+      <div className="sm:hidden empty:hidden">
+        <AlertsIndicator />
+      </div>
       {warning === null ? null : (
         <Alert variant="destructive">
           <AlertTitle>Ambiente inconsistente</AlertTitle>

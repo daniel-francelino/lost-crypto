@@ -34,8 +34,8 @@ Per bot: position fraction, max order notional, daily loss %, drawdown %, consec
 ## Operations
 
 * Worker supervises bots, reconciles every 60 s, writes a heartbeat. The API exposes worker liveness and stale bots.
-* The trader fetches recent candles itself each cycle; **historical import is manual**.
-* **No alerting or notification channel exists** (no webhook, email, chat). Failures are visible only to someone looking at the UI.
+* The trader fetches recent candles itself each cycle. Since the Chapter 1 work, the worker also **extends stored candles** (closed candles only, series already stored and recent, or used by a bot) and **historical import stays manual**.
+* **Alerts are in-app only** (`notifications` module, `/alerts`, indicator in the top bar): worker down (raised by the API process), bot stale/error, kill switch, stale candles and exchange rate limiting. No external channel (webhook, email, chat) exists.
 * Audit log for state changes, orders and approvals.
 
 ## Frontend
