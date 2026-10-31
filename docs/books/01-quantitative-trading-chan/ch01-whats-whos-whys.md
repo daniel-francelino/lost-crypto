@@ -1,92 +1,92 @@
-# Book 1 · Chapter 1 — The Whats, Whos, and Whys of Quantitative Trading
+# Livro 1 · Capítulo 1 — O quê, quem e por quê do trading quantitativo
 
-*Quantitative Trading*, Ernest P. Chan (Wiley, 2009). Pages are **book pages** (PDF page = book page + 22). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only, nothing implemented.
+*Quantitative Trading*, Ernest P. Chan (Wiley, 2009). As páginas são **páginas do livro** (página do PDF = página do livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise, nada implementado.
 
-## 1. Chapter summary (pp. 1–8)
+## 1. Resumo do capítulo (pp. 1–8)
 
-Introductory. No formulas. Claims are the author's opinions and anecdotes, not evidence.
+Introdutório. Sem fórmulas. As afirmações são opiniões e anedotas do autor, não evidência.
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que aborda | Páginas |
 |---|---|---|---|
-| C1 | Quantitative trading = trades decided strictly by algorithms tested on history; fundamentals and news count if they become numbers; subjective chart patterns do not. | Separating codifiable strategies from opinion. | 1–2 |
-| C2 | Simple strategies; advanced maths did not help the author (own account of losses at institutions). | Complexity as a source of losses. | 2–3 |
-| C3 | Keep savings; do not need immediate profit; returns have their own pace. | Pressure for quick results. | 4 |
-| C4 | Scale by changing leverage; warns against over-leveraging. | Uncontrolled scaling. | 5 |
-| C5 | Manual interference often makes results worse; author admits the urge to exit on P&L swings. | Human override. | 5–6 |
-| C6 | Automate step by step: download data, start and stop programs, **alert a phone/support when something goes wrong**. | Operating without watching the screen. | 6–7 |
-| C7 | Research must continue because competition erodes profits. | Edge decay. | 6–7 |
-| C8 | Start small, grow with know-how. | Ruin risk early on. | 4–5 |
+| C1 | Trading quantitativo = operações decididas estritamente por algoritmos testados no histórico; fundamentos e notícias contam se virarem números; padrões gráficos subjetivos não. | Separar estratégias codificáveis de opinião. | 1–2 |
+| C2 | Estratégias simples; a matemática avançada não ajudou o autor (relato próprio de perdas em instituições). | Complexidade como fonte de perdas. | 2–3 |
+| C3 | Manter poupança; não precisar de lucro imediato; os retornos têm seu próprio ritmo. | Pressão por resultados rápidos. | 4 |
+| C4 | Escalar mudando a alavancagem; alerta contra alavancagem excessiva. | Escalonamento descontrolado. | 5 |
+| C5 | A interferência manual muitas vezes piora os resultados; o autor admite a vontade de sair nas oscilações de P&L. | Intervenção humana. | 5–6 |
+| C6 | Automatizar passo a passo: baixar dados, iniciar e parar programas, **alertar um celular/suporte quando algo der errado**. | Operar sem ficar olhando a tela. | 6–7 |
+| C7 | A pesquisa deve continuar porque a concorrência corrói os lucros. | Decaimento da vantagem (edge). | 6–7 |
+| C8 | Começar pequeno, crescer com o conhecimento. | Risco de ruína no início. | 4–5 |
 
-The book does not discuss crypto, 24/7 markets or exchange fees. Anything about crypto below is **our adaptation**.
+O livro não discute cripto, mercados 24/7 nem taxas de corretora. Tudo sobre cripto abaixo é **adaptação nossa**.
 
-## 2. Diagnosis
+## 2. Diagnóstico
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| C1 | ✅ | Strategies are registered classes; signals are explicit intents. |
-| C2 | ⚠️ | Small catalogue; no measure comparing simple vs complex strategies. |
-| C3/C8 | ✅ | Paper → testnet → live, live caps, minimum paper days, typed-name approval. |
-| C4 | n/a | Spot only; no leverage. Exposure caps exist, a leverage policy does not. |
-| C5 | ⚠️ | `pause`/`stop`/`reset` are audited, but no reason is recorded and no intervention metric exists. |
-| C6 data | ⚠️ | The trader fetches recent candles itself; historical import is manual only. |
-| C6 **alerts** | ❌ | No notification channel (searched `alert`, `notif`, `webhook`, `telegram`, `email`, `smtp` in `api/src`: nothing). Worker heartbeat exists but is only read by the UI. |
-| C7 | ✅ | Backtest, sweep, comparison exist. |
+| C1 | ✅ | As estratégias são classes registradas; os sinais são intenções explícitas. |
+| C2 | ⚠️ | Catálogo pequeno; não há medida comparando estratégias simples e complexas. |
+| C3/C8 | ✅ | Paper → testnet → live, limites no live, mínimo de dias em paper, aprovação digitando o nome. |
+| C4 | n/a | Apenas spot; sem alavancagem. Existem limites de exposição, mas não uma política de alavancagem. |
+| C5 | ⚠️ | `pause`/`stop`/`reset` são auditados, mas nenhum motivo é registrado e não existe métrica de intervenção. |
+| C6 dados | ⚠️ | O trader busca candles recentes por conta própria; a importação histórica é apenas manual. |
+| C6 **alertas** | ❌ | Nenhum canal de notificação (busquei `alert`, `notif`, `webhook`, `telegram`, `email`, `smtp` em `api/src`: nada). O heartbeat do worker existe, mas só é lido pela UI. |
+| C7 | ✅ | Backtest, sweep e comparação existem. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Failure alerts *(book: C6, p. 7 · channel and triggers are our adaptation)*
-* **Problem:** worker down, stale bot heartbeat, kill switch toggled, reconcile mismatch, live order rejected and daily cap hit go unnoticed without a person looking.
-* **Proposal:** a `Notifier` port with one implementation per channel (webhook first, then chat), one file per integration. An evaluator in the worker emits alert events with de-duplication, cooldown and a recovery message. Critical ones also go to the audit log.
-* **Benefit:** failures noticed in minutes, unattended.
-* **Complexity:** medium (periodic task in the worker, channel secret).
-* **Risks:** the alert path dies with the worker (needs an external liveness check, e.g. container healthcheck); a new secret to protect; alert fatigue.
-* **Validation:** unit tests for thresholds and de-duplication; integration test that stops the worker and expects one alert through a fake notifier; secrets absent from logs/API.
+### O1 — Alertas de falha *(livro: C6, p. 7 · canal e gatilhos são adaptação nossa)*
+* **Problema:** worker parado, heartbeat de bot desatualizado, kill switch acionado, divergência na reconciliação, ordem live rejeitada e limite diário atingido passam despercebidos sem alguém olhando.
+* **Proposta:** uma porta `Notifier` com uma implementação por canal (webhook primeiro, depois chat), um arquivo por integração. Um avaliador no worker emite eventos de alerta com deduplicação, cooldown e mensagem de recuperação. Os críticos também vão para o log de auditoria.
+* **Benefício:** falhas percebidas em minutos, sem supervisão.
+* **Complexidade:** média (tarefa periódica no worker, segredo do canal).
+* **Riscos:** o caminho do alerta morre junto com o worker (precisa de uma checagem externa de vida, por exemplo healthcheck do container); um novo segredo a proteger; fadiga de alertas.
+* **Validação:** testes unitários de limites e deduplicação; teste de integração que para o worker e espera um alerta via notifier falso; segredos ausentes de logs/API.
 
-### O2 — Automatic incremental data import *(book: C6, pp. 6–7 · adaptation)*
-* **Problem:** gaps in stored candles are repaired only by manual jobs.
-* **Proposal:** a periodic worker task that extends coverage of active pairs to now, reusing the import job; back off on exchange maintenance gaps.
-* **Benefit:** backtests always run on current data.
-* **Complexity:** low. **Risks:** rate limits; legitimate gaps retried forever.
-* **Validation:** integration test with a fake source that leaves a hole and expects it filled.
+### O2 — Importação incremental automática de dados *(livro: C6, pp. 6–7 · adaptação)*
+* **Problema:** lacunas nos candles armazenados só são reparadas por jobs manuais.
+* **Proposta:** uma tarefa periódica no worker que estende a cobertura dos pares ativos até o presente, reutilizando o job de importação; recuar (backoff) em lacunas de manutenção da exchange.
+* **Benefício:** backtests sempre rodam com dados atuais.
+* **Complexidade:** baixa. **Riscos:** limites de taxa (rate limits); lacunas legítimas sendo tentadas para sempre.
+* **Validação:** teste de integração com uma fonte falsa que deixa um buraco e espera que ele seja preenchido.
 
-### O3 — Reason for manual interventions *(book: C5, pp. 5–6 · adaptation)*
-* **Problem:** cannot tell whether a stop/pause/reset was a reaction to P&L swings.
-* **Proposal:** optional reason on those commands, stored in the audit payload, plus an "interventions per bot" figure.
-* **Benefit:** data about our own behaviour. **Complexity:** low. **Risk:** an ignored field.
-* **Validation:** test that the reason reaches the audit event.
+### O3 — Motivo das intervenções manuais *(livro: C5, pp. 5–6 · adaptação)*
+* **Problema:** não dá para saber se um stop/pause/reset foi reação a oscilações de P&L.
+* **Proposta:** motivo opcional nesses comandos, guardado no payload de auditoria, mais um indicador de "intervenções por bot".
+* **Benefício:** dados sobre o nosso próprio comportamento. **Complexidade:** baixa. **Risco:** um campo ignorado.
+* **Validação:** teste de que o motivo chega ao evento de auditoria.
 
-### O4 — Leverage/exposure policy *(book: C4, p. 5 · deferred)*
-No leverage exists. Becomes high priority only if futures/margin are added; revisit with Chapter 6.
+### O4 — Política de alavancagem/exposição *(livro: C4, p. 5 · adiado)*
+Não existe alavancagem. Só passa a ser prioridade alta se futuros/margem forem adicionados; revisitar com o Capítulo 6.
 
-### O5 — Simple vs complex comparison *(book: C2, p. 3 · not actionable)*
-Rests on one opinion sentence. Later chapters give concrete criteria; do not act on this one.
+### O5 — Comparação simples vs. complexo *(livro: C2, p. 3 · não acionável)*
+Apoia-se em uma frase de opinião. Capítulos posteriores dão critérios concretos; não agir sobre este item.
 
-## 4. Priority
+## 4. Prioridade
 
-| # | Item | Reliability | Risk mgmt | Backtest quality | Complexity | Depends on |
+| # | Item | Confiabilidade | Gestão de risco | Qualidade do backtest | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O1 alerts | high | high | – | medium | worker scheduler, channel secret |
-| 2 | O2 incremental import | medium | – | medium | low | existing import job |
-| 3 | O3 intervention reason | low | medium | – | low | existing audit |
-| – | O4, O5 | deferred | | | | |
+| 1 | O1 alertas | alta | alta | – | média | agendador do worker, segredo do canal |
+| 2 | O2 importação incremental | média | – | média | baixa | job de importação existente |
+| 3 | O3 motivo da intervenção | baixa | média | – | baixa | auditoria existente |
+| – | O4, O5 | adiados | | | | |
 
-## 5. Affected files
-* O1: new `notifications` module (port + one file per channel), `worker.py`, `container.py`, `core/config.py`, audit, app status/settings pages.
+## 5. Arquivos afetados
+* O1: novo módulo `notifications` (porta + um arquivo por canal), `worker.py`, `container.py`, `core/config.py`, auditoria, páginas de status/configurações do app.
 * O2: `modules/market_data/application/service.py`, `worker.py`, `container.py`.
-* O3: `modules/bots/application/service.py`, bots router, audit payload, app control forms.
+* O3: `modules/bots/application/service.py`, router de bots, payload de auditoria, formulários de controle do app.
 
-## 6. Incremental plan
-1. O1a: `Notifier` port, fake notifier, condition evaluator (no real channel).
-2. O1b: webhook implementation, env configuration, wire into the worker.
-3. O1c: status page shows recent alerts and configured channels.
-4. O2: periodic incremental import.
-5. O3: reason field.
+## 6. Plano incremental
+1. O1a: porta `Notifier`, notifier falso, avaliador de condições (sem canal real).
+2. O1b: implementação de webhook, configuração por variáveis de ambiente, integração ao worker.
+3. O1c: a página de status mostra alertas recentes e canais configurados.
+4. O2: importação incremental periódica.
+5. O3: campo de motivo.
 
-## 7. Acceptance criteria and tests
-* One alert per episode within N seconds of a threshold breach, plus one recovery message.
-* A failing channel never breaks the worker; the failure is logged.
-* No channel secret in logs, audit or API responses.
-* Order flow and live safeguards unchanged; unit, integration, ruff and mypy stay green.
+## 7. Critérios de aceite e testes
+* Um alerta por episódio em até N segundos após o rompimento do limite, mais uma mensagem de recuperação.
+* Um canal com falha nunca derruba o worker; a falha é registrada em log.
+* Nenhum segredo de canal em logs, auditoria ou respostas da API.
+* Fluxo de ordens e salvaguardas do live inalterados; testes unitários, de integração, ruff e mypy continuam verdes.
 
-## Caveat
-The author's profit anecdotes (pp. 3, 8) are personal accounts and must not be used as return expectations.
+## Ressalva
+As anedotas de lucro do autor (pp. 3, 8) são relatos pessoais e não devem ser usadas como expectativa de retorno.

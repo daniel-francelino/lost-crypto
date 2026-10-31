@@ -1,118 +1,118 @@
-# Book 1 · Chapter 3 — Backtesting
+# Livro 1 · Capítulo 3 — Backtesting
 
-*Quantitative Trading*, Chan (2009). Book pages (PDF = book + 22). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-Reading note: pp. 32–36 (Excel, MATLAB, TradeStation and commercial platforms) were skimmed; they describe tools, not methods. Everything else (pp. 36–67) was read. In the extracted text the square-root sign is lost in prose (p. 44 prints "12 times"), but the code on pp. 45–46 shows `SQRT(252)`, which confirms the formula below.
+Nota de leitura: as pp. 32–36 (Excel, MATLAB, TradeStation e plataformas comerciais) foram apenas folheadas; descrevem ferramentas, não métodos. O restante (pp. 36–67) foi lido. No texto extraído o sinal de raiz quadrada se perde na prosa (a p. 44 imprime "12 times"), mas o código das pp. 45–46 mostra `SQRT(252)`, o que confirma a fórmula abaixo.
 
-## 1. Chapter summary (pp. 31–67)
+## 1. Resumo do capítulo (pp. 31–67)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que aborda | Páginas |
 |---|---|---|---|
-| C1 | Replicate every strategy yourself: it proves you understood it, exposes errors of the original research and lets you try variations. | Trusting unverified published results. | 31 |
-| C2 | **Adjusted data** (splits, dividends): multiply earlier prices by a factor so returns stay unchanged; unadjusted data creates false signals at ex-dates. | Fake price jumps. | 36–40 |
-| C3 | **Survivorship bias**: toy "buy lowest-priced stocks" gave −42% with delisted names included and +388% without them. Mitigation: record point-in-time data yourself from now on, or test on recent data. | Inflated results. | 40–42 |
-| C4 | **High/low data is noisier** than open/close; a limit order "below the high" may not have filled. A sanity check: compute returns, inspect those beyond ~4 standard deviations, and require a news event or a market-wide move to explain them. | Backtests that profit from bad ticks. | 42–43 |
-| C5 | **Sharpe and drawdown** are the two main measures (raw annual return needs too many qualifiers: denominator, leverage). Do **not** subtract the risk-free rate for dollar-neutral or intraday-only strategies (no financing cost); subtract it when the strategy incurs financing. **Annualised Sharpe = √N_T × Sharpe on period T**, where N_T is the number of periods in a year (N_T = 252 × 6.5 = 1,638 for hourly US-session returns; computing 252 × 24 is called a common mistake). Example 3.4: `SQRT(252)*AVERAGE(excess)/STDEV(excess)`. | Comparing strategies fairly. | 43–47 |
-| C6 | **Drawdown computation** (Example 3.5): cumulative compounded return; running high watermark; drawdown = (1+HWM)/(1+cum) − 1; duration counter resets to 0 when drawdown is 0, else +1; maxima of both. Result for the example: 10.53% and 497 days. | Reproducible drawdown numbers. | 48–50 |
-| C7 | **Look-ahead bias**: using information not yet available (e.g. the day's low, or regression coefficients fitted on the whole sample). Fix by lagging signal inputs. **Truncation test**: run on all data and save positions A; run on data truncated by the last N periods (10–100) and save B; cut A to the same length; they must be identical. | Silent future leakage. | 51–52, 59 |
-| C8 | **Data-snooping bias**: rule of thumb ≤ **5 parameters**; qualitative choices (enter at open vs close, hold overnight…) also count; sample size ≈ **252 × number of free parameters** data points (stated as experience-based, not from literature), counted in *independent* observations (7 months of minute data for a daily model is only ~147 points). | Overfitting. | 52–53 |
-| C9 | **Out-of-sample**: train first, test on the later part (roughly equal halves; at least test ≥ ⅓ of train). If test is poor, simplify the model. **Moving (rolling) optimisation** is the more rigorous version; "parameterless" model = parameters re-optimised in a moving lookback window; better to average over parameter sets than pick one best. **Paper trading** is the ultimate out-of-sample test, and the period since publication counts as out-of-sample if you did not tune on it. | Honest generalisation estimate. | 53–55 |
-| C10 | **Sensitivity analysis**: vary parameters and make small qualitative changes; a model that works only at the exact optimum is overfit. Remove conditions one by one and keep removing while the **test** result does not degrade. Never add or tune to improve the test set (it becomes training). Then split capital across parameter values. | Fragile optima. | 60 |
-| C11 | **Costs** (Example 3.7): a strategy with Sharpe 4.47 before costs on small caps had 0.25 on S&P 500 and −3.19 after 5 bp per trade. Treat results without survivorship-free data as upper bounds. | Costs and universe decide viability. | 60–65 |
-| C12 | **Refinement**: small variations (e.g. act at the open instead of the close raised Sharpe from −3.19 to 0.78 after costs, Example 3.8); prefer refinements with an economic rationale, and any change must improve both train and test. | Improving without overfitting. | 65–66 |
-| C13 | Summary honesty: skipping some precautions is acceptable for a first look; problems may still show only in paper/live trading. | Perfectionism vs progress. | 67 |
+| C1 | Replicar cada estratégia você mesmo: prova que você a entendeu, expõe erros da pesquisa original e permite testar variações. | Confiar em resultados publicados não verificados. | 31 |
+| C2 | **Dados ajustados** (splits, dividendos): multiplicar os preços anteriores por um fator para que os retornos não mudem; dados sem ajuste criam sinais falsos nas datas ex. | Saltos de preço falsos. | 36–40 |
+| C3 | **Viés de sobrevivência**: o exemplo de brinquedo "comprar as ações de menor preço" deu −42% com papéis deslistados incluídos e +388% sem eles. Mitigação: registrar dados point-in-time você mesmo daqui em diante, ou testar em dados recentes. | Resultados inflados. | 40–42 |
+| C4 | **Dados de máxima/mínima são mais ruidosos** que abertura/fechamento; uma ordem limitada "abaixo da máxima" pode não ter sido executada. Uma checagem de sanidade: calcular os retornos, inspecionar os que passam de ~4 desvios-padrão e exigir um evento de notícia ou um movimento de todo o mercado que os explique. | Backtests que lucram com ticks ruins. | 42–43 |
+| C5 | **Sharpe e drawdown** são as duas medidas principais (o retorno anual bruto exige qualificações demais: denominador, alavancagem). **Não** subtrair a taxa livre de risco em estratégias dollar-neutral ou só intradiárias (sem custo de financiamento); subtrair quando a estratégia tem financiamento. **Sharpe anualizado = √N_T × Sharpe no período T**, onde N_T é o número de períodos em um ano (N_T = 252 × 6,5 = 1.638 para retornos horários da sessão dos EUA; calcular 252 × 24 é citado como erro comum). Exemplo 3.4: `SQRT(252)*AVERAGE(excess)/STDEV(excess)`. | Comparar estratégias de forma justa. | 43–47 |
+| C6 | **Cálculo do drawdown** (Exemplo 3.5): retorno composto acumulado; high watermark corrente; drawdown = (1+HWM)/(1+cum) − 1; contador de duração volta a 0 quando o drawdown é 0, senão +1; máximos de ambos. Resultado do exemplo: 10,53% e 497 dias. | Números de drawdown reprodutíveis. | 48–50 |
+| C7 | **Viés de look-ahead**: usar informação ainda não disponível (por exemplo a mínima do dia, ou coeficientes de regressão ajustados em toda a amostra). Corrige-se atrasando (lag) as entradas do sinal. **Teste de truncamento**: rodar em todos os dados e salvar as posições A; rodar nos dados truncados pelos últimos N períodos (10–100) e salvar B; cortar A ao mesmo tamanho; devem ser idênticas. | Vazamento silencioso do futuro. | 51–52, 59 |
+| C8 | **Viés de data-snooping**: regra prática ≤ **5 parâmetros**; escolhas qualitativas (entrar na abertura vs. fechamento, carregar overnight…) também contam; tamanho de amostra ≈ **252 × número de parâmetros livres** (declarado como baseado em experiência, não em literatura), contado em observações *independentes* (7 meses de dados por minuto para um modelo diário são só ~147 pontos). | Overfitting. | 52–53 |
+| C9 | **Fora da amostra**: treinar primeiro, testar na parte posterior (metades aproximadamente iguais; teste ≥ ⅓ do treino, no mínimo). Se o teste for ruim, simplificar o modelo. A **otimização móvel (rolling)** é a versão mais rigorosa; modelo "sem parâmetros" = parâmetros reotimizados numa janela móvel de lookback; é melhor tirar a média entre conjuntos de parâmetros do que escolher um só "melhor". O **paper trading** é o teste final fora da amostra, e o período desde a publicação conta como fora da amostra se você não ajustou sobre ele. | Estimativa honesta de generalização. | 53–55 |
+| C10 | **Análise de sensibilidade**: variar parâmetros e fazer pequenas mudanças qualitativas; um modelo que só funciona no ótimo exato está sobreajustado. Remover condições uma a uma e continuar removendo enquanto o resultado do **teste** não piorar. Nunca adicionar ou ajustar para melhorar o conjunto de teste (ele vira treino). Depois, dividir o capital entre valores de parâmetros. | Ótimos frágeis. | 60 |
+| C11 | **Custos** (Exemplo 3.7): uma estratégia com Sharpe 4,47 antes dos custos em small caps teve 0,25 no S&P 500 e −3,19 após 5 bp por operação. Tratar resultados sem dados livres de sobrevivência como limites superiores. | Custos e universo decidem a viabilidade. | 60–65 |
+| C12 | **Refinamento**: pequenas variações (por exemplo agir na abertura em vez do fechamento elevou o Sharpe de −3,19 para 0,78 após custos, Exemplo 3.8); preferir refinamentos com lógica econômica, e qualquer mudança deve melhorar treino e teste. | Melhorar sem sobreajustar. | 65–66 |
+| C13 | Honestidade do resumo: pular algumas precauções é aceitável para uma primeira olhada; problemas ainda podem aparecer só no paper/live. | Perfeccionismo vs. progresso. | 67 |
 
-Chan's two worked pair-trading and mean-reversion examples are equity-specific (ETF pairs, S&P 500) and are not transferable as such; only the methodology is. No crypto advice appears in the chapter.
+Os dois exemplos trabalhados de Chan, de pairs trading e reversão à média, são específicos de ações (pares de ETFs, S&P 500) e não são transferíveis como tal; só a metodologia é. Nenhum conselho sobre cripto aparece no capítulo.
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| C2 adjusted data | n/a | Crypto spot has no splits/dividends. Exchange-side events (symbol redenomination, delisting) are not handled. |
-| C3 survivorship | ❌ | No delisting handling; universe chosen by hand. We could start recording point-in-time listings now. |
-| C4 data sanity | ⚠️ | `Candle` has **no OHLC consistency check** (`high ≥ max(open, close)`, `low ≤ min(open, close)`, positive prices, non-negative volume) in `market_data/domain/models.py`. Only the risk module rejects *entries* on candles whose range exceeds `max_candle_range_pct`. The backtester has no such filter and no outlier report. |
-| C4 coverage | ❌ | `find_gaps` exists and is shown in the coverage endpoint, but `BacktestService._check_candles` only requires **at least one** candle in the range, so a backtest silently runs over holes. |
-| C5 Sharpe | ❌ | Not computed (see chapter 2). Annualisation convention undecided. |
-| C6 drawdown | ⚠️ | Depth computed correctly (`max_drawdown_pct`); duration and watermark series missing. |
-| C7 look-ahead | ✅ by construction, ❌ no regression test | Engine fills at next candle's open and the strategy sees only closed candles (`engine.py`). No automated truncation test (grep for `truncat`/`lookahead` in `api/tests` finds only a comment). |
-| C8 snooping / sample size | ⚠️ | Strategies have ≤ 4 parameters. No sample-size check, no trial count in sweeps (`create_sweep` bounds the grid with `MAX_SWEEP_RUNS` but records no multiple-testing warning). |
-| C9 out-of-sample | ⚠️ | One fixed split with the strategy running once over all data (`segments.py`). No walk-forward, no minimum-size rule. Paper trading exists and is mandatory before live. |
-| C10 sensitivity | ⚠️ | Sweeps give the raw material, but no robustness view (e.g. neighbourhood stability of the best cell). |
-| C11 costs | ⚠️ | Fixed fee and slippage (chapter 2). |
-| C12 refinement | ✅ possible | Experiments are cheap; no governance around it. |
+| C2 dados ajustados | n/a | O spot cripto não tem splits/dividendos. Eventos do lado da exchange (redenominação de símbolo, deslistagem) não são tratados. |
+| C3 sobrevivência | ❌ | Sem tratamento de deslistagem; universo escolhido à mão. Poderíamos começar a registrar listagens point-in-time agora. |
+| C4 sanidade dos dados | ⚠️ | `Candle` **não tem checagem de consistência OHLC** (`high ≥ max(open, close)`, `low ≤ min(open, close)`, preços positivos, volume não negativo) em `market_data/domain/models.py`. Apenas o módulo de risco rejeita *entradas* em candles cuja amplitude excede `max_candle_range_pct`. O backtester não tem esse filtro nem relatório de outliers. |
+| C4 cobertura | ❌ | `find_gaps` existe e aparece no endpoint de cobertura, mas `BacktestService._check_candles` exige apenas **pelo menos um** candle no intervalo, então um backtest roda silenciosamente sobre buracos. |
+| C5 Sharpe | ❌ | Não calculado (ver capítulo 2). Convenção de anualização indefinida. |
+| C6 drawdown | ⚠️ | Profundidade calculada corretamente (`max_drawdown_pct`); duração e série da watermark ausentes. |
+| C7 look-ahead | ✅ por construção, ❌ sem teste de regressão | O motor executa na abertura do candle seguinte e a estratégia só vê candles fechados (`engine.py`). Sem teste automatizado de truncamento (grep por `truncat`/`lookahead` em `api/tests` acha apenas um comentário). |
+| C8 snooping / tamanho da amostra | ⚠️ | As estratégias têm ≤ 4 parâmetros. Sem checagem de tamanho de amostra, sem contagem de tentativas nos sweeps (`create_sweep` limita a grade com `MAX_SWEEP_RUNS`, mas não registra aviso de testes múltiplos). |
+| C9 fora da amostra | ⚠️ | Uma divisão fixa com a estratégia rodando uma vez sobre todos os dados (`segments.py`). Sem walk-forward, sem regra de tamanho mínimo. O paper trading existe e é obrigatório antes do live. |
+| C10 sensibilidade | ⚠️ | Os sweeps dão a matéria-prima, mas não há visão de robustez (por exemplo estabilidade da vizinhança da melhor célula). |
+| C11 custos | ⚠️ | Taxa e slippage fixos (capítulo 2). |
+| C12 refinamento | ✅ possível | Experimentos são baratos; sem governança em torno disso. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Annualised Sharpe/Sortino with an explicit crypto convention *(book: C5 · convention is our adaptation)*
-* **Book:** Sharpe = √N_T × mean/std of excess returns on period T; N_T must count real trading periods; a mismatch (252 × 24 for a session that has 6.5 hours) is an error.
-* **Adaptation:** crypto trades 24/7, so N_T = 365 × (24 h / candle hours), e.g. 8,760 for 1h, 365 for 1d. Risk-free = 0 by default because the strategy is spot long-only with no financing, matching the book's rule (subtract only when financing exists); keep it configurable.
-* **Problem:** metric absent. **Benefit:** the book's main comparison measure; ranks sweeps. **Complexity:** low. **Risk:** equity curves sitting flat in cash lower volatility and flatter the ratio; report **time in market** alongside; few returns give unreliable ratios (show sample size). **Validation:** reproduce the book's Example 3.4 numbers (Sharpe 0.7893 for IGE buy-and-hold) with the same inputs in a unit test; known-series tests.
+### O1 — Sharpe/Sortino anualizados com convenção explícita para cripto *(livro: C5 · a convenção é adaptação nossa)*
+* **Livro:** Sharpe = √N_T × média/desvio-padrão dos retornos em excesso no período T; N_T deve contar períodos reais de negociação; uma divergência (252 × 24 para uma sessão de 6,5 horas) é um erro.
+* **Adaptação:** cripto negocia 24/7, então N_T = 365 × (24 h / horas do candle), por exemplo 8.760 para 1h, 365 para 1d. Taxa livre de risco = 0 por padrão porque a estratégia é spot long-only sem financiamento, em linha com a regra do livro (subtrair só quando há financiamento); manter configurável.
+* **Problema:** métrica ausente. **Benefício:** a principal medida de comparação do livro; ranqueia sweeps. **Complexidade:** baixa. **Risco:** curvas de patrimônio paradas em caixa reduzem a volatilidade e favorecem o índice; reportar o **tempo no mercado** junto; poucos retornos dão razões pouco confiáveis (mostrar o tamanho da amostra). **Validação:** reproduzir os números do Exemplo 3.4 do livro (Sharpe 0,7893 para buy-and-hold de IGE) com as mesmas entradas num teste unitário; testes com séries conhecidas.
 
-### O2 — Drawdown duration and watermark series *(book: C6, pp. 48–50)*
-Implement exactly the book's recurrence (duration counter resets at zero drawdown) and expose both series. **Complexity:** low. **Validation:** reproduce Example 3.5's definitions on a synthetic curve; ongoing drawdown reported as ongoing.
+### O2 — Duração do drawdown e série da watermark *(livro: C6, pp. 48–50)*
+Implementar exatamente a recorrência do livro (o contador de duração volta a zero quando o drawdown é zero) e expor as duas séries. **Complexidade:** baixa. **Validação:** reproduzir as definições do Exemplo 3.5 numa curva sintética; drawdown em andamento reportado como em andamento.
 
-### O3 — Candle integrity validation *(book: C4, pp. 42–43)*
-* **Proposal:** validate OHLC consistency and positive values at construction/import; reject or quarantine bad rows with a counter; add an outlier report (returns beyond k standard deviations; the book suggests ~4) that the operator can review; make the backtester optionally exclude/flag runs that cross flagged candles.
-* **Note:** the book's "check against news or market-wide move" step is manual; here we could compare the move against other pairs (adaptation).
-* **Benefit:** protects every backtest from bad data. **Complexity:** low–medium. **Risk:** over-eager filtering can delete real crashes; flag, do not silently drop. **Validation:** unit tests with malformed candles; integration test of the import job counters.
+### O3 — Validação de integridade dos candles *(livro: C4, pp. 42–43)*
+* **Proposta:** validar consistência OHLC e valores positivos na construção/importação; rejeitar ou pôr em quarentena linhas ruins com um contador; adicionar um relatório de outliers (retornos além de k desvios-padrão; o livro sugere ~4) que o operador possa revisar; fazer o backtester opcionalmente excluir/sinalizar execuções que cruzem candles sinalizados.
+* **Nota:** o passo do livro de "conferir com notícia ou movimento de todo o mercado" é manual; aqui poderíamos comparar o movimento com outros pares (adaptação).
+* **Benefício:** protege todo backtest de dados ruins. **Complexidade:** baixa–média. **Risco:** filtragem excessiva pode apagar crashes reais; sinalizar, não descartar em silêncio. **Validação:** testes unitários com candles malformados; teste de integração dos contadores do job de importação.
 
-### O4 — Refuse (or loudly warn about) backtests over data gaps *(adaptation, motivated by C4/C11)*
-Use the existing `find_gaps` inside `_check_candles`; return gap count/size in the run result and fail or warn above a threshold. **Complexity:** low. **Risk:** exchange maintenance windows are legitimate gaps; make it a warning with a tolerance. **Validation:** integration test with a hole.
+### O4 — Recusar (ou avisar de forma explícita sobre) backtests com lacunas nos dados *(adaptação, motivada por C4/C11)*
+Usar o `find_gaps` existente dentro de `_check_candles`; devolver a contagem/tamanho das lacunas no resultado da execução e falhar ou avisar acima de um limite. **Complexidade:** baixa. **Risco:** janelas de manutenção da exchange são lacunas legítimas; fazer um aviso com tolerância. **Validação:** teste de integração com um buraco.
 
-### O5 — Look-ahead regression test (truncation test) *(book: C7, pp. 52, 59)*
-Automate the book's procedure: run the engine on full candles and on candles with the last N removed, compare the **signals/positions** over the common prefix, for every registered strategy. **Complexity:** low (pure functions, fast). **Benefit:** guards the most dangerous silent bug whenever a strategy is added. **Validation:** the test itself, plus a deliberately leaky fake strategy that must fail it.
+### O5 — Teste de regressão de look-ahead (teste de truncamento) *(livro: C7, pp. 52, 59)*
+Automatizar o procedimento do livro: rodar o motor com os candles completos e com os últimos N removidos, comparar os **sinais/posições** no prefixo comum, para toda estratégia registrada. **Complexidade:** baixa (funções puras, rápido). **Benefício:** protege contra o bug silencioso mais perigoso sempre que uma estratégia for adicionada. **Validação:** o próprio teste, mais uma estratégia falsa deliberadamente com vazamento que deve reprová-lo.
 
-### O6 — Sample-size and parameter-count guard *(book: C8, pp. 52–53 · thresholds are the author's rules of thumb)*
-Compute free-parameter count from the strategy's `PARAMETERS`, compare the number of **independent** observations (trades or bars, not ticks) with 252 × parameters, and emit a warning (not a block). Calibrate to crypto later. **Complexity:** low. **Risk:** the 252 rule is explicitly experience-based; treat as heuristic and make it configurable. **Validation:** unit test of the warning.
+### O6 — Guarda de tamanho de amostra e contagem de parâmetros *(livro: C8, pp. 52–53 · limiares são regras práticas do autor)*
+Calcular o número de parâmetros livres a partir dos `PARAMETERS` da estratégia, comparar o número de observações **independentes** (operações ou barras, não ticks) com 252 × parâmetros e emitir um aviso (não um bloqueio). Calibrar para cripto depois. **Complexidade:** baixa. **Risco:** a regra do 252 é explicitamente baseada em experiência; tratar como heurística e tornar configurável. **Validação:** teste unitário do aviso.
 
-### O7 — Trial count and sensitivity view for sweeps *(book: C8, C10, pp. 52–60)*
-Store the number of combinations on each sweep result; add a **neighbourhood robustness** view (does performance degrade smoothly around the best cell, or collapse?) and require the winner to also be acceptable in the test segment; never rank by the test segment. **Complexity:** medium. **Risk:** still no formal multiple-testing correction (later books address it). **Validation:** synthetic sweep with a single spike must be flagged fragile.
+### O7 — Contagem de tentativas e visão de sensibilidade para sweeps *(livro: C8, C10, pp. 52–60)*
+Armazenar o número de combinações em cada resultado de sweep; adicionar uma visão de **robustez da vizinhança** (o desempenho cai suavemente ao redor da melhor célula ou colapsa?) e exigir que o vencedor também seja aceitável no segmento de teste; nunca ranquear pelo segmento de teste. **Complexidade:** média. **Risco:** ainda sem correção formal de testes múltiplos (livros posteriores tratam disso). **Validação:** um sweep sintético com um único pico deve ser sinalizado como frágil.
 
-### O8 — Walk-forward (moving) optimisation *(book: C9, pp. 54–55)*
-The book's rigorous out-of-sample method. Large feature: re-fit parameters in a lookback window and test on the next block, concatenating out-of-sample results. **Complexity:** high. **Risk:** compute cost; leakage if windows overlap wrongly. Keep as backlog **B-WALK-FORWARD** and plan after the chapters on cross-validation in Book 5.
+### O8 — Otimização walk-forward (móvel) *(livro: C9, pp. 54–55)*
+O método rigoroso de fora da amostra do livro. Funcionalidade grande: reajustar parâmetros numa janela de lookback e testar no bloco seguinte, concatenando os resultados fora da amostra. **Complexidade:** alta. **Risco:** custo computacional; vazamento se as janelas se sobrepuserem errado. Manter como backlog **B-WALK-FORWARD** e planejar depois dos capítulos sobre validação cruzada do Livro 5.
 
-### O9 — Cost sensitivity and break-even cost *(book: C11, pp. 60–65)*
-Same as chapter 2 O4; re-run signals across fee/slippage grids and report where profitability disappears. **Complexity:** medium.
+### O9 — Sensibilidade a custos e custo de equilíbrio *(livro: C11, pp. 60–65)*
+Igual ao capítulo 2 O4; reexecutar sinais em grades de taxa/slippage e reportar onde a lucratividade desaparece. **Complexidade:** média.
 
-### O10 — Point-in-time listing log *(book: C3, p. 40 · adaptation)*
-Start storing the exchange's symbol list and status daily so a survivorship-free universe exists later. **Complexity:** low; value grows with time, so cheap to start early.
+### O10 — Registro de listagens point-in-time *(livro: C3, p. 40 · adaptação)*
+Começar a guardar diariamente a lista de símbolos e o status da exchange para que um universo livre de sobrevivência exista no futuro. **Complexidade:** baixa; o valor cresce com o tempo, então é barato começar cedo.
 
-### Not applicable
-Split/dividend adjustment (C2), equity-universe examples (C11, C12 examples), platform choices (pp. 32–36).
+### Não aplicável
+Ajuste de splits/dividendos (C2), exemplos de universos de ações (exemplos de C11, C12), escolha de plataformas (pp. 32–36).
 
-## 4. Priority
+## 4. Prioridade
 
-| # | Item | Backtest quality | Reliability | Risk mgmt | Complexity | Depends on |
+| # | Item | Qualidade do backtest | Confiabilidade | Gestão de risco | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O5 truncation test | high | high | – | low | – |
-| 2 | O3 candle integrity | high | high | medium | low–med | – |
-| 3 | O4 gap guard | high | medium | – | low | `find_gaps` (exists) |
-| 4 | O1 Sharpe/Sortino | high | – | medium | low | – |
-| 5 | O2 DD duration | medium | – | high | low | – |
-| 6 | O7 sweep trials/robustness | high | – | – | medium | O1 |
-| 7 | O6 sample-size guard | medium | – | – | low | – |
-| 8 | O9 cost sensitivity | high | – | medium | medium | O1 |
-| 9 | O10 listing log | low now | – | – | low | – |
-| 10 | O8 walk-forward | high | – | – | high | O1, O7, Book 5 |
+| 1 | O5 teste de truncamento | alta | alta | – | baixa | – |
+| 2 | O3 integridade dos candles | alta | alta | média | baixa–média | – |
+| 3 | O4 guarda de lacunas | alta | média | – | baixa | `find_gaps` (existe) |
+| 4 | O1 Sharpe/Sortino | alta | – | média | baixa | – |
+| 5 | O2 duração do DD | média | – | alta | baixa | – |
+| 6 | O7 tentativas/robustez do sweep | alta | – | – | média | O1 |
+| 7 | O6 guarda de tamanho de amostra | média | – | – | baixa | – |
+| 8 | O9 sensibilidade a custos | alta | – | média | média | O1 |
+| 9 | O10 registro de listagens | baixa agora | – | – | baixa | – |
+| 10 | O8 walk-forward | alta | – | – | alta | O1, O7, Livro 5 |
 
-## 5. Affected files
-`market_data/domain/models.py` (Candle validation), `market_data/application/service.py` (import counters), `backtesting/application/service.py` (`_check_candles`, sweeps), `backtesting/domain/engine.py` (read-only for O5), `analytics/domain/metrics.py`, `backtesting/domain/segments.py`, new tests under `api/tests/unit` (truncation, metrics, candle validation), `docs/openapi.json`, app metric cards and sweep page.
+## 5. Arquivos afetados
+`market_data/domain/models.py` (validação de Candle), `market_data/application/service.py` (contadores de importação), `backtesting/application/service.py` (`_check_candles`, sweeps), `backtesting/domain/engine.py` (somente leitura para O5), `analytics/domain/metrics.py`, `backtesting/domain/segments.py`, novos testes em `api/tests/unit` (truncamento, métricas, validação de candles), `docs/openapi.json`, cards de métricas e página de sweep do app.
 
-## 6. Incremental plan
-1. O5 truncation test for every registered strategy (no production code change).
-2. O3 + O4 data integrity (domain validation, gap guard, import counters).
-3. O1 + O2 metrics (pure functions, additive API fields, app display).
-4. O7 + O6 sweep honesty (trial count, robustness, sample-size warning).
-5. O9 cost sensitivity.
-6. O10 listing log; O8 as a separate project later.
+## 6. Plano incremental
+1. O5 teste de truncamento para toda estratégia registrada (sem mudança no código de produção).
+2. O3 + O4 integridade dos dados (validação de domínio, guarda de lacunas, contadores de importação).
+3. O1 + O2 métricas (funções puras, campos aditivos na API, exibição no app).
+4. O7 + O6 honestidade dos sweeps (contagem de tentativas, robustez, aviso de tamanho de amostra).
+5. O9 sensibilidade a custos.
+6. O10 registro de listagens; O8 como projeto separado depois.
 
-## 7. Acceptance criteria and tests
-* Truncation test passes for all strategies and fails for a deliberately leaky one.
-* Malformed candles are rejected or flagged with a count; no silent drops.
-* A backtest over a gapped range reports the gaps.
-* Sharpe/drawdown fixtures match hand calculations, including Example 3.4/3.5 style series; zero-variance returns give `None`.
-* Additive API changes only; stored runs unaffected.
-* Everything stays `Decimal` in the domain; ruff, mypy and all existing tests stay green.
+## 7. Critérios de aceite e testes
+* O teste de truncamento passa para todas as estratégias e falha para uma deliberadamente com vazamento.
+* Candles malformados são rejeitados ou sinalizados com uma contagem; sem descartes silenciosos.
+* Um backtest sobre um intervalo com lacunas reporta as lacunas.
+* Fixtures de Sharpe/drawdown batem com cálculos à mão, incluindo séries no estilo dos Exemplos 3.4/3.5; retornos com variância zero dão `None`.
+* Apenas mudanças aditivas na API; execuções armazenadas não são afetadas.
+* Tudo continua `Decimal` no domínio; ruff, mypy e todos os testes existentes continuam verdes.
 
-## Caveats
-Chan's numbers (≤ 5 parameters, 252 × parameters, 4 standard deviations, test ≥ ⅓ of train) are **his rules of thumb**, not statistical results, and were derived for equity strategies. Backtest results are not a guarantee of future returns; fees, slippage, overfitting and crypto-specific effects (24/7, fragmented liquidity, delistings) can all make live results worse.
+## Ressalvas
+Os números de Chan (≤ 5 parâmetros, 252 × parâmetros, 4 desvios-padrão, teste ≥ ⅓ do treino) são **regras práticas dele**, não resultados estatísticos, e foram derivados para estratégias de ações. Resultados de backtest não garantem retornos futuros; taxas, slippage, overfitting e efeitos específicos de cripto (24/7, liquidez fragmentada, deslistagens) podem piorar os resultados reais.

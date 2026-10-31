@@ -1,90 +1,90 @@
-# Book 1 · Chapter 5 — Execution Systems
+# Livro 1 · Capítulo 5 — Sistemas de execução
 
-*Quantitative Trading*, Chan (2009). Book pages (PDF = book + 22). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-## 1. Chapter summary (pp. 79–94)
+## 1. Resumo do capítulo (pp. 79–94)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que aborda | Páginas |
 |---|---|---|---|
-| C1 | An **automated trading system** retrieves data, runs the algorithm and submits orders. Fully automated minimises human error and delay and is indispensable for high-frequency; semi-automated (order file → basket trader) suits few waves a day. Often the order-generation program is the same as the backtest program. | Faithful execution of the backtested strategy. | 79–85 |
-| C2 | Non-price inputs (dividends, estimates) must be fetched and parsed too. | Data beyond prices. | 80 |
-| C3 | **Minimising transaction costs**: avoid low-priced stocks; **cap order size at about 1% of average daily volume** (a rule of thumb; example: 1% of IRN's volume = 510 shares ≈ $2,269); scale position size sub-linearly with market cap (fourth root keeps the largest-to-smallest ratio near 10) to keep diversification; splitting big orders trades market impact for slippage and is not suitable for small traders. Broker speed/risk checks cause slippage outside your control. | Market impact and illiquidity. | 87–88 |
-| C4 | **Paper trading**: the only way to find software bugs without losing money; reveals look-ahead bias ("no way you could have had that data"); **compare paper trades and P&L with the backtest run on the same latest data; differences not explained by costs (including an expected execution delay) mean bugs**. Also gives intuition for P&L volatility, capital used, trades per day, operational timing. A month or more may reveal data-snooping, but attention to paper accounts fades, so snooping is usually revealed only by trading small real capital. | Verifying the implementation and the strategy out of sample. | 89–90 |
-| C5 | **Why live diverges from backtest** — diagnose in order: (1) bugs, (2) do live trades match the backtest's trades, (3) execution costs higher than assumed, (4) illiquidity/market impact, then (5) **data-snooping** (test by removing rules and parameters: if the backtest collapses, snooping is likely; if still reasonable, bad luck is possible) and (6) **regime shifts** (examples: decimalisation in 2001; the plus-tick short-sale rule until 2007; hard-to-borrow shorts). You can never prove it was bad luck. | Disappointing live results. | 90–92, 93–94 |
-| C6 | Summary of ATS benefits: adherence to the backtested strategy, running several strategies, speed. | – | 92–94 |
+| C1 | Um **sistema de trading automatizado** busca dados, roda o algoritmo e envia ordens. O totalmente automatizado minimiza erro e atraso humanos e é indispensável para alta frequência; o semiautomatizado (arquivo de ordens → basket trader) serve para poucas ondas por dia. Muitas vezes o programa que gera ordens é o mesmo do backtest. | Execução fiel da estratégia testada. | 79–85 |
+| C2 | Entradas que não são preço (dividendos, estimativas) também precisam ser buscadas e interpretadas. | Dados além dos preços. | 80 |
+| C3 | **Minimizar custos de transação**: evitar ações de preço baixo; **limitar o tamanho da ordem a cerca de 1% do volume médio diário** (regra prática; exemplo: 1% do volume da IRN = 510 ações ≈ US$ 2.269); escalar o tamanho da posição de forma sublinear com o valor de mercado (raiz quarta mantém a razão maior/menor perto de 10) para preservar a diversificação; dividir ordens grandes troca impacto de mercado por slippage e não serve para traders pequenos. Verificações de velocidade/risco da corretora causam slippage fora do seu controle. | Impacto de mercado e iliquidez. | 87–88 |
+| C4 | **Paper trading**: a única forma de achar bugs de software sem perder dinheiro; revela viés de look-ahead ("não tinha como você ter esse dado"); **comparar as operações e o P&L do paper com o backtest rodado nos mesmos dados mais recentes; diferenças não explicadas pelos custos (incluindo um atraso de execução esperado) significam bugs**. Também dá intuição sobre a volatilidade do P&L, o capital usado, operações por dia, tempos operacionais. Um mês ou mais pode revelar data-snooping, mas a atenção às contas de paper some, então o snooping geralmente só é revelado operando um capital real pequeno. | Verificar a implementação e a estratégia fora da amostra. | 89–90 |
+| C5 | **Por que o live diverge do backtest** — diagnosticar em ordem: (1) bugs, (2) as operações live batem com as do backtest, (3) custos de execução maiores que o assumido, (4) iliquidez/impacto de mercado, depois (5) **data-snooping** (testar removendo regras e parâmetros: se o backtest desmorona, o snooping é provável; se continua razoável, má sorte é possível) e (6) **mudanças de regime** (exemplos: decimalização em 2001; a regra de uptick para vendas a descoberto até 2007; ações difíceis de alugar). Nunca se pode provar que foi má sorte. | Resultados live decepcionantes. | 90–92, 93–94 |
+| C6 | Resumo dos benefícios do ATS: aderência à estratégia testada, rodar várias estratégias, velocidade. | – | 92–94 |
 
-Chan's brokerage tools (DDE links, basket/spread traders, MATLAB, TradeStation) do not apply. Crypto remarks are **our adaptation**.
+As ferramentas de corretora de Chan (links DDE, basket/spread traders, MATLAB, TradeStation) não se aplicam. As observações sobre cripto são **adaptação nossa**.
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| C1 same code for backtest and live | ✅ strong | The backtester and the paper trader share `execution/domain/fills.py` and `risk_management/domain/stops.py`; strategies are one class used by both. |
-| C1 backtest uses live sizing | ❌ | The backtester sizes trivially (all cash in); live sizing/risk lives in `risk_management/domain/models.py::assess_signal` and is **not** applied in backtests. So backtest and live can diverge on position size, risk-per-trade sizing and entry rejections. (Documented in `engine.py` docstring, but it is a real divergence.) |
-| C3 volume cap | ❌ | No limit tied to volume anywhere in `RiskLimits` or the trader (searched `volume` in `risk_management` and `trading`: no hits). Candle volume is stored but unused for risk. |
-| C3 size-dependent impact | ❌ | Slippage is a fixed bps, independent of order size or liquidity. |
-| C4 paper-vs-backtest comparison | ❌ | No tool compares a paper bot's fills/PnL with a backtest of the same strategy over the same period. `live_min_paper_days` gates promotion on **days elapsed** only (`bots/application/live.py:146`), not on agreement with the backtest. |
-| C4 operational timing | ✅ | Worker heartbeat, stale-bot detection, reconciler every 60 s. |
-| C5 divergence diagnosis | ❌ | No expected-vs-actual fill record (intended price at signal time, fill price, latency), so execution cost cannot be measured. |
-| C5 snooping check by simplification | ⚠️ | Possible manually with sweeps; not packaged. |
-| C5 regime shifts | ❌ | No regime tracking or alerts when live performance leaves the backtest range. |
+| C1 mesmo código no backtest e no live | ✅ forte | O backtester e o paper trader compartilham `execution/domain/fills.py` e `risk_management/domain/stops.py`; as estratégias são uma única classe usada pelos dois. |
+| C1 backtest usa o dimensionamento do live | ❌ | O backtester dimensiona de forma trivial (todo o caixa); o dimensionamento/risco do live vive em `risk_management/domain/models.py::assess_signal` e **não** é aplicado nos backtests. Assim backtest e live podem divergir no tamanho da posição, no dimensionamento por risco por operação e nas rejeições de entrada. (Documentado na docstring de `engine.py`, mas é uma divergência real.) |
+| C3 limite de volume | ❌ | Nenhum limite ligado a volume em `RiskLimits` ou no trader (busquei `volume` em `risk_management` e `trading`: sem ocorrências). O volume do candle é armazenado, mas não usado para risco. |
+| C3 impacto dependente do tamanho | ❌ | O slippage é um bps fixo, independente do tamanho da ordem ou da liquidez. |
+| C4 comparação paper vs. backtest | ❌ | Nenhuma ferramenta compara fills/PnL de um bot em paper com um backtest da mesma estratégia no mesmo período. `live_min_paper_days` condiciona a promoção apenas aos **dias decorridos** (`bots/application/live.py:146`), não à concordância com o backtest. |
+| C4 tempos operacionais | ✅ | Heartbeat do worker, detecção de bot parado, reconciler a cada 60 s. |
+| C5 diagnóstico de divergência | ❌ | Sem registro de fill esperado vs. real (preço pretendido no momento do sinal, preço do fill, latência), então o custo de execução não pode ser medido. |
+| C5 checagem de snooping por simplificação | ⚠️ | Possível manualmente com sweeps; não empacotado. |
+| C5 mudanças de regime | ❌ | Sem rastreamento de regime nem alertas quando o desempenho live sai da faixa do backtest. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Backtest/paper parity report *(book: C4, p. 89)*
-* **Problem:** nothing verifies that the system running the strategy does what the backtest says.
-* **Proposal:** for a paper bot, re-run the backtester on the exact candles the bot saw over the same period (the same strategy parameters and costs) and diff signals and fills; show unexplained differences. Differences caused only by costs/latency are expected (the book's exception).
-* **Benefit:** catches implementation bugs and look-ahead before real money. **Complexity:** medium. **Risk:** the live pipeline applies risk sizing the backtester does not; parity must either apply the same risk rules in the replay (see O2) or compare signals only. **Validation:** a replay of a known paper session must match; an injected discrepancy must be reported.
+### O1 — Relatório de paridade backtest/paper *(livro: C4, p. 89)*
+* **Problema:** nada verifica que o sistema que roda a estratégia faz o que o backtest diz.
+* **Proposta:** para um bot em paper, reexecutar o backtester sobre os candles exatos que o bot viu no mesmo período (mesmos parâmetros de estratégia e custos) e comparar sinais e fills; mostrar as diferenças não explicadas. Diferenças causadas só por custos/latência são esperadas (a exceção do livro).
+* **Benefício:** pega bugs de implementação e look-ahead antes do dinheiro real. **Complexidade:** média. **Risco:** o pipeline live aplica dimensionamento de risco que o backtester não aplica; a paridade deve ou aplicar as mesmas regras de risco no replay (ver O2) ou comparar só os sinais. **Validação:** o replay de uma sessão paper conhecida deve bater; uma divergência injetada deve ser reportada.
 
-### O2 — Run the real risk module inside the backtester *(book: C1, pp. 79–85 · adaptation)*
-* **Problem:** backtests assume all-in sizing, so reported risk and returns do not describe what a bot with `RiskLimits` would do.
-* **Proposal:** an optional backtest mode that routes each signal through `assess_signal` with the bot's limits and applies daily-loss, drawdown and consecutive-loss pauses, so the replay reflects live behaviour.
-* **Benefit:** backtest results that can be compared with paper/live. **Complexity:** medium–high (state such as day-start equity and consecutive losses is needed). **Risk:** two sizing modes produce two sets of numbers; label them clearly. **Validation:** with limits that never bind, results equal the current all-in mode; with binding limits, trades are reduced as expected.
+### O2 — Rodar o módulo de risco real dentro do backtester *(livro: C1, pp. 79–85 · adaptação)*
+* **Problema:** os backtests assumem dimensionamento all-in, então o risco e os retornos reportados não descrevem o que um bot com `RiskLimits` faria.
+* **Proposta:** um modo opcional de backtest que passa cada sinal por `assess_signal` com os limites do bot e aplica pausas por perda diária, drawdown e perdas consecutivas, de modo que o replay reflita o comportamento live.
+* **Benefício:** resultados de backtest comparáveis com paper/live. **Complexidade:** média–alta (é preciso estado como patrimônio no início do dia e perdas consecutivas). **Risco:** dois modos de dimensionamento produzem dois conjuntos de números; rotular com clareza. **Validação:** com limites que nunca atuam, os resultados são iguais ao modo all-in atual; com limites atuando, as operações são reduzidas como esperado.
 
-### O3 — Liquidity cap relative to volume *(book: C3, p. 87 · threshold is the author's rule of thumb; applicability to crypto is an adaptation)*
-* **Proposal:** a risk limit `max_order_pct_of_volume` using recent traded volume (e.g. a trailing average of candle volume in the base asset), applied in `assess_signal` and the backtester. Default off or conservative; for our account sizes it will rarely bind on major pairs, but it protects illiquid pairs.
-* **Complexity:** low–medium (needs volume in the risk context). **Risk:** candle volume on one exchange is not total market liquidity. **Validation:** unit tests on the rejection and sizing.
+### O3 — Limite de liquidez relativo ao volume *(livro: C3, p. 87 · o limiar é regra prática do autor; a aplicabilidade a cripto é adaptação)*
+* **Proposta:** um limite de risco `max_order_pct_of_volume` usando o volume negociado recente (por exemplo uma média móvel do volume dos candles no ativo base), aplicado em `assess_signal` e no backtester. Desligado por padrão ou conservador; para os nossos tamanhos de conta raramente vai atuar nos pares principais, mas protege pares ilíquidos.
+* **Complexidade:** baixa–média (precisa do volume no contexto de risco). **Risco:** o volume de candle em uma exchange não é a liquidez total do mercado. **Validação:** testes unitários da rejeição e do dimensionamento.
 
-### O4 — Record intended vs actual execution *(book: C3, C5, pp. 88, 90)*
-* **Proposal:** persist the reference price at signal/decision time, the fill price and the latency per order; compute realised slippage per bot and compare it with the configured `slippage_bps`.
-* **Benefit:** measures the cost assumption instead of guessing it; feeds chapter-2/3 cost sensitivity. **Complexity:** low–medium (new fields on orders, additive). **Risk:** testnet slippage is not representative of mainnet. **Validation:** integration test on paper fills.
+### O4 — Registrar execução pretendida vs. real *(livro: C3, C5, pp. 88, 90)*
+* **Proposta:** persistir o preço de referência no momento do sinal/decisão, o preço do fill e a latência por ordem; calcular o slippage realizado por bot e compará-lo com o `slippage_bps` configurado.
+* **Benefício:** mede a premissa de custo em vez de chutá-la; alimenta a sensibilidade a custos dos capítulos 2/3. **Complexidade:** baixa–média (novos campos nas ordens, aditivos). **Risco:** o slippage da testnet não representa o da mainnet. **Validação:** teste de integração com fills em paper.
 
-### O5 — Divergence diagnosis checklist and dashboard *(book: C5, pp. 90–92)*
-* **Proposal:** a per-bot view that follows the book's order — parity result (bugs), cost realised vs assumed, then a prompt to run the "remove parameters" simplification sweep (snooping), then a comparison of live return distribution with the backtest's (regime). Mostly composition of O1, O4 and sweeps. **Complexity:** medium. **Validation:** UI test on a bot with seeded data.
+### O5 — Checklist e painel de diagnóstico de divergência *(livro: C5, pp. 90–92)*
+* **Proposta:** uma visão por bot que segue a ordem do livro — resultado da paridade (bugs), custo realizado vs. assumido, depois um convite para rodar o sweep de simplificação "remover parâmetros" (snooping), depois a comparação da distribuição de retornos live com a do backtest (regime). Em grande parte uma composição de O1, O4 e sweeps. **Complexidade:** média. **Validação:** teste de UI com um bot com dados semeados.
 
-### O6 — Gate live promotion on parity *(book: C4, p. 90 · adaptation)*
-* After O1 exists, add "paper result consistent with backtest" as an additional readiness check next to `live_min_paper_days`. **Complexity:** low once O1 exists. **Risk:** over-strict thresholds block promotion; make it a visible check with a clear explanation, still overridable only by the operator policy (not silently).
+### O6 — Condicionar a promoção ao live à paridade *(livro: C4, p. 90 · adaptação)*
+* Depois que O1 existir, adicionar "resultado do paper consistente com o backtest" como verificação de prontidão adicional ao lado de `live_min_paper_days`. **Complexidade:** baixa depois que O1 existir. **Risco:** limiares rígidos demais bloqueiam a promoção; fazer uma verificação visível com explicação clara, ainda sobrescrevível apenas pela política do operador (não em silêncio).
 
-### Not applicable / deferred
-Semi-automated tools, DDE, hiring consultants, market-cap weighting (single-asset bots), splitting orders over time (the book itself says it is unsuitable for small traders).
+### Não aplicável / adiado
+Ferramentas semiautomatizadas, DDE, contratar consultores, ponderação por valor de mercado (bots de ativo único), dividir ordens ao longo do tempo (o próprio livro diz que não serve para traders pequenos).
 
-## 4. Priority
+## 4. Prioridade
 
-| # | Item | Reliability | Backtest quality | Risk mgmt | Complexity | Depends on |
+| # | Item | Confiabilidade | Qualidade do backtest | Gestão de risco | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O4 intended vs actual execution | medium | medium | medium | low–med | – |
-| 2 | O1 parity report | **high** | high | medium | medium | – |
-| 3 | O3 volume cap | – | – | medium | low–med | – |
-| 4 | O2 risk inside backtest | – | **high** | high | med–high | – |
-| 5 | O6 promotion gate | medium | – | high | low | O1 |
-| 6 | O5 diagnosis dashboard | – | medium | – | medium | O1, O4 |
+| 1 | O4 execução pretendida vs. real | média | média | média | baixa–média | – |
+| 2 | O1 relatório de paridade | **alta** | alta | média | média | – |
+| 3 | O3 limite de volume | – | – | média | baixa–média | – |
+| 4 | O2 risco dentro do backtest | – | **alta** | alta | média–alta | – |
+| 5 | O6 portão de promoção | média | – | alta | baixa | O1 |
+| 6 | O5 painel de diagnóstico | – | média | – | média | O1, O4 |
 
-## 5. Affected files
-`backtesting/domain/engine.py`, `backtesting/application/service.py`, `risk_management/domain/models.py`, `trading/application/trader.py`, `execution/domain/orders.py` and its ORM/repository (additive fields), `bots/application/live.py`, new tests in `api/tests/unit` and `api/tests/integration`, `docs/openapi.json`, app bot detail and readiness pages.
+## 5. Arquivos afetados
+`backtesting/domain/engine.py`, `backtesting/application/service.py`, `risk_management/domain/models.py`, `trading/application/trader.py`, `execution/domain/orders.py` e seu ORM/repositório (campos aditivos), `bots/application/live.py`, novos testes em `api/tests/unit` e `api/tests/integration`, `docs/openapi.json`, páginas de detalhe do bot e de prontidão do app.
 
-## 6. Incremental plan
-1. O4: add intended price / latency to order records (additive).
-2. O1: replay tool as a read-only service and endpoint, no effect on trading.
-3. O3: volume cap as an optional limit.
-4. O2: risk-aware backtest mode behind a flag.
-5. O6, O5: gate and dashboard.
+## 6. Plano incremental
+1. O4: adicionar preço pretendido / latência aos registros de ordens (aditivo).
+2. O1: ferramenta de replay como serviço e endpoint somente leitura, sem efeito sobre o trading.
+3. O3: limite de volume como limite opcional.
+4. O2: modo de backtest com risco atrás de uma flag.
+5. O6, O5: portão e painel.
 
-## 7. Acceptance criteria and tests
-* Parity: a clean paper session shows zero unexplained differences; a seeded discrepancy is reported.
-* Execution record: new fields nullable, old orders unaffected.
-* Volume cap: off by default; with it on, oversized entries are reduced or rejected with a reason.
-* Risk-aware backtest: identical to the current mode when no limit binds.
-* No change to the live safeguards; ruff, mypy and all existing tests stay green.
+## 7. Critérios de aceite e testes
+* Paridade: uma sessão paper limpa mostra zero diferenças não explicadas; uma divergência semeada é reportada.
+* Registro de execução: novos campos anuláveis, ordens antigas não afetadas.
+* Limite de volume: desligado por padrão; ligado, entradas grandes demais são reduzidas ou rejeitadas com um motivo.
+* Backtest com risco: idêntico ao modo atual quando nenhum limite atua.
+* Sem mudança nas salvaguardas do live; ruff, mypy e todos os testes existentes continuam verdes.
 
-## Caveat
-The 1% of average daily volume rule is Chan's rule of thumb for equities and is not calibrated for crypto. Paper-trading fills simulate the market and cannot reproduce real liquidity or queue position.
+## Ressalva
+A regra de 1% do volume médio diário é regra prática de Chan para ações e não foi calibrada para cripto. Os fills do paper trading simulam o mercado e não reproduzem a liquidez real nem a posição na fila.

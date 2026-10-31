@@ -1,107 +1,107 @@
-# Book 1 · Chapter 6 — Money and Risk Management
+# Livro 1 · Capítulo 6 — Gestão de dinheiro e de risco
 
-*Quantitative Trading*, Chan (2009). Book pages (PDF = book + 22). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-## 1. Chapter summary (pp. 95–113)
+## 1. Resumo do capítulo (pp. 95–113)
 
-The chapter follows E. Thorp's treatment of the Kelly criterion. Chan applies it to a portfolio of *strategies*.
+O capítulo segue o tratamento de E. Thorp para o critério de Kelly. Chan o aplica a uma carteira de *estratégias*.
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que aborda | Páginas |
 |---|---|---|---|
-| C1 | **Objective: maximise long-term compounded growth**, which requires avoiding ruin (if ruin has non-zero probability, long-term wealth is zero). Assumes Gaussian returns with fixed mean and standard deviation, net of financing costs (excess returns); the author states this is crude and can be inaccurate. | What "optimal" means. | 96 |
-| C2 | **Kelly allocation:** `F = C⁻¹ M` (C = covariance matrix of one-period simple, unlevered excess returns; M = mean returns). For independent strategies: **`fᵢ = mᵢ / sᵢ²`**. Kelly `f` does not depend on the time scale (annual or daily inputs give the same `f`). | How much capital and leverage per strategy. | 96–97, 99 |
-| C3 | **Growth rate:** for one strategy `g(f) = r + f·m − s²·f²/2`; at `f = 1`, `r = 0`, `m = 0` this gives `g = −s²/2` (Example 6.1: a ±1%-per-minute random walk loses 0.5 bp per minute although the average return is zero). At the optimum, `g = r + S²/2` with S the Sharpe ratio; multi-strategy: `g = r + FᵀCF/2`, `S = √(FᵀCF)`. Lesson: **risk always reduces long-term growth.** | Why risk management is not optional. | 97–98, 102, 112–113 |
-| C4 | **Worked examples:** SPY: mean 11.23%, std 16.91%, risk-free 4% → Sharpe 0.4275, Kelly leverage 2.528, growth 13.14% (unlevered 9.8%). Three ETFs: F = (1.29, 1.17, −1.49), growth 15.29%, Sharpe 0.4751. | Numeric reference for tests. | 99–102 |
-| C5 | **Half-Kelly** is common because inputs are uncertain and returns are not Gaussian. If broker leverage is capped at *l*, scale every `fᵢ` by `l / Σ|fᵢ|`. | Estimation error and limits. | 98 |
-| C6 | **Rebalance as equity changes:** after a loss, Kelly says *reduce* exposure (book example on SPY: a 10% loss on a 2.528× portfolio means cutting to 2.528 × new equity); after gains, increase. Update at least daily; re-estimate `F*` from a trailing window (rule of thumb: **six months for strategies holding about a day**) — a short window also lets you phase out strategies that lose edge. For variable numbers of positions, use Kelly to set the maximum number/capital. Always safer to stay below Kelly. | Continuous risk control. | 102–103 |
-| C7 | **Risk management means selling at a loss**; at scale it causes contagion (August 2007 quant losses are described). Half-Kelly reduces how much must be sold. | Cost of de-risking. | 103–105 |
-| C8 | **Fat tails:** estimate the **maximum historical one-period loss** by backtest, divide the maximum tolerable one-period equity drawdown by it, and use **the smaller of half-Kelly and that leverage**. S&P example: worst day −20.47% (19 Oct 1987); with a 20% tolerance, max leverage ≈ 1 versus half-Kelly 1.26. Truly unprecedented events cannot be modelled. | Black swans. | 105–106 |
-| C9 | **Stop-loss is not a universal protection** (sidebar): in a catastrophic gap the stop fills far below; stops help only in a momentum/trending regime and hurt in a mean-reverting one; moves with news tend to be momentum, moves without apparent news tend to be liquidity events that revert. Author's observation, not a proof. | Misusing stops. | 106–107 |
-| C10 | **Other risks, in decreasing likelihood:** *model risk* (biases, errors, competition, regime shift; **have a collaborator replicate your backtest independently**; mitigate by lowering leverage gradually as it loses, via trailing Kelly, rather than shutting down abruptly), *software risk* (compare live trades with backtest trades), *natural-disaster risk* (Internet/power; see Ch. 4). | Non-market risks. | 107–108 |
-| C11 | **Psychology:** loss aversion/status-quo bias (holding losers, closing winners too early; **exit an erroneous position immediately**), representativeness bias (retuning after a loss → any change must be backtested over a long period), despair (shutting down or doubling down) and greed (levering up after good runs). The golden rule: **keep the portfolio size under control at all times**; start small and grow. LTCM and Amaranth are cited as over-leverage failures. | Human override. | 108–111 |
-| C12 | Over-leverage hits the best recent performers hardest (overconfidence). | – | 111–112 |
+| C1 | **Objetivo: maximizar o crescimento composto de longo prazo**, o que exige evitar a ruína (se a ruína tem probabilidade diferente de zero, a riqueza de longo prazo é zero). Assume retornos gaussianos com média e desvio-padrão fixos, líquidos de custos de financiamento (retornos em excesso); o autor afirma que isso é grosseiro e pode ser impreciso. | O que significa "ótimo". | 96 |
+| C2 | **Alocação de Kelly:** `F = C⁻¹ M` (C = matriz de covariância dos retornos em excesso simples, sem alavancagem, de um período; M = retornos médios). Para estratégias independentes: **`fᵢ = mᵢ / sᵢ²`**. O `f` de Kelly não depende da escala de tempo (entradas anuais ou diárias dão o mesmo `f`). | Quanto capital e alavancagem por estratégia. | 96–97, 99 |
+| C3 | **Taxa de crescimento:** para uma estratégia `g(f) = r + f·m − s²·f²/2`; com `f = 1`, `r = 0`, `m = 0` isso dá `g = −s²/2` (Exemplo 6.1: um passeio aleatório de ±1% por minuto perde 0,5 bp por minuto embora o retorno médio seja zero). No ótimo, `g = r + S²/2` com S o índice de Sharpe; multiestratégia: `g = r + FᵀCF/2`, `S = √(FᵀCF)`. Lição: **o risco sempre reduz o crescimento de longo prazo.** | Por que a gestão de risco não é opcional. | 97–98, 102, 112–113 |
+| C4 | **Exemplos trabalhados:** SPY: média 11,23%, desvio-padrão 16,91%, livre de risco 4% → Sharpe 0,4275, alavancagem de Kelly 2,528, crescimento 13,14% (sem alavancagem 9,8%). Três ETFs: F = (1,29, 1,17, −1,49), crescimento 15,29%, Sharpe 0,4751. | Referência numérica para testes. | 99–102 |
+| C5 | **Half-Kelly** é comum porque as entradas são incertas e os retornos não são gaussianos. Se a alavancagem da corretora é limitada em *l*, escalar cada `fᵢ` por `l / Σ|fᵢ|`. | Erro de estimação e limites. | 98 |
+| C6 | **Rebalancear conforme o patrimônio muda:** após uma perda, Kelly diz para *reduzir* a exposição (exemplo do livro com SPY: uma perda de 10% numa carteira 2,528× implica cortar para 2,528 × novo patrimônio); após ganhos, aumentar. Atualizar ao menos diariamente; reestimar `F*` a partir de uma janela móvel (regra prática: **seis meses para estratégias que seguram cerca de um dia**) — uma janela curta também permite descontinuar estratégias que perdem a vantagem. Para números variáveis de posições, usar Kelly para definir o número/capital máximo. Sempre é mais seguro ficar abaixo de Kelly. | Controle de risco contínuo. | 102–103 |
+| C7 | **Gestão de risco significa vender com prejuízo**; em escala causa contágio (as perdas quant de agosto de 2007 são descritas). O half-Kelly reduz quanto precisa ser vendido. | Custo de reduzir risco. | 103–105 |
+| C8 | **Caudas gordas:** estimar a **maior perda histórica em um período** por backtest, dividir a queda de patrimônio máxima tolerável em um período por ela e usar **o menor entre half-Kelly e essa alavancagem**. Exemplo do S&P: pior dia −20,47% (19 out 1987); com tolerância de 20%, alavancagem máxima ≈ 1 contra half-Kelly 1,26. Eventos realmente sem precedentes não podem ser modelados. | Cisnes negros. | 105–106 |
+| C9 | **Stop-loss não é proteção universal** (quadro lateral): numa lacuna (gap) catastrófica o stop executa muito abaixo; stops ajudam só em regime de momentum/tendência e prejudicam em regime de reversão à média; movimentos com notícia tendem a ser momentum, movimentos sem notícia aparente tendem a ser eventos de liquidez que revertem. Observação do autor, não prova. | Uso indevido de stops. | 106–107 |
+| C10 | **Outros riscos, em ordem decrescente de probabilidade:** *risco de modelo* (vieses, erros, concorrência, mudança de regime; **peça a um colaborador que replique seu backtest de forma independente**; mitigar reduzindo a alavancagem gradualmente conforme perde, via Kelly móvel, em vez de desligar de repente), *risco de software* (comparar operações live com as do backtest), *risco de desastre natural* (Internet/energia; ver Cap. 4). | Riscos não de mercado. | 107–108 |
+| C11 | **Psicologia:** aversão à perda/viés de status quo (segurar perdedoras, fechar vencedoras cedo demais; **sair imediatamente de uma posição errada**), viés de representatividade (reajustar após uma perda → qualquer mudança deve ser testada num período longo), desespero (desligar ou dobrar a aposta) e ganância (alavancar após boas fases). A regra de ouro: **manter o tamanho da carteira sob controle o tempo todo**; começar pequeno e crescer. LTCM e Amaranth são citados como falhas por excesso de alavancagem. | Intervenção humana. | 108–111 |
+| C12 | O excesso de alavancagem atinge mais os melhores desempenhos recentes (excesso de confiança). | – | 111–112 |
 
-The chapter assumes stocks, futures and broker leverage. Crypto remarks are **our adaptation**.
+O capítulo assume ações, futuros e alavancagem de corretora. As observações sobre cripto são **adaptação nossa**.
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| C1/C2 Kelly or any growth-optimal sizing | ❌ | No Kelly or volatility-based sizing. Size is `max_position_fraction` of equity, optionally limited by `max_order_notional`, and by `max_risk_per_trade_pct` when the signal carries a stop (`risk_management/domain/models.py::assess_signal`). |
-| Leverage | n/a | Spot long-only: effective leverage ≤ 1 (`max_position_fraction ∈ (0,1]`). Kelly `f > 1` is not usable; `f < 1` would be informative. |
-| C3 growth/ruin | ❌ | No growth-rate or ruin-probability estimate in any report. |
-| C5 half-Kelly / conservative sizing | ⚠️ | Conservative by default only through the user's chosen fraction. |
-| C6 dynamic de-risking | ❌ | Binary controls only: `max_daily_loss_pct`, `max_drawdown_pct` and `max_consecutive_losses` **pause** the bot (abrupt shutdown, the behaviour C10 warns about); no gradual size reduction as performance decays. Daily-loss and drawdown breaches are checked in `daily_loss_breached` / `drawdown_breached`. |
-| C8 worst historical period loss vs tolerance | ❌ | `max_drawdown_pct` is a runtime pause threshold, not related to the historical worst one-period loss of the traded pair. |
-| C9 stops | ⚠️ | Stops exist and fill with a gap-through-stop rule at the open (more conservative than filling at the stop, consistent with the sidebar), both in backtest and paper (`risk_management/domain/stops.py`). Nothing ties the choice of stop to the strategy's regime (trend vs mean reversion). |
-| C10 model risk: independent replication | ❌ | Backtests are reproducible (`seed`, candle SHA-256) but no independent second implementation or cross-check. |
-| C10 software risk | ❌ | Same gap as chapter 5 (no parity report). |
-| C10 disaster risk | ⚠️ | Reconciler handles crashes; no documented continuity plan (chapter 4). |
-| C11 intervention discipline | ⚠️ | Kill switch and controls are audited; no reason recorded (chapter 1). Post-loss strategy edits are not gated; strategy parameters of a bot can be edited (the app has an edit page), but nothing requires a backtest comparison first. |
-| C11 "exit erroneous positions" | ✅ | Exits are always allowed, even with the kill switch on. |
-| Over-leverage guard | ✅ | Operator-set live caps (`LiveLimits`), global exposure and open-position limits. |
+| C1/C2 Kelly ou qualquer dimensionamento ótimo de crescimento | ❌ | Sem Kelly nem dimensionamento por volatilidade. O tamanho é `max_position_fraction` do patrimônio, opcionalmente limitado por `max_order_notional` e por `max_risk_per_trade_pct` quando o sinal traz um stop (`risk_management/domain/models.py::assess_signal`). |
+| Alavancagem | n/a | Spot long-only: alavancagem efetiva ≤ 1 (`max_position_fraction ∈ (0,1]`). Um Kelly `f > 1` não é utilizável; `f < 1` seria informativo. |
+| C3 crescimento/ruína | ❌ | Nenhuma estimativa de taxa de crescimento ou probabilidade de ruína em qualquer relatório. |
+| C5 half-Kelly / dimensionamento conservador | ⚠️ | Conservador por padrão apenas pela fração escolhida pelo usuário. |
+| C6 redução dinâmica de risco | ❌ | Apenas controles binários: `max_daily_loss_pct`, `max_drawdown_pct` e `max_consecutive_losses` **pausam** o bot (desligamento abrupto, o comportamento que C10 desaconselha); sem redução gradual de tamanho conforme o desempenho decai. Violações de perda diária e drawdown são checadas em `daily_loss_breached` / `drawdown_breached`. |
+| C8 pior perda histórica de um período vs. tolerância | ❌ | `max_drawdown_pct` é um limiar de pausa em tempo de execução, sem relação com a pior perda histórica de um período do par negociado. |
+| C9 stops | ⚠️ | Os stops existem e executam com a regra de gap-through-stop na abertura (mais conservadora que executar no stop, coerente com o quadro lateral), tanto no backtest quanto no paper (`risk_management/domain/stops.py`). Nada liga a escolha do stop ao regime da estratégia (tendência vs. reversão à média). |
+| C10 risco de modelo: replicação independente | ❌ | Os backtests são reproduzíveis (`seed`, SHA-256 dos candles), mas não há segunda implementação independente nem checagem cruzada. |
+| C10 risco de software | ❌ | Mesma lacuna do capítulo 5 (sem relatório de paridade). |
+| C10 risco de desastre | ⚠️ | O reconciler trata quedas; sem plano de continuidade documentado (capítulo 4). |
+| C11 disciplina de intervenção | ⚠️ | O kill switch e os controles são auditados; nenhum motivo registrado (capítulo 1). Edições de estratégia após perdas não têm trava; os parâmetros de estratégia de um bot podem ser editados (o app tem uma página de edição), mas nada exige antes uma comparação por backtest. |
+| C11 "sair de posições erradas" | ✅ | Saídas são sempre permitidas, mesmo com o kill switch ligado. |
+| Proteção contra excesso de alavancagem | ✅ | Limites live definidos pelo operador (`LiveLimits`), exposição global e limites de posições abertas. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Kelly/volatility reference sizing as **advice, not auto-trading** *(book: C2, C3, C5, pp. 96–99 · crypto application is our adaptation)*
-* **Problem:** the operator chooses `max_position_fraction` blindly; the book's central result says an optimal exposure exists and depends on edge and volatility, and that risk itself costs growth.
-* **Proposal:** from a backtest's periodic returns, compute `m`, `s`, Kelly `f = m/s²` and half-Kelly; show them (together with sample size and the warning that estimates are noisy) next to the configured fraction. Cap any suggestion at 1 (spot). Do **not** apply it automatically in the first iteration.
-* **Benefit:** informed sizing, and a visible warning when the chosen fraction is above Kelly (more risk, lower growth, per C3).
-* **Complexity:** low (pure functions, all `Decimal`, unit-testable against the book's SPY and three-ETF examples).
-* **Risks:** `m` is hard to estimate; a few good months produce large `f`; Gaussian assumption fails in crypto (fat tails), so use at most half-Kelly and prefer the C8 cap; an in-sample Kelly is as overfit as the backtest.
-* **Validation:** reproduce Example 6.2 (f = 2.528, g = 13.14%) and Example 6.3 (F = 1.2919, 1.1723, −1.4882; g = 15.29%, S = 0.4751) in unit tests.
+### O1 — Dimensionamento de referência Kelly/volatilidade como **conselho, não auto-trading** *(livro: C2, C3, C5, pp. 96–99 · a aplicação a cripto é adaptação nossa)*
+* **Problema:** o operador escolhe `max_position_fraction` às cegas; o resultado central do livro diz que existe uma exposição ótima que depende da vantagem e da volatilidade, e que o próprio risco custa crescimento.
+* **Proposta:** a partir dos retornos periódicos de um backtest, calcular `m`, `s`, o Kelly `f = m/s²` e o half-Kelly; mostrá-los (junto com o tamanho da amostra e o aviso de que as estimativas são ruidosas) ao lado da fração configurada. Limitar qualquer sugestão a 1 (spot). **Não** aplicar automaticamente na primeira iteração.
+* **Benefício:** dimensionamento informado e um aviso visível quando a fração escolhida está acima de Kelly (mais risco, menos crescimento, conforme C3).
+* **Complexidade:** baixa (funções puras, tudo em `Decimal`, testáveis contra os exemplos de SPY e dos três ETFs do livro).
+* **Riscos:** `m` é difícil de estimar; poucos meses bons produzem um `f` grande; a hipótese gaussiana falha em cripto (caudas gordas), então usar no máximo half-Kelly e preferir o limite de C8; um Kelly dentro da amostra é tão sobreajustado quanto o backtest.
+* **Validação:** reproduzir o Exemplo 6.2 (f = 2,528, g = 13,14%) e o Exemplo 6.3 (F = 1,2919, 1,1723, −1,4882; g = 15,29%, S = 0,4751) em testes unitários.
 
-### O2 — Tail-aware leverage cap from the worst historical period loss *(book: C8, pp. 105–106)*
-* **Proposal:** report, per backtest and per pair/timeframe, the largest one-period loss, and compute `max_fraction = tolerable one-period equity loss / worst historical loss`. Suggest `min(half-Kelly, max_fraction, 1)` as the exposure ceiling. The operator states the tolerable loss.
-* **Benefit:** ties position size to the worst move observed. **Complexity:** low. **Risk:** history may not contain the worst event (the book says so). **Validation:** unit tests with a crash in the series.
+### O2 — Limite de alavancagem sensível à cauda a partir da pior perda histórica de um período *(livro: C8, pp. 105–106)*
+* **Proposta:** reportar, por backtest e por par/timeframe, a maior perda em um período e calcular `max_fraction = perda tolerável de patrimônio em um período / pior perda histórica`. Sugerir `min(half-Kelly, max_fraction, 1)` como teto de exposição. O operador informa a perda tolerável.
+* **Benefício:** liga o tamanho da posição ao pior movimento observado. **Complexidade:** baixa. **Risco:** o histórico pode não conter o pior evento (o livro diz isso). **Validação:** testes unitários com um crash na série.
 
-### O3 — Gradual de-risking instead of only pausing *(book: C6, C10, pp. 103, 107)*
-* **Proposal:** an optional risk mode that scales `max_position_fraction` by a trailing performance factor (for example trailing half-Kelly clipped to [0, configured fraction]) so that a decaying strategy shrinks smoothly toward zero. Keep the existing hard pauses as backstops.
-* **Benefit:** avoids both abrupt shutdown at the worst moment and doubling down. **Complexity:** medium (needs a trailing-returns window in bot state, rebalancing rule for an already-open position since spot long-only can only change size at entries). **Risk:** trailing windows are noisy and can lock the bot at zero; whipsaw; applies only to new entries unless partial exits are added. **Validation:** simulated equity series with a decaying edge must show decreasing fractions; deterministic unit tests.
+### O3 — Redução gradual de risco em vez de apenas pausar *(livro: C6, C10, pp. 103, 107)*
+* **Proposta:** um modo de risco opcional que escala `max_position_fraction` por um fator de desempenho móvel (por exemplo half-Kelly móvel limitado a [0, fração configurada]) para que uma estratégia em decaimento encolha suavemente até zero. Manter as pausas rígidas existentes como retaguarda.
+* **Benefício:** evita tanto o desligamento abrupto no pior momento quanto dobrar a aposta. **Complexidade:** média (precisa de uma janela de retornos móvel no estado do bot e de regra de rebalanceamento para uma posição já aberta, já que o spot long-only só pode mudar o tamanho nas entradas). **Risco:** janelas móveis são ruidosas e podem travar o bot em zero; whipsaw; só se aplica a novas entradas, a menos que saídas parciais sejam adicionadas. **Validação:** séries de patrimônio simuladas com vantagem em decaimento devem mostrar frações decrescentes; testes unitários determinísticos.
 
-### O4 — Stop policy by regime *(book: C9, pp. 106–107; deeper in Ch. 7)*
-* **Proposal:** record in each strategy's metadata whether it is trend-following or mean-reverting, and warn when a tight stop is combined with a mean-reverting strategy (and when a trend strategy has no stop). Existing strategies (EMA crossover, Donchian breakout) are trend/breakout. **Complexity:** low. **Risk:** the chapter's argument is the author's observation; present it as guidance, not a rule. Revisit with Chapter 7 (exits).
+### O4 — Política de stop por regime *(livro: C9, pp. 106–107; mais fundo no Cap. 7)*
+* **Proposta:** registrar nos metadados de cada estratégia se ela é seguidora de tendência ou de reversão à média, e avisar quando um stop curto for combinado com uma estratégia de reversão à média (e quando uma estratégia de tendência não tiver stop). As estratégias existentes (cruzamento de EMAs, rompimento de Donchian) são de tendência/rompimento. **Complexidade:** baixa. **Risco:** o argumento do capítulo é observação do autor; apresentar como orientação, não como regra. Revisitar com o Capítulo 7 (saídas).
 
-### O5 — Independent replication of backtests *(book: C10, p. 107)*
-* **Proposal:** a small, independent vectorised reference implementation (different code path, e.g. in the test suite) that reproduces key backtest outputs for the shipped strategies on fixed fixtures; any difference fails tests. Cheap approximation of the "collaborator" the book recommends. **Complexity:** medium. **Validation:** it is itself the validation.
+### O5 — Replicação independente dos backtests *(livro: C10, p. 107)*
+* **Proposta:** uma pequena implementação de referência vetorizada e independente (outro caminho de código, por exemplo na suíte de testes) que reproduza as principais saídas de backtest das estratégias entregues em fixtures fixas; qualquer diferença reprova os testes. Aproximação barata do "colaborador" que o livro recomenda. **Complexidade:** média. **Validação:** ela mesma é a validação.
 
-### O6 — Discipline guards on parameter edits *(book: C11, pp. 109–110 · adaptation)*
-* **Proposal:** when editing a running bot's strategy parameters, show the last backtest comparison of old vs new parameters and require a reason (ties to Chapter 1 O3); record in audit. Do not block. **Complexity:** low–medium. **Risk:** friction ignored by habit.
+### O6 — Travas de disciplina em edições de parâmetros *(livro: C11, pp. 109–110 · adaptação)*
+* **Proposta:** ao editar os parâmetros de estratégia de um bot em execução, mostrar a última comparação de backtest entre parâmetros antigos e novos e exigir um motivo (liga com o Capítulo 1 O3); registrar na auditoria. Não bloquear. **Complexidade:** baixa–média. **Risco:** atrito ignorado por hábito.
 
-### O7 — Ruin/exposure summary for the operator *(book: C1, C3, C11)*
-* **Proposal:** portfolio view showing current exposure vs Kelly reference vs live caps, so "keep the portfolio size under control at all times" is observable. Depends on O1/O2. **Complexity:** low.
+### O7 — Resumo de ruína/exposição para o operador *(livro: C1, C3, C11)*
+* **Proposta:** visão de carteira mostrando a exposição atual vs. a referência de Kelly vs. os limites live, de modo que "manter o tamanho da carteira sob controle o tempo todo" seja observável. Depende de O1/O2. **Complexidade:** baixa.
 
-### Not applicable / deferred
-Multi-strategy covariance allocation `F = C⁻¹M` (one pool, independent bots; revisit when several strategies share capital), broker leverage scaling (no leverage), contagion discussion, Amaranth/LTCM anecdotes (illustrations only).
+### Não aplicável / adiado
+Alocação multiestratégia por covariância `F = C⁻¹M` (um único pool, bots independentes; revisitar quando várias estratégias compartilharem capital), escalonamento de alavancagem da corretora (sem alavancagem), discussão de contágio, anedotas de Amaranth/LTCM (só ilustrações).
 
-## 4. Priority
+## 4. Prioridade
 
-| # | Item | Risk mgmt | Reliability | Backtest quality | Complexity | Depends on |
+| # | Item | Gestão de risco | Confiabilidade | Qualidade do backtest | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O2 worst-period-loss cap | **high** | – | – | low | metrics (chapter 2) |
-| 2 | O1 Kelly reference (advice) | high | – | medium | low | Sharpe/returns series |
-| 3 | O5 independent replication | medium | **high** | high | medium | – |
-| 4 | O7 exposure summary | medium | – | – | low | O1, O2 |
-| 5 | O6 parameter-edit guard | medium | medium | – | low–med | chapter 1 O3 |
-| 6 | O4 stop-regime hint | low | – | – | low | strategy metadata |
-| 7 | O3 gradual de-risking | high | – | – | medium | O1; separate design |
+| 1 | O2 limite pela pior perda de período | **alta** | – | – | baixa | métricas (capítulo 2) |
+| 2 | O1 referência Kelly (conselho) | alta | – | média | baixa | Sharpe/série de retornos |
+| 3 | O5 replicação independente | média | **alta** | alta | média | – |
+| 4 | O7 resumo de exposição | média | – | – | baixa | O1, O2 |
+| 5 | O6 trava de edição de parâmetros | média | média | – | baixa–média | capítulo 1 O3 |
+| 6 | O4 dica de stop por regime | baixa | – | – | baixa | metadados de estratégia |
+| 7 | O3 redução gradual de risco | alta | – | – | média | O1; desenho separado |
 
-## 5. Affected files
-`analytics/domain/` (new pure functions: returns series, Kelly, worst period loss), `analytics/presentation/schemas.py`, `backtesting/application/service.py` and `router.py` (additive fields), `risk_management/domain/models.py` (only for O3), `strategies/domain/base.py` (metadata for O4), `bots/application/service.py` (O6), tests under `api/tests/unit`, app: backtest detail and bot risk form (hints), `docs/openapi.json`.
+## 5. Arquivos afetados
+`analytics/domain/` (novas funções puras: série de retornos, Kelly, pior perda de período), `analytics/presentation/schemas.py`, `backtesting/application/service.py` e `router.py` (campos aditivos), `risk_management/domain/models.py` (apenas para O3), `strategies/domain/base.py` (metadados para O4), `bots/application/service.py` (O6), testes em `api/tests/unit`, app: detalhe do backtest e formulário de risco do bot (dicas), `docs/openapi.json`.
 
-## 6. Incremental plan
-1. Pure functions for returns, Kelly and worst period loss with the book's examples as tests.
-2. Expose them in backtest results as optional fields; show in the app next to the chosen fraction.
-3. Reference-implementation cross-check test (O5).
-4. Exposure summary (O7) and parameter-edit guard (O6).
-5. Gradual de-risking (O3) as its own design after the above has run for a while.
+## 6. Plano incremental
+1. Funções puras de retornos, Kelly e pior perda de período, com os exemplos do livro como testes.
+2. Expô-las nos resultados de backtest como campos opcionais; mostrar no app ao lado da fração escolhida.
+3. Teste de checagem cruzada com implementação de referência (O5).
+4. Resumo de exposição (O7) e trava de edição de parâmetros (O6).
+5. Redução gradual de risco (O3) como desenho próprio depois que o acima tiver rodado por um tempo.
 
-## 7. Acceptance criteria and tests
-* Unit tests match Examples 6.2 and 6.3 within rounding and Example 6.1 (`g = −s²/2`).
-* Kelly output is `None` for too few returns or zero variance, never infinite; always shown with sample size.
-* Suggested exposure never exceeds 1 and never exceeds the operator's live caps.
-* No existing risk behaviour changes unless an opt-in mode is enabled; live safeguards untouched.
-* Everything is `Decimal`; ruff, mypy, existing tests green.
+## 7. Critérios de aceite e testes
+* Os testes unitários batem com os Exemplos 6.2 e 6.3 dentro do arredondamento e com o Exemplo 6.1 (`g = −s²/2`).
+* A saída de Kelly é `None` para poucos retornos ou variância zero, nunca infinita; sempre exibida com o tamanho da amostra.
+* A exposição sugerida nunca excede 1 e nunca excede os limites live do operador.
+* Nenhum comportamento de risco existente muda a menos que um modo opt-in seja ativado; salvaguardas do live intocadas.
+* Tudo é `Decimal`; ruff, mypy, testes existentes verdes.
 
-## Caveats
-Kelly sizing assumes known, stable, Gaussian returns; crypto has fat tails, regime changes and estimation error, so a Kelly figure is an **upper bound to be discounted**, never a recommendation to size up. The author's anecdotes (LTCM, Amaranth, his own losses) illustrate behaviour and are not evidence for the formula. Past volatility does not bound future losses.
+## Ressalvas
+O dimensionamento de Kelly assume retornos conhecidos, estáveis e gaussianos; cripto tem caudas gordas, mudanças de regime e erro de estimação, então um número de Kelly é um **limite superior a ser descontado**, nunca uma recomendação de aumentar o tamanho. As anedotas do autor (LTCM, Amaranth, as próprias perdas) ilustram comportamento e não são evidência da fórmula. A volatilidade passada não limita perdas futuras.

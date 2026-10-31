@@ -1,114 +1,114 @@
-# Book 1 · Chapter 2 — Fishing for Ideas
+# Livro 1 · Capítulo 2 — À procura de ideias
 
-*Quantitative Trading*, Chan (2009). Book pages (PDF = book + 22). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-## 1. Chapter summary (pp. 9–29)
+## 1. Resumo do capítulo (pp. 9–29)
 
-The chapter is a set of **quick screens** to apply to a candidate strategy before backtesting it.
+O capítulo é um conjunto de **triagens rápidas** a aplicar a uma estratégia candidata antes de fazer o backtest.
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que aborda | Páginas |
 |---|---|---|---|
-| C1 | Ideas are abundant (papers, blogs, forums); most ready-made ones do not survive careful backtesting (stopped working, only small caps, ignore costs). A basic idea can often be modified into a profitable one; the proprietary part is the variation. | Where to find strategies and how sceptical to be. | 9–11 |
-| C2 | Fit the strategy to *you*: working hours, programming skill, capital, goal (income vs long-term gain). Holding period drives income regularity. | Strategy that cannot be operated by its owner. | 12–17 |
-| C3 | Maximum long-term growth comes from the maximum **Sharpe ratio** (given enough leverage), not from buy-and-hold; a higher Sharpe allows more leverage (details deferred to Ch. 6). | Judging strategies by raw return. | 17, 19 |
-| C4 | Compare with a **benchmark**: for long-only, the market index; for dollar-neutral, a riskless rate. `Information Ratio = mean(excess returns) / std(excess returns)`, `Excess = portfolio − benchmark`. Sharpe is the special case with the risk-free rate; people use Sharpe for comparability. | Return without context and without consistency. | 18–19 |
-| C5 | Rules of thumb: few trades a year → low Sharpe; drawdown deeper than ~10% or longer than ~4 months → unlikely high Sharpe; **Sharpe < 1 is not suitable stand-alone**; profitable almost every month → annualised Sharpe typically > 2; almost every day → > 3. | Quick triage from limited information. | 20–21 |
-| C6 | **Drawdown** = current equity − running maximum (the *high watermark*); maximum drawdown = largest peak-to-trough fall, in % of the watermark; **maximum drawdown duration** = longest time to recover; the two usually do not overlap. Compare them with your own tolerance. | Strategy you cannot psychologically hold. | 21–22 |
-| C7 | **Transaction costs** = commissions + bid-ask spread (liquidity cost) + market impact + slippage (delay between trigger and execution). Limit orders avoid spread but cost missed trades. Estimate cost ≈ half the average spread (+ commission) if order size is small. Example: a 5-minute Bollinger mean-reversion on ES goes from Sharpe ≈ 3 to ≈ −3 after 1 bp of cost. | High-frequency edges that vanish after costs. | 22–23 |
-| C8 | **Survivorship bias**: data lacking delisted/bankrupt names inflates results, especially for "buy cheap" ideas; ask for point-in-time data. | Inflated backtests. | 24 |
-| C9 | **Performance over time**: older periods look better (less competition, wider spreads, more survivorship distortion); judge by the most recent years. **Regime shifts** break stationarity, so more data is not automatically more robust. | Trusting a long, heterogeneous sample. | 24–25 |
-| C10 | **Data-snooping bias**: many parameters/rules → fit to accidents; hard to avoid even with one or two parameters. Simple models last. The AI sidebar lists his conditions for models he trusts: sound rationale, few parameters, linear, simple, all optimisation in a **lookback moving window** with continued out-of-sample demonstration. Independent financial data is scarcer than it looks (tick data is serially correlated). | Overfitting. | 25–27 |
-| C11 | **Capacity/niche**: prefer strategies too small for institutions. | Competition from large players. | 27 |
+| C1 | Ideias são abundantes (artigos, blogs, fóruns); a maioria das prontas não sobrevive a um backtest cuidadoso (pararam de funcionar, só funcionam em small caps, ignoram custos). Uma ideia básica muitas vezes pode ser modificada até ficar lucrativa; a parte proprietária é a variação. | Onde achar estratégias e quanto desconfiar. | 9–11 |
+| C2 | Ajustar a estratégia a *você*: horário de trabalho, habilidade de programação, capital, objetivo (renda vs. ganho de longo prazo). O período de posse determina a regularidade da renda. | Estratégia que o próprio dono não consegue operar. | 12–17 |
+| C3 | O crescimento máximo no longo prazo vem do **índice de Sharpe** máximo (com alavancagem suficiente), não do buy-and-hold; um Sharpe maior permite mais alavancagem (detalhes adiados para o Cap. 6). | Julgar estratégias pelo retorno bruto. | 17, 19 |
+| C4 | Comparar com um **benchmark**: para long-only, o índice de mercado; para dollar-neutral, uma taxa livre de risco. `Information Ratio = média(retornos em excesso) / desvio-padrão(retornos em excesso)`, `Excesso = carteira − benchmark`. O Sharpe é o caso especial com a taxa livre de risco; usa-se Sharpe pela comparabilidade. | Retorno sem contexto e sem consistência. | 18–19 |
+| C5 | Regras práticas: poucas operações por ano → Sharpe baixo; drawdown maior que ~10% ou mais longo que ~4 meses → improvável um Sharpe alto; **Sharpe < 1 não serve isoladamente**; lucrativa quase todo mês → Sharpe anualizado tipicamente > 2; quase todo dia → > 3. | Triagem rápida com informação limitada. | 20–21 |
+| C6 | **Drawdown** = patrimônio atual − máximo acumulado (a *high watermark*); drawdown máximo = maior queda de pico a vale, em % da watermark; **duração máxima do drawdown** = maior tempo para se recuperar; os dois normalmente não coincidem. Comparar com a própria tolerância. | Estratégia que você não consegue segurar psicologicamente. | 21–22 |
+| C7 | **Custos de transação** = comissões + spread compra-venda (custo de liquidez) + impacto de mercado + slippage (atraso entre o gatilho e a execução). Ordens limitadas evitam o spread, mas custam operações perdidas. Estimativa de custo ≈ metade do spread médio (+ comissão) se o tamanho da ordem for pequeno. Exemplo: uma reversão à média com Bollinger de 5 minutos no ES vai de Sharpe ≈ 3 para ≈ −3 após 1 bp de custo. | Vantagens de alta frequência que somem após os custos. | 22–23 |
+| C8 | **Viés de sobrevivência**: dados sem os papéis deslistados/falidos inflam os resultados, especialmente para ideias de "comprar barato"; pedir dados point-in-time. | Backtests inflados. | 24 |
+| C9 | **Desempenho ao longo do tempo**: períodos antigos parecem melhores (menos concorrência, spreads maiores, mais distorção de sobrevivência); julgar pelos anos mais recentes. **Mudanças de regime** quebram a estacionariedade, então mais dados não são automaticamente mais robustos. | Confiar em uma amostra longa e heterogênea. | 24–25 |
+| C10 | **Viés de data-snooping**: muitos parâmetros/regras → ajuste a acidentes; difícil de evitar mesmo com um ou dois parâmetros. Modelos simples duram. O quadro lateral de IA lista as condições dele para confiar em modelos: lógica sólida, poucos parâmetros, linear, simples, toda a otimização numa **janela móvel de lookback** com demonstração fora da amostra contínua. Dados financeiros independentes são mais escassos do que parecem (dados tick têm correlação serial). | Overfitting. | 25–27 |
+| C11 | **Capacidade/nicho**: preferir estratégias pequenas demais para instituições. | Concorrência de grandes players. | 27 |
 
-Not in this chapter: how to compute annualised Sharpe or drawdown in practice (Ch. 3, Examples 3.4–3.7). Chan gives no crypto guidance; crypto points are **our adaptation**.
+Não está neste capítulo: como calcular na prática o Sharpe anualizado ou o drawdown (Cap. 3, Exemplos 3.4–3.7). Chan não dá orientação sobre cripto; os pontos de cripto são **adaptação nossa**.
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| C4 benchmark | ✅ partly | `buy_and_hold_return_pct` exists (`analytics/domain/metrics.py`). It is a return comparison only; no excess-return series, no information ratio. |
-| C3/C4/C5 Sharpe | ❌ | No Sharpe/Sortino/volatility/annualised return in `Metrics`. |
-| C6 drawdown | ⚠️ | `max_drawdown_pct` exists (peak-to-trough, % of watermark, matches the book's definition). **Duration is not computed**, nor the high-watermark series. |
-| C7 costs | ⚠️ | Fixed `fee_rate` + fixed `slippage_bps`, same code in backtest and paper (`execution/domain/fills.py`). No sensitivity to cost level, no break-even cost, no size-dependent impact; limit-order opportunity cost not modelled. Market orders only in the backtester. |
-| C8 survivorship | ⚠️ | Crypto pairs can be delisted too; candles are stored per symbol and a symbol list is chosen by hand, so a hand-picked "survivors" universe is likely. No delisting handling. Not applicable to a single-pair backtest, relevant when we compare pairs. |
-| C9 over time | ⚠️ | One chronological train/test split (`backtesting/domain/segments.py`). No per-year/sub-period breakdown, no rolling windows, no regime labelling. |
-| C10 snooping | ⚠️ | Strategies have 2–4 parameters (good). Sweeps rank by a single metric with **no count of trials** and no correction; train/test split exists but is a single hold-out. |
-| C2 fit to operator | ✅ | Timeframe-based bots, automation, worker; documented in architecture docs. |
-| C11 niche | n/a | Capital is small by design; no capacity model needed now. |
+| C4 benchmark | ✅ parcial | `buy_and_hold_return_pct` existe (`analytics/domain/metrics.py`). É só uma comparação de retorno; sem série de retornos em excesso, sem information ratio. |
+| C3/C4/C5 Sharpe | ❌ | Sem Sharpe/Sortino/volatilidade/retorno anualizado em `Metrics`. |
+| C6 drawdown | ⚠️ | `max_drawdown_pct` existe (pico a vale, % da watermark, bate com a definição do livro). **A duração não é calculada**, nem a série da high watermark. |
+| C7 custos | ⚠️ | `fee_rate` fixo + `slippage_bps` fixo, mesmo código no backtest e no paper (`execution/domain/fills.py`). Sem sensibilidade ao nível de custo, sem custo de equilíbrio (break-even), sem impacto dependente do tamanho; custo de oportunidade de ordens limitadas não modelado. Só ordens a mercado no backtester. |
+| C8 sobrevivência | ⚠️ | Pares cripto também podem ser deslistados; os candles são guardados por símbolo e a lista de símbolos é escolhida à mão, então um universo de "sobreviventes" escolhido à mão é provável. Sem tratamento de deslistagem. Não se aplica a backtest de um único par, mas é relevante ao comparar pares. |
+| C9 ao longo do tempo | ⚠️ | Uma divisão cronológica treino/teste (`backtesting/domain/segments.py`). Sem detalhamento por ano/subperíodo, sem janelas móveis, sem rotulagem de regime. |
+| C10 snooping | ⚠️ | As estratégias têm 2–4 parâmetros (bom). Os sweeps ranqueiam por uma única métrica **sem contagem de tentativas** e sem correção; a divisão treino/teste existe, mas é um único hold-out. |
+| C2 ajuste ao operador | ✅ | Bots baseados em timeframe, automação, worker; documentado nos documentos de arquitetura. |
+| C11 nicho | n/a | O capital é pequeno por desenho; nenhum modelo de capacidade é necessário agora. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Add Sharpe, Sortino, volatility, annualised return to `Metrics` *(book: C3–C5, pp. 17–21 · crypto annualisation is our adaptation)*
-* **Problem:** cannot apply the book's own screening rules (Sharpe < 1, ratio vs benchmark) or compare strategies on risk-adjusted terms.
-* **Proposal:** compute from the equity curve's periodic returns. Annualisation factor derived from the candle timeframe and **365 days** (crypto trades every day, unlike the book's stock examples; the exact convention is the subject of Chapter 3, so settle it there). Risk-free rate configurable, default 0. Mark metrics `None` when there are too few returns.
-* **Benefit:** the single most useful missing number; enables comparison of sweep results and ranking by something better than net PnL.
-* **Complexity:** low–medium (pure functions, all `Decimal`; careful with square roots and equity curves that sit flat while out of the market).
-* **Risks:** Sharpe on few, autocorrelated or flat-heavy returns is misleading; a high Sharpe from a short sample is not evidence. Must display sample size beside it.
-* **Validation:** unit tests with hand-computed series; property: scaling returns scales Sharpe correctly; zero-variance returns give `None`, not infinity.
+### O1 — Adicionar Sharpe, Sortino, volatilidade e retorno anualizado em `Metrics` *(livro: C3–C5, pp. 17–21 · a anualização para cripto é adaptação nossa)*
+* **Problema:** não dá para aplicar as próprias regras de triagem do livro (Sharpe < 1, razão vs. benchmark) nem comparar estratégias em termos ajustados ao risco.
+* **Proposta:** calcular a partir dos retornos periódicos da curva de patrimônio. Fator de anualização derivado do timeframe dos candles e de **365 dias** (cripto negocia todo dia, ao contrário dos exemplos de ações do livro; a convenção exata é tema do Capítulo 3, então decidir lá). Taxa livre de risco configurável, padrão 0. Marcar as métricas como `None` quando houver poucos retornos.
+* **Benefício:** o número útil mais ausente; permite comparar resultados de sweeps e ranquear por algo melhor que o PnL líquido.
+* **Complexidade:** baixa–média (funções puras, tudo em `Decimal`; cuidado com raízes quadradas e com curvas de patrimônio que ficam planas enquanto fora do mercado).
+* **Riscos:** Sharpe sobre poucos retornos, autocorrelacionados ou majoritariamente planos engana; um Sharpe alto numa amostra curta não é evidência. Deve exibir o tamanho da amostra ao lado.
+* **Validação:** testes unitários com séries calculadas à mão; propriedade: escalar os retornos escala o Sharpe corretamente; retornos com variância zero dão `None`, não infinito.
 
-### O2 — Drawdown duration and high-watermark series *(book: C6, p. 21)*
-* **Problem:** only depth is reported; the book treats duration as equally important to whether the operator will hold on.
-* **Proposal:** add max drawdown duration (bars and wall-clock) and expose the underwater curve for the app chart.
-* **Benefit:** answers "how long can this stay under water?". **Complexity:** low.
-* **Risk:** open drawdown at the end of the series must be reported as ongoing, not as recovered.
-* **Validation:** unit tests including a series that never recovers.
+### O2 — Duração do drawdown e série da high watermark *(livro: C6, p. 21)*
+* **Problema:** só a profundidade é reportada; o livro trata a duração como igualmente importante para saber se o operador aguenta.
+* **Proposta:** adicionar a duração máxima do drawdown (em barras e em tempo real) e expor a curva "underwater" para o gráfico do app.
+* **Benefício:** responde "por quanto tempo isto pode ficar no vermelho?". **Complexidade:** baixa.
+* **Risco:** um drawdown aberto no fim da série deve ser reportado como em andamento, não como recuperado.
+* **Validação:** testes unitários incluindo uma série que nunca se recupera.
 
-### O3 — Operator tolerance check *(book: C6 p. 22 · adaptation to a product feature)*
-* **Proposal:** let the operator state maximum acceptable drawdown (depth, duration) when creating a backtest/bot; flag runs that exceed it. `max_drawdown_pct` already exists as a *runtime* risk limit; this would connect research to it.
-* **Complexity:** low. **Risk:** false comfort if the backtest drawdown is itself understated. **Validation:** API test for the flag.
+### O3 — Checagem de tolerância do operador *(livro: C6 p. 22 · adaptação para funcionalidade de produto)*
+* **Proposta:** permitir que o operador informe o drawdown máximo aceitável (profundidade, duração) ao criar um backtest/bot; sinalizar execuções que o excedem. `max_drawdown_pct` já existe como limite de risco em *tempo de execução*; isto ligaria a pesquisa a ele.
+* **Complexidade:** baixa. **Risco:** falso conforto se o drawdown do backtest for subestimado. **Validação:** teste de API para o sinalizador.
 
-### O4 — Cost-sensitivity analysis *(book: C7, pp. 22–23)*
-* **Problem:** a fixed cost assumption can hide a strategy that dies at slightly higher costs, which is exactly the book's ES example.
-* **Proposal:** re-run (or cheaply recompute) the same signals under a grid of fee/slippage values; report net result per level and the **break-even cost**. A sweep dimension may already allow this, so check before building.
-* **Benefit:** direct robustness gain for the backtests. **Complexity:** medium (cost scales run time; cache signals).
-* **Risks:** only changes costs, not fill realism (market impact, queue position for limit orders).
-* **Validation:** a strategy engineered to be marginal must flip sign at a known cost.
+### O4 — Análise de sensibilidade a custos *(livro: C7, pp. 22–23)*
+* **Problema:** uma premissa fixa de custo pode esconder uma estratégia que morre com custos ligeiramente maiores, exatamente o exemplo do ES do livro.
+* **Proposta:** reexecutar (ou recalcular de forma barata) os mesmos sinais sob uma grade de valores de taxa/slippage; reportar o resultado líquido por nível e o **custo de equilíbrio (break-even)**. Uma dimensão de sweep talvez já permita isso, então verificar antes de construir.
+* **Benefício:** ganho direto de robustez nos backtests. **Complexidade:** média (custos multiplicam o tempo de execução; cachear sinais).
+* **Riscos:** só muda os custos, não o realismo do fill (impacto de mercado, posição na fila de ordens limitadas).
+* **Validação:** uma estratégia projetada para ser marginal deve inverter o sinal num custo conhecido.
 
-### O5 — Performance by sub-period *(book: C9, pp. 24–25)*
-* **Proposal:** report metrics per calendar year/quarter and for the most recent window, plus a "recent vs overall" flag, in addition to the single train/test split.
-* **Benefit:** detects decay and regime dependence. **Complexity:** low–medium. **Risk:** small sub-samples are noisy; label sample sizes. **Validation:** synthetic series with a break in the middle.
+### O5 — Desempenho por subperíodo *(livro: C9, pp. 24–25)*
+* **Proposta:** reportar métricas por ano/trimestre civil e para a janela mais recente, mais um sinalizador "recente vs. geral", além da divisão única treino/teste.
+* **Benefício:** detecta decaimento e dependência de regime. **Complexidade:** baixa–média. **Risco:** subamostras pequenas são ruidosas; rotular os tamanhos de amostra. **Validação:** série sintética com uma quebra no meio.
 
-### O6 — Count the trials in sweeps *(book: C10, pp. 25–27)*
-* **Problem:** ranking N parameter sets and showing the winner overstates its quality; the book names the bias but defers the remedy to Chapter 3 (and later books give formal corrections).
-* **Proposal (minimum):** record number of combinations tried on every sweep result and show it next to the best result; require the winner to also be acceptable on the held-out test part. No new statistics yet.
-* **Complexity:** low. **Validation:** API response includes the trial count.
+### O6 — Contar as tentativas nos sweeps *(livro: C10, pp. 25–27)*
+* **Problema:** ranquear N conjuntos de parâmetros e mostrar o vencedor superestima a qualidade dele; o livro nomeia o viés, mas adia o remédio para o Capítulo 3 (e livros posteriores dão correções formais).
+* **Proposta (mínima):** registrar o número de combinações testadas em cada resultado de sweep e mostrá-lo ao lado do melhor resultado; exigir que o vencedor também seja aceitável na parte de teste separada. Sem estatísticas novas por enquanto.
+* **Complexidade:** baixa. **Validação:** a resposta da API inclui a contagem de tentativas.
 
-### O7 — Survivorship/universe note *(book: C8, p. 24 · adaptation)*
-Add an explicit warning when comparing several pairs chosen after the fact, and record the listing history needed to detect delistings when more pairs are imported. Low priority until multi-pair research exists.
+### O7 — Nota sobre sobrevivência/universo *(livro: C8, p. 24 · adaptação)*
+Adicionar um aviso explícito ao comparar vários pares escolhidos a posteriori e registrar o histórico de listagem necessário para detectar deslistagens quando mais pares forem importados. Baixa prioridade até existir pesquisa multi-par.
 
-### Not recommended now
-* **Lookback-window optimisation (C10, p. 27)** is the book's recommended discipline (walk-forward). It is a larger feature and is better planned after Chapter 3 and the later books on cross-validation; recorded as backlog **B-WALK-FORWARD**.
-* **Sharpe-based leverage (C3)**: no leverage exists.
+### Não recomendado agora
+* **Otimização por janela de lookback (C10, p. 27)** é a disciplina recomendada pelo livro (walk-forward). É uma funcionalidade maior e é melhor planejá-la depois do Capítulo 3 e dos livros posteriores sobre validação cruzada; registrada como backlog **B-WALK-FORWARD**.
+* **Alavancagem baseada em Sharpe (C3)**: não existe alavancagem.
 
-## 4. Priority
+## 4. Prioridade
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O1 Sharpe/Sortino/vol | high | medium | – | low–med | Ch. 3 annualisation convention |
-| 2 | O2 DD duration | medium | high | – | low | – |
-| 3 | O6 trial count | high | – | – | low | sweeps (exist) |
-| 4 | O4 cost sensitivity | high | medium | – | medium | O1 |
-| 5 | O5 sub-periods | medium | – | – | low–med | O1 |
-| 6 | O3 tolerance flag | low | medium | – | low | O2 |
-| 7 | O7 universe note | low | – | – | low | – |
+| 1 | O1 Sharpe/Sortino/vol | alta | média | – | baixa–média | convenção de anualização do Cap. 3 |
+| 2 | O2 duração do DD | média | alta | – | baixa | – |
+| 3 | O6 contagem de tentativas | alta | – | – | baixa | sweeps (existem) |
+| 4 | O4 sensibilidade a custos | alta | média | – | média | O1 |
+| 5 | O5 subperíodos | média | – | – | baixa–média | O1 |
+| 6 | O3 sinalizador de tolerância | baixa | média | – | baixa | O2 |
+| 7 | O7 nota de universo | baixa | – | – | baixa | – |
 
-## 5. Affected files
-`api/src/modules/analytics/domain/metrics.py`, `analytics/presentation/schemas.py`, `backtesting/domain/segments.py`, `backtesting/application/service.py`, `backtesting/presentation/router.py`, sweep result schema, `docs/openapi.json`, app: `lib/backtests` schemas, metric cards, equity/underwater chart (`equity-chart-rows.ts`), `check:consistency`.
+## 5. Arquivos afetados
+`api/src/modules/analytics/domain/metrics.py`, `analytics/presentation/schemas.py`, `backtesting/domain/segments.py`, `backtesting/application/service.py`, `backtesting/presentation/router.py`, schema de resultado do sweep, `docs/openapi.json`, app: schemas de `lib/backtests`, cards de métricas, gráfico de patrimônio/underwater (`equity-chart-rows.ts`), `check:consistency`.
 
-## 6. Incremental plan
-1. Pure metric functions + unit tests (O1, O2) with no API change.
-2. Add fields to `Metrics.to_dict` (additive, optional) and to the OpenAPI doc; app shows them.
-3. Sweep trial count (O6).
-4. Cost-sensitivity run (O4).
-5. Sub-period report (O5).
-6. Tolerance flag (O3).
+## 6. Plano incremental
+1. Funções puras de métricas + testes unitários (O1, O2) sem mudança de API.
+2. Adicionar campos a `Metrics.to_dict` (aditivos, opcionais) e ao documento OpenAPI; o app os exibe.
+3. Contagem de tentativas do sweep (O6).
+4. Execução de sensibilidade a custos (O4).
+5. Relatório por subperíodo (O5).
+6. Sinalizador de tolerância (O3).
 
-## 7. Acceptance criteria and tests
-* Existing metrics and stored runs unchanged (additive fields only); old runs show "n/a" for new ones.
-* Hand-computed fixtures for Sharpe, Sortino, drawdown duration (including never-recovered).
-* All numbers stay `Decimal`; no float in the domain.
-* Sweep output includes the number of combinations.
-* The new metrics always show their sample size; none is presented as a guarantee of future returns.
+## 7. Critérios de aceite e testes
+* Métricas existentes e execuções armazenadas inalteradas (apenas campos aditivos); execuções antigas mostram "n/a" nas novas.
+* Fixtures calculadas à mão para Sharpe, Sortino, duração de drawdown (incluindo nunca recuperado).
+* Todos os números continuam `Decimal`; sem float no domínio.
+* A saída do sweep inclui o número de combinações.
+* As novas métricas sempre mostram o tamanho da amostra; nenhuma é apresentada como garantia de retornos futuros.
 
-## Caveats
-Chan's thresholds (Sharpe > 1, > 2, > 3; drawdown 10% / 4 months) are **rules of thumb from his stock/futures experience**, not laws, and were not calibrated on crypto. Use them only as initial triage defaults, configurable.
+## Ressalvas
+Os limiares de Chan (Sharpe > 1, > 2, > 3; drawdown de 10% / 4 meses) são **regras práticas da experiência dele com ações/futuros**, não leis, e não foram calibrados para cripto. Usar apenas como padrões iniciais de triagem, configuráveis.
