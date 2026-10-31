@@ -1,6 +1,6 @@
 # Livro 1 · Capítulo 1 — O quê, quem e por quê do trading quantitativo
 
-*Quantitative Trading*, Ernest P. Chan (Wiley, 2009). As páginas são **páginas do livro** (página do PDF = página do livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise, nada implementado.
+*Quantitative Trading*, Ernest P. Chan (Wiley, 2009). As páginas são **páginas do livro** (página do PDF = página do livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: **O1 (alertas no app) e O2 (atualização incremental de candles) implementados em 2026-10-31**; O3 a O5 não implementados. Ver "Estado da implementação" abaixo.
 
 ## 1. Resumo do capítulo (pp. 1–8)
 
@@ -28,8 +28,8 @@ O livro não discute cripto, mercados 24/7 nem taxas de corretora. Tudo sobre cr
 | C3/C8 | ✅ | Paper → testnet → live, limites no live, mínimo de dias em paper, aprovação digitando o nome. |
 | C4 | n/a | Apenas spot; sem alavancagem. Existem limites de exposição, mas não uma política de alavancagem. |
 | C5 | ⚠️ | `pause`/`stop`/`reset` são auditados, mas nenhum motivo é registrado e não existe métrica de intervenção. |
-| C6 dados | ⚠️ | O trader busca candles recentes por conta própria; a importação histórica é apenas manual. |
-| C6 **alertas** | ❌ | Nenhum canal de notificação (busquei `alert`, `notif`, `webhook`, `telegram`, `email`, `smtp` em `api/src`: nada). O heartbeat do worker existe, mas só é lido pela UI. |
+| C6 dados | ✅ parcial (O2) | O worker agora estende os candles gravados até o último candle fechado; a importação histórica segue manual e os bots ainda buscam candles direto da exchange. |
+| C6 **alertas** | ✅ in-app (O1) | Antes: nenhum canal de notificação (busca por `alert`, `notif`, `webhook`, `telegram`, `email`, `smtp` em `api/src` não achou nada). Agora: módulo `notifications`, endpoints `/alerts` e indicador no app. Não há canal externo. |
 | C7 | ✅ | Backtest, sweep e comparação existem. |
 
 ## 3. Oportunidades
@@ -44,14 +44,14 @@ O livro não discute cripto, mercados 24/7 nem taxas de corretora. Tudo sobre cr
 * **Riscos:** **só avisa quem está olhando o app**; com o app fechado, o alerta fica esperando no banco e ninguém é chamado (limitação aceita nesta decisão). O caminho do alerta morre junto com o worker (precisa de uma checagem externa de vida, por exemplo healthcheck do container, que no canal in-app só aparece quando o app for aberto); fadiga de alertas e crescimento da tabela (prever retenção/limpeza de alertas antigos).
 * **Validação:** testes unitários de limites e deduplicação; teste de integração que para o worker e espera um alerta gravado e visível na API; teste de que marcar como lido e a recuperação do episódio funcionam; teste do front para o contador e a lista; nenhum dado sensível em logs/API.
 
-#### Detalhamento do O1: o que implementar (proposta, nada aprovado nem implementado)
+#### Detalhamento do O1: o que implementar (planejamento original; implementado, ver "Estado da implementação")
 
 **Pontos verificados no código que moldam o desenho**
 * O worker é um laço em `worker.py` que chama `JobRunner.run_once()` (`container.py`): uma passada do supervisor e depois no máximo um job. O avaliador de alertas entra como mais uma etapa nessa passada, na mesma linha do supervisor.
 * O status de saúde já existe: `GET /system/status` devolve `worker` (vivo, último heartbeat, idade) e `stale_bots` (`risk_management/presentation/router.py`). O avaliador deve **reaproveitar essa lógica**, não duplicá-la.
-* **O worker não consegue avisar que ele mesmo parou.** O alerta "worker parado" precisa ser calculado no processo da **API** (por exemplo ao listar/contar alertas, ou numa tarefa na própria API); os demais (bot parado, divergência na reconciliação, ordem rejeitada, limite diário, kill switch, cobertura de candles defasada) podem ser emitidos pelo worker. **Decisão pendente:** onde avaliar "worker parado".
+* **O worker não consegue avisar que ele mesmo parou.** O alerta "worker parado" precisa ser calculado no processo da **API** (por exemplo ao listar/contar alertas, ou numa tarefa na própria API); os demais (bot parado, divergência na reconciliação, ordem rejeitada, limite diário, kill switch, cobertura de candles defasada) podem ser emitidos pelo worker. **Decisão tomada na implementação (ver abaixo):** onde avaliar "worker parado".
 * O módulo `audit` (`models.py`, `orm.py`, `repository.py`, `service.py`, `router.py`) é o molde mais próximo: tabela com `BigInteger` autoincremento, `occurred_at` com `server_default=func.now()`, `bot_id` sem FK, `payload` JSONB, listagem mais recente primeiro com `limit`/`offset` e total em `X-Total-Count` (`core.pagination`). O módulo `bots` usa o layout `domain/application/infrastructure/presentation`; como o de alertas tem regras (episódios, deduplicação), seguir o layout maior.
-* Rotas protegidas em `api_router.py`: `require_access` libera leitura para qualquer papel e exige `admin` para alterar estado. Marcar como lido é uma alteração; **decisão pendente:** se o `viewer` também pode marcar (hoje cairia em 403) ou se o "lido" é só do `admin`.
+* Rotas protegidas em `api_router.py`: `require_access` libera leitura para qualquer papel e exige `admin` para alterar estado. Marcar como lido é uma alteração; **decisão tomada:** só o `admin` marca como lido (o `viewer` cairia em 403).
 * A última migração é `0007_live_trading.py`; a nova seria a `0008`. O ORM novo precisa ser importado em `orm_models.py`.
 
 **Backend**
@@ -69,16 +69,40 @@ O livro não discute cripto, mercados 24/7 nem taxas de corretora. Tudo sobre cr
 3. **Camada de dados compartilhada** (o contador aparece na barra do layout, que só pode importar de `shared`): `lib/shared/alerts/alerts.api.ts` (schemas zod, chamadas e tipos) e `hooks/shared/use-alerts.ts` (consulta da lista, do contador e as mutações de marcar como lido), no mesmo molde de `lib/shared/system/system.api.ts` e `hooks/shared/use-system.ts`.
 4. **Indicador de não lidos:** novo componente em `components/shared/layout` ao lado da `safety-strip.tsx`, com contador **em número e texto acessível** (estado nunca só por cor), levando à tela de alertas; mostra o tempo desde a última atualização e a marca de dado desatualizado quando o polling falha.
 5. **Tela de alertas:** `routes/_app/alerts/index.tsx` (a rota só monta a tela) e `components/alerts/alerts-page.tsx` com `DataTable` (severidade, tipo, bot, mensagem, aberto em, resolvido em, lido), filtros "não lidos" e severidade, ações "marcar como lido" e "marcar todos", paginação com "mostrando os últimos N" quando aplicável. Estados obrigatórios: esqueleto, erro com nova tentativa, vazio, sem resultados e dados. Datas apenas por `lib/shared/dates.ts`, com UTC explícito.
-6. **Navegação e permissões:** entrada "Alertas" na seção "Sistema" em `components/shared/layout/nav-config.tsx`, `breadcrumbs.ts`, e a regra de papéis (visualização para todos; marcar como lido conforme a decisão pendente acima, com o botão ausente para quem não pode, como no restante do app).
+6. **Navegação e permissões:** entrada "Alertas" na seção "Sistema" em `components/shared/layout/nav-config.tsx`, `breadcrumbs.ts`, e a regra de papéis (visualização para todos; marcar como lido conforme a decisão tomada acima (só admin), com o botão ausente para quem não pode, como no restante do app).
 7. **Resumo no painel e na página de status:** o painel "Atenção" do dashboard e a página `/system` passam a mostrar os alertas abertos mais recentes (o painel hoje já lista bots em erro, bots parados, kill switch e conexões inválidas).
-8. **Módulo novo:** `alerts` não está na lista de módulos de `app/AGENTS.md`; adicionar o módulo ali, em `docs/02-project-structure.md` e na regra de fronteira do ESLint, ou colocar a tela dentro de `system`. **Decisão pendente.**
+8. **Módulo novo:** `alerts` não está na lista de módulos de `app/AGENTS.md`; adicionar o módulo ali, em `docs/02-project-structure.md` e na regra de fronteira do ESLint, ou colocar a tela dentro de `system`. **Decisão tomada na implementação (ver abaixo):** a tela ficou no módulo `system`.
 9. **Testes e documentos:** vitest (schemas, formatação, hook do contador), teste de ponta a ponta no Playwright (alerta aparece, contador sobe, marcar como lido zera) e verificação visual a 360 px; `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build`. Atualizar na mesma mudança `app/docs/06-screens.md` (nova seção da tela e do indicador), `app/docs/02-project-structure.md` e `app/docs/09-roadmap.md`.
 
-**Decisões pendentes (para você)**
+**Decisões que estavam pendentes (resolvidas na implementação, ver "Estado da implementação")**
 * Onde avaliar "worker parado" (processo da API) e quais condições entram no primeiro corte.
 * Se o `viewer` pode marcar alertas como lidos.
 * Módulo `alerts` novo no front ou tela dentro de `system`.
 * Prazo de retenção e cooldown padrão.
+
+#### Estado da implementação (2026-10-31)
+
+**O que foi feito.** Backend: módulo `api/src/modules/notifications` (domínio, avaliador de episódios, condições puras, serviço e monitor, ORM e repositório, router), migração `0008_alerts`, atualizador de candles `market_data/application/updater.py`, tratamento de 429/418 no cliente CCXT, novas configurações em `core/config.py` (documentadas em `api/.env.example`) e `docs/openapi.json` atualizado. Frontend: enums, rota, chaves de consulta, camada compartilhada (`lib/shared/alerts`, `hooks/shared/use-alerts.ts`), indicador na barra de segurança, tela `/alerts` e entrada "Alertas" no menu "Sistema".
+
+**Decisões que eu tomei no lugar das pendentes** (padrões conservadores, fáceis de mudar):
+* **Worker parado** é calculado no processo da **API** (tarefa em segundo plano iniciada no `lifespan`, a cada 15 s). As demais condições são avaliadas pelo **worker**.
+* **Condições do primeiro corte:** worker parado, bot sem heartbeat, bot em erro, kill switch ativo, candles atrasados e exchange limitando requisições (429/418). **Ficaram de fora:** ordem live rejeitada, divergência na reconciliação e limite diário atingido, que exigem novos pontos de emissão no trader e no reconciler.
+* **Severidade:** crítico para worker parado e para bots em modo live; aviso para o resto. Episódios críticos geram os eventos de auditoria `alert.opened` e `alert.resolved`.
+* **`viewer`:** só leitura; marcar como lido é ação de `admin` (a regra existente: qualquer escrita exige admin).
+* **Front:** a tela fica no módulo `system` (sem módulo novo `alerts`); a camada de dados fica em `shared` porque o indicador faz parte do layout.
+* **Números:** avaliação a cada 15 s, cooldown de 5 min (uma condição que volta dentro desse prazo reabre o mesmo alerta, como não lido), retenção de 30 dias para alertas resolvidos e já lidos.
+
+**Diferenças em relação ao plano acima:**
+* O contador é `GET /alerts/summary` (`unread`, `open`, `critical_open`), no lugar de `/alerts/unread-count`.
+* O2: a verificação roda a cada **30 s**, mas cada série só faz requisição quando o candle seguinte fechou (mais 5 s de folga), ou seja, cerca de uma requisição por minuto por série de 1 minuto.
+* O2: são atualizadas as séries **já gravadas** cujo último candle tem até 7 dias, ou que são usadas por um bot não parado; uma série vazia nunca é preenchida automaticamente. Lacunas na janela recente (500 candles) são refeitas a cada 10 min.
+* O2: um 429/418 vira `RateLimited` e a exchange fica pausada pelo `Retry-After` (60 s se ele não vier). Isso **muda o comportamento do cliente CCXT para todas as leituras**: antes, um 429 era repetido depois de 1, 2 e 4 s.
+* O2: o peso usado (`x-mbx-used-weight-1m`) só gera **aviso em log** a partir de 3.000 (50% do limite de 6.000); **não há alerta por peso**, apenas por 429/418 e por candle atrasado.
+* Os bots continuam buscando candles direto da exchange; a leitura pelo banco segue como etapa posterior.
+
+**Verificação:** `ruff` e `mypy` (strict) limpos; backend com 323 testes passando contra o banco de teste (26 novos: episódios, condições, atualizador, 429, API e worker); app com `lint`, `typecheck`, `format:check`, `check:consistency`, 52 testes `vitest` e `build` passando. A tela foi aberta em um Chromium real (desktop e 360 px) contra uma API descartável: listagem, marcar como lido e o indicador funcionaram. **Não rodei** os testes Playwright do projeto (`npm run e2e`) nem testei contra a Binance real. Na barra do topo a 360 px sobra um estouro de ~3 px quando o worker está parado; ele já existia antes dos alertas e não foi tratado aqui.
+
+**Para usar no ambiente de desenvolvimento** (nada disso foi feito por mim): reconstruir as imagens `api` e `worker` e rodar `alembic upgrade head` no banco de desenvolvimento (a migração `0008` só foi aplicada no banco de teste). Alertas só avisam quem abre o app.
 
 ### O2 — Importação incremental automática de dados *(livro: C6, pp. 6–7 · adaptação)*
 * **Problema:** lacunas nos candles armazenados só são reparadas por jobs manuais.
@@ -87,7 +111,7 @@ O livro não discute cripto, mercados 24/7 nem taxas de corretora. Tudo sobre cr
 * **Complexidade:** baixa. **Riscos:** limites de taxa (rate limits); lacunas legítimas sendo tentadas para sempre.
 * **Validação:** teste de integração com uma fonte falsa que deixa um buraco e espera que ele seja preenchido.
 
-#### Detalhamento do O2 (proposta, nada aprovado nem implementado)
+#### Detalhamento do O2 (planejamento original; implementado, ver "Estado da implementação")
 
 **Situação verificada no código**
 * O trader busca candles direto da exchange a cada ciclo (`trader.py:128`, `FETCH_LIMIT = 1000`) e os usa só na memória; eles não são gravados na tabela de candles. O banco só tem o que foi importado à mão (`market_data/application/service.py`, `BATCH_SIZE = 1000`).
@@ -172,7 +196,7 @@ Apoia-se em uma frase de opinião. Capítulos posteriores dão critérios concre
 
 ## 6. Plano incremental
 1. O1a (backend): domínio do alerta, porta `Notifier`, notifier falso, avaliador de condições com deduplicação, cooldown e recuperação (sem persistência).
-2. O1b (backend): canal `in_app`: migração `0008`, tabela e repositório, endpoints (listar, contar não lidos, marcar como lido), integração ao `JobRunner`/`container.py`, retenção, atualização do OpenAPI. Decidir antes onde avaliar "worker parado".
+2. O1b (backend): canal `in_app`: migração `0008`, tabela e repositório, endpoints (listar, contar não lidos, marcar como lido), integração ao `JobRunner`/`container.py`, retenção, atualização do OpenAPI.
 3. O1c (frontend): `api:types`, enums, rota e chaves de consulta, camada compartilhada (`alerts.api.ts` e hook), indicador de não lidos no layout, tela `/alerts`, entrada de navegação, resumos no dashboard e em `/system`, testes e atualização dos documentos do app.
 4. (Opcional, depois) canal externo (webhook/chat) pela mesma porta, se o operador sentir falta de aviso com o app fechado.
 5. O2: importação incremental periódica.
