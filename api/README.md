@@ -226,6 +226,13 @@ curl -b jar -X POST $B/auth/logout
 - 5 senhas erradas seguidas bloqueiam a conta por 15 min; trocar a senha desloga todos os dispositivos.
 - Sem `JWT_SECRET`/`API_TOKEN` a API só funciona aberta com `APP_ENV=local`; em qualquer outro ambiente ela nem sobe.
 
+## Endpoints pensados para o frontend
+
+- `GET /system/capabilities` — o live é possível neste ambiente? Se não, `live_blockers` diz por quê. Também lista exchanges e estratégias registradas (sem segredos).
+- `GET /bots/summary` — equity, PnL e taxas somados **por modo e moeda de cotação** (paper, testnet e live nunca se misturam).
+- Listas que crescem (`/audit-events`, `/bots/{id}/orders`, `/bots/{id}/signals`, `/backtests`) aceitam `limit` + `offset` e devolvem o total no header `X-Total-Count`; a auditoria também filtra por `event_type`.
+- `can_write` no usuário (`/auth/me`, login): se o usuário pode alterar algo.
+
 ## Fase 5 — trading live (DINHEIRO REAL)
 
 > Desligado por padrão. Nada neste repositório envia ordem real sem que você ligue, de propósito, **todas** as travas abaixo. Leia [docs/architecture/13-live-trading.md](docs/architecture/13-live-trading.md) antes. O caminho live foi testado só contra uma conta *simulada*; **comece com tetos minúsculos**.

@@ -148,9 +148,9 @@ class BacktestService:
             raise BacktestNotFound(str(run_id))
         return run
 
-    async def list_runs(self, limit: int = 50) -> list[BacktestRun]:
+    async def list_runs(self, limit: int = 50, offset: int = 0) -> tuple[list[BacktestRun], int]:
         async with self._stores() as store:
-            return await store.list_runs(limit)
+            return await store.list_runs(limit, offset), await store.count_runs()
 
     async def trades(self, run_id: UUID) -> list[Fill]:
         await self.get(run_id)

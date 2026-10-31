@@ -55,6 +55,52 @@ class BotOverview:
     last_price: Decimal | None
 
 
+@dataclass(frozen=True, slots=True)
+class PortfolioSummary:
+    """Bots of one mode and quote currency added up. Amounts in different currencies are never
+    mixed, and neither are real and simulated money."""
+
+    mode: ExecutionMode
+    quote_currency: str
+    bots: int
+    running: int
+    open_positions: int
+    initial_capital: Decimal
+    equity: Decimal
+    realized_pnl: Decimal
+    fees_paid: Decimal
+
+    @property
+    def return_pct(self) -> Decimal:
+        if self.initial_capital == 0:
+            return Decimal(0)
+        return (self.equity - self.initial_capital) / self.initial_capital * 100
+
+
+def summarize(rows: list[tuple[BotOverview, Decimal]]) -> list[PortfolioSummary]:
+    """Group overview rows (with each bot's initial capital) by mode and quote currency."""
+    groups: dict[tuple[ExecutionMode, str], list[tuple[BotOverview, Decimal]]] = {}
+    for row, capital in rows:
+        quote = row.bot.config.symbol.split("/")[-1]
+        groups.setdefault((row.bot.config.mode, quote), []).append((row, capital))
+    return [
+        PortfolioSummary(
+            mode=mode,
+            quote_currency=quote,
+            bots=len(items),
+            running=sum(1 for r, _ in items if r.bot.observed_state is BotState.RUNNING),
+            open_positions=sum(1 for r, _ in items if r.in_position),
+            initial_capital=sum((c for _, c in items), Decimal(0)),
+            equity=sum((r.equity for r, _ in items), Decimal(0)),
+            realized_pnl=sum((r.realized_pnl for r, _ in items), Decimal(0)),
+            fees_paid=sum((r.fees_paid for r, _ in items), Decimal(0)),
+        )
+        for (mode, quote), items in sorted(
+            groups.items(), key=lambda kv: (kv[0][0].value, kv[0][1])
+        )
+    ]
+
+
 class BotService:
     """API-side bot use cases. Commands only change ``desired_state``; the worker acts on it."""
 
@@ -215,15 +261,21 @@ class BotService:
             await store.audit.add(self._event("bot.portfolio_reset", bot, {}))
             await store.commit()
 
-    async def orders(self, bot_id: UUID, limit: int = 100) -> list[Order]:
+    async def orders(
+        self, bot_id: UUID, limit: int = 100, offset: int = 0
+    ) -> tuple[list[Order], int]:
         async with self._stores() as store:
             await self._get(store, bot_id)
-            return await store.orders.list_by_bot(bot_id, limit)
+            orders = await store.orders.list_by_bot(bot_id, limit, offset)
+            return orders, await store.orders.count_by_bot(bot_id)
 
-    async def signals(self, bot_id: UUID, limit: int = 100) -> list[SignalRecord]:
+    async def signals(
+        self, bot_id: UUID, limit: int = 100, offset: int = 0
+    ) -> tuple[list[SignalRecord], int]:
         async with self._stores() as store:
             await self._get(store, bot_id)
-            return await store.signals.list_by_bot(bot_id, limit)
+            signals = await store.signals.list_by_bot(bot_id, limit, offset)
+            return signals, await store.signals.count_by_bot(bot_id)
 
     async def portfolio(self, bot_id: UUID) -> PortfolioView:
         async with self._stores() as store:
@@ -270,6 +322,11 @@ class BotService:
                 )
             )
         return rows
+
+    async def summary(self) -> list[PortfolioSummary]:
+        """Totals across bots, so the dashboard never has to add money itself."""
+        rows = await self.overview()
+        return summarize([(row, row.bot.config.initial_capital) for row in rows])
 
     async def performance(self, bot_id: UUID) -> Metrics | None:
         """Same metrics as backtests, from the bot's snapshots and fills (net of fees)."""

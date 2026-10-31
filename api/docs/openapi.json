@@ -708,6 +708,7 @@
           "backtests"
         ],
         "summary": "List Backtests",
+        "description": "Newest first; the size of the whole list is in ``X-Total-Count``.",
         "operationId": "list_backtests_api_v1_backtests_get",
         "parameters": [
           {
@@ -721,6 +722,19 @@
               "default": 50,
               "title": "Limit"
             }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Rows to skip (newest first).",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Rows to skip (newest first)."
           }
         ],
         "responses": {
@@ -1110,6 +1124,32 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/summary": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Get Summary",
+        "description": "Equity, PnL and fees added up per execution mode and quote currency (never mixed).",
+        "operationId": "get_summary_api_v1_bots_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PortfolioSummaryOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get Summary Api V1 Bots Summary Get"
                 }
               }
             }
@@ -1605,6 +1645,19 @@
               "default": 100,
               "title": "Limit"
             }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Rows to skip (newest first).",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Rows to skip (newest first)."
           }
         ],
         "responses": {
@@ -1665,6 +1718,19 @@
               "default": 100,
               "title": "Limit"
             }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Rows to skip (newest first).",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Rows to skip (newest first)."
           }
         ],
         "responses": {
@@ -1910,6 +1976,28 @@
         }
       }
     },
+    "/api/v1/system/capabilities": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Get Capabilities",
+        "description": "Is live trading possible here, and if not, what is missing? Contains no secrets.",
+        "operationId": "get_capabilities_api_v1_system_capabilities_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilitiesOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/system/status": {
       "get": {
         "tags": [
@@ -1938,7 +2026,7 @@
           "audit"
         ],
         "summary": "List Audit Events",
-        "description": "Append-only trail of commands, state changes, orders and risk events (newest first).",
+        "description": "Append-only trail of commands, state changes, orders and risk events (newest first).\nThe size of the whole trail that matches is in ``X-Total-Count``.",
         "operationId": "list_audit_events_api_v1_audit_events_get",
         "parameters": [
           {
@@ -1959,6 +2047,23 @@
             }
           },
           {
+            "name": "event_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Type"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -1969,6 +2074,19 @@
               "default": 100,
               "title": "Limit"
             }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Rows to skip (newest first).",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Rows to skip (newest first)."
           }
         ],
         "responses": {
@@ -2154,6 +2272,15 @@
   },
   "components": {
     "schemas": {
+      "AppEnv": {
+        "type": "string",
+        "enum": [
+          "local",
+          "test",
+          "prod"
+        ],
+        "title": "AppEnv"
+      },
       "ApprovalIn": {
         "properties": {
           "confirm_name": {
@@ -3130,6 +3257,68 @@
         ],
         "title": "CandleOut"
       },
+      "CapabilitiesOut": {
+        "properties": {
+          "environment": {
+            "$ref": "#/components/schemas/AppEnv"
+          },
+          "testnet_trading_enabled": {
+            "type": "boolean",
+            "title": "Testnet Trading Enabled"
+          },
+          "live_trading_enabled": {
+            "type": "boolean",
+            "title": "Live Trading Enabled"
+          },
+          "live_available": {
+            "type": "boolean",
+            "title": "Live Available"
+          },
+          "live_blockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Live Blockers"
+          },
+          "live_min_paper_days": {
+            "type": "integer",
+            "title": "Live Min Paper Days"
+          },
+          "live_approval_minutes": {
+            "type": "integer",
+            "title": "Live Approval Minutes"
+          },
+          "exchanges": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Exchanges"
+          },
+          "strategies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Strategies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "environment",
+          "testnet_trading_enabled",
+          "live_trading_enabled",
+          "live_available",
+          "live_blockers",
+          "live_min_paper_days",
+          "live_approval_minutes",
+          "exchanges",
+          "strategies"
+        ],
+        "title": "CapabilitiesOut",
+        "description": "What this deployment allows, so the UI can explain instead of letting a user try and fail.\nIt reflects the API process's configuration; the worker enforces its own on every pass."
+      },
       "ChangePasswordIn": {
         "properties": {
           "current_password": {
@@ -4032,6 +4221,63 @@
           "native_stop_active"
         ],
         "title": "PortfolioOut"
+      },
+      "PortfolioSummaryOut": {
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/ExecutionMode"
+          },
+          "quote_currency": {
+            "type": "string",
+            "title": "Quote Currency"
+          },
+          "bots": {
+            "type": "integer",
+            "title": "Bots"
+          },
+          "running": {
+            "type": "integer",
+            "title": "Running"
+          },
+          "open_positions": {
+            "type": "integer",
+            "title": "Open Positions"
+          },
+          "initial_capital": {
+            "type": "string",
+            "title": "Initial Capital"
+          },
+          "equity": {
+            "type": "string",
+            "title": "Equity"
+          },
+          "realized_pnl": {
+            "type": "string",
+            "title": "Realized Pnl"
+          },
+          "fees_paid": {
+            "type": "string",
+            "title": "Fees Paid"
+          },
+          "return_pct": {
+            "type": "string",
+            "title": "Return Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "quote_currency",
+          "bots",
+          "running",
+          "open_positions",
+          "initial_capital",
+          "equity",
+          "realized_pnl",
+          "fees_paid",
+          "return_pct"
+        ],
+        "title": "PortfolioSummaryOut"
       },
       "PromoteIn": {
         "properties": {
@@ -4962,6 +5208,12 @@
               }
             ],
             "title": "Last Login At"
+          },
+          "can_write": {
+            "type": "boolean",
+            "title": "Can Write",
+            "description": "May this user change anything? The server enforces it; the UI only reflects it.",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -4971,7 +5223,8 @@
           "role",
           "is_active",
           "created_at",
-          "last_login_at"
+          "last_login_at",
+          "can_write"
         ],
         "title": "UserOut"
       },

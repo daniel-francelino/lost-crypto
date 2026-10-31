@@ -46,10 +46,22 @@ class SqlAlchemyAuditRepository:
         )
         return result.scalar_one_or_none()
 
-    async def list_events(self, bot_id: UUID | None, limit: int) -> list[AuditEvent]:
-        query = select(AuditEventRow).order_by(AuditEventRow.id.desc()).limit(limit)
+    async def count_all(self, bot_id: UUID | None, event_type: str | None = None) -> int:
+        query = select(func.count()).select_from(AuditEventRow)
         if bot_id is not None:
             query = query.where(AuditEventRow.bot_id == bot_id)
+        if event_type is not None:
+            query = query.where(AuditEventRow.event_type == event_type)
+        return int((await self._session.execute(query)).scalar_one())
+
+    async def list_events(
+        self, bot_id: UUID | None, limit: int, offset: int = 0, event_type: str | None = None
+    ) -> list[AuditEvent]:
+        query = select(AuditEventRow).order_by(AuditEventRow.id.desc()).limit(limit).offset(offset)
+        if bot_id is not None:
+            query = query.where(AuditEventRow.bot_id == bot_id)
+        if event_type is not None:
+            query = query.where(AuditEventRow.event_type == event_type)
         return [
             AuditEvent(
                 event_type=r.event_type,

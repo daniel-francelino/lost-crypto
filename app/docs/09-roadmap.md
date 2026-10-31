@@ -4,7 +4,7 @@ Order of work for the frontend, aligned with what the backend already offers (al
 
 | Step | Delivers | Depends on | Done when |
 |---|---|---|---|
-| **F0 Scaffold** | Vite + TanStack Start (SPA mode), TypeScript strict flags, Tailwind 4, `lost-ui` alias + `styles.css` + tokens, ESLint (copied `eslint-local`, module boundaries), Prettier, husky, Vitest, Playwright skeleton, `.env.example`, CI. Copy the `lost-ui` skill and the `.claude` hooks/commands. All "To verify" items of [01](01-stack.md) and [03](03-lost-ui.md) resolved | — | `lint`, `typecheck`, `build` pass on an empty shell; `BackofficeLayout` and `LoginPage` render |
+| **F0 Scaffold** ✅ | Vite + TanStack Start (SPA mode), TypeScript strict flags, Tailwind 4, `lost-ui` alias + `styles.css` + tokens, ESLint (copied `eslint-local`, module boundaries), Prettier, husky, Vitest, Playwright skeleton, `.env.example`, CI. `lost-ui` skill copied into `.claude/skills`, `CLAUDE.md` + `AGENTS.md` (the aura `.claude` hooks and slash commands are **not** copied: they encode Supabase-specific rules). The "To verify" items of [01](01-stack.md) and [03](03-lost-ui.md) that need only the scaffold are resolved | — | `lint`, `typecheck`, `build` pass on an empty shell; `BackofficeLayout` and `LoginPage` render |
 | **F1 API client + session** | `lib/shared/api` (client, `ApiError`, zod boundary), `QueryKey`, `session.ts` (memory token, single-flight refresh), `format.ts`, `dates.ts`, logger | F0 | Unit tests: single-flight, 422 mapping, formatters |
 | **F2 Auth** | `/login`, `_app` guard + bootstrap refresh, logout, profile + change password, `can()` and role-aware navigation, error pages | F1 | E2E: login, reload keeps session, logout, viewer vs admin nav, session expiry redirect |
 | **F3 Read-only operations** | Safety strip + system status, dashboard, bots list, bot detail (resumo / ordens / sinais / desempenho / configuração / auditoria), audit screen, polling + stale marks | F2 | Watching a running **paper** bot from the browser; stale treatment verified by stopping the worker |
@@ -15,9 +15,24 @@ Order of work for the frontend, aligned with what the backend already offers (al
 | **F8 Admin** | Users (create, disable, enable) | F2 | |
 | **F9 Hardening** | CSP and headers on the host, accessibility pass, 360 px pass on every screen, performance pass, README, runbook for deploying front + API under one domain | all | Checklist of [07](07-ux-rules.md) passes |
 
-## Parallel backend asks
+## F0: what was verified
 
-From [06](06-screens.md#open-requests-to-the-backend-found-while-specifying-the-screens): **R1** portfolio summary (before F3's dashboard totals), **R3** "is live possible" (before F7), **R2** list pagination (before the audit screen is used for real), **R4** capabilities in `/auth/me` (nice to have).
+Run on 2026-10-31 in `app/`:
+
+| Check | Result |
+|---|---|
+| `npm run lint` (`--max-warnings 0`), `typecheck`, `format:check`, `check:consistency`, `test` | pass (5 unit tests: env parsing, log redaction; consistency compares 8 enums with the backend's `openapi.json`) |
+| `npm run build` | pass; SPA shell prerendered to `dist/client/_shell.html` |
+| Playwright (Chromium) against `vite dev`: login form, shell with navigation, not-found page | 3 pass |
+| Layout at 1280 px and 360 px, login and shell | rendered and looked at; no horizontal overflow |
+
+**Not verified or not done in F0:** the login does not authenticate (the form answers that it is unavailable until F2) and `_app` has no guard yet; no API call exists; token contrast, dark mode, `npm audit`, husky hooks end to end (installed by `prepare`, never triggered), the CI workflow (never run on GitHub) and deployment of `dist/client` to a static host. `npm run api:types` works (generates `src/lib/shared/api/api.d.ts` from the backend's `openapi.json`; nothing imports it yet).
+
+**Side effect to know:** `npm install` runs `prepare`, which sets this repository's `core.hooksPath` to `app/.husky/_`. The hooks do nothing unless files under `app/` are staged (pre-commit) or changed since the upstream (pre-push), so backend-only commits and pushes are unaffected.
+
+## Backend asks
+
+All four asks of [06](06-screens.md#requests-to-the-backend-found-while-specifying-the-screens-all-delivered) were implemented with the F0 work (see the backend's [doc 14](../../api/docs/architecture/14-authentication.md) and `openapi.json`).
 
 ## Library asks (lost-ui)
 

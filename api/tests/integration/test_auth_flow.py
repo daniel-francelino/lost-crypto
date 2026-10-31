@@ -86,6 +86,7 @@ async def test_login_returns_an_access_token_and_keeps_the_refresh_token_out_of_
         body = response.json()
         assert body["token_type"] == "bearer" and body["expires_in"] == 15 * 60
         assert body["user"]["username"] == "itest-ana" and body["user"]["role"] == "admin"
+        assert body["user"]["can_write"] is True
         assert "refresh" not in response.text  # the body never carries the refresh token
 
         cookie = response.headers["set-cookie"].lower()
@@ -255,6 +256,7 @@ async def test_admins_manage_users_and_disabling_cuts_off_new_sessions(auth_env:
         new_user = {"username": "itest-karen", "password": PASSWORD, "role": "viewer"}
         created = await admin_browser.post("/api/v1/auth/users", json=new_user, headers=admin)
         assert created.status_code == 201 and created.json()["role"] == "viewer"
+        assert created.json()["can_write"] is False
         assert "password" not in created.text
         assert (
             await admin_browser.post("/api/v1/auth/users", json=new_user, headers=admin)

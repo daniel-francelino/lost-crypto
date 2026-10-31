@@ -15,6 +15,14 @@ class AuditService:
     def __init__(self, stores: Callable[[], AbstractAsyncContextManager[AuditStore]]) -> None:
         self._stores = stores
 
-    async def list_events(self, bot_id: UUID | None, limit: int = 100) -> list[AuditEvent]:
+    async def list_events(
+        self,
+        bot_id: UUID | None,
+        limit: int = 100,
+        offset: int = 0,
+        event_type: str | None = None,
+    ) -> tuple[list[AuditEvent], int]:
+        """One window of the trail (newest first) and the total that matches the filters."""
         async with self._stores() as store:
-            return await store.audit.list_events(bot_id, limit)
+            events = await store.audit.list_events(bot_id, limit, offset, event_type)
+            return events, await store.audit.count_all(bot_id, event_type)

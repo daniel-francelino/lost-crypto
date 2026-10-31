@@ -1,0 +1,2 @@
+git diff --cached --name-only | grep -q '^app/' || exit 0
+cd app && npx lint-staged

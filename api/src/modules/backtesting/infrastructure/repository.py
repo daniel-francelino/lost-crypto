@@ -138,9 +138,16 @@ class SqlAlchemyBacktestStore:
         )
         return [_to_run(r) for r in result.scalars()]
 
-    async def list_runs(self, limit: int) -> list[BacktestRun]:
+    async def count_runs(self) -> int:
+        result = await self._session.execute(select(func.count()).select_from(BacktestRunRow))
+        return int(result.scalar_one())
+
+    async def list_runs(self, limit: int, offset: int = 0) -> list[BacktestRun]:
         result = await self._session.execute(
-            select(BacktestRunRow).order_by(BacktestRunRow.created_at.desc()).limit(limit)
+            select(BacktestRunRow)
+            .order_by(BacktestRunRow.created_at.desc())
+            .limit(limit)
+            .offset(offset)
         )
         return [_to_run(r) for r in result.scalars()]
 

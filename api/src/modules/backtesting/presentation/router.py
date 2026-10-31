@@ -3,12 +3,13 @@ from decimal import Decimal
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from pydantic import AwareDatetime, BaseModel, Field
 
 from container import Container
 from core.errors import DomainError
 from core.jobs import JobStatus
+from core.pagination import Offset, set_total
 from modules.analytics.presentation.schemas import MetricsOut
 from modules.backtesting.application.ports import BacktestRun
 from modules.backtesting.application.service import BacktestNotFound
@@ -265,10 +266,16 @@ def _sweep_out(sweep: Any, runs: list[BacktestRun]) -> SweepOut:
 
 @router.get("", response_model=list[BacktestOut])
 async def list_backtests(
-    request: Request, limit: Annotated[int, Query(ge=1, le=200)] = 50
+    request: Request,
+    response: Response,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Offset = 0,
 ) -> list[BacktestOut]:
+    """Newest first; the size of the whole list is in ``X-Total-Count``."""
     container: Container = request.app.state.container
-    return [_out(r) for r in await container.backtests.list_runs(limit)]
+    runs, total = await container.backtests.list_runs(limit, offset)
+    set_total(response, total)
+    return [_out(r) for r in runs]
 
 
 @router.get("/compare", response_model=list[BacktestOut])

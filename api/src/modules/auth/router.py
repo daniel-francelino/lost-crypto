@@ -3,7 +3,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, computed_field
 
 from core.config import Settings
 from core.security.auth import Principal, require_admin, require_auth
@@ -28,6 +28,12 @@ class UserOut(BaseModel):
     is_active: bool
     created_at: datetime
     last_login_at: datetime | None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def can_write(self) -> bool:
+        """May this user change anything? The server enforces it; the UI only reflects it."""
+        return self.role is Role.ADMIN
 
 
 class TokenOut(BaseModel):

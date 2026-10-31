@@ -68,7 +68,7 @@ The rule is enforced centrally on every protected router: a non-`GET` request fr
 | `POST /login` | open | username + password → access token (+ refresh cookie) |
 | `POST /refresh` | cookie | new access token, rotated cookie |
 | `POST /logout` | cookie | revoke this login, clear the cookie (idempotent) |
-| `GET /me` | any user | the signed-in user and role |
+| `GET /me` | any user | the signed-in user, role and `can_write` (may this user change anything?) |
 | `POST /change-password` | any user | change password; signs out everywhere |
 | `GET/POST /users`, `POST /users/{id}/disable`, `.../enable` | admin | manage users (an admin cannot disable themselves) |
 
@@ -81,6 +81,14 @@ make jwt-secret                         # put the output in JWT_SECRET
 make create-admin                       # local; prompts for the password
 docker compose exec api python -m manage create-user daniel --role admin     # in Docker
 ```
+
+## Other endpoints the frontend uses
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /system/capabilities` | Is live possible in this deployment, and if not, why (`live_blockers`); registered exchanges and strategies; paper-days and approval-window settings. No secrets. It describes the **API process's** configuration, the worker enforces its own on every pass |
+| `GET /bots/summary` | Equity, PnL, fees, running bots and open positions added up per execution mode and quote currency (never mixed) |
+| `limit` + `offset`, header `X-Total-Count` | On `GET /audit-events` (also `event_type`), `/bots/{id}/orders`, `/bots/{id}/signals`, `/backtests`: newest first, the header carries the size of the whole list (exposed through CORS) |
 
 ## What the frontend does
 

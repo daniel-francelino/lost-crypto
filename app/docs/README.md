@@ -4,7 +4,7 @@ The operator console of Lost Crypto: a single-user (or few-operator) web app to 
 
 The stack is the one of the sibling project `aura-creative` (TanStack Start, React 19, Tailwind 4, zod) and the UI comes from the shared library **`lost-ui`**. This documentation is the result of reading that project and its standards; where Lost Crypto differs, the difference is written down in [Deviations](#deviations-from-aura-creative).
 
-> **Status: documentation only.** No frontend code exists yet. Everything here is a decision or a plan, and says so where something still has to be verified when the app is scaffolded.
+> **Status: F0 (scaffold) is done**; the app builds and renders the login page and the empty shell, nothing else exists yet. Every other screen is still a plan ([09](09-roadmap.md)). What F0 confirmed and what it did not is in [09](09-roadmap.md#f0-what-was-verified).
 
 ## Map
 
@@ -53,4 +53,4 @@ Backend references the frontend depends on: [14 — Authentication](../../api/do
 
 * A document changes in the same change as the code it describes (aura rule DOC-2).
 * A name (route, query key, enum, error code) that is not in these documents or in the backend `openapi.json` is added to the document first.
-* Anything in these documents marked **To verify** must be confirmed when the app is first scaffolded, then rewritten as fact.
+* Anything marked **To verify** is still unconfirmed; the ones F0 settled were rewritten as facts.

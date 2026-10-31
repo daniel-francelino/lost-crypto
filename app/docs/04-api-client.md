@@ -61,11 +61,12 @@ All timestamps are ISO-8601 UTC (`2026-10-31T01:18:01Z`). Candle times (`open_ti
 
 ## Lists
 
-The API has **no pagination, sorting or search**: list endpoints take at most `limit` (`/bots/{id}/orders`, `signals`, `audit-events` default 100; `/backtests` 50; `/market-data/imports`; `/bots/{id}/equity`) and return the most recent items. Therefore:
+The growing lists page with `limit` + `offset` and report the size of the whole list in the **`X-Total-Count`** response header (exposed through CORS): `GET /audit-events` (also filters `bot_id`, `event_type`), `GET /bots/{id}/orders`, `GET /bots/{id}/signals`, `GET /backtests`. They are newest first; there is still no server-side sorting or free-text search. Therefore:
 
-* Lists are small and bounded; `DataTable` sorts, filters and searches the loaded rows on the client. This is a deliberate deviation from aura-creative UI-1 (server-side everything) and is valid **only** while the lists stay bounded.
-* If a list outgrows a screen (audit trail, order history over months), the fix is a backend change (offset/cursor + filters), requested and documented in the API docs first, **not** a client workaround. Until then the screen says "showing the latest N".
-* `limit` is a `QueryKey` input, so a different limit is a different cache entry.
+* `DataTable` runs in server mode for these (`total` from the header, `page`/`pageSize` → `limit`/`offset`); sorting by column and text search work on the rows of the loaded page only and say so. `request` returns the header alongside the body (`{ data, total }`) for paged calls.
+* Short lists (`/bots`, `/exchange-connections`, `/auth/users`, `/market-data/imports`, `/strategies`) are loaded whole and handled on the client.
+* `limit` and `offset` are part of the `QueryKey`, and `keepPreviousData` keeps the page on screen while the next one loads.
+* A cap such as "latest 500 equity points" (`/bots/{id}/equity`) is stated on the screen.
 
 ## Validating responses
 
@@ -82,8 +83,11 @@ export const QueryKey = {
     all: () => ["bots"] as const,
     overview: () => ["bots", "overview"] as const,
     detail: (id: string) => ["bots", "detail", id] as const,
-    orders: (id: string, limit: number) => ["bots", id, "orders", limit] as const,
-    signals: (id: string, limit: number) => ["bots", id, "signals", limit] as const,
+    summary: () => ["bots", "summary"] as const,
+    orders: (id: string, limit: number, offset: number) =>
+      ["bots", id, "orders", limit, offset] as const,
+    signals: (id: string, limit: number, offset: number) =>
+      ["bots", id, "signals", limit, offset] as const,
     portfolio: (id: string) => ["bots", id, "portfolio"] as const,
     performance: (id: string) => ["bots", id, "performance"] as const,
     equity: (id: string, limit: number) => ["bots", id, "equity", limit] as const,
@@ -93,8 +97,15 @@ export const QueryKey = {
   MarketData: { /* coverage(symbol, timeframe, exchange) · imports(limit) · candles(params) */ },
   Strategies: { all: () => ["strategies"] as const },
   Exchanges: { connections: () => ["exchange-connections"] as const },
-  System: { status: () => ["system", "status"] as const, killSwitch: () => ["system", "kill-switch"] as const },
-  Audit: { list: (botId: string | null, limit: number) => ["audit", botId, limit] as const },
+  System: {
+    status: () => ["system", "status"] as const,
+    capabilities: () => ["system", "capabilities"] as const,
+    killSwitch: () => ["system", "kill-switch"] as const,
+  },
+  Audit: {
+    list: (botId: string | null, eventType: string | null, limit: number, offset: number) =>
+      ["audit", botId, eventType, limit, offset] as const,
+  },
   Users: { all: () => ["users"] as const },
 } as const;
 ```

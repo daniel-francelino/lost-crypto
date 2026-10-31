@@ -1,0 +1,3 @@
+base=$(git rev-parse --verify -q '@{upstream}') || base=$(git hash-object -t tree /dev/null)
+git diff --name-only "$base" HEAD | grep -q '^app/' || exit 0
+cd app && npm run lint && npm run typecheck && npm run check:consistency

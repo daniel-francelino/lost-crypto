@@ -19,7 +19,7 @@ Source of the analysis: `aura-creative` (`package.json`, `vite.config.ts`, `tsco
 | Toasts | `sonner` (through lost-ui `Toaster`) | ^2 | |
 | Dates | `date-fns` + `@date-fns/tz` behind one `dates.ts` | ^4 / ^1.5 | The Date API is banned outside that file |
 | Language | TypeScript 5.9, ESM, strict flags (see [08](08-quality.md)) | | |
-| Build | Vite 8 | ^8.1 | Static build: no `nitro` preset needed in SPA mode (**To verify** at scaffolding) |
+| Build | Vite 8 | ^8.1 | Static client build, no `nitro` preset (verified in F0: `dist/client/_shell.html` + assets) |
 | Unit tests | Vitest 3 | ^3.2 | |
 | E2E | Playwright | ^1.64 | |
 | Lint / format | ESLint 9 flat config + typescript-eslint + local rules, Prettier 3, husky + lint-staged | | Reuse the `eslint-local/` rules (see below) |
@@ -37,7 +37,7 @@ The reasons, in order of weight:
 2. **There is nothing for a server to do.** No secrets, no database, no file storage. The aura-creative server functions exist for Supabase and R2; Lost Crypto has FastAPI.
 3. **The app is private.** SEO and first-paint HTML of a logged-in console have no value.
 
-So: configure Start with `spa: { enabled: true }` (the option exists in the installed plugin schema of aura-creative; **To verify** its exact shape for the version we install), run route `loader`s and `beforeLoad` in the browser, and deploy the output as static files. The login screen and the shell are the prerendered shell of the SPA.
+So: `tanstackStart({ spa: { enabled: true } })` in `vite.config.ts` (verified in F0). `vite build` prerenders only the SPA shell and emits `dist/client/_shell.html` plus assets; `dist/server` is also produced but is not deployed. Route `loader`s and `beforeLoad` run in the browser. Serve `dist/client` as static files with `_shell.html` as the fallback for every path (**To verify** on the real host).
 
 If a server-rendered public page is ever needed (a marketing page, a status page), it is a separate decision recorded here before it is built.
 

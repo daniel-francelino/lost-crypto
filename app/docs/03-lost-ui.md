@@ -25,7 +25,7 @@ The props are **not** repeated here. They are in the skill: copy `aura-creative/
 ```
 
 * Define the tokens in `:root` and `.dark`: `--background`, `--foreground`, `--card`, `--popover`, `--primary`, `--secondary`, `--muted`, `--accent`, `--destructive`, `--success`, `--warning`, `--info` (each with `-foreground`), `--border`, `--input`, `--ring`, `--radius`, `--header-height`, `--container-width`, plus sidebar tokens. Fonts: `--font-sans`, `--font-display`. Dark mode = the `.dark` class on an ancestor.
-* Do **not** import `effects.css` (landing-page animations): there is no landing page. aura keeps a palette document (`standards/color-palette.md`) with AAA body-text contrast; Lost Crypto writes its own `docs/` palette note when the theme is defined (**open**: brand colours not chosen yet; `theme-neutral.css` is available as a starting point).
+* Do **not** import `effects.css` (landing-page animations): there is no landing page. aura keeps a palette document (`standards/color-palette.md`) with AAA body-text contrast; Lost Crypto writes its own `docs/` palette note when the theme is defined (the F0 theme in `src/styles.css` is a neutral blue placeholder, not a brand decision; contrast is unmeasured).
 * **Trading semantics need tokens, not ad-hoc colours.** Define and document `--success` (profit / buy), `--destructive` (loss / sell / kill switch), `--warning` (paused / stale / paper-vs-live caution), and one dedicated, unmistakable token for **live mode** (e.g. `--live`) so the same colour is never used for anything else. State is never conveyed by colour alone (see [07](07-ux-rules.md)).
 
 Wrap the app once, in `__root.tsx`:
@@ -90,8 +90,8 @@ Keep these in a single `docs/lost-ui-requests.md` (aura's pattern: one table, ea
 
 Add prop-level requests the same way (a column type for decimal strings in `DataTable`, a `tone` per row, …).
 
-## Things to verify at scaffolding
+## Verified in F0, and what still is not
 
-* `lost-ui` 0.2.2 is installed from npm under the alias, and `BackofficeLayout` + `LoginPage` render with the TanStack `renderLink` in client-only mode.
-* Tailwind `@source` picks the library classes (the skill notes memoria-print, which uses `source(none)`, is not yet verified; aura-creative uses the default and works).
-* The library's tests run in jsdom: layout and pixels are **not** proven, so every new screen is checked in a real browser (and at 360 px).
+* `lost-ui` 0.2.2 installs from npm under the alias; `BackofficeLayout`, `LoginPage`, `PageHeader`, `Empty`, `ErrorFallback`/`NotFoundPage` and `App` render with TanStack's `renderLink` in client-only mode; Tailwind picks the library classes with the default `@source` (checked in Chromium at 1280 px and 360 px, no horizontal overflow).
+* The version-matched skill ships inside the package: `node_modules/lost-ui/skills/lost-ui` is copied to `.claude/skills/lost-ui` (re-copy it after upgrading the library; it differs slightly from aura-creative's older copy).
+* **Not verified:** colour contrast of the tokens in `src/styles.css` (light and dark, including `--live`), dark mode, and every component not used yet. The library's own tests run in jsdom, so layout is checked by hand in a browser for every new screen.

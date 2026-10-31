@@ -20,9 +20,9 @@ All authenticated screens sit under `_app` (shell with `BackofficeLayout`). Ever
 
 ## 2. Dashboard — `/`
 
-Calls: `GET /bots/overview` (10 s), `GET /system/status` (5 s).
+Calls: `GET /bots/summary` + `GET /bots/overview` (10 s), `GET /system/status` (5 s).
 
-* Top: stat tiles — total equity of running bots, today's realized PnL, bots running / paused / error, open positions. (No endpoint sums across bots: either **ask the backend for a portfolio summary** or show per-bot only. Do not add money in the browser — F5. **Open request R1**.)
+* Top: stat tiles from `GET /bots/summary` — one group **per execution mode and quote currency** (paper, testnet and live money are never added together, nor are different currencies): equity, return %, realized PnL, fees, bots running, open positions. The browser adds nothing (F5). ("Today's PnL" is not offered: the summary carries realized PnL since the start.)
 * A card per bot from `BotOverviewOut`: name, symbol/timeframe, strategy, **mode badge** (see 07), state (desired→observed), equity, return %, `in_position`, last price, heartbeat age. Click → bot detail.
 * "Atenção" panel: bots in `error` (with `last_error`), stale bots (`system.stale_bots`), kill switch active, connections `invalid`.
 * Empty state: "Você ainda não tem bots" → admin sees "Criar bot".
@@ -36,7 +36,7 @@ Calls: `GET /bots/overview` (10 s), `GET /system/status` (5 s).
 
 `POST /bots`, `PATCH /bots/{id}`. Admin only.
 
-* Form (lost-ui `Form`): name, exchange (options come from `exchanges` in `GET /system/status`, the ids the backend has registered; **To verify** that this field means "enabled exchanges" when the screen is built), symbol, timeframe (`Timeframe` list), strategy (`GET /strategies`) + its parameters via `FormBuilder`, initial capital, fee rate, slippage bps, **risk block** (`max_position_fraction`, `max_order_notional`, `max_daily_loss_pct`, `max_drawdown_pct`, `max_consecutive_losses`, `max_risk_per_trade_pct`, `require_stop_loss`, `max_candle_range_pct`), and execution **mode**.
+* Form (lost-ui `Form`): name, exchange (options from `exchanges` in `GET /system/capabilities`, the ids the backend has registered), strategy from `strategies` / `GET /strategies`, symbol, timeframe (`Timeframe` list), strategy (`GET /strategies`) + its parameters via `FormBuilder`, initial capital, fee rate, slippage bps, **risk block** (`max_position_fraction`, `max_order_notional`, `max_daily_loss_pct`, `max_drawdown_pct`, `max_consecutive_losses`, `max_risk_per_trade_pct`, `require_stop_loss`, `max_candle_range_pct`), and execution **mode**.
 * **Mode choices are `paper` and `testnet` only.** The backend refuses to create or PATCH a bot into `live`; live has its own flow (screen 6). The mode option for live is not offered here, with an inline explanation that points to "Promover para live".
 * Testnet needs a `connection_id` of an active testnet connection (select from `GET /exchange-connections`); paper must have none.
 * Editing a running bot is refused or voids a live approval (any config change bumps `config_version`): the form says so before saving, and the detail page shows the resulting state.
@@ -60,7 +60,7 @@ The most important screen. Tabs (URL search param `tab`): **Resumo · Ordens · 
 
 ## 6. Live promotion and approval — inside bot detail
 
-Only for admins; only when the backend can accept live (the readiness endpoint tells). A guided flow with `Stepper` in a `Modal`/`Slideover`, **never** a single button:
+Only for admins; only when `GET /system/capabilities` has `live_available: true` (otherwise the entry point is replaced by the `live_blockers` list as an explanation; the API process's view, the worker enforces its own). A guided flow with `Stepper` in a `Modal`/`Slideover`, **never** a single button:
 
 1. **Readiness** — `GET /bots/{id}/live-readiness` → list of `CheckOut {name, ok, detail}` + `ready`. Failed checks are shown with their `detail`; nothing can proceed while `ready` is false. Refetches on demand.
 2. **Promote** — pick an `active` live connection (`GET /exchange-connections`, filter `environment=live` & `status=active`), `POST /bots/{id}/promote-to-live {connection_id}`. Preconditions the UI mirrors (the backend enforces them): bot stopped, flat position, clean paper history.
@@ -102,13 +102,13 @@ Backend refusals (422 strings: worker switch off, `APP_ENV` not prod, caps missi
 * Profile: `ProfilePage` (username, role, `onChangePassword`; note it signs out every device).
 * Users (admin): `GET/POST /auth/users`, `disable`/`enable` (an admin cannot disable themselves; the button is disabled with the reason). New-user form validates the password policy client-side to match the backend (≥ 12 characters, not the username); the backend result is the authority.
 
-## Open requests to the backend (found while specifying the screens)
+## Requests to the backend found while specifying the screens (all delivered)
 
-| ID | Need | Why |
+| ID | Need | Delivered as |
 |---|---|---|
-| R1 | A portfolio summary (total equity, today's PnL, exposure across bots) | The browser must not add money (F5) |
-| R2 | Pagination/filters on audit, orders and backtests lists | Lists are bounded by `limit` only (04) |
-| R3 | A way to tell the UI whether live is possible at all (`LIVE_TRADING_ENABLED`, caps set) without trying and failing | To hide or explain the live flow up front; today only `live-readiness` per bot hints at it |
-| R4 | Role/capabilities in `/auth/me` (not only `role`) | Lets the UI follow backend permission changes without a deploy |
+| R1 | Totals across bots, so the browser never adds money | `GET /bots/summary`: groups per mode and quote currency |
+| R2 | Paging and filters on the growing lists | `limit` + `offset` and the `X-Total-Count` header on audit events (also `event_type`), bot orders, bot signals and backtests |
+| R3 | Know whether live is possible without trying and failing | `GET /system/capabilities`: environment, switches, `live_available`, `live_blockers`, registered exchanges and strategies, paper-days and approval-window settings (no secrets) |
+| R4 | Permissions in the user object | `can_write` in `UserOut` (`/auth/me`, login, users list) |
 
-These are backend changes: record them in the API docs when accepted; the frontend does not work around them silently.
+Still not available: server-side sorting and text search on lists, "today's PnL", a portfolio-wide daily-loss figure. Ask the backend and record it in its docs; the frontend does not work around the gap silently.

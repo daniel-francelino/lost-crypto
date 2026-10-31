@@ -139,12 +139,19 @@ class SqlAlchemyOrderRepository:
         )
         return int(result.scalar_one())
 
-    async def list_by_bot(self, bot_id: UUID, limit: int) -> list[Order]:
+    async def count_by_bot(self, bot_id: UUID) -> int:
+        result = await self._session.execute(
+            select(func.count()).select_from(OrderRow).where(OrderRow.bot_id == bot_id)
+        )
+        return int(result.scalar_one())
+
+    async def list_by_bot(self, bot_id: UUID, limit: int, offset: int = 0) -> list[Order]:
         result = await self._session.execute(
             select(OrderRow)
             .where(OrderRow.bot_id == bot_id)
             .order_by(OrderRow.created_at.desc())
             .limit(limit)
+            .offset(offset)
         )
         return [_to_order(r) for r in result.scalars()]
 
@@ -201,12 +208,21 @@ class SqlAlchemySignalRepository:
         )
         await self._session.flush()
 
-    async def list_by_bot(self, bot_id: UUID, limit: int) -> list[SignalRecord]:
+    async def count_by_bot(self, bot_id: UUID) -> int:
+        result = await self._session.execute(
+            select(func.count())
+            .select_from(TradingSignalRow)
+            .where(TradingSignalRow.bot_id == bot_id)
+        )
+        return int(result.scalar_one())
+
+    async def list_by_bot(self, bot_id: UUID, limit: int, offset: int = 0) -> list[SignalRecord]:
         result = await self._session.execute(
             select(TradingSignalRow)
             .where(TradingSignalRow.bot_id == bot_id)
             .order_by(TradingSignalRow.created_at.desc())
             .limit(limit)
+            .offset(offset)
         )
         return [
             SignalRecord(

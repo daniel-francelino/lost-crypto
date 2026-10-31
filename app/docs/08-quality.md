@@ -39,7 +39,8 @@ The rules are aura-creative's `docs/standards/base.md` (section 3 code rules, 8 
 | When | Command |
 |---|---|
 | After editing | `npm run lint` · `npm run typecheck` · `npm run format:check` |
-| Before pushing (husky `pre-push`) | lint + typecheck + `npm run check:consistency` (constants/registries; adapt aura's script to the TS-only registries here) |
+| Before pushing (husky `pre-push`) | lint + typecheck + `npm run check:consistency` (compares `src/lib/shared/enums.ts` with the enums of the backend's `openapi.json`) |
+| Hooks | The repository root is `lost-crypto`, so husky is installed from `app/` with `core.hooksPath` = `app/.husky/_`; the hooks only act when files under `app/` are staged/pushed |
 | Tests | `npm run test` · `npm run e2e` |
 | Build | `npm run build` (static SPA output) |
 | Contract | `npm run api:types` (regenerates types from `../api/docs/openapi.json`) |

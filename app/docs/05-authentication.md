@@ -70,7 +70,7 @@ Two roles, enforced **by the backend**; the frontend only reflects them.
 | `viewer` | every `GET` |
 | `admin` | everything, including start/stop bots, kill switch, live promotion/approval, connections, users |
 
-The app's permission model is a single function, `can(role, capability)`, with a small `Capability` registry (`as const`): `Bots.Control`, `Bots.Edit`, `Bots.PromoteLive`, `Backtests.Run`, `MarketData.Import`, `Exchanges.Manage`, `System.KillSwitch`, `Users.Manage`. Today every capability maps to `admin`; the indirection exists so a third role changes one table.
+The user object (`/auth/me`, and `user` in the login/refresh response) carries **`can_write`**: whether this user may change anything. The app's permission model is a single function, `can(user, capability)`, with a small `Capability` registry (`as const`): `Bots.Control`, `Bots.Edit`, `Bots.PromoteLive`, `Backtests.Run`, `MarketData.Import`, `Exchanges.Manage`, `System.KillSwitch`, `Users.Manage`. Today every capability follows `can_write` (and `Users.Manage` additionally needs the `admin` role); the indirection exists so a third role or finer permissions change one table. The server remains the authority.
 
 Applied in four places, and only the first three are the app's job:
 
@@ -88,7 +88,7 @@ A **disabled** user keeps a working access token for up to 15 minutes. The app d
 * Inputs are `FormInputPassword` with `autocomplete="off"`, no `name` that password managers recognise as a login.
 * They live only in the form's state; after a successful or failed submit the secret field is cleared. They are never put in the Query cache (the mutation's `variables` are not persisted: do not use `useMutation`'s `variables` for display), never in the URL, never logged, never sent to any other endpoint.
 * After creation the response contains only `api_key_hint` and a `status`; that hint is all the UI can show, ever. There is no "reveal" and no edit-the-secret flow (create a new connection, disable the old one).
-* A `live` connection requires an explicit "I understand this uses real money" checkbox (`confirm_real_money: true`), appears only when the backend reports it can create it (see 06), and starts as `pending` until the worker verifies the key is trade-only, no withdraw/transfer, IP-restricted. The UI explains each state of `ConnectionStatus` (`pending`, `active`, `invalid`, `disabled`) and what the operator can do (an `invalid` key is replaced by a safer one).
+* A `live` connection requires an explicit "I understand this uses real money" checkbox (`confirm_real_money: true`), is offered only when `GET /system/capabilities` says `live_available` (otherwise the UI shows the `live_blockers` as the explanation), and starts as `pending` until the worker verifies the key is trade-only, no withdraw/transfer, IP-restricted. The UI explains each state of `ConnectionStatus` (`pending`, `active`, `invalid`, `disabled`) and what the operator can do (an `invalid` key is replaced by a safer one).
 
 ## Browser hardening
 

@@ -10,6 +10,7 @@ from container import build_container
 from core.config import Settings, get_settings
 from core.errors import ConflictError, DomainError, NotFoundError
 from core.logging import configure_logging
+from core.pagination import TOTAL_COUNT_HEADER
 from core.security.auth import assert_secure_configuration
 from core.security.vault import VaultNotConfigured
 from modules.auth.domain import AccountLocked, InvalidCredentials
@@ -95,6 +96,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_credentials=True,  # the refresh-token cookie
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=[TOTAL_COUNT_HEADER],
     )
     app.include_router(api_router)
 

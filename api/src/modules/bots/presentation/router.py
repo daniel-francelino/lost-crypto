@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response, status
 from pydantic import BaseModel, Field
 
 from container import Container
+from core.pagination import Offset, set_total
 from core.security.auth import Principal, require_auth
 from modules.analytics.presentation.schemas import MetricsOut
 from modules.bots.domain.models import Bot, BotConfig, BotState, ExecutionMode
@@ -264,6 +265,39 @@ async def list_bots(request: Request, limit: Limit = 100) -> list[BotOut]:
     return [_out(b) for b in await _container(request).bots.list_bots(limit)]
 
 
+class PortfolioSummaryOut(BaseModel):
+    mode: ExecutionMode
+    quote_currency: str
+    bots: int
+    running: int
+    open_positions: int
+    initial_capital: Decimal
+    equity: Decimal
+    realized_pnl: Decimal
+    fees_paid: Decimal
+    return_pct: Decimal
+
+
+@router.get("/summary", response_model=list[PortfolioSummaryOut])
+async def get_summary(request: Request) -> list[PortfolioSummaryOut]:
+    """Equity, PnL and fees added up per execution mode and quote currency (never mixed)."""
+    return [
+        PortfolioSummaryOut(
+            mode=g.mode,
+            quote_currency=g.quote_currency,
+            bots=g.bots,
+            running=g.running,
+            open_positions=g.open_positions,
+            initial_capital=g.initial_capital,
+            equity=g.equity,
+            realized_pnl=g.realized_pnl,
+            fees_paid=g.fees_paid,
+            return_pct=g.return_pct,
+        )
+        for g in await _container(request).bots.summary()
+    ]
+
+
 @router.get("/overview", response_model=list[BotOverviewOut])
 async def get_overview(request: Request) -> list[BotOverviewOut]:
     """Every bot with its current equity and return, for side-by-side comparison."""
@@ -381,8 +415,11 @@ async def reset_portfolio(bot_id: UUID, request: Request) -> Response:
 
 
 @router.get("/{bot_id}/orders", response_model=list[OrderOut])
-async def get_orders(bot_id: UUID, request: Request, limit: Limit = 100) -> list[OrderOut]:
-    orders = await _container(request).bots.orders(bot_id, limit)
+async def get_orders(
+    bot_id: UUID, request: Request, response: Response, limit: Limit = 100, offset: Offset = 0
+) -> list[OrderOut]:
+    orders, total = await _container(request).bots.orders(bot_id, limit, offset)
+    set_total(response, total)
     return [
         OrderOut(
             id=o.id,
@@ -404,9 +441,12 @@ async def get_orders(bot_id: UUID, request: Request, limit: Limit = 100) -> list
 
 
 @router.get("/{bot_id}/signals", response_model=list[SignalOut])
-async def get_signals(bot_id: UUID, request: Request, limit: Limit = 100) -> list[SignalOut]:
+async def get_signals(
+    bot_id: UUID, request: Request, response: Response, limit: Limit = 100, offset: Offset = 0
+) -> list[SignalOut]:
     """Strategy signals and what the risk layer decided (approved / rejected / discarded_stale)."""
-    signals = await _container(request).bots.signals(bot_id, limit)
+    signals, total = await _container(request).bots.signals(bot_id, limit, offset)
+    set_total(response, total)
     return [
         SignalOut(
             bar_time=s.bar_time,
