@@ -17,15 +17,16 @@ Verified in the code on 2026-10-31. Every chapter report compares the book again
 | Stops | Stop/target checked against the candle low/high; stop wins when both are inside the candle; a gap through the stop fills at the open (`risk_management/domain/stops.py`). |
 | Sizing | Trivial: all cash in, whole position out. Real sizing lives in the risk module and is **not** used by the backtester. |
 | Out-of-sample | One chronological split (`test_fraction`), strategy runs once over all data, metrics reported for train and test (`segments.py`). |
-| Parameter search | Sweeps exist (API/UI), results ranked per run. No correction for the number of trials. |
+| Parameter search | Sweeps exist (API/UI). With a split they rank by the **train** part and show the test part as a check (`rank_by` overrides); they report `trials` and an approximate `prior_trials` count. No statistical correction for the number of trials (no PSR/DSR/PBO). |
+| Robustness | Optional cost ladder (fee + slippage × 0–3, break-even), metrics by calendar year/quarter (`periods.py`), operator drawdown tolerance flag. |
 | Reproducibility | `seed` and a SHA-256 of the candles are recorded per run. The fill model is deterministic. |
 | Data | Candles stored in Postgres, imported by manual jobs; suspect candles are refused at entry by the risk module (`max_candle_range_pct`). Delistings/survivorship are not modelled. |
 
 ## Metrics (`modules/analytics/domain/metrics.py`)
 
-Net PnL, total return %, buy-and-hold return %, max drawdown %, fees paid, fills, round trips, win rate, profit factor, average trade PnL, open-position flag, rejected signals.
+Net PnL, total return %, buy-and-hold return %, max drawdown %, fees paid, fills, round trips, win rate, profit factor, average trade PnL, open-position flag, rejected signals. Since book 1 ch. 2: Sharpe, Sortino, information ratio vs. holding the asset, annualised return and volatility (365-day year, risk-free 0, `None` below 30 returns or 30 days; `risk_ratios.py`), exposure, sample size and gaps, drawdown duration, peak/trough, current and open drawdown. Same functions for backtests and bots.
 
-**Not computed:** Sharpe/Sortino, annualised return, drawdown *duration*, volatility, exposure/time in market, Calmar, trade-level distribution (skew, kurtosis, tails), confidence intervals, any significance test.
+**Not computed:** Calmar, trade-level distribution (skew, kurtosis, tails), confidence intervals, any significance test (PSR/DSR).
 
 ## Risk (`modules/risk_management`)
 

@@ -6,8 +6,15 @@ import { ErrorBlock, SkeletonBlock } from "@/components/shared/feedback/query-bo
 import { JobStatusBadge } from "@/components/shared/status/badges";
 import { SignedValue } from "@/components/shared/status/signed-value";
 import { useSweep } from "@/hooks/backtests/use-backtests";
-import type { SweepRun } from "@/lib/backtests/backtests.api";
-import { compareDecimal, formatPercent, formatSignedPercent } from "@/lib/shared/format";
+import type { Sweep, SweepRun } from "@/lib/backtests/backtests.api";
+import { RANK_LABELS, RANK_NOTES, winnerCheck } from "@/lib/backtests/sweep";
+import {
+  compareDecimal,
+  formatInteger,
+  formatPercent,
+  formatRatio,
+  formatSignedPercent,
+} from "@/lib/shared/format";
 
 const paramsText = (run: SweepRun): string =>
   Object.entries(run.strategy_params)
@@ -35,14 +42,14 @@ const columns: DataTableColumn<SweepRun>[] = [
     cell: (row) => <JobStatusBadge status={row.status} />,
   },
   {
-    id: "return",
+    id: "train",
     header: "Retorno (treino)",
     align: "right",
     sortable: true,
-    accessor: (row) => row.total_return_pct,
-    compare: (a, b) => compareDecimal(a.total_return_pct, b.total_return_pct),
+    accessor: (row) => row.train_return_pct ?? null,
+    compare: (a, b) => compareDecimal(a.train_return_pct ?? null, b.train_return_pct ?? null),
     cell: (row) => (
-      <SignedValue raw={row.total_return_pct} text={formatSignedPercent(row.total_return_pct)} />
+      <SignedValue raw={row.train_return_pct} text={formatSignedPercent(row.train_return_pct)} />
     ),
   },
   {
@@ -52,6 +59,36 @@ const columns: DataTableColumn<SweepRun>[] = [
     cell: (row) => (
       <SignedValue raw={row.test_return_pct} text={formatSignedPercent(row.test_return_pct)} />
     ),
+  },
+  {
+    id: "return",
+    header: "Retorno (total)",
+    align: "right",
+    sortable: true,
+    accessor: (row) => row.total_return_pct,
+    compare: (a, b) => compareDecimal(a.total_return_pct, b.total_return_pct),
+    cell: (row) => (
+      <SignedValue raw={row.total_return_pct} text={formatSignedPercent(row.total_return_pct)} />
+    ),
+  },
+  {
+    id: "sharpe",
+    header: "Sharpe (treino)",
+    align: "right",
+    sortable: true,
+    accessor: (row) => row.train_sharpe_ratio ?? row.sharpe_ratio ?? null,
+    compare: (a, b) =>
+      compareDecimal(
+        a.train_sharpe_ratio ?? a.sharpe_ratio ?? null,
+        b.train_sharpe_ratio ?? b.sharpe_ratio ?? null,
+      ),
+    cell: (row) => formatRatio(row.train_sharpe_ratio ?? row.sharpe_ratio),
+  },
+  {
+    id: "test-sharpe",
+    header: "Sharpe (teste)",
+    align: "right",
+    cell: (row) => formatRatio(row.test_sharpe_ratio),
   },
   {
     id: "bh",
@@ -69,6 +106,39 @@ const columns: DataTableColumn<SweepRun>[] = [
   { id: "error", header: "Erro", accessor: "error", defaultHidden: true },
 ];
 
+function TrialsHeadline({ sweep }: { sweep: Sweep }) {
+  const trials = sweep.trials ?? sweep.run_count + sweep.skipped.length;
+  const prior = sweep.prior_trials ?? 0;
+  return (
+    <p className="text-lg font-semibold">
+      Melhor de {formatInteger(trials)} tentativas
+      {prior > 0 ? (
+        <span className="font-normal text-muted-foreground">
+          {" "}
+          (mais ~{formatInteger(prior)} anteriores sobre estes dados)
+        </span>
+      ) : null}
+    </p>
+  );
+}
+
+function WinnerCheck({ sweep }: { sweep: Sweep }) {
+  const check = winnerCheck(sweep);
+  if (check === null) return null;
+  return (
+    <Alert variant={check.holds ? "default" : "destructive"}>
+      <AlertTitle>
+        {check.holds
+          ? "O vencedor se manteve fora da amostra"
+          : "O vencedor do treino não se sustentou fora da amostra"}
+      </AlertTitle>
+      <AlertDescription>
+        {paramsText(check.winner)}: {check.reasons.join("; ")}.
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 export function SweepPage({ sweepId }: { sweepId: string }) {
   const query = useSweep(sweepId);
   const sweep = query.data;
@@ -85,15 +155,15 @@ export function SweepPage({ sweepId }: { sweepId: string }) {
         title={`Varredura de ${sweep.strategy_type}`}
         description={`${sweep.completed} de ${sweep.run_count} concluídos${sweep.failed > 0 ? `, ${sweep.failed} com falha` : ""}.`}
       />
+      <TrialsHeadline sweep={sweep} />
       <Alert className="border-warning/40">
         <AlertTitle>Cuidado com o ajuste excessivo</AlertTitle>
         <AlertDescription>
-          {sweep.note ||
-            "Escolher o melhor resultado entre muitas combinações tende a superestimar o desempenho."}{" "}
-          Compare sempre o retorno de treino com o de teste: a melhor combinação do treino pode não
-          se repetir fora da amostra. Ranqueado por: {sweep.ranked_by}.
+          Escolher o melhor entre muitas combinações superestima o desempenho dele. Ordenado por{" "}
+          {RANK_LABELS[sweep.ranked_by]}. {RANK_NOTES[sweep.ranked_by]}
         </AlertDescription>
       </Alert>
+      {running ? null : <WinnerCheck sweep={sweep} />}
       {running ? (
         <p className="text-sm text-muted-foreground">Em andamento; a tela atualiza sozinha.</p>
       ) : null}

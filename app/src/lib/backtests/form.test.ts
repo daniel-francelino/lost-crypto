@@ -66,4 +66,21 @@ describe("backtest form", () => {
     expect(gridError(big)).toContain("225");
     expect(buildGrid(STRATEGY, { fast_period: "a" })).toContain("fast_period");
   });
+
+  it("sends cost sensitivity and the drawdown tolerance, never cost sensitivity in a sweep", () => {
+    const values = {
+      ...defaultBacktestValues(STRATEGY, NOW),
+      costSensitivity: true,
+      toleranceDrawdownPct: "15",
+      toleranceDrawdownDays: " 90 ",
+    };
+    const input = toBacktestInput(values, STRATEGY);
+    expect(input.cost_sensitivity).toBe(true);
+    expect(input.max_drawdown_tolerance_pct).toBe("15");
+    expect(input.max_drawdown_tolerance_days).toBe(90);
+    expect(toBacktestInput({ ...values, sweep: true }, STRATEGY).cost_sensitivity).toBe(false);
+    const plain = toBacktestInput(defaultBacktestValues(STRATEGY, NOW), STRATEGY);
+    expect(plain.max_drawdown_tolerance_pct).toBeNull();
+    expect(plain.max_drawdown_tolerance_days).toBeNull();
+  });
 });

@@ -253,6 +253,46 @@ function BacktestForm({ strategies, exchanges }: { strategies: Strategy[]; excha
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Robustez e tolerância</CardTitle>
+          <CardDescription>
+            Opcional. Mostra se o resultado aguenta custos maiores e se cabe no drawdown que você
+            aceita.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {values.sweep ? (
+            <p className="text-sm text-muted-foreground sm:col-span-2 lg:col-span-1">
+              A sensibilidade a custos é por backtest: rode-a no resultado escolhido da varredura.
+            </p>
+          ) : (
+            <FormSwitch
+              label="Testar sensibilidade a custos"
+              description="Repete a simulação com taxa e slippage de 0× a 3× e mostra onde o lucro some. Mais lento."
+              value={values.costSensitivity}
+              onValueChange={(value) => set("costSensitivity", value)}
+            />
+          )}
+          <FormInput
+            label="Drawdown máximo aceitável (%)"
+            inputMode="decimal"
+            description="Vazio desliga. O drawdown real costuma ser maior que o simulado."
+            value={values.toleranceDrawdownPct}
+            onValueChange={(value) => set("toleranceDrawdownPct", value)}
+            rules={[(value) => decimalError(value ?? "", false)]}
+          />
+          <FormInput
+            label="Tempo máximo abaixo do pico (dias)"
+            inputMode="numeric"
+            description="Vazio desliga."
+            value={values.toleranceDrawdownDays}
+            onValueChange={(value) => set("toleranceDrawdownDays", value)}
+            rules={[(value) => integerError(value ?? "")]}
+          />
+        </CardContent>
+      </Card>
+
       {error === null ? null : (
         <p role="alert" className="text-sm text-destructive">
           {error}

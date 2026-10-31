@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { request, requestPaged } from "@/lib/shared/api/client";
 import { HttpMethod } from "@/lib/shared/api/http";
-import { lenientEnum, nullableDecimalSchema } from "@/lib/shared/api/schemas";
+import { decimalSchema, lenientEnum, nullableDecimalSchema } from "@/lib/shared/api/schemas";
 import { equityPointSchema, metricsSchema, tradeSchema } from "@/lib/shared/analytics";
-import { JobStatus } from "@/lib/shared/enums";
+import { BreakEvenStatus, JobStatus, PeriodGranularity, SweepRankBy } from "@/lib/shared/enums";
 
 const segmentsSchema = z.object({
   split_at: z.string(),
@@ -11,6 +11,50 @@ const segmentsSchema = z.object({
   train: metricsSchema,
   test: metricsSchema,
 });
+
+const periodsSchema = z.object({
+  granularity: lenientEnum(PeriodGranularity),
+  periods: z.array(
+    z.object({
+      label: z.string(),
+      start: z.string(),
+      end: z.string(),
+      candles: z.number(),
+      metrics: metricsSchema,
+    }),
+  ),
+});
+export type Periods = z.infer<typeof periodsSchema>;
+
+const costLevelSchema = z.object({
+  multiplier: decimalSchema,
+  fee_rate: decimalSchema,
+  slippage_bps: decimalSchema,
+  cost_per_side_bps: decimalSchema,
+  net_pnl: decimalSchema,
+  total_return_pct: decimalSchema,
+  sharpe_ratio: nullableDecimalSchema,
+  round_trips: z.number(),
+  fees_paid: decimalSchema,
+});
+export type CostLevel = z.infer<typeof costLevelSchema>;
+
+const costLadderSchema = z.object({
+  levels: z.array(costLevelSchema),
+  break_even_status: lenientEnum(BreakEvenStatus),
+  break_even_multiplier: nullableDecimalSchema,
+  break_even_cost_per_side_bps: nullableDecimalSchema,
+  note: z.string(),
+});
+export type CostLadder = z.infer<typeof costLadderSchema>;
+
+const toleranceSchema = z.object({
+  max_drawdown_pct: nullableDecimalSchema,
+  max_drawdown_days: z.number().nullable(),
+  exceeded_depth: z.boolean().nullable(),
+  exceeded_duration: z.boolean().nullable(),
+});
+export type Tolerance = z.infer<typeof toleranceSchema>;
 
 export const backtestSchema = z.object({
   id: z.string(),
@@ -27,11 +71,17 @@ export const backtestSchema = z.object({
   slippage_bps: z.string(),
   seed: z.number(),
   test_fraction: z.string().nullable(),
+  cost_sensitivity: z.boolean().optional(),
+  max_drawdown_tolerance_pct: nullableDecimalSchema.optional(),
+  max_drawdown_tolerance_days: z.number().nullish(),
   sweep_id: z.string().nullable(),
   data_hash: z.string().nullable(),
   candles_count: z.number().nullable(),
   metrics: metricsSchema.nullable(),
   segments: segmentsSchema.nullable(),
+  periods: periodsSchema.nullish(),
+  cost_ladder: costLadderSchema.nullish(),
+  tolerance: toleranceSchema.nullish(),
   error: z.string().nullable(),
   created_at: z.string(),
   started_at: z.string().nullable(),
@@ -44,7 +94,11 @@ const sweepRunSchema = z.object({
   status: lenientEnum(JobStatus),
   strategy_params: z.record(z.string(), z.unknown()),
   total_return_pct: nullableDecimalSchema,
+  train_return_pct: nullableDecimalSchema.optional(),
   test_return_pct: nullableDecimalSchema,
+  sharpe_ratio: nullableDecimalSchema.optional(),
+  train_sharpe_ratio: nullableDecimalSchema.optional(),
+  test_sharpe_ratio: nullableDecimalSchema.optional(),
   max_drawdown_pct: nullableDecimalSchema,
   round_trips: z.number().nullable(),
   buy_and_hold_return_pct: nullableDecimalSchema,
@@ -61,7 +115,9 @@ const sweepSchema = z.object({
   completed: z.number(),
   failed: z.number(),
   skipped: z.array(z.record(z.string(), z.unknown())),
-  ranked_by: z.string(),
+  trials: z.number().optional(),
+  prior_trials: z.number().optional(),
+  ranked_by: lenientEnum(SweepRankBy),
   note: z.string(),
   runs: z.array(sweepRunSchema),
 });
@@ -80,6 +136,9 @@ export type BacktestInput = {
   slippage_bps: string;
   seed: number;
   test_fraction: string | null;
+  cost_sensitivity: boolean;
+  max_drawdown_tolerance_pct: string | null;
+  max_drawdown_tolerance_days: number | null;
 };
 
 export const listBacktests = (limit: number, offset: number, signal?: AbortSignal) =>

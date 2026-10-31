@@ -21,6 +21,29 @@ export const Role = {
 } as const;
 export type Role = ValueOf<typeof Role>;
 
+export const SweepRankBy = {
+  TotalReturn: "total_return_pct",
+  TrainReturn: "train_return_pct",
+  TestReturn: "test_return_pct",
+  Sharpe: "sharpe_ratio",
+  TrainSharpe: "train_sharpe_ratio",
+  TestSharpe: "test_sharpe_ratio",
+} as const;
+export type SweepRankBy = ValueOf<typeof SweepRankBy>;
+
+export const BreakEvenStatus = {
+  Found: "found",
+  NeverProfitable: "never_profitable",
+  AboveMax: "above_max",
+} as const;
+export type BreakEvenStatus = ValueOf<typeof BreakEvenStatus>;
+
+export const PeriodGranularity = {
+  Year: "year",
+  Quarter: "quarter",
+} as const;
+export type PeriodGranularity = ValueOf<typeof PeriodGranularity>;
+
 export const JobStatus = {
   Queued: "queued",
   Running: "running",

@@ -143,11 +143,20 @@ curl -X POST $B/backtests/sweeps -H 'content-type: application/json' -d '{
   "strategy_type": "ema_crossover", "start": "2024-01-01T00:00:00Z", "end": "2024-07-01T00:00:00Z",
   "test_fraction": "0.3", "grid": {"fast_period": [5, 9, 20], "slow_period": [21, 50, 100]}
 }'
-curl $B/backtests/sweeps/<id>                                  # ranking (por retorno no TESTE)
+curl $B/backtests/sweeps/<id>                                  # ranking pelo TREINO; o teste confere o vencedor
+curl "$B/backtests/sweeps/<id>?rank_by=test_sharpe_ratio"      # outro critério (consome o teste)
 curl "$B/backtests/compare?ids=<id1>&ids=<id2>"                # lado a lado
+
+# Robustez: escada de custos (0x a 3x taxa+slippage, até 50.000 candles) e tolerância de drawdown
+curl -X POST $B/backtests -H 'content-type: application/json' -d '{
+  "strategy_type": "ema_crossover", "start": "2024-01-01T00:00:00Z", "end": "2024-07-01T00:00:00Z",
+  "cost_sensitivity": true, "max_drawdown_tolerance_pct": "15", "max_drawdown_tolerance_days": 60
+}'
 ```
 
-Ranqueie pelo **retorno no teste**: o melhor parâmetro do treino costuma ser sobreajuste. Sem `test_fraction` o ranking usa o período todo e a resposta avisa disso.
+Com `test_fraction`, a varredura **escolhe pelo treino** e mostra o teste do vencedor como verificação: escolher pelo teste o transforma em dado de seleção. A resposta traz `trials` (combinações tentadas) e `prior_trials` (execuções anteriores da mesma estratégia sobre os mesmos dados, aproximado). Sem `test_fraction` o ranking usa o período todo e a resposta avisa disso.
+
+Métricas (`metrics`, também em `/bots/{id}/performance`): além de retorno e drawdown, Sharpe, Sortino, information ratio contra comprar e segurar, retorno e volatilidade anualizados (365 dias, taxa livre de risco 0; `null` com menos de 30 retornos), exposição, duração do drawdown e se ele ainda está aberto. Cada backtest traz também `periods` (por ano, ou trimestre abaixo de 2 anos) e, se pedido, `cost_ladder` com o custo de equilíbrio e `tolerance`.
 
 ### Observabilidade
 

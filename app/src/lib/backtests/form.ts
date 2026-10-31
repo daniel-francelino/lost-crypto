@@ -26,6 +26,9 @@ export type BacktestFormValues = {
   slippageBps: string;
   seed: string;
   testFraction: string;
+  costSensitivity: boolean;
+  toleranceDrawdownPct: string;
+  toleranceDrawdownDays: string;
   sweep: boolean;
   grid: Record<string, string>;
 };
@@ -46,6 +49,9 @@ export const defaultBacktestValues = (
   slippageBps: "5",
   seed: "0",
   testFraction: DEFAULT_TEST_FRACTION,
+  costSensitivity: false,
+  toleranceDrawdownPct: "",
+  toleranceDrawdownDays: "",
   sweep: false,
   grid: {},
 });
@@ -82,6 +88,8 @@ export const toBacktestInput = (
 ): BacktestInput => {
   const fraction = values.testFraction.trim();
   const fee = values.feeRate.trim();
+  const tolerancePct = values.toleranceDrawdownPct.trim();
+  const toleranceDays = values.toleranceDrawdownDays.trim();
   return {
     exchange: values.exchange,
     strategy_type: values.strategyType,
@@ -95,5 +103,8 @@ export const toBacktestInput = (
     slippage_bps: values.slippageBps.trim(),
     seed: Number.parseInt(values.seed.trim() === "" ? "0" : values.seed, 10),
     test_fraction: fraction === "" ? null : fraction,
+    cost_sensitivity: values.costSensitivity && !values.sweep,
+    max_drawdown_tolerance_pct: tolerancePct === "" ? null : tolerancePct,
+    max_drawdown_tolerance_days: toleranceDays === "" ? null : Number.parseInt(toleranceDays, 10),
   };
 };

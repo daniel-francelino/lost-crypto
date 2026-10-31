@@ -1,6 +1,6 @@
 # Livro 1 · Capítulo 2 — À procura de ideias
 
-*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: **apenas análise**; nada implementado. Diagnóstico revisado contra o código em 2026-10-31 (ver §2.1 para o que mudou em relação à versão anterior deste relatório).
+*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: **implementado** (O1–O8) em 2026-10-31; ver §8. Diagnóstico revisado contra o código em 2026-10-31 (ver §2.1). As tabelas §2 descrevem o código **antes** da implementação.
 
 ## 1. Resumo do capítulo (pp. 9–29)
 
@@ -105,9 +105,9 @@ Convenções que valem para todos os itens abaixo:
 
 * **Problema:** uma premissa fixa de custo pode esconder uma estratégia que morre com custos ligeiramente maiores, exatamente o exemplo do ES do livro.
 * **Back-end:**
-  * Campo opcional em `BacktestCreate`/`BacktestConfig`: `cost_ladder: bool = false`.
+  * Campo opcional em `BacktestCreate`/`BacktestConfig`: `cost_sensitivity: bool = false` (o resultado fica em `cost_ladder`).
   * No worker (`BacktestExecutor._execute`), quando ligado, reexecutar `run_backtest` para multiplicadores fixos do custo configurado, por exemplo `0×, 0,5×, 1×, 1,5×, 2×, 3×` aplicados a `fee_rate` e `slippage_bps`. **Não** reaproveitar sinais: a estratégia recebe a quantidade em carteira e o tamanho da compra depende do caixa, então reexecutar o motor inteiro é o único jeito correto. O custo é ~6× o tempo de CPU; com o limite de 200.000 candles isso cabe, mas a validação deve recusar `cost_ladder` acima de um limite menor (ex.: 50.000 candles) para não travar o worker.
-  * Resultado salvo numa nova coluna JSONB `cost_ladder` (migração Alembic `0008_backtest_cost_ladder.py`): por nível, `multiplier`, `fee_rate`, `slippage_bps`, `net_pnl`, `total_return_pct`, `sharpe_ratio`, `round_trips`.
+  * Resultado salvo numa nova coluna JSONB `cost_ladder` (migração Alembic `0008_backtest_analysis.py`): por nível, `multiplier`, `fee_rate`, `slippage_bps`, `net_pnl`, `total_return_pct`, `sharpe_ratio`, `round_trips`.
   * `break_even_multiplier`: interpolação linear entre os dois níveis onde `net_pnl` troca de sinal; `null` se não trocar na grade (e dizer "acima de 3×" ou "lucro nem com custo zero").
   * `BacktestOut` ganha `cost_ladder: CostLadderOut | None`.
 * **Front-end:**
@@ -121,7 +121,7 @@ Convenções que valem para todos os itens abaixo:
 * **Problema:** um resultado bom no total pode vir todo de um ano antigo; o livro manda julgar pelos anos recentes.
 * **Back-end:**
   * `backtesting/domain/periods.py`, seguindo o padrão de `segments.py`: corta a curva e as operações por **ano civil** (e por trimestre se o período tiver menos de 2 anos) e chama `compute_metrics` em cada fatia, com `initial_capital` = patrimônio no fim da fatia anterior e buy-and-hold da própria fatia.
-  * Nova coluna JSONB `periods` (mesma migração de O4) com a lista `{label, start, end, candles, metrics}`; `BacktestOut.periods: list[PeriodOut] | None`.
+  * Nova coluna JSONB `periods` (mesma migração de O4, `0008_backtest_analysis.py`) com a lista `{label, start, end, candles, metrics}`; `BacktestOut.periods: list[PeriodOut] | None`.
   * Fatias com menos de `MIN_SEGMENT_CANDLES` ou menos de `MIN_RETURNS` ficam com as razões `null`, mas aparecem.
 * **Front-end:**
   * Card "Por período" na página do backtest: tabela compacta (período, retorno, comprar e segurar, Sharpe, drawdown, operações) com barra de retorno por linha; a última linha destacada como "mais recente".
@@ -182,7 +182,7 @@ O6 sobe para o primeiro lugar porque corrige um rótulo errado que já está na 
 * `src/modules/backtesting/application/service.py` (O1, O4, O5, `prior_trials`), `application/ports.py`, `infrastructure/orm.py` e `infrastructure/repository.py` (colunas `cost_ladder`, `periods`).
 * `src/modules/backtesting/presentation/router.py` (`BacktestCreate`, `BacktestOut`, `SweepRunOut`, `SweepOut`, `rank_by`).
 * `src/modules/bots/application/service.py` (`performance` passa `bar` e preços dos snapshots).
-* `migrations/versions/0008_backtest_cost_ladder.py`, `docs/openapi.json`.
+* `migrations/versions/0008_backtest_analysis.py`, `docs/openapi.json`.
 * Testes: novo `tests/unit/test_risk_ratios.py`, `tests/unit/test_backtest_engine.py`, `tests/integration/test_phase1_flow.py` (varredura e campos novos), `tests/integration/test_frontend_api.py`.
 
 **Front-end (`app/`)**
@@ -200,7 +200,7 @@ Cada passo é um PR pequeno, com testes, e pode ir para produção sozinho.
 4. **Gráficos (O2):** `underwaterRows`, downsample min/max, gráfico "Abaixo do pico".
 5. **Triagem (O3):** `screening.ts` + `ScreeningPanel`.
 6. **Ranking pelo treino e `prior_trials` (O6 parte 2).**
-7. **Subperíodos (O5)** e **sensibilidade a custos (O4)**, com a migração `0008`.
+7. **Subperíodos (O5)** e **sensibilidade a custos (O4)**, com a migração `0008_backtest_analysis`.
 8. **Tolerância (O7)** e **aviso de universo (O8)**.
 
 ## 7. Critérios de aceite e testes
@@ -217,3 +217,34 @@ Cada passo é um PR pequeno, com testes, e pode ir para produção sozinho.
 
 ## Ressalvas
 Os limiares de Chan (Sharpe > 1, > 2, > 3; drawdown de 10% / 4 meses) são **regras práticas da experiência dele com ações/futuros**, não leis, e não foram calibrados para cripto, que tem volatilidade bem maior. Usar apenas como padrões iniciais de triagem, em constantes nomeadas e fáceis de mudar. A anualização por 365 dias é adaptação nossa (Cap. 3, O1).
+
+## 8. Implementação (2026-10-31)
+
+Tudo de O1 a O8 foi implementado, no back-end e no front-end, na branch `docs/ch02-fishing-for-ideas-review`.
+
+**Back-end (`api/`)**
+* `analytics/domain/risk_ratios.py` (novo): fator de anualização, retornos periódicos com buracos descartados e contados, Sharpe, Sortino, information ratio, volatilidade e retorno anualizados, tudo em `Decimal`.
+* `analytics/domain/metrics.py`: `drawdown_stats` (profundidade, duração em segundos e barras, pico/vale, drawdown atual e em aberto) e os campos novos em `Metrics`, todos opcionais. `compute_metrics` recebe `bar`, `benchmark_prices` e `in_market`; backtest, segmentos treino/teste, períodos e bots passam esses dados.
+* `backtesting/domain/engine.py`: `BacktestOutcome.in_market` (posição aberta em cada barra).
+* `backtesting/domain/periods.py` e `backtesting/domain/cost_ladder.py` (novos); `BacktestConfig` ganhou `cost_sensitivity` e as tolerâncias, com validação.
+* `backtesting/presentation/router.py`: `periods`, `cost_ladder`, `tolerance` em `BacktestOut`; `train_*`/`*_sharpe_ratio` em `SweepRunOut`; `trials`, `prior_trials`, `ranked_by: SweepRankBy` e `?rank_by=` em `SweepOut`.
+* Migração `0008_backtest_analysis.py` (colunas aditivas; `alembic check` sem diferenças; downgrade testado). `docs/openapi.json` regenerado.
+
+**Front-end (`app/`)**
+* `MetricsGrid` com as métricas novas, tamanho da amostra, exposição e duração do drawdown; selo "em aberto".
+* `UnderwaterChart` (abaixo do pico) no backtest e na aba de desempenho do bot; downsample que preserva mínimo e máximo de cada bloco.
+* `ScreeningPanel` + `lib/backtests/screening.ts`; `CostLadderCard`; `PeriodsCard`; aviso de tolerância.
+* Varredura: coluna de treino corrigida, colunas de total e Sharpe, "Melhor de N tentativas", verificação do vencedor, nota de ranking em português (`lib/backtests/sweep.ts`).
+* Comparação: colunas de Sharpe e tempo abaixo do pico; aviso de sobrevivência quando os pares diferem.
+* Formulário: cartão "Robustez e tolerância"; a tolerância de profundidade vai para o `max_drawdown_pct` do bot criado a partir do backtest.
+
+**Diferenças em relação ao plano**
+* O retorno anualizado exige **30 dias** de dados (não 30 retornos): anualizar poucos dias gera números enganosos.
+* A escada de custos **não** é aceita em varreduras (422) para não multiplicar por 6 o trabalho de até 200 execuções; também exige custo base diferente de zero e que o triplo continue válido.
+* O ranking padrão com `test_fraction` mudou de `test_return_pct` para `train_return_pct`. É uma mudança de comportamento visível na API.
+* **Não** reproduzimos o Exemplo 3.4 do livro (Sharpe 0,7893 do IGE): os dados do IGE não estão no repositório. No lugar, os testes comparam com um cálculo independente em ponto flutuante (`statistics`), verificam invariância de escala, variância zero e amostra curta.
+
+**Verificação**
+* API: `make check` (ruff, mypy strict, 246 testes de unidade) e 73 testes de integração em Postgres 16, todos passando.
+* App: `lint`, `typecheck`, `test` (64), `format:check`, `check:consistency`, `build`, todos passando.
+* Navegador (Playwright, dados sintéticos): detalhe, varredura, comparação e formulário em 1366 px e 360 px. Os 15 px de rolagem horizontal em 360 px vêm do botão "Kill switch" da barra superior e já existiam em telas não alteradas (`/bots`, `/system`); não foram tratados aqui.

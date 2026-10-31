@@ -340,8 +340,8 @@ export interface paths {
          * @description Queue one backtest per parameter combination of ``grid`` and compare them.
          *
          *     Combinations the strategy rejects (e.g. fast >= slow) are skipped and reported. With
-         *     ``test_fraction`` set, rank by the test (out-of-sample) return to avoid picking an overfit
-         *     parameter set.
+         *     ``test_fraction`` set, runs are ranked by the train part and the test part checks the
+         *     winner; choosing by the test part would turn it into selection data.
          */
         post: operations["create_sweep_api_v1_backtests_sweeps_post"];
         delete?: never;
@@ -1018,6 +1018,22 @@ export interface components {
              * @description Hold out this share of the series (at the end) as an out-of-sample test part. Train and test metrics are then reported separately in `segments`.
              */
             test_fraction?: number | string | null;
+            /**
+             * Cost Sensitivity
+             * @description Also re-run the backtest with fee and slippage scaled by 0, 0.5, 1, 1.5, 2 and 3 and report the break-even cost in `cost_ladder`. Slower; limited to 50,000 candles.
+             * @default false
+             */
+            cost_sensitivity: boolean;
+            /**
+             * Max Drawdown Tolerance Pct
+             * @description Deepest drawdown the operator accepts; `tolerance` flags runs beyond it.
+             */
+            max_drawdown_tolerance_pct?: number | string | null;
+            /**
+             * Max Drawdown Tolerance Days
+             * @description Longest drawdown (days below the peak) the operator accepts.
+             */
+            max_drawdown_tolerance_days?: number | null;
         };
         /** BacktestOut */
         BacktestOut: {
@@ -1058,6 +1074,12 @@ export interface components {
             seed: number;
             /** Test Fraction */
             test_fraction: string | null;
+            /** Cost Sensitivity */
+            cost_sensitivity: boolean;
+            /** Max Drawdown Tolerance Pct */
+            max_drawdown_tolerance_pct: string | null;
+            /** Max Drawdown Tolerance Days */
+            max_drawdown_tolerance_days: number | null;
             /** Sweep Id */
             sweep_id: string | null;
             /** Data Hash */
@@ -1066,6 +1088,9 @@ export interface components {
             candles_count: number | null;
             metrics: components["schemas"]["MetricsOut"] | null;
             segments: components["schemas"]["SegmentsOut"] | null;
+            periods: components["schemas"]["PeriodsOut"] | null;
+            cost_ladder: components["schemas"]["CostLadderOut"] | null;
+            tolerance: components["schemas"]["ToleranceOut"] | null;
             /** Error */
             error: string | null;
             /**
@@ -1384,6 +1409,43 @@ export interface components {
          * @enum {string}
          */
         ConnectionStatus: "active" | "disabled" | "invalid" | "pending";
+        /** CostLadderOut */
+        CostLadderOut: {
+            /** Levels */
+            levels: components["schemas"]["CostLevelOut"][];
+            /**
+             * Break Even Status
+             * @description `found`, `never_profitable` or `above_max`.
+             */
+            break_even_status: string;
+            /** Break Even Multiplier */
+            break_even_multiplier: string | null;
+            /** Break Even Cost Per Side Bps */
+            break_even_cost_per_side_bps: string | null;
+            /** Note */
+            note: string;
+        };
+        /** CostLevelOut */
+        CostLevelOut: {
+            /** Multiplier */
+            multiplier: string;
+            /** Fee Rate */
+            fee_rate: string;
+            /** Slippage Bps */
+            slippage_bps: string;
+            /** Cost Per Side Bps */
+            cost_per_side_bps: string;
+            /** Net Pnl */
+            net_pnl: string;
+            /** Total Return Pct */
+            total_return_pct: string;
+            /** Sharpe Ratio */
+            sharpe_ratio: string | null;
+            /** Round Trips */
+            round_trips: number;
+            /** Fees Paid */
+            fees_paid: string;
+        };
         /** CoverageOut */
         CoverageOut: {
             /** Exchange */
@@ -1577,6 +1639,60 @@ export interface components {
             open_position: boolean;
             /** Rejected Signals */
             rejected_signals: number;
+            /**
+             * Sharpe Ratio
+             * @description Annualised (365 days), risk-free rate 0. Null below 30 returns.
+             */
+            sharpe_ratio?: string | null;
+            /** Sortino Ratio */
+            sortino_ratio?: string | null;
+            /**
+             * Information Ratio
+             * @description Sharpe of the excess return over holding the same asset.
+             */
+            information_ratio?: string | null;
+            /**
+             * Annualized Return Pct
+             * @description Geometric; null for spans shorter than 30 days.
+             */
+            annualized_return_pct?: string | null;
+            /** Annualized Volatility Pct */
+            annualized_volatility_pct?: string | null;
+            /**
+             * Exposure Pct
+             * @description Share of bars with an open position.
+             */
+            exposure_pct?: string | null;
+            /**
+             * Return Periods
+             * @description Number of periodic returns behind the ratios.
+             */
+            return_periods?: number | null;
+            /**
+             * Return Gaps
+             * @description Steps skipped because the equity curve had a hole.
+             */
+            return_gaps?: number | null;
+            /** Annualization Factor */
+            annualization_factor?: string | null;
+            /**
+             * Max Drawdown Duration Seconds
+             * @description Longest time from a peak until equity was back at it.
+             */
+            max_drawdown_duration_seconds?: number | null;
+            /** Max Drawdown Duration Bars */
+            max_drawdown_duration_bars?: number | null;
+            /** Max Drawdown Peak At */
+            max_drawdown_peak_at?: string | null;
+            /** Max Drawdown Trough At */
+            max_drawdown_trough_at?: string | null;
+            /** Current Drawdown Pct */
+            current_drawdown_pct?: string | null;
+            /**
+             * Drawdown Open
+             * @description The curve ends below its high watermark (not recovered).
+             */
+            drawdown_open?: boolean | null;
         };
         /** OrderOut */
         OrderOut: {
@@ -1631,6 +1747,34 @@ export interface components {
             minimum: number | null;
             /** Description */
             description: string;
+        };
+        /** PeriodOut */
+        PeriodOut: {
+            /** Label */
+            label: string;
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Candles */
+            candles: number;
+            metrics: components["schemas"]["MetricsOut"];
+        };
+        /** PeriodsOut */
+        PeriodsOut: {
+            /**
+             * Granularity
+             * @description `year`, or `quarter` when the run spans < 2 years.
+             */
+            granularity: string;
+            /** Periods */
+            periods: components["schemas"]["PeriodOut"][];
         };
         /** PortfolioOut */
         PortfolioOut: {
@@ -1905,6 +2049,22 @@ export interface components {
              */
             test_fraction?: number | string | null;
             /**
+             * Cost Sensitivity
+             * @description Also re-run the backtest with fee and slippage scaled by 0, 0.5, 1, 1.5, 2 and 3 and report the break-even cost in `cost_ladder`. Slower; limited to 50,000 candles.
+             * @default false
+             */
+            cost_sensitivity: boolean;
+            /**
+             * Max Drawdown Tolerance Pct
+             * @description Deepest drawdown the operator accepts; `tolerance` flags runs beyond it.
+             */
+            max_drawdown_tolerance_pct?: number | string | null;
+            /**
+             * Max Drawdown Tolerance Days
+             * @description Longest drawdown (days below the peak) the operator accepts.
+             */
+            max_drawdown_tolerance_days?: number | null;
+            /**
              * Grid
              * @description Parameter name -> values to try. One run per combination (max 200).
              * @example {
@@ -1951,13 +2111,27 @@ export interface components {
             skipped: {
                 [key: string]: unknown;
             }[];
-            /** Ranked By */
-            ranked_by: string;
+            /**
+             * Trials
+             * @description Parameter combinations tried, including skipped ones.
+             */
+            trials: number;
+            /**
+             * Prior Trials
+             * @description Approximate: earlier completed runs of the same strategy on overlapping data (same exchange, symbol and timeframe) outside this sweep.
+             */
+            prior_trials: number;
+            ranked_by: components["schemas"]["SweepRankBy"];
             /** Note */
             note: string;
             /** Runs */
             runs: components["schemas"]["SweepRunOut"][];
         };
+        /**
+         * SweepRankBy
+         * @enum {string}
+         */
+        SweepRankBy: "total_return_pct" | "train_return_pct" | "test_return_pct" | "sharpe_ratio" | "train_sharpe_ratio" | "test_sharpe_ratio";
         /** SweepRunOut */
         SweepRunOut: {
             /**
@@ -1970,10 +2144,21 @@ export interface components {
             strategy_params: {
                 [key: string]: unknown;
             };
-            /** Total Return Pct */
+            /**
+             * Total Return Pct
+             * @description Whole period (train + test).
+             */
             total_return_pct: string | null;
+            /** Train Return Pct */
+            train_return_pct: string | null;
             /** Test Return Pct */
             test_return_pct: string | null;
+            /** Sharpe Ratio */
+            sharpe_ratio: string | null;
+            /** Train Sharpe Ratio */
+            train_sharpe_ratio: string | null;
+            /** Test Sharpe Ratio */
+            test_sharpe_ratio: string | null;
             /** Max Drawdown Pct */
             max_drawdown_pct: string | null;
             /** Round Trips */
@@ -2020,6 +2205,20 @@ export interface components {
              */
             expires_in: number;
             user: components["schemas"]["UserOut"];
+        };
+        /** ToleranceOut */
+        ToleranceOut: {
+            /** Max Drawdown Pct */
+            max_drawdown_pct: string | null;
+            /** Max Drawdown Days */
+            max_drawdown_days: number | null;
+            /** Exceeded Depth */
+            exceeded_depth: boolean | null;
+            /**
+             * Exceeded Duration
+             * @description Null when the run predates drawdown duration (not computed).
+             */
+            exceeded_duration: boolean | null;
         };
         /** TradeOut */
         TradeOut: {
@@ -2699,7 +2898,10 @@ export interface operations {
     };
     get_sweep_api_v1_backtests_sweeps__sweep_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Ranking criterion. Default: `train_return_pct` with a train/test split (the test part then stays a check, not a selection criterion), else `total_return_pct`. */
+                rank_by?: components["schemas"]["SweepRankBy"] | null;
+            };
             header?: never;
             path: {
                 sweep_id: string;

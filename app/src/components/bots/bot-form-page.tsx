@@ -42,6 +42,7 @@ const prefilledValues = (strategies: Strategy[], prefill: BotPrefill): BotFormVa
     symbol: prefill.symbol ?? base.symbol,
     timeframe: prefill.timeframe ?? base.timeframe,
     params: paramsFromRecord(strategy, prefillParams(prefill)),
+    maxDrawdownPct: prefill.maxDrawdownPct ?? base.maxDrawdownPct,
   };
 };
 

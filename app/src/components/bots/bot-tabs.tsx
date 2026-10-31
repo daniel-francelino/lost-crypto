@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "lost-ui/ui/card";
 import { ErrorBlock, QueryBoundary } from "@/components/shared/feedback/query-boundary";
 import { MetricsGrid } from "@/components/shared/metrics/metrics-grid";
 import { EquityChart } from "@/components/shared/metrics/equity-chart";
+import { UnderwaterChart } from "@/components/shared/metrics/underwater-chart";
 import { StatTile } from "@/components/shared/metrics/stat-tile";
 import { OrderStatusBadge, SideBadge } from "@/components/shared/status/badges";
 import { SignedValue } from "@/components/shared/status/signed-value";
@@ -90,10 +91,13 @@ export function SummaryTab({ bot }: { bot: Bot }) {
         <CardContent>
           <QueryBoundary query={equity}>
             {(points) => (
-              <EquityChart
-                points={points}
-                summary={`Últimos ${points.length} pontos de capital (horários em fuso local).`}
-              />
+              <div className="space-y-4">
+                <EquityChart
+                  points={points}
+                  summary={`Últimos ${points.length} pontos de capital (horários em fuso local).`}
+                />
+                <UnderwaterChart points={points} />
+              </div>
             )}
           </QueryBoundary>
         </CardContent>

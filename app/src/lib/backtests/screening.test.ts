@@ -1,0 +1,85 @@
+import { describe, expect, it } from "vitest";
+import type { Backtest } from "@/lib/backtests/backtests.api";
+import { ScreeningLevel, screeningFlags } from "@/lib/backtests/screening";
+import type { Metrics } from "@/lib/shared/analytics";
+
+const BASE: Metrics = {
+  initial_capital: "1000",
+  final_equity: "1300",
+  net_pnl: "300",
+  total_return_pct: "30",
+  buy_and_hold_return_pct: "10",
+  max_drawdown_pct: "5",
+  fees_paid: "2",
+  fills: 60,
+  round_trips: 30,
+  win_rate_pct: "55",
+  profit_factor: "1.6",
+  avg_trade_pnl: "10",
+  open_position: false,
+  rejected_signals: 0,
+  sharpe_ratio: "1.8",
+  return_periods: 8760,
+  exposure_pct: "60",
+  max_drawdown_duration_seconds: 10 * 86400,
+  drawdown_open: false,
+  current_drawdown_pct: "0",
+};
+type Run = Pick<Backtest, "start" | "end" | "segments">;
+
+const YEAR: Run = { start: "2025-01-01T00:00:00Z", end: "2025-12-31T23:59:59Z", segments: null };
+
+const ids = (metrics: Metrics, run: Run = YEAR) =>
+  screeningFlags({ ...run, metrics }).map((flag) => flag.id);
+
+describe("screening flags (Chan's rules of thumb)", () => {
+  it("raises nothing for a healthy result", () => {
+    expect(ids(BASE)).toEqual([]);
+  });
+
+  it("flags each rule on its own", () => {
+    expect(ids({ ...BASE, sharpe_ratio: "0.7" })).toEqual(["sharpe"]);
+    expect(ids({ ...BASE, max_drawdown_pct: "12.5" })).toEqual(["drawdown-depth"]);
+    expect(ids({ ...BASE, max_drawdown_duration_seconds: 150 * 86400 })).toEqual([
+      "drawdown-duration",
+    ]);
+    expect(ids({ ...BASE, round_trips: 3 })).toEqual(["few-trades"]);
+    expect(ids({ ...BASE, exposure_pct: "8" })).toEqual(["exposure"]);
+    expect(ids({ ...BASE, total_return_pct: "5" })).toEqual(["benchmark"]);
+    expect(ids({ ...BASE, drawdown_open: true, current_drawdown_pct: "3" })).toEqual([
+      "drawdown-open",
+    ]);
+  });
+
+  it("reports a short sample instead of a missing Sharpe", () => {
+    expect(ids({ ...BASE, sharpe_ratio: null, return_periods: 12 })).toEqual(["sample"]);
+  });
+
+  it("lists warnings before information", () => {
+    const flags = screeningFlags({
+      ...YEAR,
+      metrics: { ...BASE, exposure_pct: "8", sharpe_ratio: "0.2" },
+    });
+    expect(flags.map((flag) => flag.level)).toEqual([ScreeningLevel.Warning, ScreeningLevel.Info]);
+  });
+
+  it("flags a train profit that does not hold in the test part", () => {
+    const segments = {
+      split_at: "2025-09-01T00:00:00Z",
+      test_fraction: "0.3",
+      train: { ...BASE, total_return_pct: "40" },
+      test: { ...BASE, total_return_pct: "-4" },
+    };
+    expect(ids(BASE, { ...YEAR, segments })).toEqual(["out-of-sample"]);
+  });
+
+  it("ignores metrics stored before the new fields existed", () => {
+    const old: Metrics = { ...BASE };
+    delete old.sharpe_ratio;
+    delete old.return_periods;
+    delete old.exposure_pct;
+    delete old.max_drawdown_duration_seconds;
+    delete old.drawdown_open;
+    expect(ids(old)).toEqual([]);
+  });
+});

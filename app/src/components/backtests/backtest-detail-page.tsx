@@ -10,17 +10,28 @@ import {
   QueryBoundary,
   SkeletonBlock,
 } from "@/components/shared/feedback/query-boundary";
+import { CostLadderCard } from "@/components/backtests/cost-ladder-card";
+import { PeriodsCard } from "@/components/backtests/periods-card";
+import { ScreeningPanel } from "@/components/backtests/screening-panel";
 import { EquityChart } from "@/components/shared/metrics/equity-chart";
 import { MetricsGrid } from "@/components/shared/metrics/metrics-grid";
+import { UnderwaterChart } from "@/components/shared/metrics/underwater-chart";
 import { JobStatusBadge, SideBadge } from "@/components/shared/status/badges";
 import { useSessionUser } from "@/hooks/shared/use-session";
 import { useBacktest, useBacktestEquity, useTrades } from "@/hooks/backtests/use-backtests";
+import type { Tolerance } from "@/lib/backtests/backtests.api";
 import type { Trade } from "@/lib/shared/analytics";
 import { prefillFromRun } from "@/lib/shared/bot-prefill";
 import { Capability, can } from "@/lib/shared/capability";
 import { formatDateTime, formatUtc, formatUtcDay } from "@/lib/shared/dates";
 import { JobStatus } from "@/lib/shared/enums";
-import { formatMoney, formatPrice, formatQuantity, quoteCurrency } from "@/lib/shared/format";
+import {
+  formatMoney,
+  formatPercent,
+  formatPrice,
+  formatQuantity,
+  quoteCurrency,
+} from "@/lib/shared/format";
 import { AppRoute } from "@/lib/shared/routes";
 
 const HISTORICAL = "Histórico simulado — não garante resultado futuro.";
@@ -38,6 +49,41 @@ const tradeColumns = (quote: string): DataTableColumn<Trade>[] => [
   },
   { id: "fee", header: "Taxa", align: "right", cell: (row) => formatMoney(row.fee, quote) },
 ];
+
+const toleranceProblems = (tolerance: Tolerance): string[] => [
+  ...(tolerance.exceeded_depth === true
+    ? [`o drawdown passou do limite de ${formatPercent(tolerance.max_drawdown_pct)}`]
+    : []),
+  ...(tolerance.exceeded_duration === true
+    ? [`ficou mais de ${tolerance.max_drawdown_days ?? "—"} dias abaixo do pico`]
+    : []),
+];
+
+function ToleranceNotice({ tolerance }: { tolerance: Tolerance }) {
+  const problems = toleranceProblems(tolerance);
+  if (problems.length > 0) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Fora da sua tolerância</AlertTitle>
+        <AlertDescription>
+          Nesta simulação {problems.join(" e ")}. O drawdown real tende a ser maior que o simulado.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  return (
+    <p className="text-sm text-muted-foreground">
+      Dentro da tolerância informada (drawdown{" "}
+      {tolerance.max_drawdown_pct === null
+        ? "sem limite"
+        : `até ${formatPercent(tolerance.max_drawdown_pct)}`}
+      {tolerance.max_drawdown_days === null
+        ? ""
+        : `, até ${tolerance.max_drawdown_days} dias abaixo do pico`}
+      ). Ainda assim, o real tende a ser pior.
+    </p>
+  );
+}
 
 export function BacktestDetailPage({ runId }: { runId: string }) {
   const user = useSessionUser();
@@ -86,6 +132,10 @@ export function BacktestDetailPage({ runId }: { runId: string }) {
           <AlertDescription>O worker está simulando. Esta tela atualiza sozinha.</AlertDescription>
         </Alert>
       ) : null}
+      {run.tolerance === null || run.tolerance === undefined || run.metrics === null ? null : (
+        <ToleranceNotice tolerance={run.tolerance} />
+      )}
+      {run.metrics === null ? null : <ScreeningPanel run={run} metrics={run.metrics} />}
       {run.metrics === null ? null : (
         <section className="space-y-3" aria-label="Métricas">
           <h2 className="text-base font-semibold">Resultado completo</h2>
@@ -120,14 +170,23 @@ export function BacktestDetailPage({ runId }: { runId: string }) {
             <CardContent>
               <QueryBoundary query={equity}>
                 {(points) => (
-                  <EquityChart
-                    points={points}
-                    summary={`${points.length} pontos da simulação (horários em fuso local).`}
-                  />
+                  <div className="space-y-4">
+                    <EquityChart
+                      points={points}
+                      summary={`${points.length} pontos da simulação (horários em fuso local).`}
+                    />
+                    <UnderwaterChart points={points} />
+                  </div>
                 )}
               </QueryBoundary>
             </CardContent>
           </Card>
+          {run.periods === null || run.periods === undefined || run.metrics === null ? null : (
+            <PeriodsCard periods={run.periods} totalReturnPct={run.metrics.total_return_pct} />
+          )}
+          {run.cost_ladder === null || run.cost_ladder === undefined ? null : (
+            <CostLadderCard ladder={run.cost_ladder} />
+          )}
           <section className="space-y-2">
             <h2 className="text-base font-semibold">Operações</h2>
             {trades.isError ? (

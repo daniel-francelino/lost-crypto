@@ -2,13 +2,20 @@ import { PageHeader } from "lost-ui/app/page-header";
 import { LineChart } from "lost-ui/charts/line-chart";
 import { DataTable, type DataTableColumn } from "lost-ui/data/data-table";
 import { Empty } from "lost-ui/data/empty";
+import { Alert, AlertDescription, AlertTitle } from "lost-ui/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "lost-ui/ui/card";
 import { QueryBoundary } from "@/components/shared/feedback/query-boundary";
 import { SignedValue } from "@/components/shared/status/signed-value";
 import { useCompareEquity, useComparison } from "@/hooks/backtests/use-backtests";
 import type { Backtest } from "@/lib/backtests/backtests.api";
 import { compareChartRows } from "@/lib/shared/equity-chart-rows";
-import { formatPercent, formatSignedPercent } from "@/lib/shared/format";
+import {
+  compareDecimal,
+  formatDuration,
+  formatPercent,
+  formatRatio,
+  formatSignedPercent,
+} from "@/lib/shared/format";
 
 const MAX = 4;
 
@@ -72,10 +79,26 @@ export function ComparePage({ ids }: { ids: string[] }) {
               cell: (row) => formatSignedPercent(row.metrics?.buy_and_hold_return_pct),
             },
             {
+              id: "sharpe",
+              header: "Sharpe",
+              align: "right",
+              sortable: true,
+              accessor: (row) => row.metrics?.sharpe_ratio ?? null,
+              compare: (a, b) =>
+                compareDecimal(a.metrics?.sharpe_ratio ?? null, b.metrics?.sharpe_ratio ?? null),
+              cell: (row) => formatRatio(row.metrics?.sharpe_ratio),
+            },
+            {
               id: "dd",
               header: "Drawdown",
               align: "right",
               cell: (row) => formatPercent(row.metrics?.max_drawdown_pct),
+            },
+            {
+              id: "dd-time",
+              header: "Tempo abaixo do pico",
+              align: "right",
+              cell: (row) => formatDuration(row.metrics?.max_drawdown_duration_seconds),
             },
             {
               id: "wr",
@@ -90,8 +113,18 @@ export function ComparePage({ ids }: { ids: string[] }) {
               accessor: (row) => row.metrics?.round_trips ?? 0,
             },
           ];
+          const symbols = new Set(runs.map((run) => run.symbol));
           return (
             <div className="space-y-6">
+              {symbols.size > 1 ? (
+                <Alert className="border-warning/40">
+                  <AlertTitle>Pares diferentes</AlertTitle>
+                  <AlertDescription>
+                    Os pares foram escolhidos hoje; pares deslistados não entram na comparação, o
+                    que tende a favorecer o resultado (viés de sobrevivência).
+                  </AlertDescription>
+                </Alert>
+              ) : null}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">Curvas de capital</CardTitle>
