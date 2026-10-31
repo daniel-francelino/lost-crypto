@@ -28,7 +28,7 @@ Chapter-by-chapter analyses of the reference books in [`books/`](../../books), c
 | 2 | [Fishing for Ideas](01-quantitative-trading-chan/ch02-fishing-for-ideas.md) | ✅ Implemented: risk ratios, drawdown duration, cost ladder, periods, screening, sweep trials and train-based ranking |
 | 3 | [Backtesting](01-quantitative-trading-chan/ch03-backtesting.md) | ✅ Implemented: truncation test, candle integrity + outliers, gap guard, data quality per run, sweep robustness, listing snapshots (O1/O2/O9 via ch. 2) |
 | 4 | [Setting Up Your Business](01-quantitative-trading-chan/ch04-setting-up-your-business.md) | ✅ Implemented: daily key re-checks with visible reason, exposed-position report, external worker health, tested backups, clock-skew guard, runbook |
-| 5 | [Execution Systems](01-quantitative-trading-chan/ch05-execution-systems.md) | No paper-vs-backtest parity; no volume cap; backtest ignores real risk sizing |
+| 5 | [Execution Systems](01-quantitative-trading-chan/ch05-execution-systems.md) | No parity check (bots don't even store the candles they saw); paper fills at the signal close, backtests at the next open; no intended-vs-real execution record; backtest ignores the bot's risk sizing; no volume cap |
 | 6 | [Money and Risk Management](01-quantitative-trading-chan/ch06-money-and-risk-management.md) | Kelly reference as advice; tail-aware exposure cap; only hard pauses, no gradual de-risking |
 | 7 | [Special Topics](01-quantitative-trading-chan/ch07-special-topics.md) | Only trend strategies; no time exit; half-life tool; data cleansing first |
 | 8 | [Conclusion](01-quantitative-trading-chan/ch08-conclusion.md) | No new items; reinforces earlier ones |
