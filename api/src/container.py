@@ -23,7 +23,8 @@ from modules.market_data.application.service import CandleImporter, MarketDataSe
 from modules.market_data.infrastructure.repository import SqlAlchemyImportStore
 from modules.risk_management.application.service import KillSwitchService
 from modules.risk_management.domain.models import GlobalRiskLimits
-from modules.strategies.domain.registry import StrategyRegistry, default_registry
+from modules.strategies.catalog import build_strategy_registry
+from modules.strategies.domain.registry import StrategyRegistry
 from modules.trading.application.ports import TradingStore
 from modules.trading.application.status import StatusService
 from modules.trading.application.supervisor import BotSupervisor
@@ -60,7 +61,7 @@ def build_container(
     session_factory = create_session_factory(engine)
     clock = clock or SystemClock()
     ids = UuidGenerator()
-    registry = default_registry()
+    registry = build_strategy_registry(settings.enabled_strategy_ids)
     exchanges = exchanges or build_exchange_registry(settings.enabled_exchange_ids)
     import_stores = make_store_factory(session_factory, SqlAlchemyImportStore)
     backtest_stores = make_store_factory(session_factory, SqlAlchemyBacktestStore)

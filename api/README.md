@@ -157,3 +157,14 @@ curl $B/bots/overview     # todos os bots lado a lado: equity, retorno %, PnL, t
 ```
 
 `worker.alive` fica falso se o worker não gravar heartbeat por mais de `WORKER_STALE_AFTER_SECONDS` (60 s); aponte um monitor para esse endpoint, porque stops são monitorados pelo bot e não protegem com o worker parado.
+
+### Estratégias (uma por arquivo)
+
+Mesmo desenho das exchanges: um contrato (`Strategy`, em `strategies/domain/base.py`), **um arquivo por estratégia que se descreve sozinho** (chave, nome, descrição, parâmetros) e um catálogo (`strategies/catalog.py`) que lista as disponíveis. `ENABLED_STRATEGIES` (vazio = todas) restringe o que um worker expõe.
+
+| `strategy_type` | Arquivo | Ideia |
+|---|---|---|
+| `ema_crossover` | `strategies/domain/ema_crossover.py` | compra no cruzamento da EMA rápida acima da lenta |
+| `donchian_breakout` | `strategies/domain/donchian_breakout.py` | compra o rompimento da máxima dos últimos N candles, vende ao perder a mínima dos últimos M |
+
+`GET /strategies` lista todas com seus parâmetros. Para criar uma nova: copie `donchian_breakout.py`, registre em `catalog.py`, rode `make test` (a suíte de contrato valida a estratégia sozinha) e use o `TYPE_KEY` em bots/backtests/varreduras. Passo a passo e padrões de projeto: [docs/architecture/11-strategies.md](docs/architecture/11-strategies.md).

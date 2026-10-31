@@ -29,9 +29,9 @@ async def list_strategies(request: Request) -> list[StrategyOut]:
     container: Container = request.app.state.container
     return [
         StrategyOut(
-            type_key=d.type_key,
-            name=d.name,
-            description=d.description,
+            type_key=d.TYPE_KEY,
+            name=d.NAME,
+            description=d.DESCRIPTION,
             parameters=[
                 ParamOut(
                     name=p.name,
@@ -40,7 +40,7 @@ async def list_strategies(request: Request) -> list[StrategyOut]:
                     minimum=p.minimum,
                     description=p.description,
                 )
-                for p in d.parameters
+                for p in d.PARAMETERS
             ],
         )
         for d in container.registry.list()

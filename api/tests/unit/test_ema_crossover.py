@@ -3,12 +3,13 @@ from decimal import Decimal
 import pytest
 
 from factories import make_candles
+from modules.strategies.catalog import build_strategy_registry
+from modules.strategies.domain.base import InvalidStrategyParams
 from modules.strategies.domain.ema_crossover import (
     EmaCrossoverParams,
     EmaCrossoverStrategy,
-    InvalidStrategyParams,
 )
-from modules.strategies.domain.registry import UnknownStrategy, default_registry
+from modules.strategies.domain.registry import UnknownStrategy
 from modules.strategies.domain.types import Side, StrategyContext
 
 
@@ -75,11 +76,11 @@ def test_evaluate_is_deterministic_and_does_not_mutate_state() -> None:
 )
 def test_invalid_params_are_rejected(raw: dict[str, object]) -> None:
     with pytest.raises(InvalidStrategyParams):
-        EmaCrossoverParams.from_mapping(raw)
+        EmaCrossoverStrategy.from_params(raw)
 
 
 def test_registry_defaults_to_ema_9_21_and_rejects_unknown_types() -> None:
-    registry = default_registry()
+    registry = build_strategy_registry()
     strategy = registry.create("ema_crossover", {})
     assert strategy.params == EmaCrossoverParams(9, 21)
     with pytest.raises(UnknownStrategy):

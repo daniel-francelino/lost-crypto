@@ -18,6 +18,7 @@ Architectural reference for the Lost Crypto backend. **Documentation only** — 
 | 08 | [Database](08-database.md) | Conceptual data model and integrity rules |
 | 09 | [Directory structure](09-directory-structure.md) | Feature-based layout under `api/` |
 | 10 | [Exchange abstraction](10-exchanges.md) | Registry, profiles, gateway port, how to add an exchange |
+| 11 | [Strategies](11-strategies.md) | One contract, one file per strategy, catalog, how to add one |
 
 ## Key decisions (summary)
 

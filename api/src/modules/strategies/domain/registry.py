@@ -1,88 +1,58 @@
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+import re
+from collections.abc import Mapping, Sequence
 from typing import Any
 
-from core.errors import DomainError
-from modules.strategies.domain import ema_crossover
-from modules.strategies.domain.types import Strategy
+from core.errors import DomainError, LostCryptoError
+from modules.strategies.domain.base import ParamSpec, Strategy
 
 
 class UnknownStrategy(DomainError):
     pass
 
 
-@dataclass(frozen=True, slots=True)
-class ParamSpec:
-    name: str
-    type: str
-    default: Any
-    description: str
-    minimum: int | None = None
+class StrategyConfigurationError(LostCryptoError):
+    """A strategy class is misdeclared or the catalog selection is wrong."""
 
 
-@dataclass(frozen=True, slots=True)
-class StrategyDefinition:
-    type_key: str
-    name: str
-    description: str
-    parameters: tuple[ParamSpec, ...]
-    factory: Callable[[Mapping[str, Any]], Strategy[Any]]
+_KEY = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
 class StrategyRegistry:
-    def __init__(self, definitions: list[StrategyDefinition]) -> None:
-        self._definitions = {d.type_key: d for d in definitions}
+    """Registry + factory of strategy classes, keyed by their ``TYPE_KEY``."""
 
-    def list(self) -> list[StrategyDefinition]:
-        return list(self._definitions.values())
+    def __init__(self, strategies: Sequence[type[Strategy[Any]]] = ()) -> None:
+        self._classes: dict[str, type[Strategy[Any]]] = {}
+        for strategy_cls in strategies:
+            self.register(strategy_cls)
 
-    def get(self, type_key: str) -> StrategyDefinition:
+    def register(self, strategy_cls: type[Strategy[Any]]) -> None:
+        name = strategy_cls.__name__
+        key = getattr(strategy_cls, "TYPE_KEY", None)
+        if not isinstance(key, str) or not _KEY.match(key):
+            raise StrategyConfigurationError(f"{name}.TYPE_KEY must be a snake_case string")
+        for attribute in ("NAME", "DESCRIPTION"):
+            value = getattr(strategy_cls, attribute, None)
+            if not isinstance(value, str) or not value.strip():
+                raise StrategyConfigurationError(f"{name}.{attribute} must be a non-empty string")
+        parameters = getattr(strategy_cls, "PARAMETERS", None)
+        if not isinstance(parameters, tuple) or not all(
+            isinstance(p, ParamSpec) for p in parameters
+        ):
+            raise StrategyConfigurationError(f"{name}.PARAMETERS must be a tuple of ParamSpec")
+        if key in self._classes:
+            raise StrategyConfigurationError(f"duplicate strategy key {key!r}")
+        self._classes[key] = strategy_cls
+
+    def list(self) -> list[type[Strategy[Any]]]:
+        return list(self._classes.values())
+
+    def get(self, type_key: str) -> type[Strategy[Any]]:
         try:
-            return self._definitions[type_key]
+            return self._classes[type_key]
         except KeyError:
-            raise UnknownStrategy(f"unknown strategy: {type_key!r}") from None
+            known = ", ".join(sorted(self._classes)) or "none"
+            raise UnknownStrategy(f"unknown strategy: {type_key!r} (available: {known})") from None
 
     def create(self, type_key: str, params: Mapping[str, Any]) -> Strategy[Any]:
-        """Build a fresh strategy instance (validates ``params``)."""
-        return self.get(type_key).factory(params)
-
-
-def default_registry() -> StrategyRegistry:
-    defaults = ema_crossover.EmaCrossoverParams()
-    return StrategyRegistry(
-        [
-            StrategyDefinition(
-                type_key=ema_crossover.TYPE_KEY,
-                name="EMA Crossover (trend following)",
-                description=(
-                    "Long-only. Buys when the fast EMA crosses above the slow EMA and "
-                    "sells when it crosses back below."
-                ),
-                parameters=(
-                    ParamSpec("fast_period", "integer", defaults.fast_period, "Fast EMA", 2),
-                    ParamSpec(
-                        "slow_period",
-                        "integer",
-                        defaults.slow_period,
-                        "Slow EMA (must be greater than fast_period)",
-                        3,
-                    ),
-                    ParamSpec(
-                        "stop_loss_pct",
-                        "number",
-                        None,
-                        "Optional stop-loss, % below the entry price (0-100)",
-                    ),
-                    ParamSpec(
-                        "take_profit_pct",
-                        "number",
-                        None,
-                        "Optional take-profit, % above the entry price (0-100)",
-                    ),
-                ),
-                factory=lambda raw: ema_crossover.EmaCrossoverStrategy(
-                    ema_crossover.EmaCrossoverParams.from_mapping(raw)
-                ),
-            )
-        ]
-    )
+        """Build a fresh, validated strategy instance."""
+        return self.get(type_key).from_params(params)

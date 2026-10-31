@@ -40,8 +40,9 @@ from modules.risk_management.domain.models import (
     drawdown_breached,
 )
 from modules.risk_management.domain.stops import ExitReason, check_protective_exit
+from modules.strategies.domain.base import Strategy
 from modules.strategies.domain.registry import StrategyRegistry
-from modules.strategies.domain.types import Side, Signal, SignalKind, Strategy, StrategyContext
+from modules.strategies.domain.types import Side, Signal, SignalKind, StrategyContext
 from modules.trading.application.ports import TradingStore
 from modules.trading.domain.models import WARMUP_CANDLES, TradingSession, max_signal_age
 

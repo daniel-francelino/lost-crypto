@@ -9,9 +9,16 @@ cross needs a previous reading to compare against).
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
+from typing import Any, Self
 
-from core.errors import DomainError
+from modules.strategies.domain.base import (
+    InvalidStrategyParams,
+    ParamSpec,
+    Strategy,
+    parse_numeric_params,
+    percent_below_above,
+    validate_percent,
+)
 from modules.strategies.domain.types import (
     Side,
     Signal,
@@ -19,12 +26,6 @@ from modules.strategies.domain.types import (
     StrategyContext,
     StrategyResult,
 )
-
-TYPE_KEY = "ema_crossover"
-
-
-class InvalidStrategyParams(DomainError):
-    pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,36 +36,12 @@ class EmaCrossoverParams:
     take_profit_pct: Decimal | None = None  # % above the entry candle's close
 
     def __post_init__(self) -> None:
-        for name in ("stop_loss_pct", "take_profit_pct"):
-            value = getattr(self, name)
-            if value is not None and not (0 < value < 100):
-                raise InvalidStrategyParams(f"{name} must be between 0 and 100 (exclusive)")
+        validate_percent("stop_loss_pct", self.stop_loss_pct)
+        validate_percent("take_profit_pct", self.take_profit_pct)
         if self.fast_period < 2:
             raise InvalidStrategyParams("fast_period must be >= 2")
         if self.fast_period >= self.slow_period:
             raise InvalidStrategyParams("fast_period must be smaller than slow_period")
-
-    @classmethod
-    def from_mapping(cls, raw: Mapping[str, Any]) -> "EmaCrossoverParams":
-        unknown = set(raw) - {"fast_period", "slow_period", "stop_loss_pct", "take_profit_pct"}
-        if unknown:
-            raise InvalidStrategyParams(f"unknown parameters: {sorted(unknown)}")
-        values: dict[str, Any] = {}
-        for key, value in raw.items():
-            if isinstance(value, bool):
-                raise InvalidStrategyParams(f"{key} must be a number")
-            if key.endswith("_period"):
-                if not isinstance(value, int):
-                    raise InvalidStrategyParams(f"{key} must be an integer")
-                values[key] = value
-            elif value is None:
-                values[key] = None
-            else:
-                try:
-                    values[key] = Decimal(str(value))
-                except ArithmeticError:
-                    raise InvalidStrategyParams(f"{key} must be a number") from None
-        return cls(**values)
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,18 +63,43 @@ def _ema_series_end(closes: Sequence[Decimal], period: int) -> Decimal:
     return ema
 
 
-class EmaCrossoverStrategy:
+class EmaCrossoverStrategy(Strategy[EmaCrossoverState]):
+    TYPE_KEY = "ema_crossover"
+    NAME = "EMA Crossover (trend following)"
+    DESCRIPTION = (
+        "Long-only. Buys when the fast EMA crosses above the slow EMA and sells when it "
+        "crosses back below."
+    )
+    PARAMETERS = (
+        ParamSpec("fast_period", "integer", 9, "Fast EMA", 2),
+        ParamSpec("slow_period", "integer", 21, "Slow EMA (must be greater than fast_period)", 3),
+        ParamSpec(
+            "stop_loss_pct", "number", None, "Optional stop-loss, % below the entry price (0-100)"
+        ),
+        ParamSpec(
+            "take_profit_pct",
+            "number",
+            None,
+            "Optional take-profit, % above the entry price (0-100)",
+        ),
+    )
+
     def __init__(self, params: EmaCrossoverParams) -> None:
         self.params = params
         self._alpha_fast = Decimal(2) / (params.fast_period + 1)
         self._alpha_slow = Decimal(2) / (params.slow_period + 1)
 
+    @classmethod
+    def from_params(cls, params: Mapping[str, Any]) -> Self:
+        values = parse_numeric_params(
+            params,
+            integers=frozenset({"fast_period", "slow_period"}),
+            numbers=frozenset({"stop_loss_pct", "take_profit_pct"}),
+        )
+        return cls(EmaCrossoverParams(**values))
+
     def initial_state(self) -> EmaCrossoverState:
         return EmaCrossoverState()
-
-    @staticmethod
-    def _level(close: Decimal, pct: Decimal | None, direction: int) -> Decimal | None:
-        return None if pct is None else close * (1 + direction * pct / 100)
 
     def serialize_state(self, state: EmaCrossoverState) -> dict[str, Any]:
         return {
@@ -133,14 +135,17 @@ class EmaCrossoverStrategy:
 
         signals: tuple[Signal, ...] = ()
         if previous_diff <= 0 < diff and ctx.position_quantity <= 0:
+            stop, target = percent_below_above(
+                close, self.params.stop_loss_pct, self.params.take_profit_pct
+            )
             signals = (
                 Signal(
                     Side.BUY,
                     ctx.symbol,
                     SignalKind.ENTRY,
                     f"EMA{self.params.fast_period} crossed above EMA{self.params.slow_period}",
-                    stop_loss=self._level(close, self.params.stop_loss_pct, -1),
-                    take_profit=self._level(close, self.params.take_profit_pct, +1),
+                    stop_loss=stop,
+                    take_profit=target,
                 ),
             )
         elif previous_diff >= 0 > diff and ctx.position_quantity > 0:

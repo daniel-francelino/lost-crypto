@@ -20,10 +20,10 @@ from modules.risk_management.domain.models import (
     drawdown_breached,
 )
 from modules.risk_management.domain.stops import ExitReason, check_protective_exit
+from modules.strategies.domain.base import InvalidStrategyParams
 from modules.strategies.domain.ema_crossover import (
     EmaCrossoverParams,
     EmaCrossoverStrategy,
-    InvalidStrategyParams,
 )
 from modules.strategies.domain.types import Side, Signal, SignalKind, StrategyContext
 
@@ -187,11 +187,11 @@ def test_ema_entry_signal_carries_stop_and_target_levels() -> None:
 
 
 def test_ema_pct_params_are_parsed_and_validated() -> None:
-    params = EmaCrossoverParams.from_mapping({"stop_loss_pct": 2.5, "take_profit_pct": "5"})
+    params = EmaCrossoverStrategy.from_params({"stop_loss_pct": 2.5, "take_profit_pct": "5"}).params
     assert params.stop_loss_pct == Decimal("2.5") and params.take_profit_pct == Decimal(5)
     for bad in (0, 100, -1, "abc", True):
         with pytest.raises(InvalidStrategyParams):
-            EmaCrossoverParams.from_mapping({"stop_loss_pct": bad})
+            EmaCrossoverStrategy.from_params({"stop_loss_pct": bad})
 
 
 # --- backtest honours the same stops --------------------------------------------------------
