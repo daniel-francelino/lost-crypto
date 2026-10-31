@@ -11,6 +11,7 @@ const LABELS: Record<string, string> = {
   "market-data": "Dados de mercado",
   exchanges: "Conexões",
   audit: "Auditoria",
+  alerts: "Alertas",
   system: "Status",
   settings: "Configurações",
   profile: "Meu perfil",
@@ -23,6 +24,7 @@ const ROUTES: Record<string, string> = {
   "market-data": AppRoute.MarketData,
   exchanges: AppRoute.Exchanges,
   audit: AppRoute.Audit,
+  alerts: AppRoute.Alerts,
   system: AppRoute.System,
 };
 

@@ -844,6 +844,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Alerts
+         * @description Failure alerts, newest first. An alert stays until it is resolved and read; the size of
+         *     the whole list that matches is in ``X-Total-Count``.
+         */
+        get: operations["list_alerts_api_v1_alerts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Alert Summary
+         * @description Unread alerts and the alerts still open (without resolution), for the header indicator.
+         */
+        get: operations["get_alert_summary_api_v1_alerts_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark All Alerts Read */
+        post: operations["mark_all_alerts_read_api_v1_alerts_read_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/{alert_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark Alert Read */
+        post: operations["mark_alert_read_api_v1_alerts__alert_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/exchange-connections": {
         parameters: {
             query?: never;
@@ -908,6 +983,49 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AlertKind
+         * @enum {string}
+         */
+        AlertKind: "worker_down" | "bot_stale" | "bot_error" | "kill_switch_active" | "candles_stale" | "exchange_rate_limited";
+        /** AlertOut */
+        AlertOut: {
+            /** Id */
+            id: number;
+            kind: components["schemas"]["AlertKind"];
+            severity: components["schemas"]["AlertSeverity"];
+            /** Message */
+            message: string;
+            /** Bot Id */
+            bot_id: string | null;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            /** Resolved At */
+            resolved_at: string | null;
+            /** Read At */
+            read_at: string | null;
+        };
+        /**
+         * AlertSeverity
+         * @enum {string}
+         */
+        AlertSeverity: "warning" | "critical";
+        /** AlertSummaryOut */
+        AlertSummaryOut: {
+            /** Unread */
+            unread: number;
+            /** Open */
+            open: number;
+            /** Critical Open */
+            critical_open: number;
+        };
         /**
          * AppEnv
          * @enum {string}
@@ -1546,6 +1664,11 @@ export interface components {
              * Format: password
              */
             password: string;
+        };
+        /** MarkedOut */
+        MarkedOut: {
+            /** Marked */
+            marked: number;
         };
         /** MetricsOut */
         MetricsOut: {
@@ -3499,6 +3622,111 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AuditEventOut"][];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_alerts_api_v1_alerts_get: {
+        parameters: {
+            query?: {
+                unread?: boolean;
+                severity?: components["schemas"]["AlertSeverity"] | null;
+                bot_id?: string | null;
+                limit?: number;
+                /** @description Rows to skip (newest first). */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_alert_summary_api_v1_alerts_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertSummaryOut"];
+                };
+            };
+        };
+    };
+    mark_all_alerts_read_api_v1_alerts_read_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarkedOut"];
+                };
+            };
+        };
+    };
+    mark_alert_read_api_v1_alerts__alert_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alert_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

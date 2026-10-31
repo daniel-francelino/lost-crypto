@@ -34,6 +34,7 @@ from modules.exchanges.errors import (
     ExchangeError,
     ExchangeRejected,
     NotAuthenticated,
+    RateLimited,
     TransientExchangeError,
     UnknownOrder,
     UnknownOutcome,
@@ -50,6 +51,8 @@ logger = logging.getLogger(__name__)
 
 _MAX_ATTEMPTS = 4
 _BASE_DELAY_SECONDS = 1.0
+_USED_WEIGHT_HEADER = "x-mbx-used-weight-1m"
+_USED_WEIGHT_WARN = 3000  # half of Binance's 6000/min IP budget
 
 
 class CcxtExchange(Exchange):
@@ -265,8 +268,11 @@ class CcxtExchange(Exchange):
         """
         for attempt in range(1, _MAX_ATTEMPTS + 1):
             try:
-                return await operation()
-            except (ccxt.NetworkError, ccxt.RateLimitExceeded) as exc:
+                result = await operation()
+            except (ccxt.RateLimitExceeded, ccxt.DDoSProtection) as exc:
+                # Never retry a 429/418 on a timer of ours: only the exchange's Retry-After counts.
+                raise RateLimited(str(exc), self._retry_after()) from exc
+            except ccxt.NetworkError as exc:
                 if attempt == _MAX_ATTEMPTS:
                     raise TransientExchangeError(str(exc)) from exc
                 delay = _BASE_DELAY_SECONDS * 2 ** (attempt - 1)
@@ -280,7 +286,30 @@ class CcxtExchange(Exchange):
                 raise UnknownSymbolError(str(exc)) from exc
             except ccxt.BaseError as exc:
                 raise ExchangeError(str(exc)) from exc
+            else:
+                self._watch_used_weight()
+                return result
         raise AssertionError("unreachable")  # pragma: no cover
+
+    def _response_headers(self) -> dict[str, str]:
+        headers = getattr(self._client, "last_response_headers", None)
+        if not isinstance(headers, dict):
+            return {}
+        return {str(k).lower(): str(v) for k, v in headers.items()}
+
+    def _retry_after(self) -> float | None:
+        raw = self._response_headers().get("retry-after")
+        try:
+            return float(raw) if raw is not None else None
+        except ValueError:
+            return None
+
+    def _watch_used_weight(self) -> None:
+        raw = self._response_headers().get(_USED_WEIGHT_HEADER)
+        if raw is not None and raw.isdigit() and int(raw) >= _USED_WEIGHT_WARN:
+            logger.warning(
+                "%s: used request weight %s in the last minute", self.PROFILE.exchange_id, raw
+            )
 
 
 def _is_duplicate(exc: Exception) -> bool:

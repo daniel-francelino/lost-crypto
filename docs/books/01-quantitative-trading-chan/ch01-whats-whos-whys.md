@@ -44,6 +44,42 @@ O livro não discute cripto, mercados 24/7 nem taxas de corretora. Tudo sobre cr
 * **Riscos:** **só avisa quem está olhando o app**; com o app fechado, o alerta fica esperando no banco e ninguém é chamado (limitação aceita nesta decisão). O caminho do alerta morre junto com o worker (precisa de uma checagem externa de vida, por exemplo healthcheck do container, que no canal in-app só aparece quando o app for aberto); fadiga de alertas e crescimento da tabela (prever retenção/limpeza de alertas antigos).
 * **Validação:** testes unitários de limites e deduplicação; teste de integração que para o worker e espera um alerta gravado e visível na API; teste de que marcar como lido e a recuperação do episódio funcionam; teste do front para o contador e a lista; nenhum dado sensível em logs/API.
 
+#### Detalhamento do O1: o que implementar (proposta, nada aprovado nem implementado)
+
+**Pontos verificados no código que moldam o desenho**
+* O worker é um laço em `worker.py` que chama `JobRunner.run_once()` (`container.py`): uma passada do supervisor e depois no máximo um job. O avaliador de alertas entra como mais uma etapa nessa passada, na mesma linha do supervisor.
+* O status de saúde já existe: `GET /system/status` devolve `worker` (vivo, último heartbeat, idade) e `stale_bots` (`risk_management/presentation/router.py`). O avaliador deve **reaproveitar essa lógica**, não duplicá-la.
+* **O worker não consegue avisar que ele mesmo parou.** O alerta "worker parado" precisa ser calculado no processo da **API** (por exemplo ao listar/contar alertas, ou numa tarefa na própria API); os demais (bot parado, divergência na reconciliação, ordem rejeitada, limite diário, kill switch, cobertura de candles defasada) podem ser emitidos pelo worker. **Decisão pendente:** onde avaliar "worker parado".
+* O módulo `audit` (`models.py`, `orm.py`, `repository.py`, `service.py`, `router.py`) é o molde mais próximo: tabela com `BigInteger` autoincremento, `occurred_at` com `server_default=func.now()`, `bot_id` sem FK, `payload` JSONB, listagem mais recente primeiro com `limit`/`offset` e total em `X-Total-Count` (`core.pagination`). O módulo `bots` usa o layout `domain/application/infrastructure/presentation`; como o de alertas tem regras (episódios, deduplicação), seguir o layout maior.
+* Rotas protegidas em `api_router.py`: `require_access` libera leitura para qualquer papel e exige `admin` para alterar estado. Marcar como lido é uma alteração; **decisão pendente:** se o `viewer` também pode marcar (hoje cairia em 403) ou se o "lido" é só do `admin`.
+* A última migração é `0007_live_trading.py`; a nova seria a `0008`. O ORM novo precisa ser importado em `orm_models.py`.
+
+**Backend**
+1. **Domínio** (`modules/notifications/domain`): `Alert` (id, `kind`, `severity`, `bot_id` opcional, `dedupe_key`, mensagem, `payload`, `opened_at`, `resolved_at` opcional, `read_at` opcional), enums `AlertKind` e `AlertSeverity`, e a regra de episódio: existe no máximo um alerta **aberto** por `dedupe_key`; reemitir enquanto aberto não cria outro; a recuperação preenche `resolved_at`.
+2. **Porta e avaliador** (`application`): `Notifier` (porta) com `in_app` e um falso para testes; `AlertEvaluator` recebe as condições (worker/bots parados, kill switch, divergência da reconciliação, ordem live rejeitada, limite diário atingido, cobertura defasada do O2, peso de requisição alto do O2), com **cooldown** e mensagem de recuperação. Falha ao gravar ou notificar é capturada e registrada em log, nunca derruba o worker.
+3. **Persistência** (`infrastructure`): tabela `alerts` com índice parcial/único para "um alerta aberto por `dedupe_key`" e índice por `opened_at`; repositório SQLAlchemy; **retenção** (limpar alertas resolvidos e lidos após N dias, valor em `core/config.py`).
+4. **API** (`presentation/router.py`, registrado em `api_router.py` com `_protected`): `GET /alerts` (filtros `unread`, `severity`, `bot_id`, `limit`, `offset`, total em `X-Total-Count`), `GET /alerts/unread-count`, `POST /alerts/{id}/read` e `POST /alerts/read-all`. Resposta sem dado sensível. Atualizar `api/docs/openapi.json`.
+5. **Integração:** `container.py` (construir o serviço e o avaliador e passá-los ao `JobRunner`), `worker.py` (nada a mudar além de a passada chamar o avaliador), `core/config.py` (intervalo do avaliador, cooldown, retenção), `orm_models.py` (importar o novo ORM), migração `0008`.
+6. **Auditoria:** alertas de severidade crítica também geram evento em `audit_events` (como já está previsto no O1).
+7. **Testes:** unitários (episódio, deduplicação, cooldown, recuperação, retenção), integração (parar o worker simulado e esperar o alerta; marcar como lido), de API (papéis, paginação, `X-Total-Count`), e que o fluxo de ordens e as salvaguardas do live seguem inalterados.
+
+**Frontend** (regras de `app/AGENTS.md`; UI em português do Brasil, código e rotas em inglês)
+1. **Contrato:** rodar `npm run api:types` depois de atualizar o OpenAPI; adicionar `AlertKind` e `AlertSeverity` em `lib/shared/enums.ts` (`as const`, `z.nativeEnum`) e conferir com `npm run check:consistency`.
+2. **Constantes:** `AppRoute.Alerts = "/alerts"` em `lib/shared/routes.ts`; chaves `QueryKey` para a lista e para o contador (`lib/shared/api/query-keys.ts`); o contador usa `Poll.Status` (5 s) e a lista `Poll.Overview` (10 s), de `lib/shared/polling.ts`.
+3. **Camada de dados compartilhada** (o contador aparece na barra do layout, que só pode importar de `shared`): `lib/shared/alerts/alerts.api.ts` (schemas zod, chamadas e tipos) e `hooks/shared/use-alerts.ts` (consulta da lista, do contador e as mutações de marcar como lido), no mesmo molde de `lib/shared/system/system.api.ts` e `hooks/shared/use-system.ts`.
+4. **Indicador de não lidos:** novo componente em `components/shared/layout` ao lado da `safety-strip.tsx`, com contador **em número e texto acessível** (estado nunca só por cor), levando à tela de alertas; mostra o tempo desde a última atualização e a marca de dado desatualizado quando o polling falha.
+5. **Tela de alertas:** `routes/_app/alerts/index.tsx` (a rota só monta a tela) e `components/alerts/alerts-page.tsx` com `DataTable` (severidade, tipo, bot, mensagem, aberto em, resolvido em, lido), filtros "não lidos" e severidade, ações "marcar como lido" e "marcar todos", paginação com "mostrando os últimos N" quando aplicável. Estados obrigatórios: esqueleto, erro com nova tentativa, vazio, sem resultados e dados. Datas apenas por `lib/shared/dates.ts`, com UTC explícito.
+6. **Navegação e permissões:** entrada "Alertas" na seção "Sistema" em `components/shared/layout/nav-config.tsx`, `breadcrumbs.ts`, e a regra de papéis (visualização para todos; marcar como lido conforme a decisão pendente acima, com o botão ausente para quem não pode, como no restante do app).
+7. **Resumo no painel e na página de status:** o painel "Atenção" do dashboard e a página `/system` passam a mostrar os alertas abertos mais recentes (o painel hoje já lista bots em erro, bots parados, kill switch e conexões inválidas).
+8. **Módulo novo:** `alerts` não está na lista de módulos de `app/AGENTS.md`; adicionar o módulo ali, em `docs/02-project-structure.md` e na regra de fronteira do ESLint, ou colocar a tela dentro de `system`. **Decisão pendente.**
+9. **Testes e documentos:** vitest (schemas, formatação, hook do contador), teste de ponta a ponta no Playwright (alerta aparece, contador sobe, marcar como lido zera) e verificação visual a 360 px; `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build`. Atualizar na mesma mudança `app/docs/06-screens.md` (nova seção da tela e do indicador), `app/docs/02-project-structure.md` e `app/docs/09-roadmap.md`.
+
+**Decisões pendentes (para você)**
+* Onde avaliar "worker parado" (processo da API) e quais condições entram no primeiro corte.
+* Se o `viewer` pode marcar alertas como lidos.
+* Módulo `alerts` novo no front ou tela dentro de `system`.
+* Prazo de retenção e cooldown padrão.
+
 ### O2 — Importação incremental automática de dados *(livro: C6, pp. 6–7 · adaptação)*
 * **Problema:** lacunas nos candles armazenados só são reparadas por jobs manuais.
 * **Proposta:** uma tarefa periódica no worker que estende a cobertura dos pares ativos até o presente, reutilizando o job de importação; recuar (backoff) em lacunas de manutenção da exchange.
@@ -86,6 +122,17 @@ O livro não discute cripto, mercados 24/7 nem taxas de corretora. Tudo sobre cr
 * Gravar candle incompleto; separar testnet de mainnet na mesma tabela (confirmar como a tabela distingue as duas antes de gravar).
 * Duplicação de busca enquanto os bots ainda buscam por conta própria (some quando os bots lerem do banco).
 
+**O que implementar no backend**
+1. `market_data/application/service.py`: serviço de atualização incremental (último candle gravado → agora, só candles fechados, idempotente, completando buracos), reaproveitando o importador de `BATCH_SIZE = 1000`.
+2. `container.py`: uma etapa nova no `JobRunner.run_once()` (hoje: passada do supervisor e depois um job da fila), executada no máximo uma vez por intervalo (~60 s) para não rodar a cada volta do laço do worker (`worker_poll_seconds = 2.0`).
+3. `exchanges/infrastructure/ccxt_exchange.py`: tratar 429/418 na leitura de candles (`fetch_candles`, linha 99) como erro transitório com espera pelo `Retry-After`, e ler o peso usado.
+4. `core/config.py`: intervalo da atualização, folga após o fechamento do candle, limiar de alerta de peso e tolerância de defasagem.
+5. Condições de alerta (O1): cobertura defasada e peso alto.
+6. Testes: fonte falsa com buraco, resposta 429 falsa, idempotência, nenhum candle em formação gravado.
+
+**O que implementar no frontend**
+* Nada é obrigatório: a página de dados de mercado já consulta a cobertura (`market-data-page.tsx`) e passaria a mostrar a cobertura mais recente sem mudança de código. Opcional: exibir na tela de dados de mercado o horário do último candle gravado por par, para o operador ver que a atualização está viva. Os avisos de defasagem aparecem pelo canal de alertas do O1.
+
 **Arquivos afetados (além dos já listados)**
 * `exchanges/infrastructure/ccxt_exchange.py` (tratamento de 429/`Retry-After` e peso usado na leitura de candles), `core/config.py` (intervalo e limiar de alerta de peso).
 
@@ -118,14 +165,15 @@ Apoia-se em uma frase de opinião. Capítulos posteriores dão critérios concre
 | – | O4, O5 | adiados | | | | |
 
 ## 5. Arquivos afetados
-* O1: novo módulo `notifications` (porta `Notifier` + `in_app`, entidade/tabela de alertas com migração, repositório, endpoints de listar/contar não lidos/marcar como lido), `worker.py`, `container.py`, `core/config.py`, auditoria, `docs/openapi.json`; no app: indicador de não lidos no layout, lista de alertas e página de status (regras em `app/AGENTS.md`).
-* O2: `modules/market_data/application/service.py`, `worker.py`, `container.py`.
+* O1 backend: novo módulo `api/src/modules/notifications` (domínio, porta `Notifier` + `in_app`, avaliador, ORM e repositório, router), migração `0008`, `orm_models.py`, `api_router.py`, `container.py`, `core/config.py`, `api/docs/openapi.json`, testes em `api/tests`.
+* O1 frontend: `lib/shared/enums.ts`, `lib/shared/routes.ts`, `lib/shared/api/query-keys.ts`, `lib/shared/alerts/alerts.api.ts`, `hooks/shared/use-alerts.ts`, indicador em `components/shared/layout` (ao lado de `safety-strip.tsx`), `components/shared/layout/nav-config.tsx` e `breadcrumbs.ts`, `routes/_app/alerts/index.tsx`, `components/alerts/alerts-page.tsx`, dashboard e `/system`, testes (vitest e Playwright), `app/AGENTS.md` e `app/docs/` (06, 02, 09) se o módulo `alerts` for criado.
+* O2: `modules/market_data/application/service.py`, `container.py` (etapa no `JobRunner`), `exchanges/infrastructure/ccxt_exchange.py`, `core/config.py`; frontend opcional (horário do último candle por par).
 * O3: `modules/bots/application/service.py`, router de bots, payload de auditoria, formulários de controle do app.
 
 ## 6. Plano incremental
-1. O1a: porta `Notifier`, notifier falso, avaliador de condições com deduplicação, cooldown e recuperação (sem persistência).
-2. O1b: canal `in_app`: tabela e repositório de alertas, endpoints (listar, contar não lidos, marcar como lido), integração ao worker e retenção/limpeza.
-3. O1c: front: indicador de não lidos no layout, lista de alertas e alertas recentes na página de status.
+1. O1a (backend): domínio do alerta, porta `Notifier`, notifier falso, avaliador de condições com deduplicação, cooldown e recuperação (sem persistência).
+2. O1b (backend): canal `in_app`: migração `0008`, tabela e repositório, endpoints (listar, contar não lidos, marcar como lido), integração ao `JobRunner`/`container.py`, retenção, atualização do OpenAPI. Decidir antes onde avaliar "worker parado".
+3. O1c (frontend): `api:types`, enums, rota e chaves de consulta, camada compartilhada (`alerts.api.ts` e hook), indicador de não lidos no layout, tela `/alerts`, entrada de navegação, resumos no dashboard e em `/system`, testes e atualização dos documentos do app.
 4. (Opcional, depois) canal externo (webhook/chat) pela mesma porta, se o operador sentir falta de aviso com o app fechado.
 5. O2: importação incremental periódica.
 6. O3: campo de motivo.

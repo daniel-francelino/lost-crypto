@@ -133,6 +133,7 @@ async def cleanup(container: Container) -> None:
             "DELETE FROM reconciliation_runs WHERE connection_id IN "
             "(SELECT id FROM exchange_connections WHERE label LIKE 'itest-%')",
             "DELETE FROM exchange_connections WHERE label LIKE 'itest-%'",
+            "DELETE FROM alerts",
             "DELETE FROM system_flags WHERE key IN ('kill_switch', 'worker_heartbeat')",
         ]
         for statement in statements:
@@ -150,6 +151,10 @@ LIVE_SETTINGS: dict[str, Any] = {
     "live_min_paper_days": 0,
 }
 
+
+# Candle updates and the API-side alert watcher are exercised by their own tests; elsewhere they
+# would only add candles and alerts the other scenarios do not expect.
+QUIET: dict[str, Any] = {"candle_update_enabled": False, "alerts_api_evaluation_enabled": False}
 
 API_TOKEN = "itest-token"
 API_KEY = "itest-api-key-ABCD1234"

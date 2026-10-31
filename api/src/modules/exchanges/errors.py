@@ -9,6 +9,15 @@ class TransientExchangeError(ExchangeError):
     """Network/rate-limit problem; retrying later may succeed."""
 
 
+class RateLimited(TransientExchangeError):
+    """The exchange answered 429/418. Nothing may be sent before ``retry_after_seconds``
+    (when the exchange said how long); insisting after a 429 gets the IP banned."""
+
+    def __init__(self, message: str, retry_after_seconds: float | None = None) -> None:
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds
+
+
 class UnknownSymbolError(ExchangeError):
     """The exchange does not list the requested symbol."""
 

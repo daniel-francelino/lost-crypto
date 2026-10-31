@@ -39,6 +39,15 @@ class CandleRepository(Protocol):
         """(count, first open_time, last open_time) of the stored series."""
         ...
 
+    async def last_open_time(
+        self, exchange: str, symbol: str, timeframe: Timeframe
+    ) -> datetime | None: ...
+
+    async def list_series(self, last_after: datetime) -> list[tuple[str, str, Timeframe, datetime]]:
+        """(exchange, symbol, timeframe, last open_time) of every stored series whose last
+        candle opened at or after ``last_after``."""
+        ...
+
     async def open_times(
         self, exchange: str, symbol: str, timeframe: Timeframe, start: datetime, end: datetime
     ) -> list[datetime]: ...

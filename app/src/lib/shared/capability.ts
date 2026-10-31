@@ -9,6 +9,7 @@ export const Capability = {
   MarketDataImport: "market-data.import",
   ExchangesManage: "exchanges.manage",
   SystemKillSwitch: "system.kill-switch",
+  AlertsAcknowledge: "alerts.acknowledge",
   UsersManage: "users.manage",
 } as const;
 export type Capability = (typeof Capability)[keyof typeof Capability];

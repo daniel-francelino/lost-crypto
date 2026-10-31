@@ -10,6 +10,7 @@ export const AppRoute = {
   Exchanges: "/exchanges",
   ExchangesNew: "/exchanges/new",
   Audit: "/audit",
+  Alerts: "/alerts",
   Forbidden: "/forbidden",
   System: "/system",
   Profile: "/settings/profile",

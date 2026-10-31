@@ -12,6 +12,7 @@ import {
 import type { ReactNode } from "react";
 import { Badge } from "lost-ui/ui/badge";
 import {
+  AlertSeverity,
   BotState,
   ConnectionStatus,
   ExecutionMode,
@@ -21,6 +22,7 @@ import {
   Unknown,
 } from "@/lib/shared/enums";
 import {
+  alertSeverityLabel,
   botStateLabel,
   connectionStatusLabel,
   environmentLabel,
@@ -131,6 +133,25 @@ export function ConnectionStatusBadge({ status }: { status: string }) {
     return tag({ className: TONE_WARNING, icon: null }, connectionStatusLabel(status));
   }
   return tag({ className: TONE_NEUTRAL, icon: null }, connectionStatusLabel(status));
+}
+
+export function AlertSeverityBadge({ severity }: { severity: string }) {
+  if (severity === AlertSeverity.Critical) {
+    return tag(
+      { className: TONE_DANGER, icon: <CircleAlert className={ICON} aria-hidden="true" /> },
+      alertSeverityLabel(severity),
+    );
+  }
+  if (severity === AlertSeverity.Warning) {
+    return tag(
+      { className: TONE_WARNING, icon: <CircleAlert className={ICON} aria-hidden="true" /> },
+      alertSeverityLabel(severity),
+    );
+  }
+  return tag(
+    { className: TONE_NEUTRAL, icon: <CircleHelp className={ICON} aria-hidden="true" /> },
+    alertSeverityLabel(severity),
+  );
 }
 
 export function SideBadge({ side }: { side: string }) {

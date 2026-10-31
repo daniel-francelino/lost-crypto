@@ -7,6 +7,7 @@ import modules.bots.infrastructure.orm
 import modules.exchanges.infrastructure.orm
 import modules.execution.infrastructure.orm
 import modules.market_data.infrastructure.orm
+import modules.notifications.infrastructure.orm
 import modules.portfolio.infrastructure.orm
 import modules.risk_management.infrastructure.orm
 import modules.trading.infrastructure.orm

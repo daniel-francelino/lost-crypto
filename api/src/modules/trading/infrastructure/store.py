@@ -14,6 +14,7 @@ from modules.execution.infrastructure.repository import (
     SqlAlchemyOrderRepository,
     SqlAlchemySignalRepository,
 )
+from modules.notifications.infrastructure.repository import SqlAlchemyAlertRepository
 from modules.portfolio.infrastructure.repository import SqlAlchemyPortfolioRepository
 from modules.risk_management.infrastructure.repository import SqlAlchemySystemFlagsRepository
 from modules.trading.infrastructure.repository import SqlAlchemySessionRepository
@@ -40,6 +41,7 @@ class SqlAlchemyStore:
         self.users = SqlAlchemyUserRepository(session)
         self.live_approvals = SqlAlchemyLiveApprovalRepository(session)
         self.refresh_tokens = SqlAlchemyRefreshTokenRepository(session)
+        self.alerts = SqlAlchemyAlertRepository(session)
 
     async def commit(self) -> None:
         await self._session.commit()

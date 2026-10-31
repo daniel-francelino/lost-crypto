@@ -2117,6 +2117,190 @@
         }
       }
     },
+    "/api/v1/alerts": {
+      "get": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "List Alerts",
+        "description": "Failure alerts, newest first. An alert stays until it is resolved and read; the size of\nthe whole list that matches is in ``X-Total-Count``.",
+        "operationId": "list_alerts_api_v1_alerts_get",
+        "parameters": [
+          {
+            "name": "unread",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Unread"
+            }
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AlertSeverity"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Severity"
+            }
+          },
+          {
+            "name": "bot_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Bot Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Rows to skip (newest first).",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Rows to skip (newest first)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AlertOut"
+                  },
+                  "title": "Response List Alerts Api V1 Alerts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/alerts/summary": {
+      "get": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Get Alert Summary",
+        "description": "Unread alerts and the alerts still open (without resolution), for the header indicator.",
+        "operationId": "get_alert_summary_api_v1_alerts_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertSummaryOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/alerts/read-all": {
+      "post": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Mark All Alerts Read",
+        "operationId": "mark_all_alerts_read_api_v1_alerts_read_all_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkedOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/alerts/{alert_id}/read": {
+      "post": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Mark Alert Read",
+        "operationId": "mark_alert_read_api_v1_alerts__alert_id__read_post",
+        "parameters": [
+          {
+            "name": "alert_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Alert Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/exchange-connections": {
       "get": {
         "tags": [
@@ -2272,6 +2456,126 @@
   },
   "components": {
     "schemas": {
+      "AlertKind": {
+        "type": "string",
+        "enum": [
+          "worker_down",
+          "bot_stale",
+          "bot_error",
+          "kill_switch_active",
+          "candles_stale",
+          "exchange_rate_limited"
+        ],
+        "title": "AlertKind"
+      },
+      "AlertOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AlertKind"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/AlertSeverity"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "bot_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bot Id"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "opened_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Opened At"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "severity",
+          "message",
+          "bot_id",
+          "payload",
+          "opened_at",
+          "resolved_at",
+          "read_at"
+        ],
+        "title": "AlertOut"
+      },
+      "AlertSeverity": {
+        "type": "string",
+        "enum": [
+          "warning",
+          "critical"
+        ],
+        "title": "AlertSeverity"
+      },
+      "AlertSummaryOut": {
+        "properties": {
+          "unread": {
+            "type": "integer",
+            "title": "Unread"
+          },
+          "open": {
+            "type": "integer",
+            "title": "Open"
+          },
+          "critical_open": {
+            "type": "integer",
+            "title": "Critical Open"
+          }
+        },
+        "type": "object",
+        "required": [
+          "unread",
+          "open",
+          "critical_open"
+        ],
+        "title": "AlertSummaryOut"
+      },
       "AppEnv": {
         "type": "string",
         "enum": [
@@ -3884,6 +4188,19 @@
         ],
         "title": "LoginIn"
       },
+      "MarkedOut": {
+        "properties": {
+          "marked": {
+            "type": "integer",
+            "title": "Marked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "marked"
+        ],
+        "title": "MarkedOut"
+      },
       "MetricsOut": {
         "properties": {
           "initial_capital": {
@@ -5340,6 +5657,10 @@
     {
       "name": "audit",
       "description": "Trilha de auditoria append-only."
+    },
+    {
+      "name": "alerts",
+      "description": "Alertas de falha (worker parado, bot com erro, candles atrasados...), mostrados no app."
     },
     {
       "name": "auth",

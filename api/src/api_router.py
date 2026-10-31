@@ -8,6 +8,7 @@ from modules.bots.presentation.router import router as bots_router
 from modules.exchanges.presentation.router import router as connections_router
 from modules.health.router import router as health_router
 from modules.market_data.presentation.router import router as market_data_router
+from modules.notifications.presentation.router import router as alerts_router
 from modules.risk_management.presentation.router import router as system_router
 from modules.strategies.presentation.router import router as strategies_router
 
@@ -25,6 +26,7 @@ for _router in (
     bots_router,
     system_router,
     audit_router,
+    alerts_router,
 ):
     api_router.include_router(_router, dependencies=_protected)
 # Accepts secrets: also refuses to work while no token is configured at all.

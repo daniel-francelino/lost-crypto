@@ -1,5 +1,6 @@
 """Composition root: the only place that knows which concrete classes implement the ports."""
 
+import logging
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
@@ -21,12 +22,22 @@ from modules.backtesting.application.service import BacktestExecutor, BacktestSe
 from modules.backtesting.infrastructure.repository import SqlAlchemyBacktestStore
 from modules.bots.application.live import LiveService
 from modules.bots.application.service import BotService
+from modules.bots.domain.models import BotState
 from modules.exchanges.application.connections import ConnectionResolver, ConnectionService
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.exchanges.infrastructure.catalog import build_exchange_registry
 from modules.market_data.application.ports import ImportStore
 from modules.market_data.application.service import CandleImporter, MarketDataService
+from modules.market_data.application.updater import (
+    CandleUpdater,
+    FollowedSeries,
+    Series,
+    UpdaterConfig,
+    UpdateReport,
+)
 from modules.market_data.infrastructure.repository import SqlAlchemyImportStore
+from modules.notifications.application.evaluator import AlertEvaluator
+from modules.notifications.application.service import AlertMonitor, AlertService, MonitorStore
 from modules.risk_management.application.service import KillSwitchService
 from modules.risk_management.domain.models import GlobalRiskLimits, LiveLimits
 from modules.strategies.catalog import build_strategy_registry
@@ -38,6 +49,8 @@ from modules.trading.application.status import StatusService
 from modules.trading.application.supervisor import BotSupervisor
 from modules.trading.application.trader import BotTrader
 from modules.trading.infrastructure.store import SqlAlchemyStore
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -52,11 +65,14 @@ class Container:
     import_stores: Callable[[], AbstractAsyncContextManager[ImportStore]]
     backtest_stores: Callable[[], AbstractAsyncContextManager[BacktestStore]]
     trading_stores: Callable[[], AbstractAsyncContextManager[TradingStore]]
+    alert_stores: Callable[[], AbstractAsyncContextManager[MonitorStore]]
     market_data: MarketDataService
     backtests: BacktestService
     bots: BotService
     kill_switch: KillSwitchService
     audit: AuditService
+    alerts: AlertService
+    alert_monitor: AlertMonitor
     status: StatusService
     connections: ConnectionService
     resolver: ConnectionResolver
@@ -77,9 +93,16 @@ def build_container(
     import_stores = make_store_factory(session_factory, SqlAlchemyImportStore)
     backtest_stores = make_store_factory(session_factory, SqlAlchemyBacktestStore)
     trading_stores = make_store_factory(session_factory, SqlAlchemyStore)
+    alert_stores = make_store_factory(session_factory, SqlAlchemyStore)
     live = LiveService(trading_stores, settings, clock, ids)
     keys = settings.master_keys
     vault = CredentialVault(keys) if keys else None  # None: connections are unavailable
+    status = StatusService(
+        trading_stores,
+        clock,
+        exchanges.exchange_ids,
+        timedelta(seconds=settings.worker_stale_after_seconds),
+    )
     return Container(
         settings=settings,
         engine=engine,
@@ -91,11 +114,14 @@ def build_container(
         import_stores=import_stores,
         backtest_stores=backtest_stores,
         trading_stores=trading_stores,
+        alert_stores=alert_stores,
         market_data=MarketDataService(import_stores, exchanges, clock, ids),
         backtests=BacktestService(backtest_stores, registry, exchanges, clock, ids),
         bots=BotService(trading_stores, registry, exchanges, clock, ids, live),
         kill_switch=KillSwitchService(trading_stores),
         audit=AuditService(trading_stores),
+        alerts=AlertService(alert_stores, clock),
+        alert_monitor=build_alert_monitor(settings, alert_stores, status, clock),
         auth=AuthService(
             trading_stores,
             PasswordService(),
@@ -123,24 +149,27 @@ def build_container(
             live_allowed=settings.app_env is AppEnv.PROD,
         ),
         resolver=ConnectionResolver(trading_stores, vault, exchanges, clock),
-        status=StatusService(
-            trading_stores,
-            clock,
-            exchanges.exchange_ids,
-            timedelta(seconds=settings.worker_stale_after_seconds),
-        ),
+        status=status,
     )
 
 
 class JobRunner:
-    """Worker-side: advances the paper-trading bots, then drains the DB-backed job queues."""
+    """Worker-side: advances the paper-trading bots, keeps candles current, watches for
+    failures, then drains the DB-backed job queues."""
 
     def __init__(
-        self, importer: CandleImporter, executor: BacktestExecutor, supervisor: BotSupervisor
+        self,
+        importer: CandleImporter,
+        executor: BacktestExecutor,
+        supervisor: BotSupervisor,
+        updater: CandleUpdater | None = None,
+        alert_monitor: AlertMonitor | None = None,
     ) -> None:
         self._importer = importer
         self._executor = executor
         self._supervisor = supervisor
+        self._updater = updater
+        self._alert_monitor = alert_monitor
 
     async def recover(self) -> int:
         """Jobs left 'running' by a crashed worker are queued again (all jobs are idempotent).
@@ -151,9 +180,65 @@ class JobRunner:
         return await self._importer.recover() + await self._executor.recover()
 
     async def run_once(self) -> bool:
-        """One supervisor pass plus at most one job; False when there was no job to run."""
+        """One supervisor pass, the candle update and alert checks (each throttled by its own
+        interval and never fatal), plus at most one job; False when there was no job to run."""
         await self._supervisor.run_once()
+        if self._updater is not None:
+            try:
+                await self._updater.run_if_due()
+            except Exception:
+                logger.exception("candle update failed")
+        if self._alert_monitor is not None:
+            await self._alert_monitor.run_worker_if_due()
         return await self._importer.run_next() or await self._executor.run_next()
+
+
+def build_alert_monitor(
+    settings: Settings,
+    stores: Callable[[], AbstractAsyncContextManager[MonitorStore]],
+    status: StatusService,
+    clock: Clock,
+    update_report: Callable[[], UpdateReport] | None = None,
+) -> AlertMonitor:
+    return AlertMonitor(
+        stores,
+        status,
+        AlertEvaluator(stores, clock, timedelta(seconds=settings.alert_cooldown_seconds)),
+        clock,
+        timedelta(seconds=settings.alert_evaluation_seconds),
+        timedelta(days=settings.alert_retention_days),
+        update_report,
+    )
+
+
+def build_candle_updater(container: Container) -> CandleUpdater:
+    settings = container.settings
+
+    def followed() -> FollowedSeries:
+        async def series() -> set[Series]:
+            async with container.trading_stores() as store:
+                bots = await store.bots.list_active()
+            return {
+                Series(b.config.exchange, b.config.symbol, b.config.timeframe)
+                for b in bots
+                if b.desired_state is not BotState.STOPPED
+            }
+
+        return series
+
+    return CandleUpdater(
+        container.import_stores,
+        container.exchanges,
+        container.clock,
+        followed(),
+        UpdaterConfig(
+            interval=timedelta(seconds=settings.candle_update_interval_seconds),
+            grace=timedelta(seconds=settings.candle_update_grace_seconds),
+            discover_every=timedelta(seconds=settings.candle_update_discover_seconds),
+            max_age=timedelta(days=settings.candle_update_max_age_days),
+            stale_after_candles=settings.candle_stale_after_candles,
+        ),
+    )
 
 
 def build_job_runner(container: Container) -> JobRunner:
@@ -185,6 +270,7 @@ def build_job_runner(container: Container) -> JobRunner:
         executor,
         live_limits,
     )
+    updater = build_candle_updater(container) if settings.candle_update_enabled else None
     return JobRunner(
         CandleImporter(container.import_stores, container.exchanges, container.clock),
         BacktestExecutor(container.backtest_stores, container.registry, container.exchanges),
@@ -204,5 +290,13 @@ def build_job_runner(container: Container) -> JobRunner:
             live_require_ip_restriction=settings.live_require_ip_restriction,
             reconcile_interval=timedelta(seconds=settings.reconcile_interval_seconds),
             stop_poll_interval=timedelta(seconds=settings.native_stop_poll_seconds),
+        ),
+        updater,
+        build_alert_monitor(
+            settings,
+            container.alert_stores,
+            container.status,
+            container.clock,
+            updater.report if updater is not None else None,
         ),
     )

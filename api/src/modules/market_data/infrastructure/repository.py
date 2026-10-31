@@ -88,6 +88,23 @@ class SqlAlchemyCandleRepository:
         count, first, last = result.one()
         return int(count), first, last
 
+    async def last_open_time(
+        self, exchange: str, symbol: str, timeframe: Timeframe
+    ) -> datetime | None:
+        result = await self._session.execute(
+            select(func.max(CandleRow.open_time)).where(*self._series(exchange, symbol, timeframe))
+        )
+        return result.scalar_one_or_none()
+
+    async def list_series(self, last_after: datetime) -> list[tuple[str, str, Timeframe, datetime]]:
+        last = func.max(CandleRow.open_time)
+        result = await self._session.execute(
+            select(CandleRow.exchange, CandleRow.symbol, CandleRow.timeframe, last)
+            .group_by(CandleRow.exchange, CandleRow.symbol, CandleRow.timeframe)
+            .having(last >= last_after)
+        )
+        return [(row[0], row[1], Timeframe(row[2]), row[3]) for row in result.all()]
+
     async def open_times(
         self, exchange: str, symbol: str, timeframe: Timeframe, start: datetime, end: datetime
     ) -> list[datetime]:

@@ -58,6 +58,20 @@ class Settings(BaseSettings):
     reconcile_interval_seconds: float = 60.0
     reconcile_absent_after_seconds: float = 30.0  # unknown order still missing after this: aborted
     native_stop_poll_seconds: float = 10.0
+    # Keeping stored candles current (worker): a pass looks for newly closed candles; series
+    # whose last candle is older than the max age are left alone unless a bot uses them.
+    candle_update_enabled: bool = True
+    candle_update_interval_seconds: float = 30.0
+    candle_update_grace_seconds: float = 5.0
+    candle_update_discover_seconds: float = 600.0
+    candle_update_max_age_days: float = 7.0
+    candle_stale_after_candles: int = 3
+    # In-app alerts: how often conditions are checked, how long a resolved alert may be
+    # reopened instead of duplicated, and how long resolved and read alerts are kept.
+    alert_evaluation_seconds: float = 15.0
+    alert_cooldown_seconds: float = 300.0
+    alert_retention_days: float = 30.0
+    alerts_api_evaluation_enabled: bool = True  # the API process watches the worker
     # Global risk limits across all bots (operator-controlled, not editable through the API).
     risk_max_open_positions: int | None = None
     risk_max_total_exposure: Decimal | None = None

@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { CircleAlert, CircleCheck, OctagonX, WifiOff } from "lucide-react";
 import { Badge } from "lost-ui/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "lost-ui/ui/alert";
+import { AlertsIndicator } from "@/components/shared/layout/alerts-indicator";
 import { KillSwitchControl } from "@/components/shared/layout/kill-switch-control";
 import { useSystemStatus } from "@/hooks/shared/use-system";
 import { isApiError } from "@/lib/shared/api/api-error";
@@ -44,6 +45,7 @@ export function SafetyStrip() {
           </Badge>
         ) : null}
       </Link>
+      <AlertsIndicator />
       <KillSwitchControl />
     </div>
   );

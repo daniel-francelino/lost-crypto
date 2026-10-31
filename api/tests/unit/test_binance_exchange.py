@@ -1,11 +1,13 @@
 from decimal import Decimal
 
+import ccxt
 import pytest
 
 from factories import T0
 from fakes import FakeCcxtClient
 from modules.exchanges.errors import (
     ExchangeError,
+    RateLimited,
     TradingNotEnabled,
     TransientExchangeError,
     UnknownSymbolError,
@@ -43,6 +45,22 @@ async def test_gives_up_after_max_attempts() -> None:
         await BinanceExchange(FakeCcxtClient(failures=99)).fetch_candles(
             "BTC/USDT", Timeframe.H1, T0, 1000
         )
+
+
+async def test_a_rate_limit_is_never_retried_and_carries_the_retry_after() -> None:
+    client = FakeCcxtClient()
+
+    async def limited(*_: object) -> list[list[float]]:
+        client.calls += 1
+        client.last_response_headers = {"Retry-After": "7"}  # type: ignore[attr-defined]
+        raise ccxt.RateLimitExceeded("429")
+
+    client.fetch_ohlcv = limited  # type: ignore[method-assign]
+    with pytest.raises(RateLimited) as caught:
+        await BinanceExchange(client).fetch_candles("BTC/USDT", Timeframe.H1, T0, 1000)
+    assert client.calls == 1
+    assert caught.value.retry_after_seconds == 7.0
+    assert isinstance(caught.value, TransientExchangeError)
 
 
 async def test_market_info_uses_exact_binance_filters() -> None:

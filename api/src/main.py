@@ -1,5 +1,6 @@
+import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,6 +40,11 @@ OPENAPI_TAGS = [
     },
     {"name": "audit", "description": "Trilha de auditoria append-only."},
     {
+        "name": "alerts",
+        "description": "Alertas de falha (worker parado, bot com erro, candles atrasados...), "
+        "mostrados no app.",
+    },
+    {
         "name": "auth",
         "description": "Login, sessões (refresh token em cookie httpOnly) e usuários.",
     },
@@ -75,9 +81,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         container = build_container(settings)
         app.state.container = container
         app.state.engine = container.engine
+        watcher = (
+            asyncio.create_task(container.alert_monitor.run_api_forever())
+            if settings.alerts_api_evaluation_enabled
+            else None
+        )
         try:
             yield
         finally:
+            if watcher is not None:
+                watcher.cancel()
+                with suppress(asyncio.CancelledError):
+                    await watcher
             await container.engine.dispose()
 
     app = FastAPI(

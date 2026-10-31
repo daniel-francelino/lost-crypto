@@ -78,5 +78,21 @@ export const SignalKind = {
 } as const;
 export type SignalKind = ValueOf<typeof SignalKind>;
 
+export const AlertKind = {
+  WorkerDown: "worker_down",
+  BotStale: "bot_stale",
+  BotError: "bot_error",
+  KillSwitchActive: "kill_switch_active",
+  CandlesStale: "candles_stale",
+  ExchangeRateLimited: "exchange_rate_limited",
+} as const;
+export type AlertKind = ValueOf<typeof AlertKind>;
+
+export const AlertSeverity = {
+  Warning: "warning",
+  Critical: "critical",
+} as const;
+export type AlertSeverity = ValueOf<typeof AlertSeverity>;
+
 export const Unknown = "unknown" as const;
 export type Unknown = typeof Unknown;

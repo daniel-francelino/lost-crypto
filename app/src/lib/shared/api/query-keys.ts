@@ -43,6 +43,12 @@ export const QueryKey = {
     capabilities: () => ["system", "capabilities"] as const,
     killSwitch: () => ["system", "kill-switch"] as const,
   },
+  Alerts: {
+    all: () => ["alerts"] as const,
+    summary: () => ["alerts", "summary"] as const,
+    list: (unreadOnly: boolean, severity: string | null, limit: number, offset: number) =>
+      ["alerts", "list", unreadOnly, severity, limit, offset] as const,
+  },
   Audit: {
     list: (botId: string | null, eventType: string | null, limit: number, offset: number) =>
       ["audit", botId, eventType, limit, offset] as const,

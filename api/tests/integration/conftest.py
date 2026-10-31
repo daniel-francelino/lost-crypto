@@ -10,6 +10,7 @@ from cryptography.fernet import Fernet
 from harness import (
     API_TOKEN,
     LIVE_SETTINGS,
+    QUIET,
     START,
     Env,
     FakeClock,
@@ -27,7 +28,7 @@ from simulated_exchange import SimulatedExchange
 
 @pytest.fixture
 async def env() -> AsyncIterator[Env]:
-    settings = Settings()  # type: ignore[call-arg]
+    settings = Settings(**QUIET)  # type: ignore[call-arg]
     clock = FakeClock(START + timedelta(hours=20, seconds=5))
     app = create_app(settings)
     containers: list[Container] = []
@@ -65,6 +66,7 @@ async def _testnet_stack(**overrides: Any) -> AsyncIterator[TestnetEnv]:
         "api_token": API_TOKEN,
         "credential_master_keys": master_key,
         "testnet_trading_enabled": True,
+        **QUIET,
         **overrides,
     }
     settings = Settings(**values)  # type: ignore[call-arg]

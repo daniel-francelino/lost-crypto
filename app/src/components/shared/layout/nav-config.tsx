@@ -1,5 +1,6 @@
 import {
   Activity,
+  Bell,
   Bot,
   ClipboardList,
   Database,
@@ -47,6 +48,7 @@ export const navigation = (user: User | null): NavSection[] => {
       label: "Sistema",
       items: [
         { title: "Status", to: AppRoute.System, icon: icon(Activity) },
+        { title: "Alertas", to: AppRoute.Alerts, icon: icon(Bell) },
         { title: "Auditoria", to: AppRoute.Audit, icon: icon(ClipboardList) },
       ],
     },

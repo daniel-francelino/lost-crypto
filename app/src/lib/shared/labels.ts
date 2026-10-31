@@ -1,4 +1,6 @@
 import {
+  AlertKind,
+  AlertSeverity,
   BotState,
   ConnectionStatus,
   Environment,
@@ -27,6 +29,22 @@ export const botStateLabel = (value: string): string =>
     },
     value,
   );
+
+export const alertKindLabel = (value: string): string =>
+  pick(
+    {
+      [AlertKind.WorkerDown]: "Worker parado",
+      [AlertKind.BotStale]: "Bot sem heartbeat",
+      [AlertKind.BotError]: "Bot com erro",
+      [AlertKind.KillSwitchActive]: "Kill switch ativo",
+      [AlertKind.CandlesStale]: "Candles atrasados",
+      [AlertKind.ExchangeRateLimited]: "Exchange limitando requisições",
+    },
+    value,
+  );
+
+export const alertSeverityLabel = (value: string): string =>
+  pick({ [AlertSeverity.Warning]: "Aviso", [AlertSeverity.Critical]: "Crítico" }, value);
 
 export const modeLabel = (value: string): string =>
   pick(
