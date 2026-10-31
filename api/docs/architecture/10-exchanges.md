@@ -70,18 +70,19 @@ If a method is missing Python refuses to instantiate the class; if `PROFILE` is 
 registry refuses to register it. No change is needed in strategies, risk, trading, backtesting,
 bots or the API.
 
-## Real orders: gated, not missing
+## Real orders (Phase 4)
 
-The contract already includes order placement, cancellation and lookup. In `CcxtExchange` those
-raise `TradingNotEnabled` until real orders are built behind credentials, the credential vault
-and reconciliation (Phase 4); the paper venue implements the same operations through
-`ExchangeGateway`, so the trader already speaks the final interface.
+The contract now covers the whole account surface: `create_market_order`, `create_stop_order`,
+`fetch_order`, `cancel_order`, `fetch_open_orders` and `fetch_balances`, all idempotent / safe by
+the rules in the `Exchange` docstrings. `CcxtExchange` implements them for any CCXT exchange; an
+instance created **without credentials** (the shared public one) raises `NotAuthenticated`, one
+created for a connection (`ExchangeRegistry.authenticated(...)`, sandbox flag from the connection's
+environment) can trade. The paper venue implements the order operations through the narrower
+`ExchangeGateway` port. Details and safeguards: [doc 12](12-testnet-and-reconciliation.md).
 
-## Stops: engine-side now, native later
+## Stops: native on the exchange, engine-side as the fallback
 
 `ExchangeCapabilities.native_stop_orders` states whether an exchange keeps stop orders itself.
-Today stop-loss / take-profit are **monitored by the bot** against each closed candle's
-low/high (paper and backtest behave identically). That does not protect while the worker is down,
-which is why catch-up still executes stops and why `/system/status` exists. When the Binance
-testnet/live path arrives, exchanges with native stops should hold them on the exchange; the
-decision point is that capability flag.
+Paper and backtests monitor stops candle by candle (low/high). Real-exchange bots on an exchange
+with native stops rest the stop on the exchange, so it fires even when the worker is down; the bot
+falls back to watching it when placement fails. See [doc 12](12-testnet-and-reconciliation.md).

@@ -19,6 +19,7 @@ Architectural reference for the Lost Crypto backend. **Documentation only** — 
 | 09 | [Directory structure](09-directory-structure.md) | Feature-based layout under `api/` |
 | 10 | [Exchange abstraction](10-exchanges.md) | Registry, profiles, gateway port, how to add an exchange |
 | 11 | [Strategies](11-strategies.md) | One contract, one file per strategy, catalog, how to add one |
+| 12 | [Testnet and reconciliation](12-testnet-and-reconciliation.md) | Credentials, two-phase orders, reconciliation, native stops |
 
 ## Key decisions (summary)
 
@@ -68,8 +69,12 @@ Architectural reference for the Lost Crypto backend. **Documentation only** — 
 | 2 | One supervisor loop iterates all bots sequentially (failures isolated per bot) instead of one asyncio task per bot | many bots or slow strategies |
 | 2 | Paper orders are created and filled in one transaction; the INTENT→SUBMITTING→UNKNOWN states exist in the domain for testnet/live | testnet adapter (Phase 4) |
 | 2 | Paper reference price is the close of the signal candle (no live ticker call) | tick-level strategies |
-| 3 | Stop-loss / take-profit are monitored by the bot per closed candle (low/high), not placed as native exchange orders | Binance testnet/live gateway (Phase 4): use `native_stop_orders` |
-| 3 | Real order methods of the `Exchange` contract raise `TradingNotEnabled` in `CcxtExchange`; only the paper venue (`ExchangeGateway`) places orders, and there is no account/balances port | credentials + reconciliation (Phase 4) |
+| 3→4 | Paper/backtest monitor stops per candle; real-exchange bots rest a native STOP_LOSS on the exchange (take-profit is still watched by the bot) | native OCO / take-profit orders |
+| 4 | Done: real order methods, account port (`fetch_balances`, `fetch_open_orders`), credentials vault, reconciliation (supersedes the Phase 3 note) | — |
 | 3 | Backtests apply stop/take-profit from the signal but still size trades all-in (no `assess_signal` sizing) | backtests must mirror bot risk sizing |
 | 3 | Global risk limits come from environment variables (`RISK_MAX_*`) and use cost basis, not mark-to-market | portfolio-level risk (VaR, correlation) |
 | 3 | "Cooldown after losses" is implemented as a pause after N consecutive losing round trips | time-based cooldown is needed |
+| 4 | Market orders only, fills found by polling (no user-data WebSocket); fee assets other than base/quote are rejected | limit orders, lower latency, BNB-discount accounts |
+| 4 | Testnet only: `live` connections are refused; live needs the doc 05 safeguards (confirmation token, hard caps, chain of flags) | Phase 5 |
+| 4 | `bot_portfolios` reservation fields replace a separate ledger; the account check asserts "exchange holds at least what bots own" (virtual sub-accounts over one account) | per-bot sub-accounts or a ledger for exact attribution |
+| 4 | Backtests still ignore the bot's risk sizing and real fee assets | align the backtester with the real-exchange pipeline |

@@ -20,6 +20,10 @@ services:
     environment: &app-env
       APP_ENV: local
       DATABASE_URL: postgresql+asyncpg://lostcrypto:lostcrypto@postgres:5432/lostcrypto
+      # Secrets come from your shell / an .env next to this file; empty means unset.
+      API_TOKEN: ${API_TOKEN:-}
+      CREDENTIAL_MASTER_KEYS: ${CREDENTIAL_MASTER_KEYS:-}
+      TESTNET_TRADING_ENABLED: ${TESTNET_TRADING_ENABLED:-false}
       # LIVE_TRADING_ENABLED is intentionally not defined here (defaults to false).
     ports:
       - "8000:8000"

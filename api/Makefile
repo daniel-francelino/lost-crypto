@@ -4,7 +4,7 @@ COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
 .PHONY: help install up down restart logs ps db dev worker migrate revision \
-        lint format typecheck test test-integration check openapi
+        lint format typecheck test test-integration check openapi master-key test-testnet
 
 help: ## Lista os comandos disponíveis
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -71,6 +71,12 @@ test-integration: ## Testes de integração em banco separado (requer: make db)
 	$(UV) run pytest -m integration
 
 check: lint typecheck test ## lint + tipos + testes unitários
+
+master-key: ## Gera uma chave Fernet para CREDENTIAL_MASTER_KEYS
+	@$(UV) run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+test-testnet: ## Teste de fumaça na testnet REAL (exige TESTNET_API_KEY / TESTNET_API_SECRET)
+	$(UV) run pytest tests/smoke -m smoke -s
 
 # --- Documentação da API -----------------------------------------------------
 openapi: ## Exporta o contrato OpenAPI para docs/openapi.json

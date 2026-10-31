@@ -1541,6 +1541,158 @@
           }
         }
       }
+    },
+    "/api/v1/exchange-connections": {
+      "get": {
+        "tags": [
+          "exchange-connections"
+        ],
+        "summary": "List Connections",
+        "operationId": "list_connections_api_v1_exchange_connections_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectionOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Connections Api V1 Exchange Connections Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "exchange-connections"
+        ],
+        "summary": "Create Connection",
+        "description": "Register exchange credentials (testnet only). They are stored encrypted, only the\nworker can decrypt them, and they are never returned. Requires `API_TOKEN` to be set.",
+        "operationId": "create_connection_api_v1_exchange_connections_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/exchange-connections/{connection_id}": {
+      "get": {
+        "tags": [
+          "exchange-connections"
+        ],
+        "summary": "Get Connection",
+        "operationId": "get_connection_api_v1_exchange_connections__connection_id__get",
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Connection Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/exchange-connections/{connection_id}/disable": {
+      "post": {
+        "tags": [
+          "exchange-connections"
+        ],
+        "summary": "Disable Connection",
+        "description": "Stop using these credentials. Bots bound to a disabled connection cannot start.",
+        "operationId": "disable_connection_api_v1_exchange_connections__connection_id__disable_post",
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Connection Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2000,9 +2152,25 @@
           },
           "mode": {
             "type": "string",
-            "const": "paper",
+            "enum": [
+              "paper",
+              "testnet"
+            ],
             "title": "Mode",
             "default": "paper"
+          },
+          "connection_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id",
+            "description": "Required for testnet bots: the exchange connection to use"
           }
         },
         "type": "object",
@@ -2060,6 +2228,18 @@
           },
           "mode": {
             "$ref": "#/components/schemas/ExecutionMode"
+          },
+          "connection_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id"
           },
           "desired_state": {
             "$ref": "#/components/schemas/BotState"
@@ -2119,6 +2299,7 @@
           "slippage_bps",
           "risk",
           "mode",
+          "connection_id",
           "desired_state",
           "observed_state",
           "config_version",
@@ -2368,6 +2549,33 @@
                 "type": "null"
               }
             ]
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "paper",
+                  "testnet"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "connection_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id"
           }
         },
         "type": "object",
@@ -2412,6 +2620,112 @@
           "volume"
         ],
         "title": "CandleOut"
+      },
+      "ConnectionCreate": {
+        "properties": {
+          "exchange": {
+            "type": "string",
+            "title": "Exchange",
+            "default": "binance"
+          },
+          "environment": {
+            "type": "string",
+            "const": "testnet",
+            "title": "Environment",
+            "default": "testnet"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "api_key": {
+            "type": "string",
+            "format": "password",
+            "title": "Api Key",
+            "writeOnly": true
+          },
+          "api_secret": {
+            "type": "string",
+            "format": "password",
+            "title": "Api Secret",
+            "writeOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "api_key",
+          "api_secret"
+        ],
+        "title": "ConnectionCreate"
+      },
+      "ConnectionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "exchange": {
+            "type": "string",
+            "title": "Exchange"
+          },
+          "environment": {
+            "$ref": "#/components/schemas/Environment"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "api_key_hint": {
+            "type": "string",
+            "title": "Api Key Hint"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ConnectionStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "exchange",
+          "environment",
+          "label",
+          "api_key_hint",
+          "status",
+          "created_at",
+          "verified_at"
+        ],
+        "title": "ConnectionOut",
+        "description": "What the API ever returns about a connection: no secret, only a hint of the key."
+      },
+      "ConnectionStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "disabled",
+          "invalid"
+        ],
+        "title": "ConnectionStatus"
       },
       "CoverageOut": {
         "properties": {
@@ -2474,6 +2788,14 @@
         ],
         "title": "CoverageOut"
       },
+      "Environment": {
+        "type": "string",
+        "enum": [
+          "testnet",
+          "live"
+        ],
+        "title": "Environment"
+      },
       "EquityPointOut": {
         "properties": {
           "time": {
@@ -2496,7 +2818,8 @@
       "ExecutionMode": {
         "type": "string",
         "enum": [
-          "paper"
+          "paper",
+          "testnet"
         ],
         "title": "ExecutionMode"
       },
@@ -2887,6 +3210,21 @@
             "type": "string",
             "title": "Client Order Id"
           },
+          "order_type": {
+            "type": "string",
+            "title": "Order Type"
+          },
+          "exchange_order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exchange Order Id"
+          },
           "symbol": {
             "type": "string",
             "title": "Symbol"
@@ -2942,6 +3280,8 @@
         "required": [
           "id",
           "client_order_id",
+          "order_type",
+          "exchange_order_id",
           "symbol",
           "side",
           "quantity",
@@ -3074,6 +3414,14 @@
               }
             ],
             "title": "Take Profit Price"
+          },
+          "reserved_cash": {
+            "type": "string",
+            "title": "Reserved Cash"
+          },
+          "native_stop_active": {
+            "type": "boolean",
+            "title": "Native Stop Active"
           }
         },
         "type": "object",
@@ -3088,7 +3436,9 @@
           "realized_pnl",
           "fees_paid",
           "stop_price",
-          "take_profit_price"
+          "take_profit_price",
+          "reserved_cash",
+          "native_stop_active"
         ],
         "title": "PortfolioOut"
       },
@@ -3976,6 +4326,10 @@
     {
       "name": "audit",
       "description": "Trilha de auditoria append-only."
+    },
+    {
+      "name": "exchange-connections",
+      "description": "Credenciais de exchange (testnet), guardadas criptografadas e nunca devolvidas. Exige API_TOKEN configurado."
     }
   ]
 }

@@ -314,3 +314,22 @@ def test_credentials_never_appear_in_repr_or_str() -> None:
     for text in (repr(CREDENTIALS), str(CREDENTIALS), f"{CREDENTIALS}"):
         assert "test-api-secret-5678" not in text and "test-api-key-1234" not in text
         assert "5678" not in text or "***" in text
+
+
+async def test_sandbox_mode_points_the_real_client_at_the_testnet() -> None:
+    sandbox = BinanceExchange(credentials=CREDENTIALS, sandbox=True)
+    live = BinanceExchange(credentials=CREDENTIALS)
+    try:
+        assert "testnet" in str(sandbox._client.urls["api"])
+        assert "testnet" not in str(live._client.urls["api"])
+        assert sandbox._client.apiKey == CREDENTIALS.api_key
+    finally:
+        await sandbox.aclose()
+        await live.aclose()
+
+
+def test_empty_secret_settings_count_as_unset() -> None:
+    from core.config import Settings
+
+    settings = Settings(_env_file=None, api_token="", credential_master_keys="  ")  # type: ignore[call-arg]
+    assert settings.api_token is None and settings.master_keys == []

@@ -168,3 +168,37 @@ Mesmo desenho das exchanges: um contrato (`Strategy`, em `strategies/domain/base
 | `donchian_breakout` | `strategies/domain/donchian_breakout.py` | compra o rompimento da máxima dos últimos N candles, vende ao perder a mínima dos últimos M |
 
 `GET /strategies` lista todas com seus parâmetros. Para criar uma nova: copie `donchian_breakout.py`, registre em `catalog.py`, rode `make test` (a suíte de contrato valida a estratégia sozinha) e use o `TYPE_KEY` em bots/backtests/varreduras. Passo a passo e padrões de projeto: [docs/architecture/11-strategies.md](docs/architecture/11-strategies.md).
+
+## Fase 4 — testnet da exchange (dinheiro fictício, ordens reais no sandbox)
+
+Detalhes, diagramas e limitações: [docs/architecture/12-testnet-and-reconciliation.md](docs/architecture/12-testnet-and-reconciliation.md).
+
+**Pré-requisitos (nada é aceito sem eles):**
+
+```bash
+make master-key                      # gera a chave que criptografa as credenciais
+# .env (não versionar): API_TOKEN=<segredo>  CREDENTIAL_MASTER_KEYS=<chave>  TESTNET_TRADING_ENABLED=true
+```
+
+- `API_TOKEN`: todo endpoint (exceto health) passa a exigir `Authorization: Bearer <token>`. Em `APP_ENV=prod` a API nem sobe sem ele; `/exchange-connections` exige o token sempre.
+- `CREDENTIAL_MASTER_KEYS`: chave Fernet que criptografa as credenciais no banco (várias, separadas por vírgula, para rotação).
+- `TESTNET_TRADING_ENABLED=true` no **worker**: sem isso um bot testnet entra em `error` ao iniciar.
+- Chaves da testnet: https://testnet.binance.vision (login com GitHub). **Só chaves de testnet.** Conexões `live` são recusadas.
+
+```bash
+H="Authorization: Bearer $API_TOKEN"; B=localhost:8000/api/v1
+# 1. Credenciais (guardadas criptografadas; nunca devolvidas)
+curl -H "$H" -X POST $B/exchange-connections -H 'content-type: application/json' \
+  -d '{"label":"minha-testnet","api_key":"...","api_secret":"..."}'
+# 2. Bot em modo testnet usando essa conexão
+curl -H "$H" -X POST $B/bots -H 'content-type: application/json' -d '{
+  "name":"ema-testnet","mode":"testnet","connection_id":"<id>","symbol":"BTC/USDT","timeframe":"1h",
+  "strategy_type":"ema_crossover","strategy_params":{"stop_loss_pct":2}}'
+curl -H "$H" -X POST $B/bots/<id>/start
+curl -H "$H" $B/bots/<id>/orders      # status (SUBMITTING/UNKNOWN/FILLED...), exchange_order_id, tipo
+curl -H "$H" $B/bots/<id>/portfolio   # reserved_cash e native_stop_active
+```
+
+**Como funciona (resumo):** a ordem é gravada como `SUBMITTING` (id determinístico + capital reservado) numa transação, enviada à exchange fora de qualquer transação e o resultado aplicado numa segunda. Falha ambígua (timeout) vira `UNKNOWN` e é resolvida **consultando o id na exchange**, nunca reenviando. O stop-loss fica na exchange e é aplicado ao portfólio mesmo se o worker estava parado. A cada minuto a conta é conferida: se a exchange tem menos do que os bots acham que têm, ou há ordem com o prefixo `lc-` desconhecida, os bots são **pausados** (`reconciliation mismatch`) e a execução fica em `reconciliation_runs`.
+
+**Validação:** o ciclo é coberto por testes contra uma exchange *simulada* com falhas injetadas. Contra a Binance real foram confirmados (com chave inválida) o endpoint sandbox, as regras de mercado e o erro `-2015`. **Ordens reais ainda não foram testadas** (sem chaves): rode `make test-testnet` com `TESTNET_API_KEY`/`TESTNET_API_SECRET`.
