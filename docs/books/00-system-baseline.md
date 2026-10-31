@@ -17,10 +17,12 @@ Verified in the code on 2026-10-31. Every chapter report compares the book again
 | Stops | Stop/target checked against the candle low/high; stop wins when both are inside the candle; a gap through the stop fills at the open (`risk_management/domain/stops.py`). |
 | Sizing | Trivial: all cash in, whole position out. Real sizing lives in the risk module and is **not** used by the backtester. |
 | Out-of-sample | One chronological split (`test_fraction`), strategy runs once over all data, metrics reported for train and test (`segments.py`). |
-| Parameter search | Sweeps exist (API/UI). With a split they rank by the **train** part and show the test part as a check (`rank_by` overrides); they report `trials` and an approximate `prior_trials` count. No statistical correction for the number of trials (no PSR/DSR/PBO). |
+| Parameter search | Sweeps exist (API/UI). With a split they rank by the **train** part and show the test part as a check (`rank_by` overrides); they report `trials`, an approximate `prior_trials` count and a neighbour-based robustness verdict (plateau / peak). No statistical correction for the number of trials (no PSR/DSR/PBO). |
 | Robustness | Optional cost ladder (fee + slippage × 0–3, break-even), metrics by calendar year/quarter (`periods.py`), operator drawdown tolerance flag. |
 | Reproducibility | `seed` and a SHA-256 of the candles are recorded per run. The fill model is deterministic. |
-| Data | Candles stored in Postgres, imported by manual jobs; suspect candles are refused at entry by the risk module (`max_candle_range_pct`). Delistings/survivorship are not modelled. |
+| Data | Candles stored in Postgres, imported by manual jobs. Invalid candles (OHLC inconsistent, non-positive price, negative volume, misaligned time) are not imported and are skipped by the bots' trader with an audit event (`market_data/domain/quality.py`); re-imports count changed candles. Outlier report (> 4σ). The risk module still refuses entries on suspect candles (`max_candle_range_pct`). A daily listing snapshot records first-seen/delisted dates from now on; earlier delistings are unknown. |
+| Gaps | Backtests refuse ranges missing > 1% of candles or with a hole > 24 h unless `allow_gaps`; gaps, invalid candles, outliers and the sample-size check are stored in `data_quality`. The engine fills a signal at the next available open after a hole. |
+| Look-ahead | Truncation test over every catalog strategy (`tests/unit/test_lookahead.py`), with a leaky control. |
 
 ## Metrics (`modules/analytics/domain/metrics.py`)
 

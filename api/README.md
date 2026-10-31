@@ -24,8 +24,11 @@ B=localhost:8000/api/v1
 # 1. Importar candles de BTC/USDT (1h)
 curl -X POST $B/market-data/imports -H 'content-type: application/json' \
   -d '{"symbol":"BTC/USDT","timeframe":"1h","start":"2024-01-01T00:00:00Z","end":"2024-07-01T00:00:00Z"}'
-curl $B/market-data/imports/<job_id>                       # status: queued → running → completed
-curl "$B/market-data/coverage?symbol=BTC/USDT&timeframe=1h"  # quantidade e lacunas
+curl $B/market-data/imports/<job_id>                       # status, candles_rejected, candles_changed
+curl "$B/market-data/coverage?symbol=BTC/USDT&timeframe=1h"  # quantidade e lacunas da série
+curl "$B/market-data/coverage?symbol=BTC/USDT&timeframe=1h&start=2024-01-01T00:00:00Z&end=2024-07-01T00:00:00Z"  # + in_range
+curl "$B/market-data/outliers?symbol=BTC/USDT&timeframe=1h&start=2024-01-01T00:00:00Z&end=2024-07-01T00:00:00Z"  # > 4σ
+curl "$B/market-data/listings?symbol=BTC/USDT"               # listado/deslistado (registro diário)
 
 # 2. Rodar o backtest
 curl -X POST $B/backtests -H 'content-type: application/json' -d '{
@@ -155,6 +158,8 @@ curl -X POST $B/backtests -H 'content-type: application/json' -d '{
 ```
 
 Com `test_fraction`, a varredura **escolhe pelo treino** e mostra o teste do vencedor como verificação: escolher pelo teste o transforma em dado de seleção. A resposta traz `trials` (combinações tentadas) e `prior_trials` (execuções anteriores da mesma estratégia sobre os mesmos dados, aproximado). Sem `test_fraction` o ranking usa o período todo e a resposta avisa disso.
+
+Qualidade dos dados: candles inválidos (máxima abaixo do corpo, preço ≤ 0, horário fora da grade…) **não são gravados** na importação (`candles_rejected` + amostras) e o bot pula o candle com um evento de auditoria `data.invalid_candle`; reimportações contam `candles_changed`. Um backtest com mais de 1% dos candles faltando no período, ou um buraco maior que 24 h, é recusado (422) a menos que `"allow_gaps": true`; cada execução traz `data_quality` (lacunas, candles inválidos, movimentos acima de 4σ, tamanho da amostra contra 252 × parâmetros livres). A varredura traz `robustness` (`plateau`, `peak`, `unprofitable`, `insufficient`) comparando o vencedor com os vizinhos na grade. O worker grava uma vez por dia os pares listados pela exchange (`/market-data/listings`).
 
 Métricas (`metrics`, também em `/bots/{id}/performance`): além de retorno e drawdown, Sharpe, Sortino, information ratio contra comprar e segurar, retorno e volatilidade anualizados (365 dias, taxa livre de risco 0; `null` com menos de 30 retornos), exposição, duração do drawdown e se ele ainda está aberto. Cada backtest traz também `periods` (por ano, ou trimestre abaixo de 2 anos) e, se pedido, `cost_ladder` com o custo de equilíbrio e `tolerance`.
 

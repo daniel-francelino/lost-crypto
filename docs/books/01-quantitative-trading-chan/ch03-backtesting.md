@@ -1,6 +1,6 @@
 # Livro 1 · Capítulo 3 — Backtesting
 
-*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: **apenas análise**; nada novo implementado por este relatório. Diagnóstico revisado contra o código em 2026-10-31, **depois** da implementação do [Cap. 2](ch02-fishing-for-ideas.md), que já entregou O1, O2, O9 e parte de O7 (ver §2.1).
+*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: **implementado** (O3–O7, O10, O11) em 2026-10-31; ver §8. O1, O2 e O9 vieram do [Cap. 2](ch02-fishing-for-ideas.md); O8 (walk-forward) continua fora do escopo. As tabelas §2 descrevem o código **antes** desta implementação.
 
 Nota de leitura: as pp. 32–36 (Excel, MATLAB, TradeStation e plataformas comerciais) foram apenas folheadas; descrevem ferramentas, não métodos. O restante (pp. 36–67) foi lido. No texto extraído o sinal de raiz quadrada se perde na prosa (a p. 44 imprime "12 times"), mas o código das pp. 45–46 mostra `SQRT(252)`, o que confirma a fórmula abaixo.
 
@@ -155,7 +155,7 @@ O5 primeiro porque não toca código de produção e protege tudo o que vem depo
 * Novo `src/modules/market_data/domain/quality.py` (O3); `market_data/application/service.py` (importador, cobertura por período, outliers); `market_data/application/ports.py`, `infrastructure/orm.py`, `infrastructure/repository.py` (contadores de importação, comparação antes do upsert, listagens); `market_data/presentation/router.py` (`/coverage` com período, `/outliers`, `/listings`).
 * `backtesting/application/service.py` (`_check_candles` com lacunas, `data_quality`, `sample`), `backtesting/domain/models.py` (`allow_gaps`), novo `backtesting/domain/robustness.py`, `backtesting/presentation/router.py`.
 * `trading/application/trader.py` (recusa de candle inválido); `strategies/presentation` (`parameter_count`).
-* Migração `0009_data_quality.py`: colunas de importação, `backtest_runs.data_quality`, `allow_gaps`, tabela `exchange_listings`.
+* Migração `0009_data_quality.py`: colunas de importação, `backtest_runs.data_quality`, `allow_gaps`, tabela `exchange_listings`. *(Implementado assim.)*
 * Testes: novos `tests/unit/test_lookahead.py`, `test_candle_quality.py`, `test_sweep_robustness.py`; integração em `test_phase1_flow.py` (lacunas, rejeições, outliers).
 
 **Front-end (`app/`)**
@@ -185,6 +185,37 @@ Cada passo é um PR pequeno, com testes, e pode ir para produção sozinho.
 * A varredura sintética de pico único sai `peak`; a suave sai `plateau`.
 * Apenas mudanças aditivas na API; execuções antigas abrem com "—" nos campos novos.
 * Tudo `Decimal` no domínio; `make check`, testes de integração, `npm run lint`, `typecheck`, `test`, `build` e `check:consistency` verdes; telas novas conferidas no navegador em 1366 px e 360 px.
+
+## 8. Implementação (2026-10-31)
+
+Implementado na branch `docs/ch02-fishing-for-ideas-review`, back-end e front-end.
+
+**Back-end (`api/`)**
+* **O5:** `tests/unit/test_lookahead.py` roda o teste de truncamento (10, 50 e 100 candles removidos) para todas as estratégias do catálogo, com parâmetros padrão e com stop/alvo. O controle é uma estratégia que usa a **média da amostra inteira** (o vazamento clássico do livro: um coeficiente ajustado em todos os dados) e precisa reprovar. Uma estratégia que só "espia" o próximo fechamento não serviria de controle: a decisão errada cairia depois do corte.
+* **O3:** `market_data/domain/quality.py` (`candle_problems`, `find_outliers`, `returns_by_time`). O importador não grava candles inválidos e registra `candles_rejected`, `rejection_samples` (até 20) e `candles_changed` (OHLCV diferente do que estava guardado). O trader dos bots pula o candle inválido, marca a barra como processada (não busca de novo) e grava o evento de auditoria `data.invalid_candle`. `GET /market-data/outliers` devolve os candles acima de k·σ (padrão 4) com o movimento do BTC/USDT no mesmo candle, quando guardado.
+* **O4:** `range_coverage` no domínio; `GET /market-data/coverage` aceita `start`/`end` e devolve `in_range`. `BacktestService._check_candles` recusa (422) mais de 1% faltando ou um buraco maior que 24 h, a menos que `allow_gaps`. Só candles já fechados contam como esperados.
+* **O3/O4/O6 no resultado:** coluna `backtest_runs.data_quality` com `gaps`, `invalid_candles`, `outliers` (+ amostras) e `sample` (`free_parameters`, `bars`, `round_trips`, regra de 252 × parâmetros e mínimo de 30 operações). `GET /strategies` traz `parameter_count` e `too_many_parameters` (> 5).
+* **O7:** `backtesting/domain/robustness.py`; `SweepOut.robustness` com veredito, média e mínimo dos vizinhos, razão vizinhos/vencedor, fração lucrativa, mediana e média do top 3, calculado na leitura pelo critério do ranking.
+* **O10:** tabela `exchange_listings`, `ListingRecorder` chamado pelo `JobRunner` uma vez por dia, `list_markets` no adaptador ccxt (pares spot) e `GET /market-data/listings`.
+* Migração `0009_data_quality.py` (`alembic check` limpo; downgrade testado).
+
+**Front-end (`app/`)**
+* `CoverageNotice` passa a falar só do período escolhido e corrige o falso "o período ultrapassa o que está salvo" (comparava 23:59 do último dia com a abertura do último candle).
+* Formulário: bloqueio com lacunas acima do limite até marcar "Rodar mesmo com lacunas"; dica de tamanho de amostra; aviso de fração de teste < 0,25 e de estratégia com mais de 5 parâmetros.
+* Detalhe do backtest: card "Qualidade dos dados" com link para a tela de dados de mercado já filtrada; triagem com alertas de outliers, candles inválidos, lacunas, amostra e teste pequeno.
+* Varredura: card "Robustez: platô ou pico?" com tabela cruzada para grades de 2 parâmetros; pedido de heatmap registrado em `app/docs/lost-ui-requests.md`.
+* Dados de mercado: colunas "Rejeitados" (com amostras em português) e "Alterados", card "Movimentos fora do comum", linha de status de listagem; filtros vindos da URL.
+
+**Diferenças em relação ao plano**
+* O veredito de robustez ganhou o caso `unprofitable` (nem o vencedor dá lucro), além de `plateau`, `peak` e `insufficient`.
+* `invalid_candles` no resultado do backtest costuma ser 0: os candles inválidos já são barrados na importação. O campo continua útil para dados gravados antes desta versão.
+* O agendamento diário das listagens fica em memória no worker: depois de reiniciar, ele grava de novo na primeira volta (inofensivo, só atualiza `last_seen`).
+* A fixture do Exemplo 3.4 (O1) continua pendente por falta dos dados do IGE.
+
+**Verificação**
+* API: `make check` (ruff, mypy strict, 262 testes de unidade) e 79 testes de integração em Postgres 16, todos passando; novos `test_lookahead.py`, `test_data_quality.py` e `tests/integration/test_data_quality_flow.py`.
+* App: `lint`, `typecheck`, `test` (74), `format:check`, `check:consistency`, `build`, todos passando.
+* Navegador (Playwright, dados sintéticos com buraco de 40 h, candle inválido e spike): detalhe, varredura 4×4, dados de mercado, formulário e um backtest antigo (sem `data_quality`) em 1366 px e 360 px, sem erros no console; o botão do formulário bloqueia com lacunas e libera ao marcar a opção. Os 15 px de rolagem horizontal em 360 px continuam vindo do botão "Kill switch" (já existiam).
 
 ## Ressalvas
 Os números de Chan (≤ 5 parâmetros, 252 × parâmetros, 4 desvios-padrão, teste ≥ ⅓ do treino) são **regras práticas dele**, não resultados estatísticos, e foram derivados para estratégias de ações. Resultados de backtest não garantem retornos futuros; taxas, slippage, overfitting e efeitos específicos de cripto (24/7, liquidez fragmentada, deslistagens) podem piorar os resultados reais.

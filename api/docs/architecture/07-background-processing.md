@@ -50,7 +50,7 @@ Pros: zero extra infrastructure, transactional with business data, naturally dur
 - Per-bot DB advisory lock (`pg_try_advisory_lock(hash(bot_id))`) for single-writer guarantee, in addition to the unique active-session index.
 - Heartbeat column updated each loop (`last_heartbeat_at`); `/health` reports worker staleness; alert if stale.
 - Blocking/CPU work (indicator computation on large frames, backtests) runs in `run_in_executor` or a process pool, never on the event loop.
-- Periodic tasks: reconciliation (60 s), portfolio snapshots (e.g. 5 min), metrics, data gap checks.
+- Periodic tasks: reconciliation (60 s), portfolio snapshots (e.g. 5 min), metrics, data gap checks, the daily exchange listing snapshot (`market_data/application/listings.py`, run from `JobRunner.run_once`; an empty answer from the exchange is skipped, never read as "everything was delisted").
 
 ### Graceful shutdown
 
