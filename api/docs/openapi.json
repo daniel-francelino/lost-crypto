@@ -50,6 +50,28 @@
         }
       }
     },
+    "/api/v1/health/worker": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Worker",
+        "description": "Is the worker alive? 503 when its heartbeat is older than WORKER_STALE_AFTER_SECONDS.\n\nFor a monitor OUTSIDE this host (book 1 ch. 4, O3): the only way to learn that the whole\nmachine is down while nobody has the app open. Unauthenticated and without sensitive data.",
+        "operationId": "worker_api_v1_health_worker_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerHealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "tags": [
@@ -2496,6 +2518,50 @@
           }
         }
       }
+    },
+    "/api/v1/exchange-connections/{connection_id}/recheck": {
+      "post": {
+        "tags": [
+          "exchange-connections"
+        ],
+        "summary": "Recheck Connection",
+        "description": "Ask the exchange now what this ACTIVE key may do (the worker also does it daily).\n\nA key that turned unacceptable keeps working for exits but gets ``permission_warning``,\nwhich blocks new entries until it is fixed and checked again.",
+        "operationId": "recheck_connection_api_v1_exchange_connections__connection_id__recheck_post",
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Connection Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3034,6 +3100,97 @@
           "finished_at"
         ],
         "title": "BacktestOut"
+      },
+      "BackupOut": {
+        "properties": {
+          "last_backup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BackupRecordOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_restore_check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BackupRecordOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "overdue": {
+            "type": "boolean",
+            "title": "Overdue",
+            "description": "No successful backup in 26 h, or the last restore check failed."
+          }
+        },
+        "type": "object",
+        "required": [
+          "last_backup",
+          "last_restore_check",
+          "overdue"
+        ],
+        "title": "BackupOut"
+      },
+      "BackupRecordOut": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "at",
+          "ok",
+          "file",
+          "size_bytes",
+          "detail"
+        ],
+        "title": "BackupRecordOut"
       },
       "BotCreate": {
         "properties": {
@@ -3741,6 +3898,52 @@
         ],
         "title": "CheckOut"
       },
+      "ClockOut": {
+        "properties": {
+          "skew_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skew Ms",
+            "description": "Local clock minus the exchange's, in ms."
+          },
+          "measured_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measured At"
+          },
+          "warning": {
+            "type": "boolean",
+            "title": "Warning",
+            "description": "Beyond 1 s."
+          },
+          "blocking_live": {
+            "type": "boolean",
+            "title": "Blocking Live",
+            "description": "Beyond 5 s: no new live positions are opened."
+          }
+        },
+        "type": "object",
+        "required": [
+          "skew_ms",
+          "measured_at",
+          "warning",
+          "blocking_live"
+        ],
+        "title": "ClockOut"
+      },
       "ConnectionCreate": {
         "properties": {
           "exchange": {
@@ -3831,6 +4034,53 @@
               }
             ],
             "title": "Verified At"
+          },
+          "permissions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PermissionsOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the key could do at the last check."
+          },
+          "status_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Reason",
+            "description": "Why the last check refused the key (null when accepted)."
+          },
+          "last_checked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Checked At"
+          },
+          "permission_warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permission Warning",
+            "description": "An ACTIVE key that later became unacceptable: new entries are refused, exits continue, until the key is fixed and checked again."
           }
         },
         "type": "object",
@@ -5163,6 +5413,39 @@
         ],
         "title": "PeriodsOut"
       },
+      "PermissionsOut": {
+        "properties": {
+          "can_read": {
+            "type": "boolean",
+            "title": "Can Read"
+          },
+          "can_trade": {
+            "type": "boolean",
+            "title": "Can Trade"
+          },
+          "can_withdraw": {
+            "type": "boolean",
+            "title": "Can Withdraw"
+          },
+          "can_transfer": {
+            "type": "boolean",
+            "title": "Can Transfer"
+          },
+          "ip_restricted": {
+            "type": "boolean",
+            "title": "Ip Restricted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "can_read",
+          "can_trade",
+          "can_withdraw",
+          "can_transfer",
+          "ip_restricted"
+        ],
+        "title": "PermissionsOut"
+      },
       "PortfolioOut": {
         "properties": {
           "initial_capital": {
@@ -6435,6 +6718,34 @@
             },
             "type": "array",
             "title": "Exchanges"
+          },
+          "unprotected_positions": {
+            "items": {
+              "$ref": "#/components/schemas/UnprotectedPositionOut"
+            },
+            "type": "array",
+            "title": "Unprotected Positions",
+            "description": "Testnet/live positions with no stop resting on the exchange: exposed while the worker is down."
+          },
+          "clock": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClockOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "backup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BackupOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -6583,6 +6894,52 @@
         ],
         "title": "TradeOut"
       },
+      "UnprotectedPositionOut": {
+        "properties": {
+          "bot_id": {
+            "type": "string",
+            "title": "Bot Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "quantity": {
+            "type": "string",
+            "title": "Quantity"
+          },
+          "stop_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Price",
+            "description": "Stop watched by the worker only (none on the exchange), when set."
+          }
+        },
+        "type": "object",
+        "required": [
+          "bot_id",
+          "name",
+          "symbol",
+          "mode",
+          "quantity",
+          "stop_price"
+        ],
+        "title": "UnprotectedPositionOut"
+      },
       "UserCreate": {
         "properties": {
           "username": {
@@ -6704,6 +7061,48 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WorkerHealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "stale"
+            ],
+            "title": "Status"
+          },
+          "last_heartbeat_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heartbeat At"
+          },
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "last_heartbeat_at",
+          "age_seconds"
+        ],
+        "title": "WorkerHealthResponse"
       },
       "WorkerOut": {
         "properties": {

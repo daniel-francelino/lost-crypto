@@ -83,6 +83,10 @@ class BotSupervisor:
                 await self._resolver.verify_pending(self._live_require_ip)
             except Exception:
                 logger.exception("connection verification failed")
+            try:  # and keys already active may have been changed on the exchange since
+                await self._resolver.recheck_due(self._live_require_ip)
+            except Exception:
+                logger.exception("connection recheck failed")
         await self._housekeeping(bots)
         async with self._stores() as store:  # housekeeping may have paused or failed some bots
             bots = await store.bots.list_active()

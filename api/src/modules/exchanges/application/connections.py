@@ -1,7 +1,8 @@
 import json
+import logging
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Protocol
 from uuid import UUID
 
@@ -13,6 +14,7 @@ from modules.audit.models import AuditEvent, AuditRepository
 from modules.exchanges.application.exchange import Exchange
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.exchanges.domain.connections import (
+    ApiPermissions,
     ConnectionStatus,
     Credentials,
     Environment,
@@ -20,6 +22,10 @@ from modules.exchanges.domain.connections import (
     permission_problem,
 )
 from modules.exchanges.errors import AuthenticationFailed, ExchangeError
+
+logger = logging.getLogger(__name__)
+
+RECHECK_EVERY = timedelta(days=1)
 
 
 class ConnectionNotFound(NotFoundError):
@@ -43,6 +49,19 @@ class ConnectionRepository(Protocol):
     async def get_sealed(self, connection_id: UUID) -> bytes | None: ...
     async def list_connections(self) -> list[ExchangeConnection]: ...
     async def list_pending(self) -> list[ExchangeConnection]: ...
+    async def list_active_live(self) -> list[ExchangeConnection]: ...
+    async def record_check(
+        self,
+        connection_id: UUID,
+        *,
+        checked_at: datetime,
+        permissions: ApiPermissions | None,
+        reason: str | None,
+        warning: str | None,
+    ) -> None:
+        """Store the last permission check (and the warning, None to clear it)."""
+        ...
+
     async def set_status(
         self, connection_id: UUID, status: ConnectionStatus, verified_at: datetime | None
     ) -> None: ...
@@ -78,6 +97,7 @@ class ConnectionService:
         self._vault = vault
         self._exchanges = exchanges
         self._clock = clock
+        self._next_recheck: datetime | None = None
         self._ids = ids
 
     async def create(
@@ -180,6 +200,7 @@ class ConnectionResolver:
         self._vault = vault
         self._exchanges = exchanges
         self._clock = clock
+        self._next_recheck: datetime | None = None
 
     def _now(self) -> datetime:
         return self._clock.now()
@@ -214,11 +235,11 @@ class ConnectionResolver:
             pending = await store.connections.list_pending()
         done = 0
         for connection in pending:
+            permissions: ApiPermissions | None = None
             try:
                 exchange = await self.exchange_for(connection.id, allow_pending=True)
-                problem = permission_problem(
-                    await exchange.fetch_api_permissions(), require_ip_restriction
-                )
+                permissions = await exchange.fetch_api_permissions()
+                problem = permission_problem(permissions, require_ip_restriction)
             except AuthenticationFailed as exc:
                 problem = f"the exchange rejected the credentials: {exc}"
             except ExchangeError:
@@ -227,6 +248,13 @@ class ConnectionResolver:
             async with self._stores() as store:
                 await store.connections.set_status(
                     connection.id, status, None if problem else self._now()
+                )
+                await store.connections.record_check(
+                    connection.id,
+                    checked_at=self._now(),
+                    permissions=permissions,
+                    reason=problem,
+                    warning=None,
                 )
                 await store.audit.add(
                     AuditEvent(
@@ -240,6 +268,74 @@ class ConnectionResolver:
                 await store.commit()
             done += 1
         return done
+
+    async def recheck_due(self, require_ip_restriction: bool) -> int:
+        """Once a day, check active live keys again (book 1 ch. 4, O1)."""
+        now = self._now()
+        if self._next_recheck is not None and now < self._next_recheck:
+            return 0
+        self._next_recheck = now + RECHECK_EVERY
+        async with self._stores() as store:
+            active = await store.connections.list_active_live()
+        checked = 0
+        for connection in active:
+            try:
+                await self.recheck(connection.id, require_ip_restriction)
+                checked += 1
+            except ExchangeError:
+                logger.warning("permission recheck of %s failed; next pass", connection.id)
+        return checked
+
+    async def recheck(
+        self, connection_id: UUID, require_ip_restriction: bool
+    ) -> ExchangeConnection:
+        """Check an ACTIVE key's permissions now.
+
+        A key that became unacceptable is not invalidated (that would also block the exits of a
+        bot holding a position): it gets ``permission_warning``, which stops new entries.
+        Transient exchange errors propagate and change nothing.
+        """
+        async with self._stores() as store:
+            connection = await store.connections.get(connection_id)
+        if connection is None:
+            raise ConnectionNotFound(str(connection_id))
+        if connection.status is not ConnectionStatus.ACTIVE:
+            raise InvalidConnection(f"connection {connection.label!r} is {connection.status.value}")
+        exchange = await self.exchange_for(connection_id)
+        try:
+            permissions = await exchange.fetch_api_permissions()
+            problem = permission_problem(
+                permissions,
+                require_ip_restriction and connection.environment is Environment.LIVE,
+            )
+        except AuthenticationFailed as exc:
+            permissions, problem = None, f"the exchange rejected the credentials: {exc}"
+        now = self._now()
+        async with self._stores() as store:
+            await store.connections.record_check(
+                connection_id,
+                checked_at=now,
+                permissions=permissions,
+                reason=problem,
+                warning=problem,
+            )
+            if problem != connection.permission_warning:
+                await store.audit.add(
+                    AuditEvent(
+                        "connection.permissions_changed"
+                        if problem
+                        else "connection.permissions_ok",
+                        "connection",
+                        str(connection_id),
+                        actor="worker",
+                        payload={"reason": problem} if problem else {},
+                    )
+                )
+            await store.commit()
+            updated = await store.connections.get(connection_id)
+        if updated is None:
+            raise ConnectionNotFound(str(connection_id))
+        return updated
 
     async def mark_invalid(self, connection_id: UUID, reason: str) -> None:
         async with self._stores() as store:

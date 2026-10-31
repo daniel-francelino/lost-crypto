@@ -55,6 +55,9 @@ from modules.trading.domain.models import WARMUP_CANDLES, TradingSession, max_si
 
 logger = logging.getLogger(__name__)
 
+MAX_LIVE_CLOCK_SKEW_MS = 5000  # beyond this the worker opens no new live positions
+CLOCK_SKEW_FRESH = timedelta(minutes=10)  # an older measurement is not trusted either way
+
 TradingStoreFactory = Callable[[], AbstractAsyncContextManager[TradingStore]]
 
 CANDLE_CLOSE_GRACE = timedelta(seconds=2)  # let the exchange publish the closed candle
@@ -289,6 +292,12 @@ class BotTrader:
                         "an earlier order is still unresolved (waiting for reconciliation)",
                     )
                     continue
+                entry_block = (
+                    await self._entry_block(store, bot, now) if signal.side is Side.BUY else None
+                )
+                if entry_block is not None:  # exits are never blocked by these checks
+                    await self._record(store, bot, session, candle, signal, "rejected", entry_block)
+                    continue
                 decision = assess_signal(
                     signal,
                     portfolio,
@@ -367,6 +376,23 @@ class BotTrader:
                 )
             await store.commit()
         return result.state, breach is not None
+
+    async def _entry_block(self, store: TradingStore, bot: Bot, now: datetime) -> str | None:
+        """Operational reasons to refuse a NEW position (book 1 ch. 4, O1 and O5)."""
+        cfg = bot.config
+        if cfg.mode.uses_exchange and cfg.connection_id is not None:
+            connection = await store.connections.get(cfg.connection_id)
+            if connection is not None and connection.permission_warning:
+                return f"exchange key permissions changed: {connection.permission_warning}"
+        if cfg.mode is ExecutionMode.LIVE:
+            skew = await store.flags.get_clock_skew()
+            fresh = skew is not None and now - skew[1] <= CLOCK_SKEW_FRESH
+            if fresh and skew is not None and abs(skew[0]) > MAX_LIVE_CLOCK_SKEW_MS:
+                return (
+                    f"server clock is {skew[0]} ms off the exchange "
+                    f"(limit {MAX_LIVE_CLOCK_SKEW_MS} ms): sync it (NTP)"
+                )
+        return None
 
     def _effective_limits(self, bot: Bot) -> tuple[RiskLimits, GlobalRiskLimits]:
         """The bot's own limits, tightened by the operator's hard caps when it trades real money."""

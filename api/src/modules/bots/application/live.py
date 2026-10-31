@@ -116,9 +116,12 @@ class LiveService:
                 connection is not None
                 and connection.environment is Environment.LIVE
                 and connection.status is ConnectionStatus.ACTIVE
-                and connection.exchange == cfg.exchange,
+                and connection.exchange == cfg.exchange
+                and not connection.permission_warning,
                 "needs an ACTIVE live connection for this exchange (keys verified trade-only)"
                 if connection is None or connection.status is not ConnectionStatus.ACTIVE
+                else f"the key's permissions changed: {connection.permission_warning}"
+                if connection.permission_warning
                 else "connection must be a live connection of this bot's exchange",
             )
         )

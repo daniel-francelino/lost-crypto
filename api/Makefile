@@ -4,7 +4,7 @@ COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
 .PHONY: help install up down restart logs ps db dev worker migrate revision \
-        lint format typecheck test test-integration check openapi master-key jwt-secret create-admin test-testnet
+        lint format typecheck test test-integration check openapi backup restore-check master-key jwt-secret create-admin test-testnet
 
 help: ## Lista os comandos disponíveis
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -71,6 +71,12 @@ test-integration: ## Testes de integração em banco separado (requer: make db)
 	$(UV) run pytest -m integration
 
 check: lint typecheck test ## lint + tipos + testes unitários
+
+backup: ## Backup do banco em BACKUP_DIR (pg_dump) e registro na tela Sistema
+	$(UV) run python -m manage backup
+
+restore-check: ## Restaura o último backup num banco temporário e confere as contagens
+	$(UV) run python -m manage restore-check
 
 create-admin: ## Cria o primeiro usuário admin (pede a senha); no Docker: docker compose exec api python -m manage create-user admin
 	$(UV) run python -m manage create-user admin --role admin

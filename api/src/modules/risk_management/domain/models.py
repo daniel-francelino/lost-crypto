@@ -87,6 +87,17 @@ class RiskDecision:
 
 
 @dataclass(frozen=True, slots=True)
+class BackupRecord:
+    kind: str  # "backup" | "restore_check"
+    at: datetime
+    ok: bool
+    file: str | None = None
+    size_bytes: int | None = None
+    checksum: str | None = None
+    detail: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class KillSwitchState:
     active: bool = False
     reason: str | None = None

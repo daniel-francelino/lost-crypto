@@ -117,6 +117,11 @@ class CcxtExchange(Exchange):
             for r in rows
         ]
 
+    async def fetch_server_time(self) -> datetime:
+        """The exchange's clock (to measure the local clock's skew)."""
+        millis = await self._call(self._client.fetch_time)
+        return datetime.fromtimestamp(int(millis) / 1000, UTC)
+
     async def list_markets(self) -> list[ListedMarket]:
         """Spot pairs the exchange lists today (used by the daily listing snapshot)."""
         await self._call(self._client.load_markets)

@@ -6,7 +6,14 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from modules.exchanges.domain.connections import ConnectionStatus, Environment, ExchangeConnection
+from modules.exchanges.domain.connections import (
+    ApiPermissions,
+    ConnectionStatus,
+    Environment,
+    ExchangeConnection,
+    permissions_from_dict,
+    permissions_to_dict,
+)
 from modules.exchanges.infrastructure.orm import ExchangeConnectionRow, ReconciliationRunRow
 
 
@@ -20,6 +27,10 @@ def _to_connection(row: ExchangeConnectionRow) -> ExchangeConnection:
         status=ConnectionStatus(row.status),
         created_at=row.created_at,
         verified_at=row.verified_at,
+        permissions=permissions_from_dict(row.permissions) if row.permissions else None,
+        status_reason=row.status_reason,
+        last_checked_at=row.last_checked_at,
+        permission_warning=row.permission_warning,
     )
 
 
@@ -73,6 +84,37 @@ class SqlAlchemyConnectionRepository:
             .order_by(ExchangeConnectionRow.created_at)
         )
         return [_to_connection(r) for r in result.scalars()]
+
+    async def list_active_live(self) -> list[ExchangeConnection]:
+        result = await self._session.execute(
+            select(ExchangeConnectionRow)
+            .where(
+                ExchangeConnectionRow.status == ConnectionStatus.ACTIVE.value,
+                ExchangeConnectionRow.environment == Environment.LIVE.value,
+            )
+            .order_by(ExchangeConnectionRow.created_at)
+        )
+        return [_to_connection(r) for r in result.scalars()]
+
+    async def record_check(
+        self,
+        connection_id: UUID,
+        *,
+        checked_at: datetime,
+        permissions: ApiPermissions | None,
+        reason: str | None,
+        warning: str | None,
+    ) -> None:
+        await self._session.execute(
+            update(ExchangeConnectionRow)
+            .where(ExchangeConnectionRow.id == connection_id)
+            .values(
+                last_checked_at=checked_at,
+                permissions=permissions_to_dict(permissions) if permissions else None,
+                status_reason=reason,
+                permission_warning=warning,
+            )
+        )
 
     async def set_status(
         self, connection_id: UUID, status: ConnectionStatus, verified_at: datetime | None

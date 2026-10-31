@@ -32,6 +32,7 @@ from modules.risk_management.application.service import KillSwitchService
 from modules.risk_management.domain.models import GlobalRiskLimits, LiveLimits
 from modules.strategies.catalog import build_strategy_registry
 from modules.strategies.domain.registry import StrategyRegistry
+from modules.trading.application.operations import OperationsMonitor
 from modules.trading.application.orders import OrderExecutor
 from modules.trading.application.ports import TradingStore
 from modules.trading.application.reconciler import Reconciler
@@ -142,11 +143,13 @@ class JobRunner:
         executor: BacktestExecutor,
         supervisor: BotSupervisor,
         listings: ListingRecorder | None = None,
+        operations: OperationsMonitor | None = None,
     ) -> None:
         self._importer = importer
         self._executor = executor
         self._supervisor = supervisor
         self._listings = listings
+        self._operations = operations
 
     async def recover(self) -> int:
         """Jobs left 'running' by a crashed worker are queued again (all jobs are idempotent).
@@ -158,6 +161,8 @@ class JobRunner:
 
     async def run_once(self) -> bool:
         """One supervisor pass plus at most one job; False when there was no job to run."""
+        if self._operations is not None:
+            await self._operations.run_due()  # clock skew (once a minute), before trading on it
         await self._supervisor.run_once()
         if self._listings is not None:
             await self._listings.run_due()  # once a day; failures are logged, never raised
@@ -214,4 +219,5 @@ def build_job_runner(container: Container) -> JobRunner:
             stop_poll_interval=timedelta(seconds=settings.native_stop_poll_seconds),
         ),
         ListingRecorder(container.import_stores, container.exchanges, container.clock),
+        OperationsMonitor(container.trading_stores, container.exchanges, container.clock),
     )

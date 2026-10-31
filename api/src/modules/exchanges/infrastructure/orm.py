@@ -35,6 +35,10 @@ class ExchangeConnectionRow(Base):
     status: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    permissions: Mapped[dict[str, bool] | None] = mapped_column(JSONB, nullable=True)
+    status_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    permission_warning: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class ReconciliationRunRow(Base):

@@ -67,3 +67,29 @@ class ExchangeConnection:
     status: ConnectionStatus
     created_at: datetime
     verified_at: datetime | None = None
+    # Last permission check (book 1 ch. 4, O1): what the key may do, and why it was refused.
+    permissions: ApiPermissions | None = None
+    status_reason: str | None = None
+    last_checked_at: datetime | None = None
+    # Set when an ACTIVE live key later turns unacceptable: new entries stop, exits continue.
+    permission_warning: str | None = None
+
+
+def permissions_to_dict(permissions: ApiPermissions) -> dict[str, bool]:
+    return {
+        "can_read": permissions.can_read,
+        "can_trade": permissions.can_trade,
+        "can_withdraw": permissions.can_withdraw,
+        "can_transfer": permissions.can_transfer,
+        "ip_restricted": permissions.ip_restricted,
+    }
+
+
+def permissions_from_dict(raw: dict[str, bool]) -> ApiPermissions:
+    return ApiPermissions(
+        can_read=bool(raw.get("can_read")),
+        can_trade=bool(raw.get("can_trade")),
+        can_withdraw=bool(raw.get("can_withdraw")),
+        can_transfer=bool(raw.get("can_transfer")),
+        ip_restricted=bool(raw.get("ip_restricted")),
+    )
