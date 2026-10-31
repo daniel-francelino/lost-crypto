@@ -24,8 +24,9 @@ export function AlertsIndicator() {
     <Link to={AppRoute.Alerts} title="Alertas" aria-label={label}>
       <Badge variant="outline" className={`gap-1 ${alertTone(critical, data.unread > 0)}`}>
         <Bell className={ICON} aria-hidden="true" />
-        {data.unread === 0 ? "Alertas" : `Alertas: ${data.unread}`}
-        {critical ? " · crítico" : ""}
+        <span className="hidden sm:inline">Alertas</span>
+        {data.unread > 0 ? <span>{data.unread}</span> : null}
+        {critical ? <span className="hidden sm:inline">· crítico</span> : null}
       </Badge>
     </Link>
   );

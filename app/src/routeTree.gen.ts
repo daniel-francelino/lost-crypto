@@ -13,6 +13,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppForbiddenRouteImport } from './routes/_app/forbidden'
+import { Route as AppAlertsIndexRouteImport } from './routes/_app/alerts/index'
 import { Route as AppAuditIndexRouteImport } from './routes/_app/audit/index'
 import { Route as AppBacktestsIndexRouteImport } from './routes/_app/backtests/index'
 import { Route as AppBacktestsCompareRouteImport } from './routes/_app/backtests/compare'
@@ -47,6 +48,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppForbiddenRoute = AppForbiddenRouteImport.update({
   id: '/forbidden',
   path: '/forbidden',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAlertsIndexRoute = AppAlertsIndexRouteImport.update({
+  id: '/alerts/',
+  path: '/alerts/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAuditIndexRoute = AppAuditIndexRouteImport.update({
@@ -141,6 +147,7 @@ export interface FileRoutesByFullPath {
   '/exchanges/new': typeof AppExchangesNewRoute
   '/settings/profile': typeof AppSettingsProfileRoute
   '/settings/users': typeof AppSettingsUsersRoute
+  '/alerts/': typeof AppAlertsIndexRoute
   '/audit/': typeof AppAuditIndexRoute
   '/backtests/': typeof AppBacktestsIndexRoute
   '/bots/': typeof AppBotsIndexRoute
@@ -162,6 +169,7 @@ export interface FileRoutesByTo {
   '/exchanges/new': typeof AppExchangesNewRoute
   '/settings/profile': typeof AppSettingsProfileRoute
   '/settings/users': typeof AppSettingsUsersRoute
+  '/alerts': typeof AppAlertsIndexRoute
   '/audit': typeof AppAuditIndexRoute
   '/backtests': typeof AppBacktestsIndexRoute
   '/bots': typeof AppBotsIndexRoute
@@ -185,6 +193,7 @@ export interface FileRoutesById {
   '/_app/exchanges/new': typeof AppExchangesNewRoute
   '/_app/settings/profile': typeof AppSettingsProfileRoute
   '/_app/settings/users': typeof AppSettingsUsersRoute
+  '/_app/alerts/': typeof AppAlertsIndexRoute
   '/_app/audit/': typeof AppAuditIndexRoute
   '/_app/backtests/': typeof AppBacktestsIndexRoute
   '/_app/bots/': typeof AppBotsIndexRoute
@@ -208,6 +217,7 @@ export interface FileRouteTypes {
     | '/exchanges/new'
     | '/settings/profile'
     | '/settings/users'
+    | '/alerts/'
     | '/audit/'
     | '/backtests/'
     | '/bots/'
@@ -229,6 +239,7 @@ export interface FileRouteTypes {
     | '/exchanges/new'
     | '/settings/profile'
     | '/settings/users'
+    | '/alerts'
     | '/audit'
     | '/backtests'
     | '/bots'
@@ -251,6 +262,7 @@ export interface FileRouteTypes {
     | '/_app/exchanges/new'
     | '/_app/settings/profile'
     | '/_app/settings/users'
+    | '/_app/alerts/'
     | '/_app/audit/'
     | '/_app/backtests/'
     | '/_app/bots/'
@@ -296,6 +308,13 @@ declare module '@tanstack/react-router' {
       path: '/forbidden'
       fullPath: '/forbidden'
       preLoaderRoute: typeof AppForbiddenRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/alerts/': {
+      id: '/_app/alerts/'
+      path: '/alerts'
+      fullPath: '/alerts/'
+      preLoaderRoute: typeof AppAlertsIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/audit/': {
@@ -422,6 +441,7 @@ interface AppRouteChildren {
   AppExchangesNewRoute: typeof AppExchangesNewRoute
   AppSettingsProfileRoute: typeof AppSettingsProfileRoute
   AppSettingsUsersRoute: typeof AppSettingsUsersRoute
+  AppAlertsIndexRoute: typeof AppAlertsIndexRoute
   AppAuditIndexRoute: typeof AppAuditIndexRoute
   AppBacktestsIndexRoute: typeof AppBacktestsIndexRoute
   AppBotsIndexRoute: typeof AppBotsIndexRoute
@@ -443,6 +463,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppExchangesNewRoute: AppExchangesNewRoute,
   AppSettingsProfileRoute: AppSettingsProfileRoute,
   AppSettingsUsersRoute: AppSettingsUsersRoute,
+  AppAlertsIndexRoute: AppAlertsIndexRoute,
   AppAuditIndexRoute: AppAuditIndexRoute,
   AppBacktestsIndexRoute: AppBacktestsIndexRoute,
   AppBotsIndexRoute: AppBotsIndexRoute,
