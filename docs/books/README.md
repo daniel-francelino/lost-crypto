@@ -25,7 +25,7 @@ Chapter-by-chapter analyses of the reference books in [`books/`](../../books), c
 | Chapter | Report | Main outcome |
 |---|---|---|
 | 1 | [Whats, Whos, Whys](01-quantitative-trading-chan/ch01-whats-whos-whys.md) | No alerting channel exists (O1); manual-import gaps; intervention reasons |
-| 2 | [Fishing for Ideas](01-quantitative-trading-chan/ch02-fishing-for-ideas.md) | Sharpe/Sortino and drawdown duration missing; no trial count in sweeps |
+| 2 | [Fishing for Ideas](01-quantitative-trading-chan/ch02-fishing-for-ideas.md) | Sharpe/Sortino and drawdown duration missing; no cost ladder; sweep shows full-period return as "train"; test part used for ranking |
 | 3 | [Backtesting](01-quantitative-trading-chan/ch03-backtesting.md) | No candle integrity check; backtests run over data gaps; no truncation (look-ahead) test |
 | 4 | [Setting Up Your Business](01-quantitative-trading-chan/ch04-setting-up-your-business.md) | Key-permission policy, continuity runbook |
 | 5 | [Execution Systems](01-quantitative-trading-chan/ch05-execution-systems.md) | No paper-vs-backtest parity; no volume cap; backtest ignores real risk sizing |
