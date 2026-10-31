@@ -53,6 +53,9 @@ Caveat to document in UI/API: paper and backtest results **overestimate** achiev
 
 ## Live trading: disabled by default
 
+> **Implemented.** Each safeguard below, with where it is enforced and what was and was not
+> verified, is in [doc 13](13-live-trading.md).
+
 Live trading requires **all** of the following (defense in depth; any one missing → refuse):
 
 1. **Global flag** `LIVE_TRADING_ENABLED=true` in the worker's environment (default `false`; absent from `.env.example` defaults; separate from the API's env).

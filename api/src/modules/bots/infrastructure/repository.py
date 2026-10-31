@@ -5,8 +5,9 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from modules.bots.application.ports import LiveApproval
 from modules.bots.domain.models import Bot, BotConfig, BotState, ExecutionMode
-from modules.bots.infrastructure.orm import BotRow
+from modules.bots.infrastructure.orm import BotRow, LiveApprovalRow
 from modules.market_data.domain.models import Timeframe
 from modules.risk_management.domain.models import RiskLimits
 
@@ -44,6 +45,8 @@ def _to_bot(row: BotRow) -> Bot:
         updated_at=row.updated_at,
         last_heartbeat_at=row.last_heartbeat_at,
         last_error=row.last_error,
+        live_approved_config_version=row.live_approved_config_version,
+        live_approved_at=row.live_approved_at,
     )
 
 
@@ -110,7 +113,8 @@ class SqlAlchemyBotRepository:
             .where(
                 or_(
                     BotRow.desired_state != BotState.STOPPED.value,
-                    BotRow.observed_state.notin_([BotState.STOPPED.value, BotState.ERROR.value]),
+                    # An errored bot whose stop was requested must still be settled to 'stopped'.
+                    BotRow.observed_state != BotState.STOPPED.value,
                 )
             )
             .order_by(BotRow.created_at)
@@ -146,7 +150,74 @@ class SqlAlchemyBotRepository:
             .values(observed_state=state.value, last_error=error, updated_at=func.now())
         )
 
+    async def set_live_approval(
+        self, bot_id: UUID, config_version: int | None, at: datetime | None
+    ) -> None:
+        await self._session.execute(
+            update(BotRow)
+            .where(BotRow.id == bot_id)
+            .values(live_approved_config_version=config_version, live_approved_at=at)
+        )
+
+    async def set_mode(self, bot_id: UUID, mode: str, connection_id: UUID | None) -> None:
+        await self._session.execute(
+            update(BotRow)
+            .where(BotRow.id == bot_id)
+            .values(mode=mode, exchange_connection_id=connection_id, updated_at=func.now())
+        )
+
     async def heartbeat(self, bot_ids: list[UUID], at: datetime) -> None:
         await self._session.execute(
             update(BotRow).where(BotRow.id.in_(bot_ids)).values(last_heartbeat_at=at)
+        )
+
+
+class SqlAlchemyLiveApprovalRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def supersede(self, bot_id: UUID, at: datetime) -> None:
+        await self._session.execute(
+            update(LiveApprovalRow)
+            .where(LiveApprovalRow.bot_id == bot_id, LiveApprovalRow.used_at.is_(None))
+            .values(used_at=at)
+        )
+
+    async def add(self, approval: LiveApproval) -> None:
+        self._session.add(
+            LiveApprovalRow(
+                id=approval.id,
+                bot_id=approval.bot_id,
+                config_version=approval.config_version,
+                token_hash=approval.token_hash,
+                created_by=approval.created_by,
+                created_at=approval.created_at,
+                expires_at=approval.expires_at,
+            )
+        )
+        await self._session.flush()
+
+    async def find(self, bot_id: UUID, token_hash: str) -> LiveApproval | None:
+        result = await self._session.execute(
+            select(LiveApprovalRow).where(
+                LiveApprovalRow.bot_id == bot_id, LiveApprovalRow.token_hash == token_hash
+            )
+        )
+        row = result.scalar_one_or_none()
+        if row is None:
+            return None
+        return LiveApproval(
+            row.id,
+            row.bot_id,
+            row.config_version,
+            row.token_hash,
+            row.created_by,
+            row.created_at,
+            row.expires_at,
+            row.used_at,
+        )
+
+    async def mark_used(self, approval_id: UUID, at: datetime) -> None:
+        await self._session.execute(
+            update(LiveApprovalRow).where(LiveApprovalRow.id == approval_id).values(used_at=at)
         )

@@ -18,7 +18,11 @@ router = APIRouter(prefix="/exchange-connections", tags=["exchange-connections"]
 
 class ConnectionCreate(BaseModel):
     exchange: str = "binance"
-    environment: Literal["testnet"] = "testnet"  # live connections are not available yet
+    environment: Literal["testnet", "live"] = "testnet"
+    confirm_real_money: bool = Field(
+        default=False,
+        description="Required for environment=live: these keys can spend REAL money",
+    )
     label: str = Field(min_length=1, max_length=60)
     # SecretStr: never echoed back, never printed by repr/logging of the model.
     api_key: SecretStr
@@ -58,13 +62,15 @@ def _container(request: Request) -> Container:
 
 @router.post("", response_model=ConnectionOut, status_code=status.HTTP_201_CREATED)
 async def create_connection(body: ConnectionCreate, request: Request) -> ConnectionOut:
-    """Register exchange credentials (testnet only). They are stored encrypted, only the
-    worker can decrypt them, and they are never returned. Requires `API_TOKEN` to be set."""
+    """Register exchange credentials. They are stored encrypted, only the worker can decrypt
+    them, and they are never returned. **Live** keys start `pending`: the worker checks what
+    they may do and refuses any key that can withdraw or transfer funds."""
     connection = await _container(request).connections.create(
         body.exchange,
         Environment(body.environment),
         body.label,
         Credentials(body.api_key.get_secret_value(), body.api_secret.get_secret_value()),
+        confirm_real_money=body.confirm_real_money,
     )
     return _out(connection)
 

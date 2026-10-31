@@ -17,7 +17,9 @@ from modules.exchanges.domain.connections import (
     Credentials,
     Environment,
     ExchangeConnection,
+    permission_problem,
 )
+from modules.exchanges.errors import AuthenticationFailed, ExchangeError
 
 
 class ConnectionNotFound(NotFoundError):
@@ -40,6 +42,7 @@ class ConnectionRepository(Protocol):
     async def get(self, connection_id: UUID) -> ExchangeConnection | None: ...
     async def get_sealed(self, connection_id: UUID) -> bytes | None: ...
     async def list_connections(self) -> list[ExchangeConnection]: ...
+    async def list_pending(self) -> list[ExchangeConnection]: ...
     async def set_status(
         self, connection_id: UUID, status: ConnectionStatus, verified_at: datetime | None
     ) -> None: ...
@@ -68,8 +71,10 @@ class ConnectionService:
         exchanges: ExchangeRegistry,
         clock: Clock,
         ids: IdGenerator,
+        live_allowed: bool = False,
     ) -> None:
         self._stores = stores
+        self._live_allowed = live_allowed
         self._vault = vault
         self._exchanges = exchanges
         self._clock = clock
@@ -81,13 +86,19 @@ class ConnectionService:
         environment: Environment,
         label: str,
         credentials: Credentials,
+        confirm_real_money: bool = False,
     ) -> ExchangeConnection:
         if self._vault is None:
             raise VaultNotConfigured("CREDENTIAL_MASTER_KEYS is not set")
         profile = self._exchanges.profile(exchange)
         if environment is Environment.LIVE:
-            raise InvalidConnection("live connections are not available yet (testnet only)")
-        if not profile.capabilities.has_testnet:
+            if not self._live_allowed:
+                raise InvalidConnection("live connections can only be created with APP_ENV=prod")
+            if not confirm_real_money:
+                raise InvalidConnection(
+                    "live connections use REAL MONEY: send confirm_real_money=true to proceed"
+                )
+        elif not profile.capabilities.has_testnet:
             raise InvalidConnection(f"{exchange} has no testnet")
         if len(credentials.api_key) < 8 or len(credentials.api_secret) < 8:
             raise InvalidConnection("api_key and api_secret look too short to be real")
@@ -98,7 +109,10 @@ class ConnectionService:
             environment=environment,
             label=label,
             api_key_hint=credentials.api_key[-4:],
-            status=ConnectionStatus.ACTIVE,
+            # Live keys are unusable until the worker has checked what they are allowed to do.
+            status=ConnectionStatus.PENDING
+            if environment is Environment.LIVE
+            else ConnectionStatus.ACTIVE,
             created_at=self._clock.now(),
         )
         sealed = self._vault.seal(
@@ -160,12 +174,17 @@ class ConnectionResolver:
         stores: ConnectionStoreFactory,
         vault: CredentialVault | None,
         exchanges: ExchangeRegistry,
+        clock: Clock,
     ) -> None:
         self._stores = stores
         self._vault = vault
         self._exchanges = exchanges
+        self._clock = clock
 
-    async def exchange_for(self, connection_id: UUID) -> Exchange:
+    def _now(self) -> datetime:
+        return self._clock.now()
+
+    async def exchange_for(self, connection_id: UUID, *, allow_pending: bool = False) -> Exchange:
         if self._vault is None:
             raise VaultNotConfigured("CREDENTIAL_MASTER_KEYS is not set")
         async with self._stores() as store:
@@ -173,7 +192,10 @@ class ConnectionResolver:
             sealed = await store.connections.get_sealed(connection_id)
         if connection is None or sealed is None:
             raise ConnectionNotFound(str(connection_id))
-        if connection.status is not ConnectionStatus.ACTIVE:
+        allowed = {ConnectionStatus.ACTIVE} | (
+            {ConnectionStatus.PENDING} if allow_pending else set()
+        )
+        if connection.status not in allowed:
             raise InvalidConnection(f"connection {connection.label!r} is {connection.status.value}")
         raw = json.loads(self._vault.open(sealed))
         return self._exchanges.authenticated(
@@ -182,6 +204,42 @@ class ConnectionResolver:
             Credentials(raw["api_key"], raw["api_secret"]),
             connection.environment,
         )
+
+    async def verify_pending(self, require_ip_restriction: bool) -> int:
+        """Check what each pending (live) key may do; activate the acceptable, reject the rest.
+
+        A key that can withdraw or transfer funds is refused outright. Transient errors leave
+        the connection pending to be retried on the next pass."""
+        async with self._stores() as store:
+            pending = await store.connections.list_pending()
+        done = 0
+        for connection in pending:
+            try:
+                exchange = await self.exchange_for(connection.id, allow_pending=True)
+                problem = permission_problem(
+                    await exchange.fetch_api_permissions(), require_ip_restriction
+                )
+            except AuthenticationFailed as exc:
+                problem = f"the exchange rejected the credentials: {exc}"
+            except ExchangeError:
+                continue  # cannot tell right now: stay pending, try again
+            status = ConnectionStatus.INVALID if problem else ConnectionStatus.ACTIVE
+            async with self._stores() as store:
+                await store.connections.set_status(
+                    connection.id, status, None if problem else self._now()
+                )
+                await store.audit.add(
+                    AuditEvent(
+                        "connection.invalid" if problem else "connection.verified",
+                        "connection",
+                        str(connection.id),
+                        actor="worker",
+                        payload={"reason": problem} if problem else {},
+                    )
+                )
+                await store.commit()
+            done += 1
+        return done
 
     async def mark_invalid(self, connection_id: UUID, reason: str) -> None:
         async with self._stores() as store:

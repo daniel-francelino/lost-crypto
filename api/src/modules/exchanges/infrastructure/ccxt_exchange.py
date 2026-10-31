@@ -27,9 +27,10 @@ from modules.exchanges.application.ports import (
     StopOrderRequest,
     VenueOrder,
 )
-from modules.exchanges.domain.connections import Credentials
+from modules.exchanges.domain.connections import ApiPermissions, Credentials
 from modules.exchanges.errors import (
     AuthenticationFailed,
+    ExchangeConfigurationError,
     ExchangeError,
     ExchangeRejected,
     NotAuthenticated,
@@ -66,6 +67,14 @@ class CcxtExchange(Exchange):
             client = getattr(ccxt_async, self.PROFILE.exchange_id)(config)
             if sandbox:
                 client.set_sandbox_mode(True)  # the exchange's test environment, fake money
+            # An adapter serves exactly one environment. Verify the client really points where
+            # it was asked to, so real money can never be reached through a "testnet" adapter
+            # (or fake orders sent to production by mistake).
+            if ("testnet" in str(client.urls.get("api"))) != sandbox:
+                raise ExchangeConfigurationError(
+                    f"{self.PROFILE.exchange_id}: client environment does not match "
+                    f"sandbox={sandbox}"
+                )
         self._client: Any = client
 
     # --- hooks a concrete exchange may override ----------------------------------------------
@@ -198,6 +207,12 @@ class CcxtExchange(Exchange):
     async def fetch_balances(self) -> dict[str, Balance]:
         self._require_authentication()
         return parse_balances(await self._call(self._client.fetch_balance))
+
+    async def fetch_api_permissions(self) -> ApiPermissions:
+        self._require_authentication()
+        raise ExchangeError(
+            f"{self.PROFILE.exchange_id}: reading API key permissions is not implemented"
+        )
 
     async def aclose(self) -> None:
         await self._client.close()

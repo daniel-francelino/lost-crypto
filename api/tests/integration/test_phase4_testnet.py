@@ -275,6 +275,23 @@ async def test_rejected_credentials_stop_the_bot_and_mark_the_connection_invalid
     assert order["status"] == "REJECTED"
 
 
+async def test_wrong_keys_are_caught_by_reconciliation_before_any_order(
+    testnet_env: TestnetEnv,
+) -> None:
+    env = testnet_env
+    assert env.sim is not None
+    runner = env.make_runner()
+    env.sim.fail_next("balances", "auth")  # the exchange refuses the keys on the first call
+    connection, bot = await _started(env, runner)
+
+    state = await env.bot(bot)
+    assert (state["desired_state"], state["observed_state"]) == ("paused", "error")
+    assert state["last_error"] == "exchange credentials rejected"
+    conn = (await env.http.get(f"/api/v1/exchange-connections/{connection}")).json()
+    assert conn["status"] == "invalid"
+    assert env.sim.create_calls == []  # nothing was ever sent with bad keys
+
+
 # --- native stop-loss -------------------------------------------------------------------------
 
 

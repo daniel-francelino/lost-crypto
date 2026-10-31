@@ -8,6 +8,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     Text,
@@ -21,6 +22,20 @@ from core.db import Base
 MONEY = Numeric(38, 18)
 
 
+class LiveApprovalRow(Base):
+    __tablename__ = "live_approvals"
+    __table_args__ = (Index("ix_live_approvals_bot_id_token_hash", "bot_id", "token_hash"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    bot_id: Mapped[UUID] = mapped_column(ForeignKey("bots.id"))
+    config_version: Mapped[int] = mapped_column(Integer)
+    token_hash: Mapped[str] = mapped_column(Text)  # sha256 of the token, never the token
+    created_by: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class BotRow(Base):
     __tablename__ = "bots"
     __table_args__ = (
@@ -29,7 +44,7 @@ class BotRow(Base):
         CheckConstraint(
             "observed_state IN ('stopped','running','paused','error')", name="observed_valid"
         ),
-        CheckConstraint("mode IN ('paper','testnet')", name="mode_valid"),
+        CheckConstraint("mode IN ('paper','testnet','live')", name="mode_valid"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
@@ -57,6 +72,10 @@ class BotRow(Base):
     desired_state: Mapped[str] = mapped_column(Text)
     observed_state: Mapped[str] = mapped_column(Text)
     config_version: Mapped[int] = mapped_column(Integer)
+    live_approved_config_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    live_approved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     last_heartbeat_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

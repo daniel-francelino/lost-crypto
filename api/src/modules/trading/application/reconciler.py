@@ -22,6 +22,7 @@ from core.clock import Clock
 from modules.audit.models import AuditEvent
 from modules.bots.domain.models import Bot, BotState, ExecutionMode
 from modules.exchanges.application.connections import ConnectionResolver
+from modules.exchanges.errors import AuthenticationFailed
 from modules.trading.application.orders import OrderExecutor
 from modules.trading.application.ports import TradingStore
 
@@ -55,7 +56,7 @@ class Reconciler:
         examined = 0
         for order in pending:
             bot = bots.get(order.bot_id)
-            if bot is None or bot.config.mode is not ExecutionMode.TESTNET:
+            if bot is None or not bot.config.mode.uses_exchange:
                 continue
             try:
                 await self._executor.resolve(bot, order)
@@ -70,7 +71,7 @@ class Reconciler:
             bots = [
                 b
                 for b in await store.bots.list_bots(500)
-                if b.config.mode is ExecutionMode.TESTNET and b.config.connection_id is not None
+                if b.config.mode.uses_exchange and b.config.connection_id is not None
             ]
         by_connection: dict[UUID, list[Bot]] = defaultdict(list)
         for bot in bots:
@@ -92,7 +93,11 @@ class Reconciler:
                 if await store.orders.count_unresolved(bot.id):
                     return 0  # books and exchange legitimately differ until those are settled
         exchange = await self._resolver.exchange_for(connection_id)
-        balances = await exchange.fetch_balances()
+        try:
+            balances = await exchange.fetch_balances()
+        except AuthenticationFailed as exc:
+            await self._credentials_rejected(connection_id, bots, str(exc))
+            return 1
 
         expected: dict[str, Decimal] = defaultdict(Decimal)
         foreign_orders: set[str] = set()
@@ -158,7 +163,43 @@ class Reconciler:
                             payload={"problems": problems},
                         )
                     )
+                if any(b.config.mode is ExecutionMode.LIVE for b in bots):
+                    reason = "reconciliation mismatch on a live connection"
+                    await store.flags.set_kill_switch(True, reason)
+                    await store.audit.add(
+                        AuditEvent(
+                            "system.kill_switch_activated",
+                            "system",
+                            "kill_switch",
+                            actor="worker",
+                            payload={"reason": reason},
+                        )
+                    )
             await store.commit()
         if problems:
             logger.error("reconciliation mismatch on connection %s: %s", connection_id, problems)
         return len(problems)
+
+    async def _credentials_rejected(
+        self, connection_id: UUID, bots: list[Bot], reason: str
+    ) -> None:
+        """The exchange refused the keys (typo, revoked, wrong environment): stop everything
+        that depends on them instead of failing on the first real order."""
+        await self._resolver.mark_invalid(connection_id, reason)
+        message = "exchange credentials rejected"
+        async with self._stores() as store:
+            for bot in bots:
+                await store.bots.set_desired(bot.id, BotState.PAUSED)
+                await store.bots.set_observed(bot.id, BotState.ERROR, message)
+                await store.audit.add(
+                    AuditEvent(
+                        "bot.error",
+                        "bot",
+                        str(bot.id),
+                        actor="worker",
+                        bot_id=bot.id,
+                        payload={"error": message, "detail": reason[:200]},
+                    )
+                )
+            await store.commit()
+        logger.error("connection %s rejected by the exchange: %s", connection_id, reason)

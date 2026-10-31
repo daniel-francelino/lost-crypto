@@ -20,6 +20,8 @@ Architectural reference for the Lost Crypto backend. **Documentation only** — 
 | 10 | [Exchange abstraction](10-exchanges.md) | Registry, profiles, gateway port, how to add an exchange |
 | 11 | [Strategies](11-strategies.md) | One contract, one file per strategy, catalog, how to add one |
 | 12 | [Testnet and reconciliation](12-testnet-and-reconciliation.md) | Credentials, two-phase orders, reconciliation, native stops |
+| 13 | [Live trading](13-live-trading.md) | Real-money safeguards and the path to the first live order |
+| 14 | [Authentication](14-authentication.md) | Login, sessions, roles: what the frontend uses |
 
 ## Key decisions (summary)
 
@@ -75,6 +77,9 @@ Architectural reference for the Lost Crypto backend. **Documentation only** — 
 | 3 | Global risk limits come from environment variables (`RISK_MAX_*`) and use cost basis, not mark-to-market | portfolio-level risk (VaR, correlation) |
 | 3 | "Cooldown after losses" is implemented as a pause after N consecutive losing round trips | time-based cooldown is needed |
 | 4 | Market orders only, fills found by polling (no user-data WebSocket); fee assets other than base/quote are rejected | limit orders, lower latency, BNB-discount accounts |
-| 4 | Testnet only: `live` connections are refused; live needs the doc 05 safeguards (confirmation token, hard caps, chain of flags) | Phase 5 |
+| 5 | Done: live connections and bots exist behind the doc 05 safeguards (see doc 13); the order path is shared with the testnet and has only been exercised against a simulated account | the first supervised run with real, tiny money |
 | 4 | `bot_portfolios` reservation fields replace a separate ledger; the account check asserts "exchange holds at least what bots own" (virtual sub-accounts over one account) | per-bot sub-accounts or a ledger for exact attribution |
 | 4 | Backtests still ignore the bot's risk sizing and real fee assets | align the backtester with the real-exchange pipeline |
+| 5 | Live hard caps are per bot / per order / total exposure in quote currency; the daily-loss cap is per bot, not portfolio-wide | portfolio-level loss accounting |
+| 5 | The paper-history gate counts snapshots of the bot's own paper sessions, and risk breach/error events before promotion | longer-horizon or out-of-sample gates |
+| 5 | Auth: single-node, no MFA / password reset by email; access tokens cannot be revoked before they expire (15 min) | public deployment, multiple operators |

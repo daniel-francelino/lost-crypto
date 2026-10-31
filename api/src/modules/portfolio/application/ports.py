@@ -26,6 +26,11 @@ class PortfolioRepository(Protocol):
     async def first_snapshot_equity(self, bot_id: UUID) -> Decimal | None: ...
     async def peak_equity(self, bot_id: UUID) -> Decimal | None: ...
 
-    async def open_exposure(self) -> tuple[int, Decimal]:
-        """(bots holding a position, total cost basis of those positions) across all bots."""
+    async def open_exposure(self, mode: str | None = None) -> tuple[int, Decimal]:
+        """(bots holding a position, total cost basis of those positions), optionally only
+        for bots in one execution mode (e.g. the live bots against the live exposure cap)."""
+        ...
+
+    async def paper_span(self, bot_id: UUID) -> tuple[datetime | None, datetime | None]:
+        """First and last snapshot taken while the bot traded in paper mode."""
         ...

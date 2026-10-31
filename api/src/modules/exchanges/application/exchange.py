@@ -20,6 +20,7 @@ from modules.exchanges.application.ports import (
     StopOrderRequest,
     VenueOrder,
 )
+from modules.exchanges.domain.connections import ApiPermissions
 from modules.exchanges.domain.models import ExchangeCapabilities, ExchangeProfile
 from modules.market_data.domain.models import Candle, MarketInfo, Timeframe
 
@@ -81,6 +82,12 @@ class Exchange(ABC):
     @abstractmethod
     async def fetch_balances(self) -> dict[str, Balance]:
         """Account balances by asset (only assets holding something)."""
+
+    @abstractmethod
+    async def fetch_api_permissions(self) -> ApiPermissions:
+        """What the credentials this integration was built with may do (trade? withdraw? from
+        which IPs?). Used to refuse live keys that are more powerful than a trading bot needs.
+        Raises ``ExchangeError`` if the exchange cannot tell (e.g. a testnet)."""
 
     # --- lifecycle ---------------------------------------------------------------------------
 

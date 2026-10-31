@@ -14,7 +14,12 @@ from modules.risk_management.domain.models import RiskLimits
 class ExecutionMode(StrEnum):
     PAPER = "paper"  # simulated fills at real prices, no exchange account
     TESTNET = "testnet"  # real orders on the exchange sandbox (fake money), needs a connection
-    # LIVE = "live" arrives in a later phase, behind its safeguards.
+    LIVE = "live"  # REAL MONEY: only behind the safeguards of doc 05 / doc 13
+
+    @property
+    def uses_exchange(self) -> bool:
+        """Orders go to a real exchange account (sandbox or not) instead of the simulator."""
+        return self is not ExecutionMode.PAPER
 
 
 class BotState(StrEnum):
@@ -56,8 +61,10 @@ class BotConfig:
             raise InvalidBotConfig("fee_rate must be in [0, 1)")
         if not (0 <= self.slippage_bps < 10_000):
             raise InvalidBotConfig("slippage_bps must be in [0, 10000)")
-        if self.mode is ExecutionMode.TESTNET and self.connection_id is None:
-            raise InvalidBotConfig("a testnet bot needs an exchange connection (connection_id)")
+        if self.mode.uses_exchange and self.connection_id is None:
+            raise InvalidBotConfig(
+                f"a {self.mode.value} bot needs an exchange connection (connection_id)"
+            )
         if self.mode is ExecutionMode.PAPER and self.connection_id is not None:
             raise InvalidBotConfig("paper bots do not use an exchange connection")
 
@@ -75,6 +82,14 @@ class Bot:
     updated_at: datetime
     last_heartbeat_at: datetime | None = None
     last_error: str | None = None
+    # Live only: the config version a human explicitly approved. Any configuration change bumps
+    # config_version, which silently invalidates the approval.
+    live_approved_config_version: int | None = None
+    live_approved_at: datetime | None = None
+
+    @property
+    def has_live_approval(self) -> bool:
+        return self.live_approved_config_version == self.config_version
 
     def request_start(self) -> None:
         if self.desired_state is BotState.RUNNING:

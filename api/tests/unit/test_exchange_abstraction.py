@@ -23,6 +23,7 @@ from modules.exchanges.application.ports import (
     VenueOrder,
 )
 from modules.exchanges.application.registry import ExchangeRegistry
+from modules.exchanges.domain.connections import ApiPermissions
 from modules.exchanges.domain.models import (
     ExchangeCapabilities,
     ExchangeProfile,
@@ -104,6 +105,9 @@ def _exchange_class(
 
         async def fetch_balances(self) -> dict[str, Balance]:
             return {}
+
+        async def fetch_api_permissions(self) -> ApiPermissions:
+            raise TradingNotEnabled(exchange_id)
 
         async def aclose(self) -> None:
             closed.append(True)

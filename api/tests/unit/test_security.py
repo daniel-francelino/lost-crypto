@@ -106,13 +106,16 @@ def test_credential_endpoints_refuse_to_work_without_a_token() -> None:
         assert response.status_code == 403 and "API_TOKEN" in response.json()["detail"]
 
 
-def test_live_connections_cannot_be_created_yet() -> None:
+def test_live_connections_are_refused_outside_production_and_without_confirmation() -> None:
+    key = Fernet.generate_key().decode()
     body = {"label": "x", "environment": "live", "api_key": "k" * 12, "api_secret": "s" * 12}
-    with _client(api_token="t") as client:
-        response = client.post(
-            "/api/v1/exchange-connections", json=body, headers={"Authorization": "Bearer t"}
-        )
-        assert response.status_code == 422
+    headers = {"Authorization": "Bearer t"}
+    with _client(api_token="t", credential_master_keys=key) as local:  # APP_ENV=local
+        response = local.post("/api/v1/exchange-connections", json=body, headers=headers)
+        assert response.status_code == 422 and "APP_ENV=prod" in response.json()["detail"]
+    with _client(api_token="t", credential_master_keys=key, app_env=AppEnv.PROD) as prod:
+        response = prod.post("/api/v1/exchange-connections", json=body, headers=headers)
+        assert response.status_code == 422 and "confirm_real_money" in response.json()["detail"]
 
 
 def test_connection_endpoints_report_a_missing_vault_as_unavailable() -> None:
@@ -161,3 +164,16 @@ def test_reservations_prevent_spending_the_same_money_twice() -> None:
     assert p.available_cash == Decimal(1000)
     p.release(cash=Decimal(5))  # over-release is clamped, never negative
     assert p.reserved_cash == 0
+
+
+def test_empty_numeric_settings_from_docker_compose_count_as_unset() -> None:
+    settings = Settings(  # type: ignore[call-arg]
+        _env_file=None,
+        live_max_order_notional="",
+        live_max_total_exposure="",
+        live_max_daily_loss="",
+        risk_max_open_positions="",
+        risk_max_total_exposure="  ",
+    )
+    assert settings.live_max_order_notional is None and not settings.live_caps_configured
+    assert settings.risk_max_open_positions is None and settings.risk_max_total_exposure is None

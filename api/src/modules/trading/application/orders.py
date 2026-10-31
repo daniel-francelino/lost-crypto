@@ -26,7 +26,7 @@ from core.clock import Clock
 from core.ids import IdGenerator
 from modules.analytics.domain.metrics import round_trip_pnls
 from modules.audit.models import AuditEvent
-from modules.bots.domain.models import Bot, BotState
+from modules.bots.domain.models import Bot, BotState, ExecutionMode
 from modules.exchanges.application.connections import ConnectionResolver
 from modules.exchanges.application.exchange import Exchange
 from modules.exchanges.application.ports import MarketOrderRequest, StopOrderRequest, VenueOrder
@@ -45,7 +45,7 @@ from modules.execution.domain.orders import (
     make_stop_client_order_id,
 )
 from modules.portfolio.domain.models import PortfolioState
-from modules.risk_management.domain.models import consecutive_losses_breached
+from modules.risk_management.domain.models import LiveLimits, consecutive_losses_breached
 from modules.strategies.domain.types import Side
 from modules.trading.application.ports import TradingStore
 
@@ -62,12 +62,14 @@ class OrderExecutor:
         clock: Clock,
         ids: IdGenerator,
         absent_after: timedelta,
+        live_limits: LiveLimits | None = None,
     ) -> None:
         self._stores = stores
         self._resolver = resolver
         self._clock = clock
         self._ids = ids
         self._absent_after = absent_after
+        self._live_limits = live_limits or LiveLimits()
 
     # --- phase 1 (called by the trader inside the candle's transaction) -----------------------
 
@@ -94,6 +96,16 @@ class OrderExecutor:
             order = await store.orders.get(order_id)
             portfolio = await store.portfolio.get(bot.id)
         if order is None or order.status is not OrderStatus.SUBMITTING:
+            return
+
+        # Independent of how the order came to be: no live entry may exceed the hard cap.
+        cap = self._live_limits.max_order_notional
+        if (
+            bot.config.mode is ExecutionMode.LIVE
+            and order.side is Side.BUY
+            and (cap is None or order.reserved_cash > cap * Decimal("1.02"))
+        ):
+            await self._reject(bot, order_id, "exceeds the live per-order hard cap")
             return
 
         stop_cid = portfolio.stop_order_client_id if portfolio is not None else None

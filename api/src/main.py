@@ -12,6 +12,8 @@ from core.errors import ConflictError, DomainError, NotFoundError
 from core.logging import configure_logging
 from core.security.auth import assert_secure_configuration
 from core.security.vault import VaultNotConfigured
+from modules.auth.domain import AccountLocked, InvalidCredentials
+from modules.auth.service import AuthNotConfigured
 
 OPENAPI_TAGS = [
     {"name": "health", "description": "Liveness e readiness da API."},
@@ -36,6 +38,10 @@ OPENAPI_TAGS = [
     },
     {"name": "audit", "description": "Trilha de auditoria append-only."},
     {
+        "name": "auth",
+        "description": "Login, sessões (refresh token em cookie httpOnly) e usuários.",
+    },
+    {
         "name": "exchange-connections",
         "description": "Credenciais de exchange (testnet), guardadas criptografadas e nunca "
         "devolvidas. Exige API_TOKEN configurado.",
@@ -50,6 +56,12 @@ def _error_handler(status_code: int) -> ErrorHandler:
         return JSONResponse(status_code=status_code, content={"detail": str(exc)})
 
     return handle
+
+
+async def _unauthorized_handler(_: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=401, content={"detail": str(exc)}, headers={"WWW-Authenticate": "Bearer"}
+    )
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -80,6 +92,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
+        allow_credentials=True,  # the refresh-token cookie
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -90,6 +103,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_exception_handler(ConflictError, _error_handler(409))
     app.add_exception_handler(DomainError, _error_handler(422))
     app.add_exception_handler(VaultNotConfigured, _error_handler(503))
+    app.add_exception_handler(AuthNotConfigured, _error_handler(503))
+    app.add_exception_handler(AccountLocked, _error_handler(401))
+    app.add_exception_handler(InvalidCredentials, _unauthorized_handler)
     return app
 
 

@@ -1,7 +1,11 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from modules.audit.repository import SqlAlchemyAuditRepository
-from modules.bots.infrastructure.repository import SqlAlchemyBotRepository
+from modules.auth.repository import SqlAlchemyRefreshTokenRepository, SqlAlchemyUserRepository
+from modules.bots.infrastructure.repository import (
+    SqlAlchemyBotRepository,
+    SqlAlchemyLiveApprovalRepository,
+)
 from modules.exchanges.infrastructure.repository import (
     SqlAlchemyConnectionRepository,
     SqlAlchemyReconciliationRepository,
@@ -33,6 +37,9 @@ class SqlAlchemyStore:
         self.audit = SqlAlchemyAuditRepository(session)
         self.connections = SqlAlchemyConnectionRepository(session)
         self.reconciliations = SqlAlchemyReconciliationRepository(session)
+        self.users = SqlAlchemyUserRepository(session)
+        self.live_approvals = SqlAlchemyLiveApprovalRepository(session)
+        self.refresh_tokens = SqlAlchemyRefreshTokenRepository(session)
 
     async def commit(self) -> None:
         await self._session.commit()

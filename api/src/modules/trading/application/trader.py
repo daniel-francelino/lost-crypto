@@ -13,6 +13,7 @@ another venue or exchange does not touch this flow.
 import logging
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -35,6 +36,8 @@ from modules.portfolio.domain.models import InsufficientFunds, PortfolioSnapshot
 from modules.risk_management.domain.models import (
     GlobalExposure,
     GlobalRiskLimits,
+    LiveLimits,
+    RiskLimits,
     assess_signal,
     candle_range_pct,
     consecutive_losses_breached,
@@ -81,6 +84,7 @@ class BotTrader:
         ids: IdGenerator,
         global_limits: GlobalRiskLimits | None = None,
         executor: OrderExecutor | None = None,
+        live_limits: LiveLimits | None = None,
     ) -> None:
         self._stores = stores
         self._registry = registry
@@ -91,6 +95,7 @@ class BotTrader:
         self._markets: dict[tuple[str, str], MarketInfo] = {}
         self._prices = StaticPriceFeed()
         self._executor = executor
+        self._live_limits = live_limits or LiveLimits()
         self._pending: list[UUID] = []  # orders created this candle, sent after the commit
 
     async def market_info(self, exchange: str, symbol: str) -> MarketInfo:
@@ -176,11 +181,10 @@ class BotTrader:
             )
             kill_switch = await store.flags.get_kill_switch()
             sold = False
+            is_live = cfg.mode is ExecutionMode.LIVE
+            limits, global_limits = self._effective_limits(bot)
             # Real exchanges: never stack a new order on one whose outcome is still unknown.
-            blocked = (
-                cfg.mode is ExecutionMode.TESTNET
-                and await store.orders.count_unresolved(bot.id) > 0
-            )
+            blocked = cfg.mode.uses_exchange and await store.orders.count_unresolved(bot.id) > 0
 
             # 1. Protective exits. Allowed even on stale candles: a native exchange stop would
             #    have fired regardless of whether the worker was running.
@@ -227,6 +231,17 @@ class BotTrader:
                 if not fresh:
                     await self._record(store, bot, session, candle, signal, "discarded_stale", None)
                     continue
+                if is_live and not self._live_limits.complete:
+                    await self._record(
+                        store,
+                        bot,
+                        session,
+                        candle,
+                        signal,
+                        "rejected",
+                        "live hard caps are missing",
+                    )
+                    continue
                 if blocked:
                     await self._record(
                         store,
@@ -245,11 +260,11 @@ class BotTrader:
                     market,
                     fee_rate=cfg.fee_rate,
                     slippage_bps=cfg.slippage_bps,
-                    limits=cfg.risk,
+                    limits=limits,
                     kill_switch_active=kill_switch.active,
                     candle_range=candle_range_pct(candle.high, candle.low),
-                    global_limits=self._global_limits,
-                    exposure=await self._exposure(store, signal),
+                    global_limits=global_limits,
+                    exposure=await self._exposure(store, signal, global_limits, is_live),
                 )
                 if not decision.approved or decision.quantity is None:
                     await self._record(
@@ -299,6 +314,9 @@ class BotTrader:
             )
             if breach is not None:
                 event_type, message = breach
+                if event_type == "risk.live_daily_loss_cap":
+                    # Real money lost past the hard cap: stop everything, not just this bot.
+                    await store.flags.set_kill_switch(True, message)
                 await store.bots.set_desired(bot.id, BotState.PAUSED)
                 await store.bots.set_observed(bot.id, BotState.PAUSED, message)
                 await store.audit.add(
@@ -314,13 +332,27 @@ class BotTrader:
             await store.commit()
         return result.state, breach is not None
 
-    async def _exposure(self, store: TradingStore, signal: Signal) -> GlobalExposure:
-        limits = self._global_limits
+    def _effective_limits(self, bot: Bot) -> tuple[RiskLimits, GlobalRiskLimits]:
+        """The bot's own limits, tightened by the operator's hard caps when it trades real money."""
+        cfg = bot.config
+        if cfg.mode is not ExecutionMode.LIVE:
+            return cfg.risk, self._global_limits
+        caps = self._live_limits
+        notionals = [n for n in (cfg.risk.max_order_notional, caps.max_order_notional) if n]
+        limits = replace(cfg.risk, max_order_notional=min(notionals) if notionals else None)
+        return limits, GlobalRiskLimits(
+            max_open_positions=self._global_limits.max_open_positions,
+            max_total_exposure=caps.max_total_exposure,
+        )
+
+    async def _exposure(
+        self, store: TradingStore, signal: Signal, limits: GlobalRiskLimits, live: bool
+    ) -> GlobalExposure:
         if signal.side is not Side.BUY or (
             limits.max_open_positions is None and limits.max_total_exposure is None
         ):
             return GlobalExposure()
-        count, notional = await store.portfolio.open_exposure()
+        count, notional = await store.portfolio.open_exposure("live" if live else None)
         return GlobalExposure(count, notional)
 
     async def _record(
@@ -378,7 +410,7 @@ class BotTrader:
         sent afterwards, so this returns False there (the executor applies the result).
         """
         cfg = bot.config
-        if cfg.mode is ExecutionMode.TESTNET:
+        if cfg.mode.uses_exchange:
             await self._create_intent(
                 store,
                 bot,
@@ -527,6 +559,9 @@ class BotTrader:
                 equity=equity,
             )
         )
+        cap = self._live_limits.max_daily_loss
+        if bot.config.mode is ExecutionMode.LIVE and cap is not None and reference - equity >= cap:
+            return "risk.live_daily_loss_cap", "live daily loss cap reached"
         if daily_loss_breached(equity, reference, limits):
             return "risk.daily_loss_breached", "daily loss limit breached"
         if drawdown_breached(equity, peak, limits):

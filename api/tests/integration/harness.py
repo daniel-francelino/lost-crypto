@@ -11,6 +11,7 @@ import httpx
 from sqlalchemy import text
 
 from container import Container, JobRunner
+from core.config import AppEnv
 from factories import MARKET
 from modules.market_data.domain.models import Candle, MarketInfo, Timeframe
 from simulated_exchange import SimulatedExchange
@@ -126,6 +127,7 @@ async def cleanup(container: Container) -> None:
             f"DELETE FROM portfolio_snapshots WHERE bot_id IN {bots}",
             f"DELETE FROM bot_portfolios WHERE bot_id IN {bots}",
             f"DELETE FROM trading_sessions WHERE bot_id IN {bots}",
+            f"DELETE FROM live_approvals WHERE bot_id IN {bots}",
             f"DELETE FROM audit_events WHERE bot_id IN {bots}",
             "DELETE FROM bots WHERE name LIKE 'itest-%'",
             "DELETE FROM reconciliation_runs WHERE connection_id IN "
@@ -135,6 +137,18 @@ async def cleanup(container: Container) -> None:
         ]
         for statement in statements:
             await conn.execute(text(statement))
+
+
+# Production-like settings for the live-trading tests: APP_ENV=prod, the live switch ON and every
+# hard cap set. Tests tighten or remove one at a time to prove each safeguard.
+LIVE_SETTINGS: dict[str, Any] = {
+    "app_env": AppEnv.PROD,
+    "live_trading_enabled": True,
+    "live_max_order_notional": Decimal(500),
+    "live_max_total_exposure": Decimal(2000),
+    "live_max_daily_loss": Decimal(50),
+    "live_min_paper_days": 0,
+}
 
 
 API_TOKEN = "itest-token"
@@ -163,6 +177,22 @@ class TestnetEnv(Env):
         resp = await self.http.post("/api/v1/exchange-connections", json=body)
         assert resp.status_code == 201, resp.text
         return str(resp.json()["id"])
+
+    async def create_live_connection(
+        self, label: str | None = None, confirm: bool = True
+    ) -> httpx.Response:
+        body = {
+            "exchange": "binance",
+            "environment": "live",
+            "label": label or f"itest-{uuid4().hex[:6]}",
+            "api_key": API_KEY,
+            "api_secret": API_SECRET,
+            "confirm_real_money": confirm,
+        }
+        return await self.http.post("/api/v1/exchange-connections", json=body)
+
+    async def connection(self, connection_id: str) -> dict[str, Any]:
+        return dict((await self.http.get(f"/api/v1/exchange-connections/{connection_id}")).json())
 
     async def create_testnet_bot(self, connection_id: str, **overrides: Any) -> str:
         return await self.create_bot(mode="testnet", connection_id=connection_id, **overrides)

@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any
@@ -8,6 +9,7 @@ import pytest
 from cryptography.fernet import Fernet
 from harness import (
     API_TOKEN,
+    LIVE_SETTINGS,
     START,
     Env,
     FakeClock,
@@ -56,14 +58,16 @@ async def env() -> AsyncIterator[Env]:
         await container.engine.dispose()
 
 
-@pytest.fixture
-async def testnet_env() -> AsyncIterator[TestnetEnv]:
+@asynccontextmanager
+async def _testnet_stack(**overrides: Any) -> AsyncIterator[TestnetEnv]:
     master_key = Fernet.generate_key().decode()
-    settings = Settings(  # type: ignore[call-arg]
-        api_token=API_TOKEN,
-        credential_master_keys=master_key,
-        testnet_trading_enabled=True,
-    )
+    values: dict[str, Any] = {
+        "api_token": API_TOKEN,
+        "credential_master_keys": master_key,
+        "testnet_trading_enabled": True,
+        **overrides,
+    }
+    settings = Settings(**values)  # type: ignore[call-arg]
     clock = FakeClock(START + timedelta(hours=20, seconds=5))
     source = PathSource(clock)
 
@@ -114,3 +118,21 @@ async def testnet_env() -> AsyncIterator[TestnetEnv]:
         await cleanup(api_container)
     for container in containers:
         await container.engine.dispose()
+
+
+@pytest.fixture
+async def testnet_env() -> AsyncIterator[TestnetEnv]:
+    async with _testnet_stack() as env:
+        yield env
+
+
+@pytest.fixture
+async def live_env() -> AsyncIterator[TestnetEnv]:
+    async with _testnet_stack(**LIVE_SETTINGS) as env:
+        yield env
+
+
+@pytest.fixture
+def stack() -> Any:
+    """``async with stack(**settings) as env``: a full stack with custom API settings."""
+    return _testnet_stack

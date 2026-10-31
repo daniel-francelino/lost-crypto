@@ -7,6 +7,7 @@ copy this file, change the profile and the hooks, and register the class in ``ca
 from decimal import Decimal
 from typing import Any
 
+from modules.exchanges.domain.connections import ApiPermissions
 from modules.exchanges.domain.models import (
     ExchangeCapabilities,
     ExchangeProfile,
@@ -37,6 +38,20 @@ BINANCE_PROFILE = ExchangeProfile(
 
 class BinanceExchange(CcxtExchange):
     PROFILE = BINANCE_PROFILE
+
+    async def fetch_api_permissions(self) -> ApiPermissions:
+        """Binance's ``GET /sapi/v1/account/apiRestrictions`` (mainnet only; not on the testnet)."""
+        self._require_authentication()
+        raw = await self._call(lambda: self._client.sapiGetAccountApiRestrictions())
+        return ApiPermissions(
+            can_read=bool(raw.get("enableReading")),
+            can_trade=bool(raw.get("enableSpotAndMarginTrading")),
+            can_withdraw=bool(raw.get("enableWithdrawals")),
+            can_transfer=bool(
+                raw.get("enableInternalTransfer") or raw.get("permitsUniversalTransfer")
+            ),
+            ip_restricted=bool(raw.get("ipRestrict")),
+        )
 
     def parse_market(self, symbol: str, market: dict[str, Any]) -> MarketInfo | None:
         """Exact rules from Binance's exchange filters (None when they are not present)."""

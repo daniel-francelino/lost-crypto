@@ -4,7 +4,7 @@ COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
 .PHONY: help install up down restart logs ps db dev worker migrate revision \
-        lint format typecheck test test-integration check openapi master-key test-testnet
+        lint format typecheck test test-integration check openapi master-key jwt-secret create-admin test-testnet
 
 help: ## Lista os comandos disponíveis
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -71,6 +71,12 @@ test-integration: ## Testes de integração em banco separado (requer: make db)
 	$(UV) run pytest -m integration
 
 check: lint typecheck test ## lint + tipos + testes unitários
+
+create-admin: ## Cria o primeiro usuário admin (pede a senha); no Docker: docker compose exec api python -m manage create-user admin
+	$(UV) run python -m manage create-user admin --role admin
+
+jwt-secret: ## Gera um valor para JWT_SECRET
+	@$(UV) run python -c "import secrets; print(secrets.token_urlsafe(48))"
 
 master-key: ## Gera uma chave Fernet para CREDENTIAL_MASTER_KEYS
 	@$(UV) run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"

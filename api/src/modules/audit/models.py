@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
@@ -20,3 +21,8 @@ class AuditRepository(Protocol):
 
     async def add(self, event: AuditEvent) -> None: ...
     async def list_events(self, bot_id: UUID | None, limit: int) -> list[AuditEvent]: ...
+    async def count_events(
+        self, bot_id: UUID, event_types: Sequence[str], before: datetime | None = None
+    ) -> int: ...
+
+    async def latest_event_time(self, bot_id: UUID, event_type: str) -> datetime | None: ...

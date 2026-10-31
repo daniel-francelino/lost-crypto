@@ -24,8 +24,25 @@ class Settings(BaseSettings):
     live_trading_enabled: bool = False
     # Testnet orders (fake money on the exchange sandbox) also need an explicit opt-in.
     testnet_trading_enabled: bool = False
+    # --- Live trading (REAL MONEY). Off unless every one of these is deliberately set. ----
+    # Hard caps independent of any bot's own limits; all three are required for a live bot to run.
+    live_max_order_notional: Decimal | None = None  # quote currency, per order
+    live_max_total_exposure: Decimal | None = None  # quote currency, all live positions
+    live_max_daily_loss: Decimal | None = None  # quote currency, per bot per UTC day
+    live_min_paper_days: int = 7  # paper history required before a bot may be approved for live
+    live_require_ip_restriction: bool = True  # refuse live keys that work from any IP
+    live_approval_minutes: int = 10  # lifetime of a live confirmation token
     # HTTP API authentication: a bearer token. Optional only when APP_ENV=local.
     api_token: SecretStr | None = None
+    # User login (frontend): secret signing the short-lived access tokens (>= 32 chars). Enables
+    # /auth/login. Generate: python -c "import secrets; print(secrets.token_urlsafe(48))"
+    jwt_secret: SecretStr | None = None
+    access_token_minutes: int = 15
+    refresh_token_days: float = 7
+    login_max_failures: int = 5  # consecutive wrong passwords before the account locks
+    login_lockout_minutes: int = 15
+    refresh_reuse_grace_seconds: int = 10  # tolerated gap for a double-fired refresh request
+    cookie_secure: bool | None = None  # None: secure cookies everywhere except APP_ENV=local
     # Fernet key(s) protecting stored exchange credentials, comma separated; the first one
     # encrypts, all of them decrypt (key rotation). Generate: python -c "from cryptography.fernet
     # import Fernet; print(Fernet.generate_key().decode())"
@@ -46,10 +63,40 @@ class Settings(BaseSettings):
     risk_max_total_exposure: Decimal | None = None
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
 
-    @field_validator("api_token", "credential_master_keys", mode="before")
+    @field_validator(
+        "api_token",
+        "credential_master_keys",
+        "jwt_secret",
+        "live_max_order_notional",
+        "live_max_total_exposure",
+        "live_max_daily_loss",
+        "risk_max_open_positions",
+        "risk_max_total_exposure",
+        mode="before",
+    )
     @classmethod
     def _empty_means_unset(cls, value: object) -> object:
         return None if isinstance(value, str) and not value.strip() else value
+
+    @property
+    def live_caps_configured(self) -> bool:
+        return None not in (
+            self.live_max_order_notional,
+            self.live_max_total_exposure,
+            self.live_max_daily_loss,
+        )
+
+    @property
+    def auth_enabled(self) -> bool:
+        return self.api_token is not None or self.jwt_secret is not None
+
+    @property
+    def secure_cookies(self) -> bool:
+        return (
+            self.cookie_secure
+            if self.cookie_secure is not None
+            else self.app_env is not AppEnv.LOCAL
+        )
 
     @property
     def master_keys(self) -> list[str]:

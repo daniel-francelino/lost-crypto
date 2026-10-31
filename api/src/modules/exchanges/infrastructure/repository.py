@@ -66,6 +66,14 @@ class SqlAlchemyConnectionRepository:
         )
         return [_to_connection(r) for r in result.scalars()]
 
+    async def list_pending(self) -> list[ExchangeConnection]:
+        result = await self._session.execute(
+            select(ExchangeConnectionRow)
+            .where(ExchangeConnectionRow.status == ConnectionStatus.PENDING.value)
+            .order_by(ExchangeConnectionRow.created_at)
+        )
+        return [_to_connection(r) for r in result.scalars()]
+
     async def set_status(
         self, connection_id: UUID, status: ConnectionStatus, verified_at: datetime | None
     ) -> None:

@@ -20,6 +20,7 @@ from modules.exchanges.application.ports import (
     StopOrderRequest,
     VenueOrder,
 )
+from modules.exchanges.domain.connections import ApiPermissions
 from modules.exchanges.errors import (
     AuthenticationFailed,
     ExchangeRejected,
@@ -96,6 +97,7 @@ class SimulatedExchange(Exchange):
         self.balances = dict(balances)
         self.fee_rate = fee_rate
         self.orders: dict[str, SimOrder] = {}
+        self.permissions = ApiPermissions(True, True, False, False, True)  # trade-only key
         self.create_calls: list[str] = []  # every create attempt, by client order id
         self.cancel_calls: list[str] = []
         self._failures: dict[str, deque[str]] = {}
@@ -104,7 +106,7 @@ class SimulatedExchange(Exchange):
     # --- test controls -----------------------------------------------------------------------
 
     def fail_next(self, operation: str, mode: str) -> None:
-        """operation: create | create_stop | cancel; mode: reject | timeout_before |
+        """operation: create | create_stop | cancel | balances; mode: reject | timeout_before |
         timeout_after | auth | rate_limit."""
         self._failures.setdefault(operation, deque()).append(mode)
 
@@ -209,7 +211,12 @@ class SimulatedExchange(Exchange):
         self.tick()
         return [o.to_venue() for o in self.open_orders() if o.symbol == symbol]
 
+    async def fetch_api_permissions(self) -> ApiPermissions:
+        self._raise_before(self._next_failure("permissions"))
+        return self.permissions
+
     async def fetch_balances(self) -> dict[str, Balance]:
+        self._raise_before(self._next_failure("balances"))
         self.tick()
         locked: dict[str, Decimal] = {}
         for order in self.open_orders():

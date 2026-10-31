@@ -49,10 +49,25 @@ async def run_worker(
     logger.info("worker stopped gracefully")
 
 
+def _log_safety_banner(settings: Settings) -> None:
+    """One unmissable summary of what this worker is allowed to do, at every start."""
+    logger.warning(
+        "worker modes | env=%s paper=on testnet=%s LIVE=%s live_caps=%s auth=%s",
+        settings.app_env.value,
+        "on" if settings.testnet_trading_enabled else "off",
+        "ON (REAL MONEY)" if settings.live_trading_enabled else "off",
+        "set" if settings.live_caps_configured else "missing",
+        "on" if settings.auth_enabled else "OFF",
+    )
+    if settings.live_trading_enabled:
+        logger.warning("LIVE TRADING IS ENABLED: live bots will place real orders")
+
+
 async def _main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
     container = build_container(settings)
+    _log_safety_banner(settings)
     jobs = build_job_runner(container)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()

@@ -202,3 +202,45 @@ curl -H "$H" $B/bots/<id>/portfolio   # reserved_cash e native_stop_active
 **Como funciona (resumo):** a ordem é gravada como `SUBMITTING` (id determinístico + capital reservado) numa transação, enviada à exchange fora de qualquer transação e o resultado aplicado numa segunda. Falha ambígua (timeout) vira `UNKNOWN` e é resolvida **consultando o id na exchange**, nunca reenviando. O stop-loss fica na exchange e é aplicado ao portfólio mesmo se o worker estava parado. A cada minuto a conta é conferida: se a exchange tem menos do que os bots acham que têm, ou há ordem com o prefixo `lc-` desconhecida, os bots são **pausados** (`reconciliation mismatch`) e a execução fica em `reconciliation_runs`.
 
 **Validação:** o ciclo é coberto por testes contra uma exchange *simulada* com falhas injetadas. Contra a Binance real foram confirmados (com chave inválida) o endpoint sandbox, as regras de mercado e o erro `-2015`. **Ordens reais ainda não foram testadas** (sem chaves): rode `make test-testnet` com `TESTNET_API_KEY`/`TESTNET_API_SECRET`.
+
+## Autenticação (frontend)
+
+Detalhes: [docs/architecture/14-authentication.md](docs/architecture/14-authentication.md).
+
+```bash
+make jwt-secret                  # valor para JWT_SECRET (no .env)
+make create-admin                # primeiro admin (pede a senha); no Docker: docker compose exec api python -m manage create-user daniel --role admin
+```
+
+```bash
+B=localhost:8000/api/v1
+curl -c jar -X POST $B/auth/login -H 'content-type: application/json' -d '{"username":"daniel","password":"..."}'
+#  -> {"access_token": "...", "expires_in": 900, "user": {...}}   + cookie httpOnly refresh_token
+curl -H "Authorization: Bearer <access_token>" $B/auth/me
+curl -b jar -c jar -X POST $B/auth/refresh     # novo access token; o cookie é rotacionado
+curl -b jar -X POST $B/auth/logout
+```
+
+- **Access token** (JWT, 15 min) em memória no frontend + **refresh token** em cookie `httpOnly` (rotativo; reutilizar um token antigo derruba a sessão inteira).
+- Papéis: `viewer` só lê (todo `GET`); `admin` faz tudo. `API_TOKEN` continua existindo como token de serviço (admin) para scripts.
+- 5 senhas erradas seguidas bloqueiam a conta por 15 min; trocar a senha desloga todos os dispositivos.
+- Sem `JWT_SECRET`/`API_TOKEN` a API só funciona aberta com `APP_ENV=local`; em qualquer outro ambiente ela nem sobe.
+
+## Fase 5 — trading live (DINHEIRO REAL)
+
+> Desligado por padrão. Nada neste repositório envia ordem real sem que você ligue, de propósito, **todas** as travas abaixo. Leia [docs/architecture/13-live-trading.md](docs/architecture/13-live-trading.md) antes. O caminho live foi testado só contra uma conta *simulada*; **comece com tetos minúsculos**.
+
+Travas (resumo): `LIVE_TRADING_ENABLED=true` + `APP_ENV=prod` + os três tetos (`LIVE_MAX_ORDER_NOTIONAL`, `LIVE_MAX_TOTAL_EXPOSURE`, `LIVE_MAX_DAILY_LOSS`) no worker; chave **só de trade** (sem saque/transferência, restrita por IP) verificada pelo worker; bot promovido por endpoint próprio, com histórico limpo de paper (`LIVE_MIN_PAPER_DAYS`); e uma aprovação de **uso único**, digitando o nome do bot, exigida a **cada** partida.
+
+```bash
+H="Authorization: Bearer $TOKEN"
+# 1. Conexão live (a chave fica 'pending' até o worker verificar o que ela pode fazer)
+curl -H "$H" -X POST $B/exchange-connections -H 'content-type: application/json' \
+  -d '{"environment":"live","confirm_real_money":true,"label":"binance-live","api_key":"...","api_secret":"..."}'
+# 2. Promover um bot parado (com paper rodado) e ver o checklist
+curl -H "$H" -X POST $B/bots/<id>/promote-to-live -H 'content-type: application/json' -d '{"connection_id":"<conexao>"}'
+curl -H "$H" $B/bots/<id>/live-readiness
+# 3. Aprovar (digite o nome exato do bot) e iniciar com o token devolvido
+curl -H "$H" -X POST $B/bots/<id>/live-approvals -H 'content-type: application/json' -d '{"confirm_name":"<nome do bot>"}'
+curl -H "$H" -X POST $B/bots/<id>/start -H 'content-type: application/json' -d '{"confirmation_token":"<token>"}'
+```

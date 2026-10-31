@@ -44,6 +44,10 @@ class BotSupervisor:
         executor: OrderExecutor | None = None,
         reconciler: Reconciler | None = None,
         testnet_enabled: bool = False,
+        live_enabled: bool = False,
+        is_production: bool = False,
+        live_caps_configured: bool = False,
+        live_require_ip_restriction: bool = True,
         reconcile_interval: timedelta = timedelta(seconds=60),
         stop_poll_interval: timedelta = timedelta(seconds=10),
     ) -> None:
@@ -58,6 +62,10 @@ class BotSupervisor:
         self._executor = executor
         self._reconciler = reconciler
         self._testnet_enabled = testnet_enabled
+        self._live_enabled = live_enabled
+        self._is_production = is_production
+        self._live_caps_configured = live_caps_configured
+        self._live_require_ip = live_require_ip_restriction
         self._reconcile_interval = reconcile_interval
         self._stop_poll_interval = stop_poll_interval
         self._last_reconcile: datetime | None = None
@@ -70,7 +78,14 @@ class BotSupervisor:
         if kill_switch.active:
             bots = await self._apply_kill_switch(bots, kill_switch)
 
+        if self._resolver is not None:
+            try:  # live keys stay unusable until we know what they may do
+                await self._resolver.verify_pending(self._live_require_ip)
+            except Exception:
+                logger.exception("connection verification failed")
         await self._housekeeping(bots)
+        async with self._stores() as store:  # housekeeping may have paused or failed some bots
+            bots = await store.bots.list_active()
 
         running: list[UUID] = []
         for bot in bots:
@@ -100,7 +115,7 @@ class BotSupervisor:
         testnet = [
             b
             for b in bots
-            if b.config.mode is ExecutionMode.TESTNET and b.observed_state is not BotState.ERROR
+            if b.config.mode.uses_exchange and b.observed_state is not BotState.ERROR
         ]
         if not testnet:
             return
@@ -125,8 +140,32 @@ class BotSupervisor:
         except Exception:
             logger.exception("exchange housekeeping failed")
 
+    def _mode_problem(self, bot: Bot) -> str | None:
+        """Why this bot may not trade right now. Evaluated on EVERY pass, not just at start:
+        a worker restarted with a safeguard switched off must stop a bot that was already
+        running, never keep trading it."""
+        mode = bot.config.mode
+        if mode is ExecutionMode.TESTNET and not self._testnet_enabled:
+            return "testnet trading is disabled (set TESTNET_TRADING_ENABLED=true on the worker)"
+        if mode is ExecutionMode.LIVE:
+            if not self._live_enabled:
+                return "live trading is disabled (LIVE_TRADING_ENABLED is not true on the worker)"
+            if not self._is_production:
+                return "live trading only runs with APP_ENV=prod"
+            if not self._live_caps_configured:
+                return (
+                    "live hard caps are not configured (LIVE_MAX_ORDER_NOTIONAL, "
+                    "LIVE_MAX_TOTAL_EXPOSURE, LIVE_MAX_DAILY_LOSS)"
+                )
+            if not bot.has_live_approval:
+                return "no valid live approval for this configuration version"
+        return None
+
     async def _handle(self, bot: Bot) -> None:
         if bot.desired_state is BotState.RUNNING:
+            if problem := self._mode_problem(bot):
+                await self._enter_error(bot, problem)
+                return
             if bot.observed_state is not BotState.RUNNING and not await self._start(bot):
                 return
             retry_at = self._retry_at.get(bot.id)
@@ -142,17 +181,15 @@ class BotSupervisor:
         elif bot.observed_state is not BotState.STOPPED:
             await self._stop(bot)
 
-    async def _testnet_problem(self, bot: Bot) -> str | None:
-        """Why a testnet bot may not run, or None. Checked on every start."""
-        if not self._testnet_enabled:
-            return "testnet trading is disabled (set TESTNET_TRADING_ENABLED=true on the worker)"
+    async def _connection_problem(self, bot: Bot) -> str | None:
+        """Why a real-exchange bot cannot get a working connection, or None. Checked on start."""
         if self._resolver is None or bot.config.connection_id is None:
-            return "testnet bot has no usable exchange connection"
+            return f"{bot.config.mode.value} bot has no usable exchange connection"
         try:
             exchange = await self._resolver.exchange_for(bot.config.connection_id)
         except Exception as exc:
             return f"exchange connection unusable: {type(exc).__name__}: {exc}"
-        if not exchange.capabilities.has_testnet:
+        if bot.config.mode is ExecutionMode.TESTNET and not exchange.capabilities.has_testnet:
             return f"{bot.config.exchange} has no testnet"
         return None
 
@@ -176,9 +213,7 @@ class BotSupervisor:
     async def _start(self, bot: Bot) -> bool:
         """Start (or resume) the bot. False when it was refused and put in the error state."""
         self._registry.create(bot.config.strategy_type, bot.config.strategy_params)  # validates
-        if bot.config.mode is ExecutionMode.TESTNET and (
-            problem := await self._testnet_problem(bot)
-        ):
+        if bot.config.mode.uses_exchange and (problem := await self._connection_problem(bot)):
             await self._enter_error(bot, problem)
             return False
         resumed = bot.observed_state is BotState.PAUSED
@@ -191,6 +226,7 @@ class BotSupervisor:
                         config_version=bot.config_version,
                         status=SessionStatus.ACTIVE,
                         started_at=self._clock.now(),
+                        mode=bot.config.mode.value,
                     )
                 )
             await store.bots.set_observed(bot.id, BotState.RUNNING, None)
@@ -206,7 +242,7 @@ class BotSupervisor:
             )
             await store.commit()
         bot.observed_state = BotState.RUNNING
-        if bot.config.mode is ExecutionMode.TESTNET and self._reconciler and self._executor:
+        if bot.config.mode.uses_exchange and self._reconciler and self._executor:
             # Catch up on anything that happened to our orders while the bot was not running.
             try:
                 await self._reconciler.resolve_pending()

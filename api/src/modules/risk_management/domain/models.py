@@ -56,6 +56,20 @@ class GlobalRiskLimits:
 
 
 @dataclass(frozen=True, slots=True)
+class LiveLimits:
+    """Hard caps for real money, set by the operator in the environment (never via the API, never
+    per bot). They bound the blast radius even if a bot's own configuration is wrong."""
+
+    max_order_notional: Decimal | None = None
+    max_total_exposure: Decimal | None = None
+    max_daily_loss: Decimal | None = None  # absolute amount, per bot per UTC day
+
+    @property
+    def complete(self) -> bool:
+        return None not in (self.max_order_notional, self.max_total_exposure, self.max_daily_loss)
+
+
+@dataclass(frozen=True, slots=True)
 class GlobalExposure:
     open_positions: int = 0
     notional: Decimal = Decimal(0)

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 from uuid import UUID
@@ -27,6 +28,37 @@ class BotRepository(Protocol):
     async def set_desired(self, bot_id: UUID, state: BotState) -> None: ...
     async def set_observed(self, bot_id: UUID, state: BotState, error: str | None) -> None: ...
     async def heartbeat(self, bot_ids: list[UUID], at: datetime) -> None: ...
+    async def set_live_approval(
+        self, bot_id: UUID, config_version: int | None, at: datetime | None
+    ) -> None:
+        """Record (or with None, clear) the config version a human approved for live trading."""
+        ...
+
+    async def set_mode(self, bot_id: UUID, mode: str, connection_id: UUID | None) -> None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class LiveApproval:
+    """A one-time permission to start a live bot, bound to one configuration version."""
+
+    id: UUID
+    bot_id: UUID
+    config_version: int
+    token_hash: str
+    created_by: str
+    created_at: datetime
+    expires_at: datetime
+    used_at: datetime | None = None
+
+
+class LiveApprovalRepository(Protocol):
+    async def supersede(self, bot_id: UUID, at: datetime) -> None:
+        """Void every unused approval of the bot (a new request replaces the old ones)."""
+        ...
+
+    async def add(self, approval: LiveApproval) -> None: ...
+    async def find(self, bot_id: UUID, token_hash: str) -> LiveApproval | None: ...
+    async def mark_used(self, approval_id: UUID, at: datetime) -> None: ...
 
 
 class BotStore(Protocol):
@@ -44,5 +76,7 @@ class BotStore(Protocol):
     def audit(self) -> AuditRepository: ...
     @property
     def connections(self) -> ConnectionRepository: ...
+    @property
+    def live_approvals(self) -> LiveApprovalRepository: ...
 
     async def commit(self) -> None: ...

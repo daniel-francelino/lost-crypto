@@ -6,11 +6,13 @@ from typing import Any
 from uuid import UUID
 
 from core.clock import Clock
-from core.errors import ConflictError, DomainError, NotFoundError
+from core.errors import ConflictError
 from core.ids import IdGenerator
 from modules.analytics.domain.metrics import Metrics, compute_metrics
 from modules.audit.models import AuditEvent
 from modules.backtesting.domain.models import EquityPoint
+from modules.bots.application.errors import BotNameTaken, BotNotFound, InvalidBotConnection
+from modules.bots.application.live import IssuedApproval, LiveService, Readiness
 from modules.bots.application.ports import BotStore
 from modules.bots.domain.models import Bot, BotConfig, BotState, ExecutionMode
 from modules.exchanges.application.registry import ExchangeRegistry
@@ -21,18 +23,6 @@ from modules.portfolio.domain.models import PortfolioState
 from modules.strategies.domain.registry import StrategyRegistry
 
 BotStoreFactory = Callable[[], AbstractAsyncContextManager[BotStore]]
-
-
-class BotNotFound(NotFoundError):
-    pass
-
-
-class BotNameTaken(ConflictError):
-    pass
-
-
-class InvalidBotConnection(DomainError):
-    pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,8 +65,10 @@ class BotService:
         exchanges: ExchangeRegistry,
         clock: Clock,
         ids: IdGenerator,
+        live: LiveService,
     ) -> None:
         self._stores = stores
+        self._live = live
         self._registry = registry
         self._exchanges = exchanges
         self._clock = clock
@@ -107,7 +99,11 @@ class BotService:
             await store.commit()
         return bot
 
-    async def update(self, bot_id: UUID, changes: Mapping[str, Any]) -> Bot:
+    async def update(
+        self, bot_id: UUID, changes: Mapping[str, Any], *, allow_live: bool = False
+    ) -> Bot:
+        if changes.get("mode") is ExecutionMode.LIVE and not allow_live:
+            raise ConflictError("use POST /bots/{id}/promote-to-live to switch a bot to live")
         async with self._stores() as store:
             bot = await self._get(store, bot_id)
             bot.ensure_editable()
@@ -118,6 +114,7 @@ class BotService:
             version = bot.config_version + 1
             if not await store.bots.update_config(bot_id, config, version):
                 raise BotNameTaken(f"a bot named {config.name!r} already exists")
+            await store.bots.set_live_approval(bot_id, None, None)  # a new version is unapproved
             await store.audit.add(
                 self._event(
                     "bot.config_updated", bot, {"fields": sorted(changes), "version": version}
@@ -130,16 +127,19 @@ class BotService:
     @staticmethod
     async def _check_connection(store: BotStore, config: BotConfig) -> None:
         """A testnet bot must point at an active testnet connection of its own exchange."""
-        if config.mode is not ExecutionMode.TESTNET:
+        if not config.mode.uses_exchange:
             return
         assert config.connection_id is not None  # guaranteed by BotConfig
+        expected = Environment.LIVE if config.mode is ExecutionMode.LIVE else Environment.TESTNET
         connection = await store.connections.get(config.connection_id)
         if connection is None:
             raise InvalidBotConnection("the exchange connection does not exist")
         if connection.status is not ConnectionStatus.ACTIVE:
             raise InvalidBotConnection(f"the exchange connection is {connection.status.value}")
-        if connection.environment is not Environment.TESTNET:
-            raise InvalidBotConnection("testnet bots need a testnet connection")
+        if connection.environment is not expected:
+            raise InvalidBotConnection(
+                f"{config.mode.value} bots need a {expected.value} connection"
+            )
         if connection.exchange != config.exchange:
             raise InvalidBotConnection(
                 f"the connection is for {connection.exchange}, the bot trades on {config.exchange}"
@@ -153,14 +153,58 @@ class BotService:
         async with self._stores() as store:
             return await store.bots.list_bots(limit)
 
-    async def start(self, bot_id: UUID) -> Bot:
-        return await self._command(bot_id, "start", Bot.request_start)
+    async def start(
+        self, bot_id: UUID, confirmation_token: str | None = None, actor: str = "api"
+    ) -> Bot:
+        async with self._stores() as store:
+            bot = await self._get(store, bot_id)
+            if bot.config.mode is ExecutionMode.LIVE:
+                await self._live.consume(store, bot, confirmation_token, actor)
+            bot.request_start()
+            await store.bots.set_desired(bot_id, bot.desired_state)
+            await store.audit.add(self._event("bot.start_requested", bot, {}))
+            await store.commit()
+        return bot
+
+    async def live_readiness(self, bot_id: UUID) -> Readiness:
+        _, readiness = await self._live.evaluate(bot_id)
+        return readiness
+
+    async def request_live_approval(
+        self, bot_id: UUID, typed_name: str, actor: str
+    ) -> IssuedApproval:
+        return await self._live.request_approval(bot_id, typed_name, actor)
+
+    async def promote_to_live(self, bot_id: UUID, connection_id: UUID) -> Bot:
+        """Point a stopped bot at a live connection. It still needs readiness + an approval.
+
+        The virtual portfolio restarts from the allocated capital (the real account is the
+        source of truth now); the paper history that earned the promotion is kept.
+        """
+        async with self._stores() as store:
+            current = await store.portfolio.get(bot_id)
+        if current is not None and current.quantity > 0:
+            raise ConflictError("close the open paper position before promoting to live")
+        bot = await self.update(
+            bot_id, {"mode": ExecutionMode.LIVE, "connection_id": connection_id}, allow_live=True
+        )
+        async with self._stores() as store:
+            await store.portfolio.save(PortfolioState.new(bot_id, bot.config.initial_capital))
+            await store.audit.add(
+                self._event("live.promoted", bot, {"connection": str(connection_id)})
+            )
+            await store.commit()
+        return bot
 
     async def pause(self, bot_id: UUID) -> Bot:
         return await self._command(bot_id, "pause", Bot.request_pause)
 
     async def stop(self, bot_id: UUID) -> Bot:
-        return await self._command(bot_id, "stop", Bot.request_stop)
+        bot = await self._command(bot_id, "stop", Bot.request_stop)
+        async with self._stores() as store:  # stopping ends the live approval, whatever the mode
+            await store.bots.set_live_approval(bot_id, None, None)
+            await store.commit()
+        return bot
 
     async def reset_portfolio(self, bot_id: UUID) -> None:
         """Restart the virtual portfolio from the initial capital (stopped bots only)."""

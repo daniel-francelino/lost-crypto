@@ -50,6 +50,294 @@
         }
       }
     },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login",
+        "description": "Sign in. Returns the access token and sets the refresh-token cookie.",
+        "operationId": "login_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Refresh",
+        "description": "Trade the refresh cookie for a new access token (the cookie is rotated).",
+        "operationId": "refresh_api_v1_auth_refresh_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout",
+        "description": "End this login: revokes the refresh token and clears the cookie.",
+        "operationId": "logout_api_v1_auth_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Me",
+        "description": "The signed-in user (the frontend uses this to know the role).",
+        "operationId": "me_api_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/change-password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Change Password",
+        "description": "Change your password; every session (including this one) is signed out.",
+        "operationId": "change_password_api_v1_auth_change_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/users": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "List Users",
+        "operationId": "list_users_api_v1_auth_users_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Users Api V1 Auth Users Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Create User",
+        "description": "Create a user (admin only). Give a collaborator `viewer` for read-only access.",
+        "operationId": "create_user_api_v1_auth_users_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/users/{user_id}/disable": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Disable User",
+        "description": "Disable a user and sign them out everywhere. You cannot disable yourself.",
+        "operationId": "disable_user_api_v1_auth_users__user_id__disable_post",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/users/{user_id}/enable": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Enable User",
+        "operationId": "enable_user_api_v1_auth_users__user_id__enable_post",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/strategies": {
       "get": {
         "tags": [
@@ -956,7 +1244,7 @@
           "bots"
         ],
         "summary": "Start Bot",
-        "description": "Ask the worker to run the bot (or resume it). Poll the bot for ``observed_state``.",
+        "description": "Ask the worker to run the bot (or resume it). Poll the bot for ``observed_state``.\n\nA **live** bot needs `confirmation_token` every time it starts (see live-approvals).",
         "operationId": "start_bot_api_v1_bots__bot_id__start_post",
         "parameters": [
           {
@@ -970,6 +1258,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/StartIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "202": {
             "description": "Successful Response",
@@ -977,6 +1282,158 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BotOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/live-readiness": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Live Readiness",
+        "description": "The checklist a bot must pass before it may trade real money (all items must be ok).",
+        "operationId": "live_readiness_api_v1_bots__bot_id__live_readiness_get",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/promote-to-live": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Promote To Live",
+        "description": "Point a stopped bot at a live connection. This does NOT start trading: it still needs\nthe readiness checklist and a one-time approval.",
+        "operationId": "promote_to_live_api_v1_bots__bot_id__promote_to_live_post",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromoteIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/live-approvals": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Request Live Approval",
+        "description": "Step 1 of starting a live bot: pass the checklist and type its name. Returns a token that\nis single-use, short-lived and valid only for the bot's current configuration.",
+        "operationId": "request_live_approval_api_v1_bots__bot_id__live_approvals_post",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalOut"
                 }
               }
             }
@@ -1571,7 +2028,7 @@
           "exchange-connections"
         ],
         "summary": "Create Connection",
-        "description": "Register exchange credentials (testnet only). They are stored encrypted, only the\nworker can decrypt them, and they are never returned. Requires `API_TOKEN` to be set.",
+        "description": "Register exchange credentials. They are stored encrypted, only the worker can decrypt\nthem, and they are never returned. **Live** keys start `pending`: the worker checks what\nthey may do and refuses any key that can withdraw or transfer funds.",
         "operationId": "create_connection_api_v1_exchange_connections_post",
         "requestBody": {
           "content": {
@@ -1697,6 +2154,40 @@
   },
   "components": {
     "schemas": {
+      "ApprovalIn": {
+        "properties": {
+          "confirm_name": {
+            "type": "string",
+            "title": "Confirm Name",
+            "description": "Type the bot's exact name to confirm you mean it"
+          }
+        },
+        "type": "object",
+        "required": [
+          "confirm_name"
+        ],
+        "title": "ApprovalIn"
+      },
+      "ApprovalOut": {
+        "properties": {
+          "confirmation_token": {
+            "type": "string",
+            "title": "Confirmation Token",
+            "description": "Shown once. Valid for one start of this version"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "confirmation_token",
+          "expires_at"
+        ],
+        "title": "ApprovalOut"
+      },
       "AuditEventOut": {
         "properties": {
           "occurred_at": {
@@ -2251,6 +2742,22 @@
             "type": "integer",
             "title": "Config Version"
           },
+          "live_approved": {
+            "type": "boolean",
+            "title": "Live Approved"
+          },
+          "live_approved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live Approved At"
+          },
           "last_heartbeat_at": {
             "anyOf": [
               {
@@ -2303,6 +2810,8 @@
           "desired_state",
           "observed_state",
           "config_version",
+          "live_approved",
+          "live_approved_at",
           "last_heartbeat_at",
           "last_error",
           "created_at",
@@ -2621,6 +3130,53 @@
         ],
         "title": "CandleOut"
       },
+      "ChangePasswordIn": {
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "format": "password",
+            "title": "Current Password",
+            "writeOnly": true
+          },
+          "new_password": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 12,
+            "format": "password",
+            "title": "New Password",
+            "writeOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "title": "ChangePasswordIn"
+      },
+      "CheckOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "ok",
+          "detail"
+        ],
+        "title": "CheckOut"
+      },
       "ConnectionCreate": {
         "properties": {
           "exchange": {
@@ -2630,9 +3186,18 @@
           },
           "environment": {
             "type": "string",
-            "const": "testnet",
+            "enum": [
+              "testnet",
+              "live"
+            ],
             "title": "Environment",
             "default": "testnet"
+          },
+          "confirm_real_money": {
+            "type": "boolean",
+            "title": "Confirm Real Money",
+            "description": "Required for environment=live: these keys can spend REAL money",
+            "default": false
           },
           "label": {
             "type": "string",
@@ -2723,7 +3288,8 @@
         "enum": [
           "active",
           "disabled",
-          "invalid"
+          "invalid",
+          "pending"
         ],
         "title": "ConnectionStatus"
       },
@@ -2819,7 +3385,8 @@
         "type": "string",
         "enum": [
           "paper",
-          "testnet"
+          "testnet",
+          "live"
         ],
         "title": "ExecutionMode"
       },
@@ -3099,6 +3666,30 @@
           "changed_at"
         ],
         "title": "KillSwitchOut"
+      },
+      "LoginIn": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "format": "password",
+            "title": "Password",
+            "writeOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "LoginIn"
       },
       "MetricsOut": {
         "properties": {
@@ -3442,6 +4033,42 @@
         ],
         "title": "PortfolioOut"
       },
+      "PromoteIn": {
+        "properties": {
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Connection Id",
+            "description": "An ACTIVE live connection of the bot's exchange"
+          }
+        },
+        "type": "object",
+        "required": [
+          "connection_id"
+        ],
+        "title": "PromoteIn"
+      },
+      "ReadinessOut": {
+        "properties": {
+          "ready": {
+            "type": "boolean",
+            "title": "Ready"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/CheckOut"
+            },
+            "type": "array",
+            "title": "Checks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ready",
+          "checks"
+        ],
+        "title": "ReadinessOut"
+      },
       "RiskIn-Input": {
         "properties": {
           "max_position_fraction": {
@@ -3644,6 +4271,14 @@
         "type": "object",
         "title": "RiskIn"
       },
+      "Role": {
+        "type": "string",
+        "enum": [
+          "admin",
+          "viewer"
+        ],
+        "title": "Role"
+      },
       "SegmentsOut": {
         "properties": {
           "split_at": {
@@ -3779,6 +4414,24 @@
           "age_seconds"
         ],
         "title": "StaleBotOut"
+      },
+      "StartIn": {
+        "properties": {
+          "confirmation_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmation Token",
+            "description": "Live bots only: the single-use token from POST /bots/{id}/live-approvals"
+          }
+        },
+        "type": "object",
+        "title": "StartIn"
       },
       "StrategyOut": {
         "properties": {
@@ -4180,6 +4833,35 @@
         ],
         "title": "Timeframe"
       },
+      "TokenOut": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In",
+            "description": "Access token lifetime, seconds"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "expires_in",
+          "user"
+        ],
+        "title": "TokenOut",
+        "description": "Keep ``access_token`` in memory and send it as ``Authorization: Bearer``. The refresh\ntoken travels only in an httpOnly cookie, out of reach of page scripts."
+      },
       "TradeOut": {
         "properties": {
           "time": {
@@ -4217,6 +4899,81 @@
           "notional"
         ],
         "title": "TradeOut"
+      },
+      "UserCreate": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 3,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 12,
+            "format": "password",
+            "title": "Password",
+            "writeOnly": true
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role",
+            "default": "viewer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "UserCreate"
+      },
+      "UserOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "role",
+          "is_active",
+          "created_at",
+          "last_login_at"
+        ],
+        "title": "UserOut"
       },
       "ValidationError": {
         "properties": {
@@ -4326,6 +5083,10 @@
     {
       "name": "audit",
       "description": "Trilha de auditoria append-only."
+    },
+    {
+      "name": "auth",
+      "description": "Login, sess\u00f5es (refresh token em cookie httpOnly) e usu\u00e1rios."
     },
     {
       "name": "exchange-connections",

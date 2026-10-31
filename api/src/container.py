@@ -8,14 +8,18 @@ from datetime import timedelta
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from core.clock import Clock, SystemClock
-from core.config import Settings
+from core.config import AppEnv, Settings
 from core.db import create_engine, create_session_factory, make_store_factory
 from core.ids import IdGenerator, UuidGenerator
+from core.security.passwords import PasswordService
+from core.security.tokens import TokenCodec
 from core.security.vault import CredentialVault
 from modules.audit.service import AuditService
+from modules.auth.service import AuthConfig, AuthService
 from modules.backtesting.application.ports import BacktestStore
 from modules.backtesting.application.service import BacktestExecutor, BacktestService
 from modules.backtesting.infrastructure.repository import SqlAlchemyBacktestStore
+from modules.bots.application.live import LiveService
 from modules.bots.application.service import BotService
 from modules.exchanges.application.connections import ConnectionResolver, ConnectionService
 from modules.exchanges.application.registry import ExchangeRegistry
@@ -24,7 +28,7 @@ from modules.market_data.application.ports import ImportStore
 from modules.market_data.application.service import CandleImporter, MarketDataService
 from modules.market_data.infrastructure.repository import SqlAlchemyImportStore
 from modules.risk_management.application.service import KillSwitchService
-from modules.risk_management.domain.models import GlobalRiskLimits
+from modules.risk_management.domain.models import GlobalRiskLimits, LiveLimits
 from modules.strategies.catalog import build_strategy_registry
 from modules.strategies.domain.registry import StrategyRegistry
 from modules.trading.application.orders import OrderExecutor
@@ -56,6 +60,7 @@ class Container:
     status: StatusService
     connections: ConnectionService
     resolver: ConnectionResolver
+    auth: AuthService
 
 
 def build_container(
@@ -72,6 +77,7 @@ def build_container(
     import_stores = make_store_factory(session_factory, SqlAlchemyImportStore)
     backtest_stores = make_store_factory(session_factory, SqlAlchemyBacktestStore)
     trading_stores = make_store_factory(session_factory, SqlAlchemyStore)
+    live = LiveService(trading_stores, settings, clock, ids)
     keys = settings.master_keys
     vault = CredentialVault(keys) if keys else None  # None: connections are unavailable
     return Container(
@@ -87,11 +93,36 @@ def build_container(
         trading_stores=trading_stores,
         market_data=MarketDataService(import_stores, exchanges, clock, ids),
         backtests=BacktestService(backtest_stores, registry, exchanges, clock, ids),
-        bots=BotService(trading_stores, registry, exchanges, clock, ids),
+        bots=BotService(trading_stores, registry, exchanges, clock, ids, live),
         kill_switch=KillSwitchService(trading_stores),
         audit=AuditService(trading_stores),
-        connections=ConnectionService(trading_stores, vault, exchanges, clock, ids),
-        resolver=ConnectionResolver(trading_stores, vault, exchanges),
+        auth=AuthService(
+            trading_stores,
+            PasswordService(),
+            TokenCodec(
+                settings.jwt_secret.get_secret_value(),
+                timedelta(minutes=settings.access_token_minutes),
+            )
+            if settings.jwt_secret
+            else None,
+            clock,
+            ids,
+            AuthConfig(
+                refresh_ttl=timedelta(days=settings.refresh_token_days),
+                max_failed_logins=settings.login_max_failures,
+                lockout=timedelta(minutes=settings.login_lockout_minutes),
+                reuse_grace=timedelta(seconds=settings.refresh_reuse_grace_seconds),
+            ),
+        ),
+        connections=ConnectionService(
+            trading_stores,
+            vault,
+            exchanges,
+            clock,
+            ids,
+            live_allowed=settings.app_env is AppEnv.PROD,
+        ),
+        resolver=ConnectionResolver(trading_stores, vault, exchanges, clock),
         status=StatusService(
             trading_stores,
             clock,
@@ -127,12 +158,18 @@ class JobRunner:
 
 def build_job_runner(container: Container) -> JobRunner:
     settings = container.settings
+    live_limits = LiveLimits(
+        max_order_notional=settings.live_max_order_notional,
+        max_total_exposure=settings.live_max_total_exposure,
+        max_daily_loss=settings.live_max_daily_loss,
+    )
     executor = OrderExecutor(
         container.trading_stores,
         container.resolver,
         container.clock,
         container.ids,
         timedelta(seconds=settings.reconcile_absent_after_seconds),
+        live_limits,
     )
     reconciler = Reconciler(container.trading_stores, container.resolver, executor, container.clock)
     trader = BotTrader(
@@ -146,6 +183,7 @@ def build_job_runner(container: Container) -> JobRunner:
             max_total_exposure=settings.risk_max_total_exposure,
         ),
         executor,
+        live_limits,
     )
     return JobRunner(
         CandleImporter(container.import_stores, container.exchanges, container.clock),
@@ -160,6 +198,10 @@ def build_job_runner(container: Container) -> JobRunner:
             executor=executor,
             reconciler=reconciler,
             testnet_enabled=settings.testnet_trading_enabled,
+            live_enabled=settings.live_trading_enabled,
+            is_production=settings.app_env is AppEnv.PROD,
+            live_caps_configured=live_limits.complete,
+            live_require_ip_restriction=settings.live_require_ip_restriction,
             reconcile_interval=timedelta(seconds=settings.reconcile_interval_seconds),
             stop_poll_interval=timedelta(seconds=settings.native_stop_poll_seconds),
         ),

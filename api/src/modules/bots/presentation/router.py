@@ -3,10 +3,11 @@ from decimal import Decimal
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from pydantic import BaseModel, Field
 
 from container import Container
+from core.security.auth import Principal, require_auth
 from modules.analytics.presentation.schemas import MetricsOut
 from modules.bots.domain.models import Bot, BotConfig, BotState, ExecutionMode
 from modules.execution.domain.orders import OrderStatus
@@ -18,6 +19,37 @@ router = APIRouter(prefix="/bots", tags=["bots"])
 
 Symbol = Annotated[str, Field(pattern=r"^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$")]
 Limit = Annotated[int, Query(ge=1, le=500)]
+
+
+class StartIn(BaseModel):
+    confirmation_token: str | None = Field(
+        default=None,
+        description="Live bots only: the single-use token from POST /bots/{id}/live-approvals",
+    )
+
+
+class CheckOut(BaseModel):
+    name: str
+    ok: bool
+    detail: str
+
+
+class ReadinessOut(BaseModel):
+    ready: bool
+    checks: list[CheckOut]
+
+
+class ApprovalIn(BaseModel):
+    confirm_name: str = Field(description="Type the bot's exact name to confirm you mean it")
+
+
+class ApprovalOut(BaseModel):
+    confirmation_token: str = Field(description="Shown once. Valid for one start of this version")
+    expires_at: datetime
+
+
+class PromoteIn(BaseModel):
+    connection_id: UUID = Field(description="An ACTIVE live connection of the bot's exchange")
 
 
 class RiskIn(BaseModel):
@@ -63,7 +95,7 @@ class BotUpdate(BaseModel):
     fee_rate: Decimal | None = Field(default=None, ge=0, lt=1)
     slippage_bps: Decimal | None = Field(default=None, ge=0, lt=10000)
     risk: RiskIn | None = None
-    mode: Literal["paper", "testnet"] | None = None
+    mode: Literal["paper", "testnet"] | None = None  # live has its own endpoint
     connection_id: UUID | None = None
 
 
@@ -84,6 +116,8 @@ class BotOut(BaseModel):
     desired_state: BotState
     observed_state: BotState
     config_version: int
+    live_approved: bool
+    live_approved_at: datetime | None
     last_heartbeat_at: datetime | None
     last_error: str | None
     created_at: datetime
@@ -184,6 +218,8 @@ def _out(bot: Bot) -> BotOut:
         desired_state=bot.desired_state,
         observed_state=bot.observed_state,
         config_version=bot.config_version,
+        live_approved=bot.has_live_approval,
+        live_approved_at=bot.live_approved_at,
         last_heartbeat_at=bot.last_heartbeat_at,
         last_error=bot.last_error,
         created_at=bot.created_at,
@@ -269,13 +305,60 @@ async def update_bot(bot_id: UUID, body: BotUpdate, request: Request) -> BotOut:
         changes["risk"] = _risk(body.risk)
     if body.mode is not None:
         changes["mode"] = ExecutionMode(body.mode)
+        if body.mode == "paper":
+            changes["connection_id"] = None  # a paper bot uses no exchange account
     return _out(await _container(request).bots.update(bot_id, changes))
 
 
 @router.post("/{bot_id}/start", response_model=BotOut, status_code=status.HTTP_202_ACCEPTED)
-async def start_bot(bot_id: UUID, request: Request) -> BotOut:
-    """Ask the worker to run the bot (or resume it). Poll the bot for ``observed_state``."""
-    return _out(await _container(request).bots.start(bot_id))
+async def start_bot(
+    bot_id: UUID,
+    request: Request,
+    body: StartIn | None = None,
+    principal: Principal = Depends(require_auth),
+) -> BotOut:
+    """Ask the worker to run the bot (or resume it). Poll the bot for ``observed_state``.
+
+    A **live** bot needs `confirmation_token` every time it starts (see live-approvals).
+    """
+    token = body.confirmation_token if body else None
+    return _out(await _container(request).bots.start(bot_id, token, actor=principal.username))
+
+
+@router.get("/{bot_id}/live-readiness", response_model=ReadinessOut)
+async def live_readiness(bot_id: UUID, request: Request) -> ReadinessOut:
+    """The checklist a bot must pass before it may trade real money (all items must be ok)."""
+    readiness = await _container(request).bots.live_readiness(bot_id)
+    return ReadinessOut(
+        ready=readiness.ready,
+        checks=[CheckOut(name=c.name, ok=c.ok, detail=c.detail) for c in readiness.checks],
+    )
+
+
+@router.post("/{bot_id}/promote-to-live", response_model=BotOut)
+async def promote_to_live(bot_id: UUID, body: PromoteIn, request: Request) -> BotOut:
+    """Point a stopped bot at a live connection. This does NOT start trading: it still needs
+    the readiness checklist and a one-time approval."""
+    return _out(await _container(request).bots.promote_to_live(bot_id, body.connection_id))
+
+
+@router.post(
+    "/{bot_id}/live-approvals",
+    response_model=ApprovalOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def request_live_approval(
+    bot_id: UUID,
+    body: ApprovalIn,
+    request: Request,
+    principal: Principal = Depends(require_auth),
+) -> ApprovalOut:
+    """Step 1 of starting a live bot: pass the checklist and type its name. Returns a token that
+    is single-use, short-lived and valid only for the bot's current configuration."""
+    issued = await _container(request).bots.request_live_approval(
+        bot_id, body.confirm_name, principal.username
+    )
+    return ApprovalOut(confirmation_token=issued.token, expires_at=issued.expires_at)
 
 
 @router.post("/{bot_id}/pause", response_model=BotOut, status_code=status.HTTP_202_ACCEPTED)

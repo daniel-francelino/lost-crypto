@@ -6,8 +6,10 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from modules.bots.infrastructure.orm import BotRow
 from modules.portfolio.domain.models import PortfolioSnapshot, PortfolioState
 from modules.portfolio.infrastructure.orm import BotPortfolioRow, PortfolioSnapshotRow
+from modules.trading.infrastructure.orm import TradingSessionRow
 
 
 class SqlAlchemyPortfolioRepository:
@@ -119,14 +121,23 @@ class SqlAlchemyPortfolioRepository:
         )
         return result.scalar_one_or_none()
 
-    async def open_exposure(self) -> tuple[int, Decimal]:
-        result = await self._session.execute(
-            select(
-                func.count(),
-                func.coalesce(
-                    func.sum(BotPortfolioRow.quantity * BotPortfolioRow.avg_entry_price), 0
-                ),
-            ).where(BotPortfolioRow.quantity > 0)
-        )
-        count, notional = result.one()
+    async def open_exposure(self, mode: str | None = None) -> tuple[int, Decimal]:
+        query = select(
+            func.count(),
+            func.coalesce(func.sum(BotPortfolioRow.quantity * BotPortfolioRow.avg_entry_price), 0),
+        ).where(BotPortfolioRow.quantity > 0)
+        if mode is not None:
+            query = query.join(BotRow, BotRow.id == BotPortfolioRow.bot_id).where(
+                BotRow.mode == mode
+            )
+        count, notional = (await self._session.execute(query)).one()
         return int(count), Decimal(notional)
+
+    async def paper_span(self, bot_id: UUID) -> tuple[datetime | None, datetime | None]:
+        result = await self._session.execute(
+            select(func.min(PortfolioSnapshotRow.taken_at), func.max(PortfolioSnapshotRow.taken_at))
+            .join(TradingSessionRow, TradingSessionRow.id == PortfolioSnapshotRow.session_id)
+            .where(PortfolioSnapshotRow.bot_id == bot_id, TradingSessionRow.mode == "paper")
+        )
+        first, last = result.one()
+        return first, last

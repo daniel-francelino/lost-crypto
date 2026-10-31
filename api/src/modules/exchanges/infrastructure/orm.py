@@ -22,7 +22,7 @@ class ExchangeConnectionRow(Base):
     __table_args__ = (
         UniqueConstraint("exchange", "environment", "label"),
         CheckConstraint("environment IN ('testnet','live')", name="environment_valid"),
-        CheckConstraint("status IN ('active','disabled','invalid')", name="status_valid"),
+        CheckConstraint("status IN ('active','disabled','invalid','pending')", name="status_valid"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)

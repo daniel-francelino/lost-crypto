@@ -1,6 +1,8 @@
+from collections.abc import Sequence
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from modules.audit.models import AuditEvent
@@ -23,6 +25,26 @@ class SqlAlchemyAuditRepository:
             )
         )
         await self._session.flush()
+
+    async def count_events(
+        self, bot_id: UUID, event_types: Sequence[str], before: datetime | None = None
+    ) -> int:
+        query = (
+            select(func.count())
+            .select_from(AuditEventRow)
+            .where(AuditEventRow.bot_id == bot_id, AuditEventRow.event_type.in_(event_types))
+        )
+        if before is not None:
+            query = query.where(AuditEventRow.occurred_at < before)
+        return int((await self._session.execute(query)).scalar_one())
+
+    async def latest_event_time(self, bot_id: UUID, event_type: str) -> datetime | None:
+        result = await self._session.execute(
+            select(func.max(AuditEventRow.occurred_at)).where(
+                AuditEventRow.bot_id == bot_id, AuditEventRow.event_type == event_type
+            )
+        )
+        return result.scalar_one_or_none()
 
     async def list_events(self, bot_id: UUID | None, limit: int) -> list[AuditEvent]:
         query = select(AuditEventRow).order_by(AuditEventRow.id.desc()).limit(limit)

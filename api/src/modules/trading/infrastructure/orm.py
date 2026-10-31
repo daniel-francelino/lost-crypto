@@ -25,6 +25,7 @@ class TradingSessionRow(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True)
     bot_id: Mapped[UUID] = mapped_column(ForeignKey("bots.id"))
     config_version: Mapped[int] = mapped_column(Integer)
+    mode: Mapped[str] = mapped_column(Text, server_default="paper")
     status: Mapped[str] = mapped_column(Text)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

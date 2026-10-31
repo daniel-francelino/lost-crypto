@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends
 
-from core.security.auth import require_api_token, require_auth_configured
+from core.security.auth import require_access, require_auth_configured
 from modules.audit.router import router as audit_router
+from modules.auth.router import router as auth_router
 from modules.backtesting.presentation.router import router as backtests_router
 from modules.bots.presentation.router import router as bots_router
 from modules.exchanges.presentation.router import router as connections_router
@@ -13,8 +14,10 @@ from modules.strategies.presentation.router import router as strategies_router
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(health_router)  # health checks stay open for probes
 
-# Everything else needs the API token.
-_protected = [Depends(require_api_token)]
+# Login endpoints are open (they enforce their own rules); everything else needs a signed-in
+# user, or the service token. Reading is open to any role, changing state needs admin.
+api_router.include_router(auth_router)
+_protected = [Depends(require_access)]
 for _router in (
     strategies_router,
     market_data_router,

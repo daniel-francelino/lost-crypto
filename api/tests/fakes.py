@@ -12,6 +12,7 @@ from modules.exchanges.application.ports import (
     VenueOrder,
 )
 from modules.exchanges.application.registry import ExchangeRegistry
+from modules.exchanges.domain.connections import ApiPermissions
 from modules.exchanges.errors import TradingNotEnabled
 from modules.exchanges.infrastructure.binance import BINANCE_PROFILE
 from modules.market_data.application.ports import MarketDataSource
@@ -129,6 +130,9 @@ class FakeExchange(Exchange):
         raise TradingNotEnabled("fake exchange")
 
     async def fetch_balances(self) -> dict[str, Balance]:
+        raise TradingNotEnabled("fake exchange")
+
+    async def fetch_api_permissions(self) -> ApiPermissions:
         raise TradingNotEnabled("fake exchange")
 
     async def aclose(self) -> None:

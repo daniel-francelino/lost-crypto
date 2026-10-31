@@ -1,6 +1,7 @@
 """Imports every module's ORM models so they register on ``Base.metadata`` (for Alembic)."""
 
 import modules.audit.orm
+import modules.auth.orm
 import modules.backtesting.infrastructure.orm
 import modules.bots.infrastructure.orm
 import modules.exchanges.infrastructure.orm

@@ -18,12 +18,19 @@ services:
   api:
     build: .
     environment: &app-env
-      APP_ENV: local
+      APP_ENV: ${APP_ENV:-local}
       DATABASE_URL: postgresql+asyncpg://lostcrypto:lostcrypto@postgres:5432/lostcrypto
       # Secrets come from your shell / an .env next to this file; empty means unset.
       API_TOKEN: ${API_TOKEN:-}
+      JWT_SECRET: ${JWT_SECRET:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:5173"]}
       CREDENTIAL_MASTER_KEYS: ${CREDENTIAL_MASTER_KEYS:-}
       TESTNET_TRADING_ENABLED: ${TESTNET_TRADING_ENABLED:-false}
+      # LIVE TRADING (real money): off unless you set every one of these on purpose.
+      LIVE_TRADING_ENABLED: ${LIVE_TRADING_ENABLED:-false}
+      LIVE_MAX_ORDER_NOTIONAL: ${LIVE_MAX_ORDER_NOTIONAL:-}
+      LIVE_MAX_TOTAL_EXPOSURE: ${LIVE_MAX_TOTAL_EXPOSURE:-}
+      LIVE_MAX_DAILY_LOSS: ${LIVE_MAX_DAILY_LOSS:-}
       # LIVE_TRADING_ENABLED is intentionally not defined here (defaults to false).
     ports:
       - "8000:8000"
