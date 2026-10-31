@@ -26,7 +26,7 @@ Chapter-by-chapter analyses of the reference books in [`books/`](../../books), c
 |---|---|---|
 | 1 | [Whats, Whos, Whys](01-quantitative-trading-chan/ch01-whats-whos-whys.md) | No alerting channel exists (O1); manual-import gaps; intervention reasons |
 | 2 | [Fishing for Ideas](01-quantitative-trading-chan/ch02-fishing-for-ideas.md) | ✅ Implemented: risk ratios, drawdown duration, cost ladder, periods, screening, sweep trials and train-based ranking |
-| 3 | [Backtesting](01-quantitative-trading-chan/ch03-backtesting.md) | No candle integrity check; backtests run over data gaps; no truncation (look-ahead) test |
+| 3 | [Backtesting](01-quantitative-trading-chan/ch03-backtesting.md) | O1/O2/O9 done via ch. 2; still: no candle integrity check (re-imports overwrite silently), backtests run over gaps, no truncation test, no sweep robustness view |
 | 4 | [Setting Up Your Business](01-quantitative-trading-chan/ch04-setting-up-your-business.md) | Key-permission policy, continuity runbook |
 | 5 | [Execution Systems](01-quantitative-trading-chan/ch05-execution-systems.md) | No paper-vs-backtest parity; no volume cap; backtest ignores real risk sizing |
 | 6 | [Money and Risk Management](01-quantitative-trading-chan/ch06-money-and-risk-management.md) | Kelly reference as advice; tail-aware exposure cap; only hard pauses, no gradual de-risking |

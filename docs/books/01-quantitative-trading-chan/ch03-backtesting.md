@@ -1,6 +1,6 @@
 # Livro 1 · Capítulo 3 — Backtesting
 
-*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
+*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: **apenas análise**; nada novo implementado por este relatório. Diagnóstico revisado contra o código em 2026-10-31, **depois** da implementação do [Cap. 2](ch02-fishing-for-ideas.md), que já entregou O1, O2, O9 e parte de O7 (ver §2.1).
 
 Nota de leitura: as pp. 32–36 (Excel, MATLAB, TradeStation e plataformas comerciais) foram apenas folheadas; descrevem ferramentas, não métodos. O restante (pp. 36–67) foi lido. No texto extraído o sinal de raiz quadrada se perde na prosa (a p. 44 imprime "12 times"), mas o código das pp. 45–46 mostra `SQRT(252)`, o que confirma a fórmula abaixo.
 
@@ -29,90 +29,162 @@ Os dois exemplos trabalhados de Chan, de pairs trading e reversão à média, s�
 | Conceito | Status | Evidência |
 |---|---|---|
 | C2 dados ajustados | n/a | O spot cripto não tem splits/dividendos. Eventos do lado da exchange (redenominação de símbolo, deslistagem) não são tratados. |
-| C3 sobrevivência | ❌ | Sem tratamento de deslistagem; universo escolhido à mão. Poderíamos começar a registrar listagens point-in-time agora. |
-| C4 sanidade dos dados | ⚠️ | `Candle` **não tem checagem de consistência OHLC** (`high ≥ max(open, close)`, `low ≤ min(open, close)`, preços positivos, volume não negativo) em `market_data/domain/models.py`. Apenas o módulo de risco rejeita *entradas* em candles cuja amplitude excede `max_candle_range_pct`. O backtester não tem esse filtro nem relatório de outliers. |
-| C4 cobertura | ❌ | `find_gaps` existe e aparece no endpoint de cobertura, mas `BacktestService._check_candles` exige apenas **pelo menos um** candle no intervalo, então um backtest roda silenciosamente sobre buracos. |
-| C5 Sharpe | ❌ | Não calculado (ver capítulo 2). Convenção de anualização indefinida. |
-| C6 drawdown | ⚠️ | Profundidade calculada corretamente (`max_drawdown_pct`); duração e série da watermark ausentes. |
-| C7 look-ahead | ✅ por construção, ❌ sem teste de regressão | O motor executa na abertura do candle seguinte e a estratégia só vê candles fechados (`engine.py`). Sem teste automatizado de truncamento (grep por `truncat`/`lookahead` em `api/tests` acha apenas um comentário). |
-| C8 snooping / tamanho da amostra | ⚠️ | As estratégias têm ≤ 4 parâmetros. Sem checagem de tamanho de amostra, sem contagem de tentativas nos sweeps (`create_sweep` limita a grade com `MAX_SWEEP_RUNS`, mas não registra aviso de testes múltiplos). |
-| C9 fora da amostra | ⚠️ | Uma divisão fixa com a estratégia rodando uma vez sobre todos os dados (`segments.py`). Sem walk-forward, sem regra de tamanho mínimo. O paper trading existe e é obrigatório antes do live. |
-| C10 sensibilidade | ⚠️ | Os sweeps dão a matéria-prima, mas não há visão de robustez (por exemplo estabilidade da vizinhança da melhor célula). |
-| C11 custos | ⚠️ | Taxa e slippage fixos (capítulo 2). |
-| C12 refinamento | ✅ possível | Experimentos são baratos; sem governança em torno disso. |
+| C3 sobrevivência | ❌ | Sem registro de listagens nem de deslistagens; universo escolhido à mão. A tela de comparação já avisa quando os pares diferem (Cap. 2, O8), mas não há dado point-in-time. |
+| C4 sanidade dos dados | ❌ | `Candle` (`api/src/modules/market_data/domain/models.py`) não valida nada: nem `high ≥ max(open, close)`, nem `low ≤ min(open, close)`, nem preços positivos, nem volume ≥ 0, nem `open_time` alinhado ao timeframe. O parser da exchange (`exchanges/infrastructure/ccxt_exchange.py`) monta o candle direto da resposta; o importador (`CandleImporter._import`) grava tudo com `upsert_many`, que **sobrescreve** linhas existentes; a tabela `candles` não tem CHECK de OHLC. O único filtro é do risco do bot: recusa *entradas* em candles com amplitude acima de `max_candle_range_pct` (padrão 25%). O backtester não filtra nem relata nada; não há relatório de outliers. |
+| C4 cobertura / lacunas | ⚠️ | `find_gaps` existe e `GET /market-data/coverage` devolve as lacunas, mas **da série inteira guardada**, não do período pedido. No app, `CoverageNotice` (formulário de backtest) só avisa, não bloqueia, e o aviso pode citar lacunas fora do período escolhido. No back-end, `BacktestService._check_candles` exige só **um** candle no intervalo. O motor atravessa o buraco: o sinal emitido antes dele é executado na abertura do primeiro candle depois do buraco. Desde o Cap. 2 o Sharpe descarta os retornos através de buracos e mostra `return_gaps`, mas a execução ainda roda e o resultado não diz quantos candles faltaram. |
+| C5 Sharpe | ✅ | Implementado no Cap. 2 (`analytics/domain/risk_ratios.py`): `√N_T × média / desvio`, N_T = 365 dias / candle, taxa livre de risco 0. Falta só reproduzir o Exemplo 3.4 (sem os dados do IGE no repositório). |
+| C6 drawdown | ✅ | Implementado no Cap. 2 (`drawdown_stats`): profundidade, duração do pico até recuperar (equivale ao contador do livro, que zera quando o drawdown é 0), drawdown em aberto; curva underwater no app. |
+| C7 look-ahead | ✅ por construção, ❌ sem teste | O motor executa na abertura do candle seguinte e a estratégia só recebe o candle fechado e seu próprio estado (`StrategyContext`), o que torna o vazamento difícil hoje. Mas não há teste de truncamento (grep por `truncat` em `api/tests` não acha nada). O risco cresce quando entrarem estratégias que pré-calculam indicadores sobre a série inteira (ML, regressões) ou mudanças no motor (stops, fills). |
+| C8 snooping / tamanho da amostra | ⚠️ | As duas estratégias (`ema_crossover`, `donchian_breakout`) têm 4 parâmetros cada (2 períodos + stop + alvo opcionais), dentro do limite de 5 do livro. Desde o Cap. 2 a varredura mostra `trials` e `prior_trials`. Falta: nenhuma checagem de tamanho de amostra (252 × parâmetros livres) nem de observações independentes. |
+| C9 fora da amostra | ⚠️ | Uma divisão fixa (`segments.py`); desde o Cap. 2 a varredura escolhe pelo treino e confere no teste. Falta: nenhuma regra de tamanho mínimo do teste (o livro pede teste ≥ ⅓ do treino, ou seja `test_fraction ≥ 0,25`); o formulário aceita qualquer valor entre 0 e 1. Sem walk-forward. O paper trading existe e é obrigatório antes do live, mas não há comparação paper × backtest (tema do Cap. 5). |
+| C10 sensibilidade | ⚠️ | A varredura dá a matéria-prima, mas não há visão de robustez: nada diz se o vencedor é um platô ou um pico isolado, nem a média dos vizinhos. |
+| C11 custos | ✅ | Escada de custos e custo de equilíbrio implementados no Cap. 2 (`backtesting/domain/cost_ladder.py`). |
+| C12 refinamento | ✅ possível | Experimentos são baratos; a contagem de tentativas do Cap. 2 já registra o custo de refinar. |
+
+### 2.1 O que mudou desde a versão anterior deste relatório
+
+* **Já implementado pelo Cap. 2:** O1 (Sharpe/Sortino), O2 (duração do drawdown), O9 (sensibilidade a custos) e a parte de O7 que conta tentativas e escolhe pelo treino. Ficam aqui só como referência.
+* **Diagnóstico de lacunas refinado:** a cobertura calcula lacunas sobre a série inteira, não sobre o período do backtest; o aviso do app pode estar errado nos dois sentidos.
+* **Achado novo:** `upsert_many` sobrescreve candles já guardados em toda reimportação, sem validar e sem registrar o que mudou; uma resposta ruim da exchange pode corromper dados que estavam bons.
+* **Achado novo:** o trader dos bots usa o mesmo `Candle` sem validação; um candle malformado chega à estratégia em produção.
 
 ## 3. Oportunidades
 
-### O1 — Sharpe/Sortino anualizados com convenção explícita para cripto *(livro: C5 · a convenção é adaptação nossa)*
-* **Livro:** Sharpe = √N_T × média/desvio-padrão dos retornos em excesso no período T; N_T deve contar períodos reais de negociação; uma divergência (252 × 24 para uma sessão de 6,5 horas) é um erro.
-* **Adaptação:** cripto negocia 24/7, então N_T = 365 × (24 h / horas do candle), por exemplo 8.760 para 1h, 365 para 1d. Taxa livre de risco = 0 por padrão porque a estratégia é spot long-only sem financiamento, em linha com a regra do livro (subtrair só quando há financiamento); manter configurável.
-* **Problema:** métrica ausente. **Benefício:** a principal medida de comparação do livro; ranqueia sweeps. **Complexidade:** baixa. **Risco:** curvas de patrimônio paradas em caixa reduzem a volatilidade e favorecem o índice; reportar o **tempo no mercado** junto; poucos retornos dão razões pouco confiáveis (mostrar o tamanho da amostra). **Validação:** reproduzir os números do Exemplo 3.4 do livro (Sharpe 0,7893 para buy-and-hold de IGE) com as mesmas entradas num teste unitário; testes com séries conhecidas.
+Convenções (as mesmas do Cap. 2): campos novos na API são opcionais e aditivos; tudo `Decimal` no domínio; cada mudança de contrato atualiza `api/docs/openapi.json`, `npm run api:types` e `npm run check:consistency`; textos da UI em português; nada é apresentado como garantia de resultado.
 
-### O2 — Duração do drawdown e série da watermark *(livro: C6, pp. 48–50)*
-Implementar exatamente a recorrência do livro (o contador de duração volta a zero quando o drawdown é zero) e expor as duas séries. **Complexidade:** baixa. **Validação:** reproduzir as definições do Exemplo 3.5 numa curva sintética; drawdown em andamento reportado como em andamento.
+### Já implementados (Cap. 2)
+* **O1 — Sharpe/Sortino anualizados:** feito. Pendente opcional: fixture do Exemplo 3.4 se os preços do IGE forem adicionados ao repositório.
+* **O2 — Duração do drawdown e watermark:** feito (métrica + curva underwater).
+* **O9 — Sensibilidade a custos e custo de equilíbrio:** feito (`cost_sensitivity`, `cost_ladder`).
 
-### O3 — Validação de integridade dos candles *(livro: C4, pp. 42–43)*
-* **Proposta:** validar consistência OHLC e valores positivos na construção/importação; rejeitar ou pôr em quarentena linhas ruins com um contador; adicionar um relatório de outliers (retornos além de k desvios-padrão; o livro sugere ~4) que o operador possa revisar; fazer o backtester opcionalmente excluir/sinalizar execuções que cruzem candles sinalizados.
-* **Nota:** o passo do livro de "conferir com notícia ou movimento de todo o mercado" é manual; aqui poderíamos comparar o movimento com outros pares (adaptação).
-* **Benefício:** protege todo backtest de dados ruins. **Complexidade:** baixa–média. **Risco:** filtragem excessiva pode apagar crashes reais; sinalizar, não descartar em silêncio. **Validação:** testes unitários com candles malformados; teste de integração dos contadores do job de importação.
+### O3 — Integridade dos candles *(livro: C4, pp. 42–43)*
+* **Problema:** dados ruins entram sem filtro e o backtest pode lucrar com um tick errado; uma reimportação pode estragar dados bons.
+* **Back-end:**
+  * Função pura `candle_problems(candle) -> list[CandleProblem]` em `market_data/domain/quality.py`: `high < max(open, close)`, `low > min(open, close)`, `high < low`, preço ≤ 0, volume < 0, `open_time` desalinhado do timeframe. Enum `CandleProblem` com códigos estáveis.
+  * Importador: candles com problema **não são gravados**; o job conta e guarda amostras. Novas colunas em `candle_import_jobs`: `candles_rejected INTEGER NOT NULL DEFAULT 0`, `rejection_samples JSONB` (até 20: horário + códigos). O job termina como `completed` mesmo com rejeições; `ImportJobOut` ganha os dois campos.
+  * Reimportação: antes do `upsert`, comparar com o que já existe; se o OHLC mudar, contar em `candles_changed` (coluna nova) em vez de sobrescrever em silêncio. A sobrescrita continua (a exchange pode corrigir dados), mas fica visível.
+  * Trader dos bots (`trading/application/trader.py`): candle com problema não chega à estratégia; o ciclo é pulado e grava um evento de auditoria `data.invalid_candle` com os códigos (o trader já grava eventos como `signal.rejected` e `risk.*`), visível na tela de auditoria e na atividade do bot.
+  * **Relatório de outliers:** `GET /market-data/outliers?exchange&symbol&timeframe&start&end&k=4`. Calcula os retornos close-a-close no período, o desvio-padrão e devolve os candles com |retorno| > k·σ (padrão k = 4, como no livro), cada um com o retorno, quantos σ e, quando houver candles do mesmo horário de `BTC/USDT`, o retorno do BTC no mesmo candle (adaptação do "movimento de todo o mercado" do livro: se o BTC também se moveu, provavelmente é real).
+  * Backtest: ao executar, contar candles com problema e outliers no período e salvar em nova coluna JSONB `data_quality` de `backtest_runs` (`invalid`, `outliers`, `outlier_samples`, `k`). **Sinalizar, não excluir:** tirar candles muda a linha do tempo e pode apagar crashes reais.
+* **Front-end:**
+  * Dados de mercado (`market-data-page.tsx`): coluna "Rejeitados" e "Alterados" na tabela de importações, com as amostras num popover; card "Movimentos fora do comum" com a tabela de outliers (data UTC, retorno, σ, retorno do BTC) e o candle destacado no gráfico existente.
+  * Detalhe do backtest: card "Qualidade dos dados" (candles usados, lacunas — ver O4 —, outliers com link para a tela de dados de mercado já filtrada); vira alerta amarelo quando houver outlier ou candle inválido.
+  * Triagem rápida (`lib/backtests/screening.ts`): novo alerta quando `data_quality.outliers > 0` — "o resultado pode depender de dados errados; confira os N movimentos fora do comum".
+* **Complexidade:** média. **Risco:** crashes reais (ex.: março de 2020) passam de 4σ; por isso o relatório só sinaliza e mostra o BTC como referência. **Validação:** testes de unidade de `candle_problems` para cada código; teste de integração com uma fonte falsa que devolve candles malformados (contagem certa, nada gravado); teste do relatório de outliers com uma série sintética com um salto conhecido; teste do trader recusando o candle.
 
-### O4 — Recusar (ou avisar de forma explícita sobre) backtests com lacunas nos dados *(adaptação, motivada por C4/C11)*
-Usar o `find_gaps` existente dentro de `_check_candles`; devolver a contagem/tamanho das lacunas no resultado da execução e falhar ou avisar acima de um limite. **Complexidade:** baixa. **Risco:** janelas de manutenção da exchange são lacunas legítimas; fazer um aviso com tolerância. **Validação:** teste de integração com um buraco.
+### O4 — Lacunas no período do backtest *(adaptação, motivada por C4/C11)*
+* **Problema:** o backtest roda sobre buracos sem avisar; o app mostra lacunas da série inteira.
+* **Back-end:**
+  * `GET /market-data/coverage` aceita `start`/`end` opcionais e devolve também `range_gaps`, `range_missing` e `range_expected` para o período (sem quebrar a resposta atual).
+  * `BacktestService._check_candles` calcula as lacunas do período com `find_gaps`; se faltar mais que `MAX_MISSING_SHARE` (sugestão: 1% dos candles esperados) ou houver um buraco maior que 24 h, responde 422 com o resumo, a menos que o pedido traga `allow_gaps: true` (campo novo em `BacktestCreate`/`BacktestConfig`, guardado na execução).
+  * O resultado guarda as lacunas em `data_quality.gaps` (mesma coluna de O3): quantidade, candles faltando, maior buraco.
+  * O motor não muda: continua executando na próxima abertura disponível; a documentação do motor passa a dizer isso.
+* **Front-end:**
+  * `CoverageNotice` passa `start`/`end` e mostra só as lacunas **do período**, com o maior buraco ("faltam 37 candles; maior buraco: 12 h em 14/03").
+  * Formulário: com lacunas acima do limite, o botão "Rodar backtest" fica bloqueado até marcar "Rodar mesmo com lacunas" (envia `allow_gaps`), com o atalho para importar que já existe.
+  * Detalhe do backtest: as lacunas aparecem no card "Qualidade dos dados" (O3), junto com `return_gaps` das métricas.
+* **Complexidade:** baixa. **Risco:** manutenções da exchange são buracos legítimos; por isso há tolerância e a opção explícita. **Validação:** teste de integração com um buraco (422 sem `allow_gaps`, 202 com, e `data_quality.gaps` preenchido); teste da cobertura por período.
 
-### O5 — Teste de regressão de look-ahead (teste de truncamento) *(livro: C7, pp. 52, 59)*
-Automatizar o procedimento do livro: rodar o motor com os candles completos e com os últimos N removidos, comparar os **sinais/posições** no prefixo comum, para toda estratégia registrada. **Complexidade:** baixa (funções puras, rápido). **Benefício:** protege contra o bug silencioso mais perigoso sempre que uma estratégia for adicionada. **Validação:** o próprio teste, mais uma estratégia falsa deliberadamente com vazamento que deve reprová-lo.
+### O5 — Teste de truncamento (look-ahead) *(livro: C7, pp. 52, 59)*
+* **Back-end (só testes, sem código de produção):**
+  * `api/tests/unit/test_lookahead.py`, parametrizado sobre **todas as estratégias do catálogo** (`strategies/catalog.py`), com parâmetros padrão e com stop/alvo ligados.
+  * Para cada uma: rodar `run_backtest` com N candles (série sintética com tendência, lateralização e quedas) e com os últimos k removidos (k = 10, 50, 100, como no livro); comparar no prefixo comum as execuções (`fills` com horário anterior ao corte), `in_market` e os sinais rejeitados. Devem ser idênticos.
+  * Fixture de controle: uma estratégia de teste que "espia" o próximo fechamento (recebe a série inteira por closure) deve **reprovar**, provando que o teste detecta vazamento.
+  * Mesmo teste para o caminho do trader dos bots quando o Cap. 5 trouxer a paridade paper × backtest.
+* **Front-end:** nada.
+* **Complexidade:** baixa. **Benefício:** protege contra o erro silencioso mais caro toda vez que uma estratégia ou o motor mudar. **Validação:** o próprio teste roda no `make check`.
 
-### O6 — Guarda de tamanho de amostra e contagem de parâmetros *(livro: C8, pp. 52–53 · limiares são regras práticas do autor)*
-Calcular o número de parâmetros livres a partir dos `PARAMETERS` da estratégia, comparar o número de observações **independentes** (operações ou barras, não ticks) com 252 × parâmetros e emitir um aviso (não um bloqueio). Calibrar para cripto depois. **Complexidade:** baixa. **Risco:** a regra do 252 é explicitamente baseada em experiência; tratar como heurística e tornar configurável. **Validação:** teste unitário do aviso.
+### O6 — Tamanho de amostra e parâmetros livres *(livro: C8, pp. 52–53 · limiares são regras práticas do autor)*
+* **Back-end:**
+  * `free_parameters(strategy_type, params)`: conta os `PARAMETERS` cujo valor efetivo não é nulo (stop e alvo desligados não contam).
+  * Ao executar, salvar em nova chave `sample` do resultado (pode ir em `data_quality` ou coluna própria): `free_parameters`, `bars`, `round_trips`, `min_bars_rule = 252 × free_parameters`, `meets_bar_rule`, `meets_trade_rule` (round trips ≥ 30, adaptação nossa: o livro conta observações independentes, e as barras de um mesmo trade não são independentes).
+  * Estratégia com mais de 5 parâmetros: aviso no catálogo (`GET /strategies`) com `parameter_count`.
+* **Front-end:**
+  * Formulário: dica sob o período — "este período tem ~N candles; com k parâmetros livres o livro sugere ≥ 252·k observações".
+  * Triagem rápida: alertas "amostra pequena para k parâmetros" e "poucas operações independentes" (substitui o alerta atual de poucas operações por ano quando o dado existir).
+* **Complexidade:** baixa. **Risco:** a regra do 252 é empírica e para dados diários de ações; manter como aviso configurável, nunca bloqueio. **Validação:** testes de unidade da contagem (stop nulo não conta) e do aviso.
 
-### O7 — Contagem de tentativas e visão de sensibilidade para sweeps *(livro: C8, C10, pp. 52–60)*
-Armazenar o número de combinações em cada resultado de sweep; adicionar uma visão de **robustez da vizinhança** (o desempenho cai suavemente ao redor da melhor célula ou colapsa?) e exigir que o vencedor também seja aceitável no segmento de teste; nunca ranquear pelo segmento de teste. **Complexidade:** média. **Risco:** ainda sem correção formal de testes múltiplos (livros posteriores tratam disso). **Validação:** um sweep sintético com um único pico deve ser sinalizado como frágil.
+### O7 — Robustez da varredura (platô × pico) *(livro: C8, C10, pp. 52–60)*
+* **Já feito (Cap. 2):** `trials`, `prior_trials`, escolha pelo treino, verificação do vencedor no teste.
+* **Back-end:**
+  * `backtesting/domain/robustness.py`: para grades numéricas, montar a matriz de resultados pelo critério de ranking; para o vencedor, calcular a média e o mínimo dos **vizinhos** (±1 posição em cada parâmetro), a razão vizinhos/vencedor, a fração de combinações lucrativas, a mediana e a média do top 3 (o livro sugere dividir o capital entre conjuntos de parâmetros em vez de apostar em um).
+  * `SweepOut.robustness`: `{neighbour_mean, neighbour_min, neighbour_ratio, profitable_share, top3_mean, median, verdict}` com `verdict` em `plateau | peak | insufficient` (pico quando os vizinhos ficam abaixo de, por exemplo, 50% do vencedor; insuficiente quando a grade tem menos de 3 valores por parâmetro).
+  * Calculado na leitura a partir das execuções concluídas (sem coluna nova).
+* **Front-end:**
+  * Página da varredura: card "Robustez" com o veredito em texto ("platô: os vizinhos rendem ~85% do vencedor" / "pico isolado: os vizinhos rendem 20% — provável sobreajuste"), fração lucrativa e média do top 3.
+  * Para grades de 2 parâmetros: tabela cruzada (linhas = parâmetro A, colunas = parâmetro B) com o valor escrito em cada célula e a cor por token só como reforço; o vencedor marcado com ícone. O lost-ui não tem heatmap: registrar o pedido em `app/docs/lost-ui-requests.md` em vez de desenhar um gráfico à mão.
+* **Complexidade:** média. **Risco:** sem correção formal de testes múltiplos (PSR/DSR, PBO ficam para o Livro 5, backlog A5/A6). **Validação:** varredura sintética com um único pico deve dar `peak`; com superfície suave, `plateau`.
 
-### O8 — Otimização walk-forward (móvel) *(livro: C9, pp. 54–55)*
-O método rigoroso de fora da amostra do livro. Funcionalidade grande: reajustar parâmetros numa janela de lookback e testar no bloco seguinte, concatenando os resultados fora da amostra. **Complexidade:** alta. **Risco:** custo computacional; vazamento se as janelas se sobrepuserem errado. Manter como backlog **B-WALK-FORWARD** e planejar depois dos capítulos sobre validação cruzada do Livro 5.
-
-### O9 — Sensibilidade a custos e custo de equilíbrio *(livro: C11, pp. 60–65)*
-Igual ao capítulo 2 O4; reexecutar sinais em grades de taxa/slippage e reportar onde a lucratividade desaparece. **Complexidade:** média.
+### O8 — Otimização walk-forward *(livro: C9, pp. 54–55)*
+Continua fora do escopo: backlog **B-WALK-FORWARD** (A12), a planejar com os capítulos de validação cruzada do Livro 5 (purga e embargo). As peças que ele precisa (métricas, contagem de tentativas, escolha pelo treino) já existem.
 
 ### O10 — Registro de listagens point-in-time *(livro: C3, p. 40 · adaptação)*
-Começar a guardar diariamente a lista de símbolos e o status da exchange para que um universo livre de sobrevivência exista no futuro. **Complexidade:** baixa; o valor cresce com o tempo, então é barato começar cedo.
+* **Back-end:** tarefa diária no worker que lê os mercados da exchange (`load_markets`) e grava em nova tabela `exchange_listings` (`exchange`, `symbol`, `first_seen`, `last_seen`, `status`, `delisted_at`). `GET /market-data/listings?symbol=` devolve o histórico. O valor cresce com o tempo, então convém começar cedo.
+* **Front-end:** na tela de dados de mercado, selo do status do par ("listado desde…", "deslistado em…"); o aviso de sobrevivência da comparação passa a citar pares deslistados conhecidos.
+* **Complexidade:** baixa. **Risco:** a API da exchange só diz o estado de hoje; o histórico começa no dia em que a tarefa entrar no ar. **Validação:** teste do job com uma fonte falsa que remove um par.
 
-### Não aplicável
-Ajuste de splits/dividendos (C2), exemplos de universos de ações (exemplos de C11, C12), escolha de plataformas (pp. 32–36).
+### O11 — Tamanho mínimo do teste *(livro: C9, p. 54)*
+* **Back-end:** nada obrigatório; `segments` já informa `test_fraction`.
+* **Front-end:** no formulário, aviso (não bloqueio) quando `test_fraction < 0,25` ("o livro sugere o teste com pelo menos ⅓ do treino"); triagem rápida com o mesmo aviso no resultado.
+* **Complexidade:** muito baixa. **Validação:** teste de unidade do aviso.
+
+### Não recomendado agora
+* **Executar no fechamento do candle do sinal (C12, Exemplo 3.8):** no nosso motor isso seria otimista (o sinal só existe depois do fechamento). Manter a execução na abertura seguinte.
+* **Remover condições uma a uma (C10):** as estratégias atuais já são mínimas; reavaliar quando houver estratégias com filtros.
+* **Paper trading como teste final (C9):** já é obrigatório; a comparação paper × backtest é o Cap. 5 (backlog B7).
+* Ajuste de splits/dividendos (C2), exemplos com universos de ações (C11, C12), escolha de plataformas (pp. 32–36).
 
 ## 4. Prioridade
 
-| # | Item | Qualidade do backtest | Confiabilidade | Gestão de risco | Complexidade | Depende de |
+| # | Item | Qualidade do backtest | Confiabilidade | Esforço back | Esforço front | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O5 teste de truncamento | alta | alta | – | baixa | – |
-| 2 | O3 integridade dos candles | alta | alta | média | baixa–média | – |
-| 3 | O4 guarda de lacunas | alta | média | – | baixa | `find_gaps` (existe) |
-| 4 | O1 Sharpe/Sortino | alta | – | média | baixa | – |
-| 5 | O2 duração do DD | média | – | alta | baixa | – |
-| 6 | O7 tentativas/robustez do sweep | alta | – | – | média | O1 |
-| 7 | O6 guarda de tamanho de amostra | média | – | – | baixa | – |
-| 8 | O9 sensibilidade a custos | alta | – | média | média | O1 |
-| 9 | O10 registro de listagens | baixa agora | – | – | baixa | – |
-| 10 | O8 walk-forward | alta | – | – | alta | O1, O7, Livro 5 |
+| 1 | O5 teste de truncamento | alta | alta | baixo | – | – |
+| 2 | O4 lacunas no período | alta | média | baixo | baixo | – |
+| 3 | O3 integridade + outliers | alta | alta | médio | médio | – |
+| 4 | O7 robustez da varredura | alta | – | médio | médio | Cap. 2 (feito) |
+| 5 | O6 tamanho de amostra | média | – | baixo | baixo | – |
+| 6 | O11 tamanho mínimo do teste | média | – | – | muito baixo | – |
+| 7 | O10 registro de listagens | baixa agora | – | baixo | baixo | – |
+| 8 | O8 walk-forward | alta | – | alto | médio | Livro 5 |
+
+O5 primeiro porque não toca código de produção e protege tudo o que vem depois. O4 antes de O3 porque é pequeno e reaproveita `find_gaps`.
 
 ## 5. Arquivos afetados
-`market_data/domain/models.py` (validação de Candle), `market_data/application/service.py` (contadores de importação), `backtesting/application/service.py` (`_check_candles`, sweeps), `backtesting/domain/engine.py` (somente leitura para O5), `analytics/domain/metrics.py`, `backtesting/domain/segments.py`, novos testes em `api/tests/unit` (truncamento, métricas, validação de candles), `docs/openapi.json`, cards de métricas e página de sweep do app.
+
+**Back-end (`api/`)**
+* Novo `src/modules/market_data/domain/quality.py` (O3); `market_data/application/service.py` (importador, cobertura por período, outliers); `market_data/application/ports.py`, `infrastructure/orm.py`, `infrastructure/repository.py` (contadores de importação, comparação antes do upsert, listagens); `market_data/presentation/router.py` (`/coverage` com período, `/outliers`, `/listings`).
+* `backtesting/application/service.py` (`_check_candles` com lacunas, `data_quality`, `sample`), `backtesting/domain/models.py` (`allow_gaps`), novo `backtesting/domain/robustness.py`, `backtesting/presentation/router.py`.
+* `trading/application/trader.py` (recusa de candle inválido); `strategies/presentation` (`parameter_count`).
+* Migração `0009_data_quality.py`: colunas de importação, `backtest_runs.data_quality`, `allow_gaps`, tabela `exchange_listings`.
+* Testes: novos `tests/unit/test_lookahead.py`, `test_candle_quality.py`, `test_sweep_robustness.py`; integração em `test_phase1_flow.py` (lacunas, rejeições, outliers).
+
+**Front-end (`app/`)**
+* `src/components/market-data/market-data-page.tsx` (rejeitados, alterados, outliers, status de listagem), `src/lib/market-data/market-data.api.ts`, `src/lib/shared/market-data/coverage.api.ts` e `src/components/shared/market-data/coverage-notice.tsx` (período).
+* `src/components/backtests/backtest-form-page.tsx` e `src/lib/backtests/form.ts` (`allow_gaps`, avisos de amostra e de teste mínimo); novo `src/components/backtests/data-quality-card.tsx`; `backtest-detail-page.tsx`; `src/lib/backtests/screening.ts` (novos alertas); `sweep-page.tsx` + novo `src/components/backtests/robustness-card.tsx`.
+* `app/docs/06-screens.md`, `app/docs/lost-ui-requests.md` (heatmap).
 
 ## 6. Plano incremental
-1. O5 teste de truncamento para toda estratégia registrada (sem mudança no código de produção).
-2. O3 + O4 integridade dos dados (validação de domínio, guarda de lacunas, contadores de importação).
-3. O1 + O2 métricas (funções puras, campos aditivos na API, exibição no app).
-4. O7 + O6 honestidade dos sweeps (contagem de tentativas, robustez, aviso de tamanho de amostra).
-5. O9 sensibilidade a custos.
-6. O10 registro de listagens; O8 como projeto separado depois.
+
+Cada passo é um PR pequeno, com testes, e pode ir para produção sozinho.
+
+1. **O5:** teste de truncamento para todas as estratégias + estratégia de controle com vazamento.
+2. **O4:** cobertura por período, guarda de lacunas com `allow_gaps`, aviso e bloqueio no formulário.
+3. **O3 parte 1:** `candle_problems`, importador com rejeições e alterações, trader recusando candle inválido; colunas na tela de dados de mercado.
+4. **O3 parte 2:** relatório de outliers, `data_quality` no backtest, card "Qualidade dos dados" e alerta na triagem.
+5. **O6 + O11:** tamanho de amostra e teste mínimo (avisos no formulário e na triagem).
+6. **O7:** robustez da varredura e tabela cruzada.
+7. **O10:** registro de listagens.
 
 ## 7. Critérios de aceite e testes
-* O teste de truncamento passa para todas as estratégias e falha para uma deliberadamente com vazamento.
-* Candles malformados são rejeitados ou sinalizados com uma contagem; sem descartes silenciosos.
-* Um backtest sobre um intervalo com lacunas reporta as lacunas.
-* Fixtures de Sharpe/drawdown batem com cálculos à mão, incluindo séries no estilo dos Exemplos 3.4/3.5; retornos com variância zero dão `None`.
-* Apenas mudanças aditivas na API; execuções armazenadas não são afetadas.
-* Tudo continua `Decimal` no domínio; ruff, mypy e todos os testes existentes continuam verdes.
+* O teste de truncamento passa para todas as estratégias do catálogo e falha para a estratégia de controle com vazamento.
+* Candles malformados nunca são gravados nem chegam à estratégia; o job de importação mostra a contagem e as amostras, e o trader grava um evento de auditoria. Nenhum descarte silencioso.
+* Uma reimportação que muda OHLC já guardado fica registrada em `candles_changed`.
+* Um backtest sobre período com lacunas acima do limite é recusado sem `allow_gaps` e, com ele, mostra as lacunas no resultado.
+* O aviso de cobertura do formulário fala só do período escolhido.
+* O relatório de outliers acha o salto de uma série sintética e não marca uma série sem saltos.
+* A varredura sintética de pico único sai `peak`; a suave sai `plateau`.
+* Apenas mudanças aditivas na API; execuções antigas abrem com "—" nos campos novos.
+* Tudo `Decimal` no domínio; `make check`, testes de integração, `npm run lint`, `typecheck`, `test`, `build` e `check:consistency` verdes; telas novas conferidas no navegador em 1366 px e 360 px.
 
 ## Ressalvas
 Os números de Chan (≤ 5 parâmetros, 252 × parâmetros, 4 desvios-padrão, teste ≥ ⅓ do treino) são **regras práticas dele**, não resultados estatísticos, e foram derivados para estratégias de ações. Resultados de backtest não garantem retornos futuros; taxas, slippage, overfitting e efeitos específicos de cripto (24/7, liquidez fragmentada, deslistagens) podem piorar os resultados reais.
