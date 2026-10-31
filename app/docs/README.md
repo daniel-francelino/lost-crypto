@@ -4,7 +4,7 @@ The operator console of Lost Crypto: a single-user (or few-operator) web app to 
 
 The stack is the one of the sibling project `aura-creative` (TanStack Start, React 19, Tailwind 4, zod) and the UI comes from the shared library **`lost-ui`**. This documentation is the result of reading that project and its standards; where Lost Crypto differs, the difference is written down in [Deviations](#deviations-from-aura-creative).
 
-> **Status: F0–F9 are implemented** (see [09](09-roadmap.md)): login and roles, dashboard, bots (list, detail, create/edit, controls), kill switch, backtests and sweeps, market data, connections, live promotion flow, audit, users. Verified against the real backend in Docker (13 end-to-end tests + WCAG A/AA scans in light and dark). **Not verified:** anything with real exchange keys or real money, a real static host, and other browsers. What was and was not checked is in [09](09-roadmap.md#what-was-verified).
+> **Status: F0–F9 are implemented** (see [09](09-roadmap.md)): login and roles, dashboard, bots (list, detail, create/edit, controls), kill switch, backtests and sweeps, market data, connections, live promotion flow, audit, users. Verified against the real backend in Docker (17 Playwright tests: 10 flows, 3 shell, 4 axe WCAG A/AA scans in light and dark). **Not verified:** anything with real exchange keys or real money, a real static host, and other browsers. What was and was not checked is in [09](09-roadmap.md#what-was-verified).
 
 ## Map
 
