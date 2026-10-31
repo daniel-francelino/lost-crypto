@@ -23,6 +23,8 @@ class BacktestRun:
     market_info: MarketInfo | None = None
     metrics: dict[str, Any] | None = None
     segments: dict[str, Any] | None = None  # train/test metrics when test_fraction is set
+    periods: dict[str, Any] | None = None  # metrics by calendar year/quarter
+    cost_ladder: dict[str, Any] | None = None  # when config.cost_sensitivity is set
     sweep_id: UUID | None = None
     error: str | None = None
 
@@ -52,6 +54,11 @@ class BacktestStore(Protocol):
     async def list_sweep_runs(self, sweep_id: UUID) -> list[BacktestRun]: ...
     async def list_runs(self, limit: int, offset: int = 0) -> list[BacktestRun]: ...
     async def count_runs(self) -> int: ...
+    async def count_prior_trials(self, sweep: BacktestSweep, base: BacktestConfig) -> int:
+        """Completed runs of the same strategy on overlapping data, created before ``sweep``
+        and outside it: how many other tries the sweep's winner competed with."""
+        ...
+
     async def claim_next_queued(self) -> BacktestRun | None: ...
     async def requeue_running(self) -> int: ...
     async def save_result(
@@ -63,6 +70,8 @@ class BacktestStore(Protocol):
         market_info: MarketInfo,
         metrics: dict[str, Any],
         segments: dict[str, Any] | None,
+        periods: dict[str, Any] | None,
+        cost_ladder: dict[str, Any] | None,
         equity_curve: list[EquityPoint],
         fills: list[Fill],
     ) -> None: ...

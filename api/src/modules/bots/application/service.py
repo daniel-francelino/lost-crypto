@@ -346,6 +346,9 @@ class BotService:
             last_price=snapshots[-1].price,
             open_position=state is not None and state.quantity > 0,
             rejected_signals=rejected,
+            bar=bot.config.timeframe.delta,
+            benchmark_prices=[s.price for s in snapshots],
+            in_market=[s.quantity > 0 for s in snapshots],
         )
 
     async def equity_curve(self, bot_id: UUID, limit: int = 2000) -> list[EquityPoint]:

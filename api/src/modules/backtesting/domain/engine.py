@@ -53,6 +53,7 @@ def run_backtest(
     quantity = Decimal(0)
     fills: list[Fill] = []
     equity: list[EquityPoint] = []
+    in_market: list[bool] = []
     rejected: list[RejectedSignal] = []
     state = strategy.initial_state()
     pending: tuple[Signal, ...] = ()
@@ -116,6 +117,7 @@ def run_backtest(
             stop_price = take_profit_price = None
 
         equity.append(EquityPoint(candle.close_time, cash + quantity * candle.close))
+        in_market.append(quantity > 0)
 
         result = strategy.evaluate(StrategyContext(candle.symbol, candle, quantity), state)
         state = result.state
@@ -124,6 +126,7 @@ def run_backtest(
     return BacktestOutcome(
         fills=fills,
         equity_curve=equity,
+        in_market=in_market,
         rejected=rejected,
         final_cash=cash,
         final_quantity=quantity,

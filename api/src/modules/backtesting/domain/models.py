@@ -15,6 +15,9 @@ class InvalidBacktestConfig(DomainError):
     pass
 
 
+MAX_COST_MULTIPLIER = 3  # the highest level of the cost ladder (``domain.cost_ladder``)
+
+
 @dataclass(frozen=True, slots=True)
 class BacktestConfig:
     exchange: str
@@ -29,6 +32,10 @@ class BacktestConfig:
     strategy_params: Mapping[str, Any] = field(default_factory=dict)
     seed: int = 0  # recorded for reproducibility; the current fill model is deterministic
     test_fraction: Decimal | None = None  # share of the series (at the end) held out as test
+    cost_sensitivity: bool = False  # also re-run at several cost levels (cost ladder)
+    # The operator's drawdown tolerance (book 1 ch. 2, C6): results that exceed it are flagged.
+    max_drawdown_tolerance_pct: Decimal | None = None
+    max_drawdown_tolerance_days: int | None = None
 
     def __post_init__(self) -> None:
         if self.start >= self.end:
@@ -41,6 +48,19 @@ class BacktestConfig:
             raise InvalidBacktestConfig("slippage_bps must be in [0, 10000)")
         if self.test_fraction is not None and not (0 < self.test_fraction < 1):
             raise InvalidBacktestConfig("test_fraction must be between 0 and 1 (exclusive)")
+        if self.cost_sensitivity:
+            if self.fee_rate == 0 and self.slippage_bps == 0:
+                raise InvalidBacktestConfig("cost sensitivity needs a non-zero fee or slippage")
+            if self.fee_rate * MAX_COST_MULTIPLIER >= 1 or (
+                self.slippage_bps * MAX_COST_MULTIPLIER >= 10_000
+            ):
+                raise InvalidBacktestConfig("costs too high to be tripled for the cost ladder")
+        tolerance = self.max_drawdown_tolerance_pct
+        if tolerance is not None and not (0 < tolerance <= 100):
+            raise InvalidBacktestConfig("max_drawdown_tolerance_pct must be in (0, 100]")
+        days = self.max_drawdown_tolerance_days
+        if days is not None and days <= 0:
+            raise InvalidBacktestConfig("max_drawdown_tolerance_days must be positive")
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +80,7 @@ class RejectedSignal:
 class BacktestOutcome:
     fills: list[Fill]
     equity_curve: list[EquityPoint]
+    in_market: list[bool]  # aligned with equity_curve: a position was held at that close
     rejected: list[RejectedSignal]
     final_cash: Decimal
     final_quantity: Decimal

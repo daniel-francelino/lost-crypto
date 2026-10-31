@@ -771,7 +771,7 @@
           "backtests"
         ],
         "summary": "Create Sweep",
-        "description": "Queue one backtest per parameter combination of ``grid`` and compare them.\n\nCombinations the strategy rejects (e.g. fast >= slow) are skipped and reported. With\n``test_fraction`` set, rank by the test (out-of-sample) return to avoid picking an overfit\nparameter set.",
+        "description": "Queue one backtest per parameter combination of ``grid`` and compare them.\n\nCombinations the strategy rejects (e.g. fast >= slow) are skipped and reported. With\n``test_fraction`` set, runs are ranked by the train part and the test part checks the\nwinner; choosing by the test part would turn it into selection data.",
         "operationId": "create_sweep_api_v1_backtests_sweeps_post",
         "requestBody": {
           "content": {
@@ -877,6 +877,24 @@
               "format": "uuid",
               "title": "Sweep Id"
             }
+          },
+          {
+            "name": "rank_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/SweepRankBy"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Ranking criterion. Default: `train_return_pct` with a train/test split (the test part then stays a check, not a selection criterion), else `total_return_pct`.",
+              "title": "Rank By"
+            },
+            "description": "Ranking criterion. Default: `train_return_pct` with a train/test split (the test part then stays a check, not a selection criterion), else `total_return_pct`."
           }
         ],
         "responses": {
@@ -2486,6 +2504,43 @@
             ],
             "title": "Test Fraction",
             "description": "Hold out this share of the series (at the end) as an out-of-sample test part. Train and test metrics are then reported separately in `segments`."
+          },
+          "cost_sensitivity": {
+            "type": "boolean",
+            "title": "Cost Sensitivity",
+            "description": "Also re-run the backtest with fee and slippage scaled by 0, 0.5, 1, 1.5, 2 and 3 and report the break-even cost in `cost_ladder`. Slower; limited to 50,000 candles.",
+            "default": false
+          },
+          "max_drawdown_tolerance_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Tolerance Pct",
+            "description": "Deepest drawdown the operator accepts; `tolerance` flags runs beyond it."
+          },
+          "max_drawdown_tolerance_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3650.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Tolerance Days",
+            "description": "Longest drawdown (days below the peak) the operator accepts."
           }
         },
         "type": "object",
@@ -2563,6 +2618,32 @@
             ],
             "title": "Test Fraction"
           },
+          "cost_sensitivity": {
+            "type": "boolean",
+            "title": "Cost Sensitivity"
+          },
+          "max_drawdown_tolerance_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Tolerance Pct"
+          },
+          "max_drawdown_tolerance_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Tolerance Days"
+          },
           "sweep_id": {
             "anyOf": [
               {
@@ -2611,6 +2692,36 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/SegmentsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "periods": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PeriodsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost_ladder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CostLadderOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tolerance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToleranceOut"
               },
               {
                 "type": "null"
@@ -2674,11 +2785,17 @@
           "slippage_bps",
           "seed",
           "test_fraction",
+          "cost_sensitivity",
+          "max_drawdown_tolerance_pct",
+          "max_drawdown_tolerance_days",
           "sweep_id",
           "data_hash",
           "candles_count",
           "metrics",
           "segments",
+          "periods",
+          "cost_ladder",
+          "tolerance",
           "error",
           "created_at",
           "started_at",
@@ -3486,6 +3603,117 @@
         ],
         "title": "ConnectionStatus"
       },
+      "CostLadderOut": {
+        "properties": {
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/CostLevelOut"
+            },
+            "type": "array",
+            "title": "Levels"
+          },
+          "break_even_status": {
+            "type": "string",
+            "title": "Break Even Status",
+            "description": "`found`, `never_profitable` or `above_max`."
+          },
+          "break_even_multiplier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Break Even Multiplier"
+          },
+          "break_even_cost_per_side_bps": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Break Even Cost Per Side Bps"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "levels",
+          "break_even_status",
+          "break_even_multiplier",
+          "break_even_cost_per_side_bps",
+          "note"
+        ],
+        "title": "CostLadderOut"
+      },
+      "CostLevelOut": {
+        "properties": {
+          "multiplier": {
+            "type": "string",
+            "title": "Multiplier"
+          },
+          "fee_rate": {
+            "type": "string",
+            "title": "Fee Rate"
+          },
+          "slippage_bps": {
+            "type": "string",
+            "title": "Slippage Bps"
+          },
+          "cost_per_side_bps": {
+            "type": "string",
+            "title": "Cost Per Side Bps"
+          },
+          "net_pnl": {
+            "type": "string",
+            "title": "Net Pnl"
+          },
+          "total_return_pct": {
+            "type": "string",
+            "title": "Total Return Pct"
+          },
+          "sharpe_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpe Ratio"
+          },
+          "round_trips": {
+            "type": "integer",
+            "title": "Round Trips"
+          },
+          "fees_paid": {
+            "type": "string",
+            "title": "Fees Paid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "multiplier",
+          "fee_rate",
+          "slippage_bps",
+          "cost_per_side_bps",
+          "net_pnl",
+          "total_return_pct",
+          "sharpe_ratio",
+          "round_trips",
+          "fees_paid"
+        ],
+        "title": "CostLevelOut"
+      },
       "CoverageOut": {
         "properties": {
           "exchange": {
@@ -3962,6 +4190,181 @@
           "rejected_signals": {
             "type": "integer",
             "title": "Rejected Signals"
+          },
+          "sharpe_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpe Ratio",
+            "description": "Annualised (365 days), risk-free rate 0. Null below 30 returns."
+          },
+          "sortino_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sortino Ratio"
+          },
+          "information_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Information Ratio",
+            "description": "Sharpe of the excess return over holding the same asset."
+          },
+          "annualized_return_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annualized Return Pct",
+            "description": "Geometric; null for spans shorter than 30 days."
+          },
+          "annualized_volatility_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annualized Volatility Pct"
+          },
+          "exposure_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exposure Pct",
+            "description": "Share of bars with an open position."
+          },
+          "return_periods": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Periods",
+            "description": "Number of periodic returns behind the ratios."
+          },
+          "return_gaps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Gaps",
+            "description": "Steps skipped because the equity curve had a hole."
+          },
+          "annualization_factor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annualization Factor"
+          },
+          "max_drawdown_duration_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Duration Seconds",
+            "description": "Longest time from a peak until equity was back at it."
+          },
+          "max_drawdown_duration_bars": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Duration Bars"
+          },
+          "max_drawdown_peak_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Peak At"
+          },
+          "max_drawdown_trough_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Trough At"
+          },
+          "current_drawdown_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Drawdown Pct"
+          },
+          "drawdown_open": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drawdown Open",
+            "description": "The curve ends below its high watermark (not recovered)."
           }
         },
         "type": "object",
@@ -4131,6 +4534,62 @@
           "description"
         ],
         "title": "ParamOut"
+      },
+      "PeriodOut": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "candles": {
+            "type": "integer",
+            "title": "Candles"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/MetricsOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "start",
+          "end",
+          "candles",
+          "metrics"
+        ],
+        "title": "PeriodOut"
+      },
+      "PeriodsOut": {
+        "properties": {
+          "granularity": {
+            "type": "string",
+            "title": "Granularity",
+            "description": "`year`, or `quarter` when the run spans < 2 years."
+          },
+          "periods": {
+            "items": {
+              "$ref": "#/components/schemas/PeriodOut"
+            },
+            "type": "array",
+            "title": "Periods"
+          }
+        },
+        "type": "object",
+        "required": [
+          "granularity",
+          "periods"
+        ],
+        "title": "PeriodsOut"
       },
       "PortfolioOut": {
         "properties": {
@@ -4826,6 +5285,43 @@
             "title": "Test Fraction",
             "description": "Hold out this share of the series (at the end) as an out-of-sample test part. Train and test metrics are then reported separately in `segments`."
           },
+          "cost_sensitivity": {
+            "type": "boolean",
+            "title": "Cost Sensitivity",
+            "description": "Also re-run the backtest with fee and slippage scaled by 0, 0.5, 1, 1.5, 2 and 3 and report the break-even cost in `cost_ladder`. Slower; limited to 50,000 candles.",
+            "default": false
+          },
+          "max_drawdown_tolerance_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Tolerance Pct",
+            "description": "Deepest drawdown the operator accepts; `tolerance` flags runs beyond it."
+          },
+          "max_drawdown_tolerance_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3650.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Tolerance Days",
+            "description": "Longest drawdown (days below the peak) the operator accepts."
+          },
           "grid": {
             "additionalProperties": {
               "items": {},
@@ -4903,9 +5399,18 @@
             "type": "array",
             "title": "Skipped"
           },
+          "trials": {
+            "type": "integer",
+            "title": "Trials",
+            "description": "Parameter combinations tried, including skipped ones."
+          },
+          "prior_trials": {
+            "type": "integer",
+            "title": "Prior Trials",
+            "description": "Approximate: earlier completed runs of the same strategy on overlapping data (same exchange, symbol and timeframe) outside this sweep."
+          },
           "ranked_by": {
-            "type": "string",
-            "title": "Ranked By"
+            "$ref": "#/components/schemas/SweepRankBy"
           },
           "note": {
             "type": "string",
@@ -4929,11 +5434,25 @@
           "completed",
           "failed",
           "skipped",
+          "trials",
+          "prior_trials",
           "ranked_by",
           "note",
           "runs"
         ],
         "title": "SweepOut"
+      },
+      "SweepRankBy": {
+        "type": "string",
+        "enum": [
+          "total_return_pct",
+          "train_return_pct",
+          "test_return_pct",
+          "sharpe_ratio",
+          "train_sharpe_ratio",
+          "test_sharpe_ratio"
+        ],
+        "title": "SweepRankBy"
       },
       "SweepRunOut": {
         "properties": {
@@ -4959,7 +5478,19 @@
                 "type": "null"
               }
             ],
-            "title": "Total Return Pct"
+            "title": "Total Return Pct",
+            "description": "Whole period (train + test)."
+          },
+          "train_return_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Train Return Pct"
           },
           "test_return_pct": {
             "anyOf": [
@@ -4971,6 +5502,39 @@
               }
             ],
             "title": "Test Return Pct"
+          },
+          "sharpe_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpe Ratio"
+          },
+          "train_sharpe_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Train Sharpe Ratio"
+          },
+          "test_sharpe_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Sharpe Ratio"
           },
           "max_drawdown_pct": {
             "anyOf": [
@@ -5023,7 +5587,11 @@
           "status",
           "strategy_params",
           "total_return_pct",
+          "train_return_pct",
           "test_return_pct",
+          "sharpe_ratio",
+          "train_sharpe_ratio",
+          "test_sharpe_ratio",
           "max_drawdown_pct",
           "round_trips",
           "buy_and_hold_return_pct",
@@ -5111,6 +5679,63 @@
         ],
         "title": "TokenOut",
         "description": "Keep ``access_token`` in memory and send it as ``Authorization: Bearer``. The refresh\ntoken travels only in an httpOnly cookie, out of reach of page scripts."
+      },
+      "ToleranceOut": {
+        "properties": {
+          "max_drawdown_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Pct"
+          },
+          "max_drawdown_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Days"
+          },
+          "exceeded_depth": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exceeded Depth"
+          },
+          "exceeded_duration": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exceeded Duration",
+            "description": "Null when the run predates drawdown duration (not computed)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "max_drawdown_pct",
+          "max_drawdown_days",
+          "exceeded_depth",
+          "exceeded_duration"
+        ],
+        "title": "ToleranceOut"
       },
       "TradeOut": {
         "properties": {

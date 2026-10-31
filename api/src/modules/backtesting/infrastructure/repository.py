@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.jobs import JobStatus
@@ -57,6 +57,9 @@ def _to_run(row: BacktestRunRow) -> BacktestRun:
             strategy_params=row.strategy_params,
             seed=row.seed,
             test_fraction=row.test_fraction,
+            cost_sensitivity=row.cost_sensitivity,
+            max_drawdown_tolerance_pct=row.max_drawdown_tolerance_pct,
+            max_drawdown_tolerance_days=row.max_drawdown_tolerance_days,
         ),
         created_at=row.created_at,
         started_at=row.started_at,
@@ -66,6 +69,8 @@ def _to_run(row: BacktestRunRow) -> BacktestRun:
         market_info=_market_from_json(row.market_info) if row.market_info else None,
         metrics=row.metrics,
         segments=row.segments,
+        periods=row.periods,
+        cost_ladder=row.cost_ladder,
         sweep_id=row.sweep_id,
         error=row.error,
     )
@@ -92,6 +97,9 @@ class SqlAlchemyBacktestStore:
                 slippage_bps=c.slippage_bps,
                 seed=c.seed,
                 test_fraction=c.test_fraction,
+                cost_sensitivity=c.cost_sensitivity,
+                max_drawdown_tolerance_pct=c.max_drawdown_tolerance_pct,
+                max_drawdown_tolerance_days=c.max_drawdown_tolerance_days,
                 sweep_id=run.sweep_id,
                 strategy_type=c.strategy_type,
                 strategy_params=dict(c.strategy_params),
@@ -142,6 +150,24 @@ class SqlAlchemyBacktestStore:
         result = await self._session.execute(select(func.count()).select_from(BacktestRunRow))
         return int(result.scalar_one())
 
+    async def count_prior_trials(self, sweep: BacktestSweep, base: BacktestConfig) -> int:
+        result = await self._session.execute(
+            select(func.count())
+            .select_from(BacktestRunRow)
+            .where(
+                BacktestRunRow.status == JobStatus.COMPLETED.value,
+                BacktestRunRow.strategy_type == base.strategy_type,
+                BacktestRunRow.exchange == base.exchange,
+                BacktestRunRow.symbol == base.symbol,
+                BacktestRunRow.timeframe == base.timeframe.value,
+                BacktestRunRow.start_at < base.end,
+                BacktestRunRow.end_at > base.start,
+                BacktestRunRow.created_at < sweep.created_at,
+                or_(BacktestRunRow.sweep_id.is_(None), BacktestRunRow.sweep_id != sweep.id),
+            )
+        )
+        return int(result.scalar_one())
+
     async def list_runs(self, limit: int, offset: int = 0) -> list[BacktestRun]:
         result = await self._session.execute(
             select(BacktestRunRow)
@@ -185,6 +211,8 @@ class SqlAlchemyBacktestStore:
         market_info: MarketInfo,
         metrics: dict[str, Any],
         segments: dict[str, Any] | None,
+        periods: dict[str, Any] | None,
+        cost_ladder: dict[str, Any] | None,
         equity_curve: list[EquityPoint],
         fills: list[Fill],
     ) -> None:
@@ -198,6 +226,8 @@ class SqlAlchemyBacktestStore:
                 market_info=_market_to_json(market_info),
                 metrics=metrics,
                 segments=segments,
+                periods=periods,
+                cost_ladder=cost_ladder,
                 equity_curve=[[p.time.isoformat(), str(p.equity)] for p in equity_curve],
                 finished_at=func.now(),
             )
