@@ -165,6 +165,8 @@ Métricas (`metrics`, também em `/bots/{id}/performance`): além de retorno e d
 
 ### Observabilidade
 
+Operação (servidor, monitor externo, backup e restauração, relógio, chaves): [`docs/operations/runbook.md`](docs/operations/runbook.md). Resumo: `GET /health/worker` responde 503 quando o worker para (aponte um monitor externo para ele); `make backup` e `make restore-check`; `POST /exchange-connections/{id}/recheck` reverifica as permissões de uma chave.
+
 ```bash
 curl $B/system/status     # worker vivo? bots 'running' sem heartbeat recente (stale_bots)? kill switch?
 curl $B/bots/overview     # todos os bots lado a lado: equity, retorno %, PnL, taxas, posição

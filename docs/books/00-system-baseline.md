@@ -36,7 +36,8 @@ Per bot: position fraction, max order notional, daily loss %, drawdown %, consec
 
 ## Operations
 
-* Worker supervises bots, reconciles every 60 s, writes a heartbeat. The API exposes worker liveness and stale bots.
+* Worker supervises bots, reconciles every 60 s, writes a heartbeat. The API exposes worker liveness and stale bots; `GET /health/worker` (200/503, no login) serves an external monitor and the worker's Docker healthcheck.
+* Live keys are verified at creation and re-checked daily; a key that turns unacceptable blocks new entries (exits continue). The status lists exchange positions without a native stop, the clock skew with the exchange (> 5 s blocks new live entries) and the backup state (`manage backup` / `restore-check`). Runbook: `api/docs/operations/runbook.md`.
 * The trader fetches recent candles itself each cycle; **historical import is manual**.
 * **No alerting or notification channel exists** (no webhook, email, chat). Failures are visible only to someone looking at the UI.
 * Audit log for state changes, orders and approvals.

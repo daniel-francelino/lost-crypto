@@ -1,6 +1,6 @@
 # Livro 1 · Capítulo 4 — Montando o seu negócio
 
-*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: **apenas análise**; nada implementado por este relatório. Diagnóstico revisado contra o código em 2026-10-31 (ver §2.1: a política de permissão das chaves já existia).
+*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: **implementado** (O1–O5) em 2026-10-31; ver §8. As tabelas §2 descrevem o código **antes** desta implementação.
 
 ## 1. Resumo do capítulo (pp. 69–78)
 
@@ -142,6 +142,35 @@ O2 primeiro: é o único item em que uma queda comum (reinício do host) já pod
 * Um backup é restaurado num banco limpo pelo `restore-check`, com contagens iguais, e o resultado aparece na tela Sistema.
 * Uma diferença de relógio acima de 5 s bloqueia novas ordens live, não as saídas.
 * Nenhuma ação com dinheiro real é necessária para testar; `make check`, integração, `npm run lint`, `typecheck`, `test`, `build` verdes; telas conferidas em 1366 px e 360 px.
+
+## 8. Implementação (2026-10-31)
+
+Implementado na branch `docs/ch02-fishing-for-ideas-review`, back-end e front-end.
+
+**Back-end (`api/`)**
+* **O1 — permissões:** `exchange_connections` guarda `permissions`, `status_reason`, `last_checked_at` e `permission_warning`. `verify_pending` registra o resultado; `ConnectionResolver.recheck_due` reverifica as chaves live ativas uma vez por dia (chamado pelo supervisor) e `POST /exchange-connections/{id}/recheck` verifica na hora. Uma chave que fica perigosa **continua ativa** com `permission_warning`: o trader recusa **novas entradas** (sinal `rejected` com o motivo), saídas e stops seguem, e a prontidão live falha. Auditoria: `connection.permissions_changed` / `connection.permissions_ok`.
+* **O2 — posições expostas:** `SystemStatus.unprotected_positions` lista bots testnet/live com quantidade > 0 e sem stop na exchange.
+* **O3 — monitor externo:** `GET /health/worker` (200/503, sem login); `python -m worker --healthcheck` como `healthcheck` do serviço `worker` no `docker-compose.yml`.
+* **O4 — backup:** `python -m manage backup` e `restore-check` (`risk_management/infrastructure/backup.py`): `pg_dump -Fc`, SHA-256, contagens das tabelas principais antes do dump, retenção (`BACKUP_KEEP`), restauração num banco temporário com conferência da versão do schema e das contagens; tabela `backups`; `SystemStatus.backup` (atrasado após 26 h ou com a última restauração falha). `make backup`, `make restore-check`; `postgresql-client-16` (repositório PGDG) na imagem e volume `backups` montado na API.
+* **O5 — relógio:** `OperationsMonitor` mede a diferença com a exchange (`fetch_server_time`, ccxt `fetch_time`) uma vez por minuto, **antes** de o supervisor operar, e grava em `system_flags`; acima de 5 s (medição com até 10 min) o trader não abre posições live novas.
+* Migração `0010_operations.py` (`alembic check` limpo; downgrade testado).
+* Runbook novo: `api/docs/operations/runbook.md` (onde rodar, posições numa queda, monitor externo, backup e restauração real, NTP, chaves e rotação da chave mestra, contraparte).
+
+**Front-end (`app/`)**
+* Conexões: selos de permissão escritos por extenso ("Sem saque", "PODE SACAR"…), última verificação, motivo da recusa, "Verificar agora" e alerta quando uma chave ativa muda; no formulário live, o passo a passo da chave na Binance e o aviso de contraparte.
+* Sistema: tiles "Posições sem stop na exchange", "Relógio × exchange" e "Backup"; lista das posições expostas com link para o bot; card "Monitoramento externo" com a URL de `/health/worker` e botão de copiar.
+* Bot (resumo): alerta "Sem stop na exchange — exposto se o worker cair" e alerta de chave com permissões alteradas.
+
+**Diferenças em relação ao plano**
+* A prontidão live **já exigia** `require_stop_loss` (`bots/application/live.py`); a configuração `LIVE_REQUIRE_NATIVE_STOP` proposta não foi criada. Faltaria só conferir se a exchange suporta stop nativo (a Binance suporta); fica registrado.
+* O aviso de chave entrou na verificação "live connection" da prontidão, em vez de uma verificação separada.
+* O medidor de relógio grava o valor na tabela `system_flags` existente (sem tabela nova).
+* O `Dockerfile` com o cliente PGDG **não foi construído** neste ambiente (sem Docker); os comandos foram testados com o `pg_dump`/`pg_restore` 16 local.
+
+**Verificação**
+* API: `make check` (ruff, mypy strict, 267 testes de unidade) e 84 testes de integração em Postgres 16, todos passando; novos `tests/unit/test_operations.py` e `tests/integration/test_phase6_operations.py` (chave que passa a sacar bloqueia entradas e não saídas; relógio 10 s adiantado bloqueia entradas live; posição testnet sem stop aparece no status; `/health/worker` 503/200; backup + restore-check + checksum adulterado + retenção).
+* `manage backup`, `manage restore-check` e `worker --healthcheck` executados de verdade contra o banco de desenvolvimento.
+* App: `lint`, `typecheck`, `test` (76), `format:check`, `check:consistency`, `build`; telas Sistema e Conexões conferidas no navegador em 1366 px e 360 px, sem erros no console (os 15 px de rolagem em 360 px continuam vindo do botão "Kill switch", já existente).
 
 ## Ressalva
 Os valores de custo e hardware de Chan (2008) estão desatualizados e são específicos de ações; não usar como estimativas.

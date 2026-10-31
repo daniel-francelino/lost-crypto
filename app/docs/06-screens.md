@@ -91,11 +91,16 @@ Backend refusals (422 strings: worker switch off, `APP_ENV` not prod, caps missi
 
 ## 9. Exchange connections — `/exchanges`, `/exchanges/new`
 
+Also: permission badges written as states ("Sem saque", "PODE SACAR"…), last check, the refusal reason in the expanded row, "Verificar agora" (`POST /exchange-connections/{id}/recheck`) on active live keys, and a banner when a key carries `permission_warning` (new entries blocked, exits continue). The live form shows how to create a trade-only Binance key and the counterparty note.
+
+
 `GET /exchange-connections`, `POST`, `POST /{id}/disable`. Table: label, exchange, **environment badge** (testnet / live), `api_key_hint`, status, verified at. Creating: see [05](05-authentication.md#exchange-keys). `pending` live connections show "aguardando verificação do worker"; the page polls every 10 s while any is pending. Disable = destructive confirmation (a bot using it cannot run).
 
 ## 10. System — `/system`
 
 `GET /system/status`, `GET/PUT /system/kill-switch`. Worker (alive, last heartbeat, age), bots by state, stale bots, the registered exchange ids, and the kill switch with its reason and `changed_at`. This is also the page the safety strip links to. The kill switch control is described in [07](07-ux-rules.md#kill-switch).
+
+Since book 1 ch. 4: tiles "Posições sem stop na exchange" (`unprotected_positions`, listed with links to the bots), "Relógio × exchange" (`clock`: warning > 1 s, new live entries blocked > 5 s) and "Backup" (`backup`: em dia / atrasado, last restore check); a "Monitoramento externo" card with the `GET /health/worker` URL to give an outside monitor. The bot summary warns "Sem stop na exchange" for exchange positions without a native stop and when its connection has `permission_warning`.
 
 ## 11. Audit — `/audit`
 
