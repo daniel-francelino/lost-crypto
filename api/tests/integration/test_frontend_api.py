@@ -12,6 +12,10 @@ async def test_summary_adds_bots_per_mode_and_quote_currency(env: Env) -> None:
     await env.create_bot(initial_capital="1000")
     await env.create_bot(initial_capital="500")
 
+    overview = await env.http.get("/api/v1/bots/overview")
+    assert overview.status_code == 200
+    assert {row["mode"] for row in overview.json()} <= {"paper", "testnet", "live"}
+
     response = await env.http.get("/api/v1/bots/summary")
     assert response.status_code == 200
     groups = {(g["mode"], g["quote_currency"]): g for g in response.json()}

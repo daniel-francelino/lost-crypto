@@ -13,7 +13,7 @@ Source of the analysis: `aura-creative` (`package.json`, `vite.config.ts`, `tsco
 | Styling | Tailwind CSS 4 (`@tailwindcss/vite`) + `tw-animate-css` | ^4.3 | Tokens only, no hex, no raw palette |
 | Primitives | Radix UI (arrive through lost-ui's shadcn layer) | | Install only the peers that lost-ui components in use require |
 | Forms | lost-ui `Form` + `rules` | | `react-hook-form` is a lost-ui peer for its shadcn `Form`; install it only if needed |
-| Validation | zod 3 | ^3.25 | Request bodies built in the app and **API responses** (see [04](04-api-client.md#validating-responses)) |
+| Validation | zod 4 | ^4.6 | Request bodies built in the app and **API responses** (see [04](04-api-client.md#validating-responses)) |
 | Charts | `recharts` (peer of `lost-ui/charts`) | 3.10.1 (pinned) | Pinned exactly in aura; do the same |
 | Icons | `lucide-react` | ^0.575 | |
 | Toasts | `sonner` (through lost-ui `Toaster`) | ^2 | |

@@ -23,3 +23,16 @@ export const parseEnv = (raw: Record<string, unknown>) => {
 };
 
 export const env = parseEnv(import.meta.env);
+
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+export const environmentWarning = (apiBaseUrl: string, appEnv: AppEnv): string | null => {
+  const local = LOCAL_HOSTS.has(new URL(apiBaseUrl).hostname);
+  if (appEnv === AppEnv.Prod && local) {
+    return "Esta é uma versão de produção apontando para um servidor local.";
+  }
+  if (appEnv === AppEnv.Local && !local) {
+    return "Esta versão está marcada como local, mas aponta para um servidor remoto.";
+  }
+  return null;
+};

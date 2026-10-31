@@ -104,7 +104,11 @@ const boundary = (name, forbidden) => ({
   },
 });
 
-const moneyConversion = ["src/lib/shared/format.ts", "src/**/*chart-rows.ts"];
+const moneyConversion = [
+  "src/lib/shared/format.ts",
+  "src/lib/shared/strategies/params.ts",
+  "src/**/*chart-rows.ts",
+];
 
 const colourExempt = [];
 

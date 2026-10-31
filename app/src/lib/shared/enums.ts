@@ -65,3 +65,18 @@ export const OrderStatus = {
   Unknown: "UNKNOWN",
 } as const;
 export type OrderStatus = ValueOf<typeof OrderStatus>;
+
+export const Side = {
+  Buy: "buy",
+  Sell: "sell",
+} as const;
+export type Side = ValueOf<typeof Side>;
+
+export const SignalKind = {
+  Entry: "entry",
+  Exit: "exit",
+} as const;
+export type SignalKind = ValueOf<typeof SignalKind>;
+
+export const Unknown = "unknown" as const;
+export type Unknown = typeof Unknown;

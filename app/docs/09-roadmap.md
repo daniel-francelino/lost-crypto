@@ -1,43 +1,60 @@
 # 09 — Roadmap
 
-Order of work for the frontend, aligned with what the backend already offers (all backend phases 0–5 are implemented). Each step is one coherent change that ends with the Definition of Done ([08](08-quality.md)); safety-relevant screens come **after** the read-only ones so the operator can watch before they can act.
+Order of work for the frontend, aligned with what the backend offers (backend phases 0–5 are implemented). Safety-relevant screens came **after** the read-only ones, so the operator could watch before being able to act.
 
-| Step | Delivers | Depends on | Done when |
-|---|---|---|---|
-| **F0 Scaffold** ✅ | Vite + TanStack Start (SPA mode), TypeScript strict flags, Tailwind 4, `lost-ui` alias + `styles.css` + tokens, ESLint (copied `eslint-local`, module boundaries), Prettier, husky, Vitest, Playwright skeleton, `.env.example`, CI. `lost-ui` skill copied into `.claude/skills`, `CLAUDE.md` + `AGENTS.md` (the aura `.claude` hooks and slash commands are **not** copied: they encode Supabase-specific rules). The "To verify" items of [01](01-stack.md) and [03](03-lost-ui.md) that need only the scaffold are resolved | — | `lint`, `typecheck`, `build` pass on an empty shell; `BackofficeLayout` and `LoginPage` render |
-| **F1 API client + session** | `lib/shared/api` (client, `ApiError`, zod boundary), `QueryKey`, `session.ts` (memory token, single-flight refresh), `format.ts`, `dates.ts`, logger | F0 | Unit tests: single-flight, 422 mapping, formatters |
-| **F2 Auth** | `/login`, `_app` guard + bootstrap refresh, logout, profile + change password, `can()` and role-aware navigation, error pages | F1 | E2E: login, reload keeps session, logout, viewer vs admin nav, session expiry redirect |
-| **F3 Read-only operations** | Safety strip + system status, dashboard, bots list, bot detail (resumo / ordens / sinais / desempenho / configuração / auditoria), audit screen, polling + stale marks | F2 | Watching a running **paper** bot from the browser; stale treatment verified by stopping the worker |
-| **F4 Controls (paper)** | Create/edit bot (paper), strategy parameter form, start / pause / stop / reset, desired-vs-observed handling, kill switch (activate / release) | F3 | E2E: create → start → converges → stop; kill switch blocks start |
-| **F5 Research** | Market-data coverage + imports, backtests (run, results, train/test, compare), sweeps, charts (equity; price when L1 lands) | F3 | Backtest runs to completion with polling; coverage warns on gaps |
-| **F6 Exchanges and testnet** | Connections (create, verification states, disable), testnet bots | F4 | Testnet bot created against a testnet connection (real testnet only with the user's own keys) |
-| **F7 Live flow** | Live connection, readiness checklist, promote, typed-name approval with token countdown, start with token, live visual treatment (`--live`, banner) | F6 | Every refusal path rendered verbatim; E2E against the stack **with live disabled** shows the refusals; no real order ever sent from tests |
-| **F8 Admin** | Users (create, disable, enable) | F2 | |
-| **F9 Hardening** | CSP and headers on the host, accessibility pass, 360 px pass on every screen, performance pass, README, runbook for deploying front + API under one domain | all | Checklist of [07](07-ux-rules.md) passes |
+| Step | Delivers | Status |
+|---|---|---|
+| **F0 Scaffold** | Vite + TanStack Start (SPA mode), strict TypeScript, Tailwind 4, `lost-ui`, ESLint with module boundaries and money/date rules, Prettier, husky, Vitest, Playwright, CI | ✅ |
+| **F1 API client + session** | `lib/shared/api` (client, `ApiError`, zod at the boundary, single-flight refresh), `QueryKey`, `format.ts`, `dates.ts`, logger | ✅ |
+| **F2 Auth** | login with redirect, session bootstrap through the refresh cookie, logout, profile + password change, `can()`, role-aware navigation, forbidden page | ✅ |
+| **F3 Read-only operations** | safety strip + status page, dashboard (totals per mode and currency), bots list, bot detail with six tabs, audit, polling with stale marks | ✅ |
+| **F4 Controls** | create/edit bot (paper/testnet), strategy parameter form, start/pause/stop/reset with desired-vs-observed handling, kill switch (activate/release) | ✅ |
+| **F5 Research** | market data (coverage, preview, imports with polling), backtests (run, train/test, trades, equity), sweeps, comparison | ✅ |
+| **F6 Exchanges** | connections list/create/disable with verification states | ✅ (UI only; see below) |
+| **F7 Live flow** | readiness → promote → typed-name approval with countdown → start with token; live visual treatment | ✅ (refusal path only; see below) |
+| **F8 Admin** | users: create, disable, enable | ✅ |
+| **F9 Hardening** | accessibility scans, 360 px checks, dependency audit, headers and runbook ([10](10-deployment.md)) | ✅ for what is listed below |
 
-## F0: what was verified
+## What was verified
 
-Run on 2026-10-31 in `app/`:
+Run on 2026-10-31 against the Compose stack (API + worker + PostgreSQL, authentication on, a real admin and viewer):
 
 | Check | Result |
 |---|---|
-| `npm run lint` (`--max-warnings 0`), `typecheck`, `format:check`, `check:consistency`, `test` | pass (5 unit tests: env parsing, log redaction; consistency compares 8 enums with the backend's `openapi.json`) |
-| `npm run build` | pass; SPA shell prerendered to `dist/client/_shell.html` |
-| Playwright (Chromium) against `vite dev`: login form, shell with navigation, not-found page | 3 pass |
-| Layout at 1280 px and 360 px, login and shell | rendered and looked at; no horizontal overflow |
+| `lint --max-warnings 0`, `tsc --noEmit`, `prettier --check`, `check:consistency` (10 enums vs the backend's `openapi.json`) | pass |
+| Unit tests (Vitest): API client (single-flight refresh, 401 retry, 422 → field errors, paging header), session, formatters (decimal strings, signs), dates (UTC), redirect safety, strategy params, bot and backtest forms, chart rows, env, log redaction | 46 pass |
+| `npm run build` | pass; `dist/client` ≈ 1.9 MB with `_shell.html` |
+| `npm audit --omit=dev --audit-level=high` | 0 vulnerabilities (moved to zod 4 for an advisory in zod 3) |
+| End to end (Playwright/Chromium, real backend): anonymous redirect with way back, wrong password, login → reload keeps session → logout, dashboard totals, viewer cannot write (no buttons; forbidden pages), create paper bot → start → "Rodando" → stop with named confirmation → audit tab, live promotion refused with the server's blockers, kill switch blocks start and release needs a reason, every main screen loads | pass |
+| axe (WCAG 2 A/AA) on login and eight main screens, light **and** dark | pass; it found and fixed: a link whose `aria-label` did not match its text, and a destructive button failing contrast in dark mode (worked around, [L5](lost-ui-requests.md)) |
+| 360 px layout of six screens: no horizontal overflow | pass |
+| Screenshots of dashboard, bot detail, orders, new backtest at 1280 px | looked at by hand |
 
-**Not verified or not done in F0:** the login does not authenticate (the form answers that it is unavailable until F2) and `_app` has no guard yet; no API call exists; token contrast, dark mode, `npm audit`, husky hooks end to end (installed by `prepare`, never triggered), the CI workflow (never run on GitHub) and deployment of `dist/client` to a static host. `npm run api:types` works (generates `src/lib/shared/api/api.d.ts` from the backend's `openapi.json`; nothing imports it yet).
+## What was NOT verified
 
-**Side effect to know:** `npm install` runs `prepare`, which sets this repository's `core.hooksPath` to `app/.husky/_`. The hooks do nothing unless files under `app/` are staged (pre-commit) or changed since the upstream (pre-push), so backend-only commits and pushes are unaffected.
+* **Anything with real exchange keys or real money.** Testnet connections and testnet bots were never created through the UI against Binance's testnet; the live flow was only exercised up to the server's refusal (live is disabled in the stack). The approval/start steps (typed name, token countdown, start with token) are implemented, **not** run end to end.
+* The sweep result page, backtest detail with train/test segments, the comparison chart and market-data import were not driven with real completed runs by the automated tests; they were only loaded (new-backtest form and list screens) or looked at.
+* A real static host, the security headers ([10](10-deployment.md)) and the CI workflow on GitHub.
+* Chromium only; no Firefox/Safari; no screen reader session (axe is automated and catches a fraction of issues).
+* Performance was not measured; polling intervals are reasoned, not tuned.
 
-## Backend asks
+## Deviations from the plan (found while building)
 
-All four asks of [06](06-screens.md#requests-to-the-backend-found-while-specifying-the-screens-all-delivered) were implemented with the F0 work (see the backend's [doc 14](../../api/docs/architecture/14-authentication.md) and `openapi.json`).
+* `strategies` is not a module: the catalogue and its parameter form live in `shared` because `bots` and `backtests` both need them ([02](02-project-structure.md)).
+* The backend's overview lacked `mode`, which the UI needs on every bot card (UX-7): added to `GET /bots/overview`.
+* Money inputs are plain text fields with validators; lost-ui's money/number inputs hold JavaScript numbers ([L6](lost-ui-requests.md)).
+* The profile page is our own (lost-ui's `ProfilePage` requires a name field that does not exist here, [L8](lost-ui-requests.md)).
+* Breadcrumbs show "Detalhe" for ids instead of resolving the bot name.
+* "Create bot from this backtest" passes the parameters through search params to `/bots/new`.
+* No "today's PnL": the backend sends realized PnL since the start only.
+* The lost-ui `Stepper` of the live flow is display-only (the flow advances with the buttons).
 
-## Library asks (lost-ui)
+## Next
 
-L1 candlesticks with markers (F5), L3 stat tile (F3), L2 zoom/brush (F5, optional), L4 status dot (F3). Tracked in `docs/lost-ui-requests.md` once the app exists.
+* Run the testnet path for real with the owner's own testnet keys, then the live flow with tiny caps, and record the results here.
+* Server-side sorting and text search on lists, and a realtime channel, both need backend features first.
+* Library requests: [lost-ui-requests.md](lost-ui-requests.md).
 
 ## Not planned
 
-Mobile app, WebSocket/streaming (needs a backend feature first), password reset by email and MFA (the backend has neither), multi-exchange comparison dashboards, strategy authoring in the browser (strategies are code on the backend), i18n beyond pt-BR (lost-ui supports en/es/pt; the app copy is pt-BR only).
+Mobile app, WebSocket streaming, password reset by email and MFA (the backend has neither), strategy authoring in the browser, languages other than pt-BR for the app copy.

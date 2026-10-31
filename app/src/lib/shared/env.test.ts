@@ -19,3 +19,13 @@ describe("parseEnv", () => {
     expect(() => parseEnv({ VITE_APP_ENV: "staging" })).toThrow();
   });
 });
+
+describe("environmentWarning", () => {
+  it("warns when the environment label and the API host disagree", async () => {
+    const { environmentWarning } = await import("@/lib/shared/env");
+    expect(environmentWarning("http://localhost:8000/api/v1", AppEnv.Local)).toBeNull();
+    expect(environmentWarning("https://api.example.com/api/v1", AppEnv.Prod)).toBeNull();
+    expect(environmentWarning("http://localhost:8000/api/v1", AppEnv.Prod)).toContain("produção");
+    expect(environmentWarning("https://api.example.com/api/v1", AppEnv.Local)).toContain("local");
+  });
+});

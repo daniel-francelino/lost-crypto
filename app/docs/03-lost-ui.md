@@ -61,7 +61,7 @@ Do not install `input-otp`, `libphonenumber-js`, `country-flag-icons`, `emoji-pi
 | Empty list / no results | `Empty` | |
 | Forms | `Form` + fields with `rules` | Never hand-validate what `rules` covers. `rules.required()`, `email()`, `minLength()`, `matches()` |
 | Strategy parameters form | `FormBuilder` | Fields built from the strategy's parameters delivered by `GET /strategies` (`name`, `type`, `default`, `minimum`, `description`; there is no maximum, the backend validates the rest and answers 422) |
-| Money / quantity inputs | `FormInputMoney`, `FormInputNumber` | Value stays a **string**; see [04](04-api-client.md#money-and-numbers) |
+| Money / quantity inputs | `FormInput` with `inputMode="decimal"` and the validators of `lib/shared/validators.ts` | `FormInputMoney` / `FormInputNumber` hold a JavaScript `number`, so they are **not** used for money (request L6) |
 | Select, switch, radio, slider | `FormSelect`, `FormSwitch`, `FormRadioGroup`, `FormSlider` | |
 | Secrets (API key / secret) | `FormInputPassword` | Plus the handling rules of [05](05-authentication.md#exchange-keys) |
 | Confirm a destructive or irreversible action | `AlertDialog`; for typed confirmation, `Modal` with a `FormInput` and `rules.matches` | Kill switch, stop, reset portfolio, promote to live |
@@ -77,18 +77,9 @@ Do not install `input-otp`, `libphonenumber-js`, `country-flag-icons`, `emoji-pi
 | Loading | `Skeleton` | Skeletons keep the layout height |
 | Page swap animation | `PageTransition` / `transitionKey` | Do not write `motion` code |
 
-## What lost-ui does not have yet (file a request, do not rebuild)
+## What lost-ui does not have yet
 
-Keep these in a single `docs/lost-ui-requests.md` (aura's pattern: one table, each request with the app's workaround and a status, updated in place). Initial candidates, to be confirmed against the library when the first chart screen is built:
-
-| ID | Request | Workaround until done |
-|---|---|---|
-| L1 | **Candlestick (OHLC) chart** with trade markers (buy/sell arrows) and optional indicator overlays (EMA lines, Donchian channel) | `LineChart` of close price with the markers drawn as a second series |
-| L2 | **Chart zoom / range brush** for long equity curves | Fetch a bounded range and let the user pick the range with a form |
-| L3 | **Stat tile / KPI card** with value, delta and sign colouring | `Card` with typography; no reusable piece |
-| L4 | **Live status dot** with accessible label (pulsing "worker alive") that honours reduced motion | `Badge` with text |
-
-Add prop-level requests the same way (a column type for decimal strings in `DataTable`, a `tone` per row, …).
+Tracked in [lost-ui-requests.md](lost-ui-requests.md) (one table, updated in place, each row with the workaround in use). The ones that matter most today: candlestick chart with trade markers (L1), chart axis domain/zoom (L2), the destructive button losing contrast in dark mode (L5, worked around by `DangerButton`), and money inputs that hold strings (L6).
 
 ## Verified in F0, and what still is not
 

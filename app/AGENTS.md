@@ -2,8 +2,8 @@
 
 These rules prevail over any document. Detail and rationale: `docs/README.md` (decisions F1–F10), `docs/08-quality.md` (rules and Definition of Done).
 
-- Stack: TanStack Start in **SPA mode** (no server code), Router, Query, React 19, Vite, Tailwind 4, zod 3, `lost-ui`. The only backend is `../api` (FastAPI); the app has no database, secrets or business rules.
-- Folders by **module** (`auth`, `bots`, `backtests`, `market-data`, `strategies`, `exchanges`, `system`, `audit`, `shared`) inside `components`, `lib`, `hooks`. A module imports itself and `shared` only. Imports use the `@/` alias, no re-exporting `index.ts`.
+- Stack: TanStack Start in **SPA mode** (no server code), Router, Query, React 19, Vite, Tailwind 4, zod 4, `lost-ui`. The only backend is `../api` (FastAPI); the app has no database, secrets or business rules.
+- Folders by **module** (`auth`, `bots`, `backtests`, `market-data`, `exchanges`, `system`, `audit`, `shared`; what two modules need, such as the strategy catalogue, lives in `shared`) inside `components`, `lib`, `hooks`. A module imports itself and `shared` only. Imports use the `@/` alias, no re-exporting `index.ts`.
 - No comments in `src` (only `eslint-disable … -- reason` and `@ts-expect-error`). No `console` (use `logError`, which redacts secrets). No `any`, `!`, `as unknown as`, nested `if`. Strict TypeScript flags stay on.
 - No loose text where a constant exists: enums in `lib/shared/enums.ts` (`as const`, `z.nativeEnum`), `QueryKey.*`, `AppRoute.*`, `StoredKey` for browser storage.
 - **Money and quantities are decimal strings.** Format only through `lib/shared/format.ts`. Dates only through `lib/shared/dates.ts`; show UTC explicitly for candle and daily-cap times.

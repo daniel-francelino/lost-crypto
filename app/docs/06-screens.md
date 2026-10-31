@@ -2,6 +2,8 @@
 
 Each screen: route, API calls, lost-ui pieces, states, permissions. The product behaviour (what a bot, a backtest, the kill switch *mean*) is documented in the backend's [architecture docs](../../api/docs/architecture/README.md); this is only the UI contract. UI labels are Brazilian Portuguese, in quotes.
 
+> **Implemented.** Every screen below exists. Differences from the plan are listed in [09](09-roadmap.md#deviations-from-the-plan-found-while-building).
+
 All authenticated screens sit under `_app` (shell with `BackofficeLayout`). Every screen implements, in this order: **skeleton → error with retry → empty → no results → data** (aura UI-2), and the polling of [04](04-api-client.md#polling-decision-f10).
 
 ## Global shell

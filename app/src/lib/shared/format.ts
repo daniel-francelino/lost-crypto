@@ -1,0 +1,77 @@
+const LOCALE = "pt-BR";
+const EMPTY = "—";
+
+type Digits = { min: number; max: number };
+
+const MONEY: Digits = { min: 2, max: 2 };
+const PRICE: Digits = { min: 2, max: 8 };
+const QUANTITY: Digits = { min: 0, max: 8 };
+const PERCENT: Digits = { min: 2, max: 2 };
+
+const formatter = (digits: Digits, signed: boolean) =>
+  new Intl.NumberFormat(LOCALE, {
+    minimumFractionDigits: digits.min,
+    maximumFractionDigits: digits.max,
+    ...(signed ? { signDisplay: "exceptZero" as const } : {}),
+  });
+
+const isDecimal = (value: string): value is Intl.StringNumericLiteral =>
+  /^-?\d+(\.\d+)?$/.test(value);
+
+const decimal = (value: string | null | undefined, digits: Digits, signed = false): string => {
+  if (value === null || value === undefined || !isDecimal(value)) return EMPTY;
+  return formatter(digits, signed).format(value);
+};
+
+export const formatMoney = (value: string | null | undefined, quote: string): string => {
+  const text = decimal(value, MONEY);
+  return text === EMPTY ? EMPTY : `${text} ${quote}`;
+};
+
+export const formatSignedMoney = (value: string | null | undefined, quote: string): string => {
+  const text = decimal(value, MONEY, true);
+  return text === EMPTY ? EMPTY : `${text} ${quote}`;
+};
+
+export const formatPrice = (value: string | null | undefined): string => decimal(value, PRICE);
+
+export const formatQuantity = (value: string | null | undefined): string =>
+  decimal(value, QUANTITY);
+
+export const formatPercent = (value: string | null | undefined): string => {
+  const text = decimal(value, PERCENT);
+  return text === EMPTY ? EMPTY : `${text}%`;
+};
+
+export const formatSignedPercent = (value: string | null | undefined): string => {
+  const text = decimal(value, PERCENT, true);
+  return text === EMPTY ? EMPTY : `${text}%`;
+};
+
+export const formatInteger = (value: number): string =>
+  new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 0 }).format(value);
+
+export const quoteCurrency = (symbol: string): string => symbol.split("/").at(-1) ?? symbol;
+
+export const Sign = {
+  Positive: "positive",
+  Negative: "negative",
+  Zero: "zero",
+  Unknown: "unknown",
+} as const;
+export type Sign = (typeof Sign)[keyof typeof Sign];
+
+export const signOf = (value: string | null | undefined): Sign => {
+  if (value === null || value === undefined || !isDecimal(value)) return Sign.Unknown;
+  if (/^-0(\.0+)?$/.test(value) || /^0(\.0+)?$/.test(value)) return Sign.Zero;
+  return value.startsWith("-") ? Sign.Negative : Sign.Positive;
+};
+
+export const shortId = (value: string): string =>
+  value.length <= 12 ? value : `${value.slice(0, 6)}…${value.slice(-4)}`;
+
+export const compareDecimal = (a: string | null, b: string | null): number => {
+  const left = a === null || !isDecimal(a) ? Number.NEGATIVE_INFINITY : Number.parseFloat(a);
+  const right = b === null || !isDecimal(b) ? Number.NEGATIVE_INFINITY : Number.parseFloat(b);
+  return left === right ? 0 : left < right ? -1 : 1;
+};

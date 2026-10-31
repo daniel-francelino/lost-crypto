@@ -29,11 +29,12 @@ They mirror the backend modules, so a backend change has an obvious frontend hom
 | `bots` | `/bots/*` | list, detail, create/edit, controls, live promotion and approval |
 | `backtests` | `/backtests/*` | run form, results, sweeps, compare |
 | `market-data` | `/market-data/*` | coverage, imports, candles |
-| `strategies` | `/strategies` | catalogue, parameter form generated from `PARAMETERS` |
-| `exchanges` | `/exchange-connections/*` | connections (testnet / live) and their verification state |
-| `system` | `/system/*`, `/health` | status, worker heartbeat, kill switch |
+| `exchanges` | `/exchange-connections/*` | connections page and creation form (the read side lives in `shared`, see below) |
+| `system` | `/system/*` | the *Status* page (the safety strip and the kill switch are in `shared/layout`) |
 | `audit` | `/audit-events` | event log |
 | `shared` | — | API client, `ApiError`, enums, query keys, formatting, dates, layout wiring, hooks used by 2+ modules |
+
+**What lives in `shared` and why.** Several modules need the same read-only catalogues, so they cannot sit in one of them: the strategy catalogue and its parameter form (`lib/shared/strategies`, `components/shared/strategy`; used by `bots` and `backtests`), the list of connections (`lib/shared/exchanges`; used by `bots` and `exchanges`), market-data coverage (`lib/shared/market-data`), system status/capabilities/kill switch (`lib/shared/system`; used by the shell and every live-sensitive screen), the audit table (`components/shared/audit`; used by the audit screen and the bot tab), metrics/equity pieces, status badges, `ConfirmDialog`, form validators. This is why `strategies` is **not** a module here although it is a backend module. ESLint enforces the boundary: `bots`, `backtests`, `market-data`, `exchanges`, `system`, `audit`, `auth` import only themselves and `shared`.
 
 `shared` is a module like the others in the tree (`components/shared`, `lib/shared`, `hooks/shared`).
 

@@ -12,6 +12,23 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppForbiddenRouteImport } from './routes/_app/forbidden'
+import { Route as AppAuditIndexRouteImport } from './routes/_app/audit/index'
+import { Route as AppBacktestsIndexRouteImport } from './routes/_app/backtests/index'
+import { Route as AppBacktestsCompareRouteImport } from './routes/_app/backtests/compare'
+import { Route as AppBacktestsNewRouteImport } from './routes/_app/backtests/new'
+import { Route as AppBotsIndexRouteImport } from './routes/_app/bots/index'
+import { Route as AppBotsNewRouteImport } from './routes/_app/bots/new'
+import { Route as AppExchangesIndexRouteImport } from './routes/_app/exchanges/index'
+import { Route as AppExchangesNewRouteImport } from './routes/_app/exchanges/new'
+import { Route as AppMarketDataIndexRouteImport } from './routes/_app/market-data/index'
+import { Route as AppSettingsProfileRouteImport } from './routes/_app/settings/profile'
+import { Route as AppSettingsUsersRouteImport } from './routes/_app/settings/users'
+import { Route as AppSystemIndexRouteImport } from './routes/_app/system/index'
+import { Route as AppBacktestsRunIdIndexRouteImport } from './routes/_app/backtests/$runId/index'
+import { Route as AppBacktestsSweepsSweepIdRouteImport } from './routes/_app/backtests/sweeps/$sweepId'
+import { Route as AppBotsBotIdIndexRouteImport } from './routes/_app/bots/$botId/index'
+import { Route as AppBotsBotIdEditRouteImport } from './routes/_app/bots/$botId/edit'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -27,27 +44,223 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppForbiddenRoute = AppForbiddenRouteImport.update({
+  id: '/forbidden',
+  path: '/forbidden',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAuditIndexRoute = AppAuditIndexRouteImport.update({
+  id: '/audit/',
+  path: '/audit/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBacktestsIndexRoute = AppBacktestsIndexRouteImport.update({
+  id: '/backtests/',
+  path: '/backtests/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBacktestsCompareRoute = AppBacktestsCompareRouteImport.update({
+  id: '/backtests/compare',
+  path: '/backtests/compare',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBacktestsNewRoute = AppBacktestsNewRouteImport.update({
+  id: '/backtests/new',
+  path: '/backtests/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBotsIndexRoute = AppBotsIndexRouteImport.update({
+  id: '/bots/',
+  path: '/bots/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBotsNewRoute = AppBotsNewRouteImport.update({
+  id: '/bots/new',
+  path: '/bots/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppExchangesIndexRoute = AppExchangesIndexRouteImport.update({
+  id: '/exchanges/',
+  path: '/exchanges/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppExchangesNewRoute = AppExchangesNewRouteImport.update({
+  id: '/exchanges/new',
+  path: '/exchanges/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMarketDataIndexRoute = AppMarketDataIndexRouteImport.update({
+  id: '/market-data/',
+  path: '/market-data/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsProfileRoute = AppSettingsProfileRouteImport.update({
+  id: '/settings/profile',
+  path: '/settings/profile',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsUsersRoute = AppSettingsUsersRouteImport.update({
+  id: '/settings/users',
+  path: '/settings/users',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSystemIndexRoute = AppSystemIndexRouteImport.update({
+  id: '/system/',
+  path: '/system/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBacktestsRunIdIndexRoute = AppBacktestsRunIdIndexRouteImport.update({
+  id: '/backtests/$runId/',
+  path: '/backtests/$runId/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBacktestsSweepsSweepIdRoute =
+  AppBacktestsSweepsSweepIdRouteImport.update({
+    id: '/backtests/sweeps/$sweepId',
+    path: '/backtests/sweeps/$sweepId',
+    getParentRoute: () => AppRoute,
+  } as any)
+const AppBotsBotIdIndexRoute = AppBotsBotIdIndexRouteImport.update({
+  id: '/bots/$botId/',
+  path: '/bots/$botId/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBotsBotIdEditRoute = AppBotsBotIdEditRouteImport.update({
+  id: '/bots/$botId/edit',
+  path: '/bots/$botId/edit',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
+  '/forbidden': typeof AppForbiddenRoute
+  '/backtests/compare': typeof AppBacktestsCompareRoute
+  '/backtests/new': typeof AppBacktestsNewRoute
+  '/bots/new': typeof AppBotsNewRoute
+  '/exchanges/new': typeof AppExchangesNewRoute
+  '/settings/profile': typeof AppSettingsProfileRoute
+  '/settings/users': typeof AppSettingsUsersRoute
+  '/audit/': typeof AppAuditIndexRoute
+  '/backtests/': typeof AppBacktestsIndexRoute
+  '/bots/': typeof AppBotsIndexRoute
+  '/exchanges/': typeof AppExchangesIndexRoute
+  '/market-data/': typeof AppMarketDataIndexRoute
+  '/system/': typeof AppSystemIndexRoute
+  '/backtests/sweeps/$sweepId': typeof AppBacktestsSweepsSweepIdRoute
+  '/bots/$botId/edit': typeof AppBotsBotIdEditRoute
+  '/backtests/$runId/': typeof AppBacktestsRunIdIndexRoute
+  '/bots/$botId/': typeof AppBotsBotIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/forbidden': typeof AppForbiddenRoute
   '/': typeof AppIndexRoute
+  '/backtests/compare': typeof AppBacktestsCompareRoute
+  '/backtests/new': typeof AppBacktestsNewRoute
+  '/bots/new': typeof AppBotsNewRoute
+  '/exchanges/new': typeof AppExchangesNewRoute
+  '/settings/profile': typeof AppSettingsProfileRoute
+  '/settings/users': typeof AppSettingsUsersRoute
+  '/audit': typeof AppAuditIndexRoute
+  '/backtests': typeof AppBacktestsIndexRoute
+  '/bots': typeof AppBotsIndexRoute
+  '/exchanges': typeof AppExchangesIndexRoute
+  '/market-data': typeof AppMarketDataIndexRoute
+  '/system': typeof AppSystemIndexRoute
+  '/backtests/sweeps/$sweepId': typeof AppBacktestsSweepsSweepIdRoute
+  '/bots/$botId/edit': typeof AppBotsBotIdEditRoute
+  '/backtests/$runId': typeof AppBacktestsRunIdIndexRoute
+  '/bots/$botId': typeof AppBotsBotIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/_app/forbidden': typeof AppForbiddenRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/backtests/compare': typeof AppBacktestsCompareRoute
+  '/_app/backtests/new': typeof AppBacktestsNewRoute
+  '/_app/bots/new': typeof AppBotsNewRoute
+  '/_app/exchanges/new': typeof AppExchangesNewRoute
+  '/_app/settings/profile': typeof AppSettingsProfileRoute
+  '/_app/settings/users': typeof AppSettingsUsersRoute
+  '/_app/audit/': typeof AppAuditIndexRoute
+  '/_app/backtests/': typeof AppBacktestsIndexRoute
+  '/_app/bots/': typeof AppBotsIndexRoute
+  '/_app/exchanges/': typeof AppExchangesIndexRoute
+  '/_app/market-data/': typeof AppMarketDataIndexRoute
+  '/_app/system/': typeof AppSystemIndexRoute
+  '/_app/backtests/sweeps/$sweepId': typeof AppBacktestsSweepsSweepIdRoute
+  '/_app/bots/$botId/edit': typeof AppBotsBotIdEditRoute
+  '/_app/backtests/$runId/': typeof AppBacktestsRunIdIndexRoute
+  '/_app/bots/$botId/': typeof AppBotsBotIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/forbidden'
+    | '/backtests/compare'
+    | '/backtests/new'
+    | '/bots/new'
+    | '/exchanges/new'
+    | '/settings/profile'
+    | '/settings/users'
+    | '/audit/'
+    | '/backtests/'
+    | '/bots/'
+    | '/exchanges/'
+    | '/market-data/'
+    | '/system/'
+    | '/backtests/sweeps/$sweepId'
+    | '/bots/$botId/edit'
+    | '/backtests/$runId/'
+    | '/bots/$botId/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/'
-  id: '__root__' | '/_app' | '/login' | '/_app/'
+  to:
+    | '/login'
+    | '/forbidden'
+    | '/'
+    | '/backtests/compare'
+    | '/backtests/new'
+    | '/bots/new'
+    | '/exchanges/new'
+    | '/settings/profile'
+    | '/settings/users'
+    | '/audit'
+    | '/backtests'
+    | '/bots'
+    | '/exchanges'
+    | '/market-data'
+    | '/system'
+    | '/backtests/sweeps/$sweepId'
+    | '/bots/$botId/edit'
+    | '/backtests/$runId'
+    | '/bots/$botId'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/login'
+    | '/_app/forbidden'
+    | '/_app/'
+    | '/_app/backtests/compare'
+    | '/_app/backtests/new'
+    | '/_app/bots/new'
+    | '/_app/exchanges/new'
+    | '/_app/settings/profile'
+    | '/_app/settings/users'
+    | '/_app/audit/'
+    | '/_app/backtests/'
+    | '/_app/bots/'
+    | '/_app/exchanges/'
+    | '/_app/market-data/'
+    | '/_app/system/'
+    | '/_app/backtests/sweeps/$sweepId'
+    | '/_app/bots/$botId/edit'
+    | '/_app/backtests/$runId/'
+    | '/_app/bots/$botId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -78,15 +291,168 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/forbidden': {
+      id: '/_app/forbidden'
+      path: '/forbidden'
+      fullPath: '/forbidden'
+      preLoaderRoute: typeof AppForbiddenRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/audit/': {
+      id: '/_app/audit/'
+      path: '/audit'
+      fullPath: '/audit/'
+      preLoaderRoute: typeof AppAuditIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/backtests/': {
+      id: '/_app/backtests/'
+      path: '/backtests'
+      fullPath: '/backtests/'
+      preLoaderRoute: typeof AppBacktestsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/backtests/compare': {
+      id: '/_app/backtests/compare'
+      path: '/backtests/compare'
+      fullPath: '/backtests/compare'
+      preLoaderRoute: typeof AppBacktestsCompareRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/backtests/new': {
+      id: '/_app/backtests/new'
+      path: '/backtests/new'
+      fullPath: '/backtests/new'
+      preLoaderRoute: typeof AppBacktestsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/bots/': {
+      id: '/_app/bots/'
+      path: '/bots'
+      fullPath: '/bots/'
+      preLoaderRoute: typeof AppBotsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/bots/new': {
+      id: '/_app/bots/new'
+      path: '/bots/new'
+      fullPath: '/bots/new'
+      preLoaderRoute: typeof AppBotsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/exchanges/': {
+      id: '/_app/exchanges/'
+      path: '/exchanges'
+      fullPath: '/exchanges/'
+      preLoaderRoute: typeof AppExchangesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/exchanges/new': {
+      id: '/_app/exchanges/new'
+      path: '/exchanges/new'
+      fullPath: '/exchanges/new'
+      preLoaderRoute: typeof AppExchangesNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/market-data/': {
+      id: '/_app/market-data/'
+      path: '/market-data'
+      fullPath: '/market-data/'
+      preLoaderRoute: typeof AppMarketDataIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings/profile': {
+      id: '/_app/settings/profile'
+      path: '/settings/profile'
+      fullPath: '/settings/profile'
+      preLoaderRoute: typeof AppSettingsProfileRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings/users': {
+      id: '/_app/settings/users'
+      path: '/settings/users'
+      fullPath: '/settings/users'
+      preLoaderRoute: typeof AppSettingsUsersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/system/': {
+      id: '/_app/system/'
+      path: '/system'
+      fullPath: '/system/'
+      preLoaderRoute: typeof AppSystemIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/backtests/$runId/': {
+      id: '/_app/backtests/$runId/'
+      path: '/backtests/$runId'
+      fullPath: '/backtests/$runId/'
+      preLoaderRoute: typeof AppBacktestsRunIdIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/backtests/sweeps/$sweepId': {
+      id: '/_app/backtests/sweeps/$sweepId'
+      path: '/backtests/sweeps/$sweepId'
+      fullPath: '/backtests/sweeps/$sweepId'
+      preLoaderRoute: typeof AppBacktestsSweepsSweepIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/bots/$botId/': {
+      id: '/_app/bots/$botId/'
+      path: '/bots/$botId'
+      fullPath: '/bots/$botId/'
+      preLoaderRoute: typeof AppBotsBotIdIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/bots/$botId/edit': {
+      id: '/_app/bots/$botId/edit'
+      path: '/bots/$botId/edit'
+      fullPath: '/bots/$botId/edit'
+      preLoaderRoute: typeof AppBotsBotIdEditRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
+  AppForbiddenRoute: typeof AppForbiddenRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppBacktestsCompareRoute: typeof AppBacktestsCompareRoute
+  AppBacktestsNewRoute: typeof AppBacktestsNewRoute
+  AppBotsNewRoute: typeof AppBotsNewRoute
+  AppExchangesNewRoute: typeof AppExchangesNewRoute
+  AppSettingsProfileRoute: typeof AppSettingsProfileRoute
+  AppSettingsUsersRoute: typeof AppSettingsUsersRoute
+  AppAuditIndexRoute: typeof AppAuditIndexRoute
+  AppBacktestsIndexRoute: typeof AppBacktestsIndexRoute
+  AppBotsIndexRoute: typeof AppBotsIndexRoute
+  AppExchangesIndexRoute: typeof AppExchangesIndexRoute
+  AppMarketDataIndexRoute: typeof AppMarketDataIndexRoute
+  AppSystemIndexRoute: typeof AppSystemIndexRoute
+  AppBacktestsSweepsSweepIdRoute: typeof AppBacktestsSweepsSweepIdRoute
+  AppBotsBotIdEditRoute: typeof AppBotsBotIdEditRoute
+  AppBacktestsRunIdIndexRoute: typeof AppBacktestsRunIdIndexRoute
+  AppBotsBotIdIndexRoute: typeof AppBotsBotIdIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppForbiddenRoute: AppForbiddenRoute,
   AppIndexRoute: AppIndexRoute,
+  AppBacktestsCompareRoute: AppBacktestsCompareRoute,
+  AppBacktestsNewRoute: AppBacktestsNewRoute,
+  AppBotsNewRoute: AppBotsNewRoute,
+  AppExchangesNewRoute: AppExchangesNewRoute,
+  AppSettingsProfileRoute: AppSettingsProfileRoute,
+  AppSettingsUsersRoute: AppSettingsUsersRoute,
+  AppAuditIndexRoute: AppAuditIndexRoute,
+  AppBacktestsIndexRoute: AppBacktestsIndexRoute,
+  AppBotsIndexRoute: AppBotsIndexRoute,
+  AppExchangesIndexRoute: AppExchangesIndexRoute,
+  AppMarketDataIndexRoute: AppMarketDataIndexRoute,
+  AppSystemIndexRoute: AppSystemIndexRoute,
+  AppBacktestsSweepsSweepIdRoute: AppBacktestsSweepsSweepIdRoute,
+  AppBotsBotIdEditRoute: AppBotsBotIdEditRoute,
+  AppBacktestsRunIdIndexRoute: AppBacktestsRunIdIndexRoute,
+  AppBotsBotIdIndexRoute: AppBotsBotIdIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

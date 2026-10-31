@@ -1,0 +1,294 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import { PageHeader } from "lost-ui/app/page-header";
+import { Form } from "lost-ui/forms/form";
+import { FormInput } from "lost-ui/forms/form-input";
+import { FormSelect } from "lost-ui/forms/form-select";
+import { FormSwitch } from "lost-ui/forms/form-switch";
+import { rules } from "lost-ui/forms/rules";
+import { Button } from "lost-ui/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "lost-ui/ui/card";
+import { ErrorBlock, SkeletonBlock } from "@/components/shared/feedback/query-boundary";
+import { CoverageNotice } from "@/components/shared/market-data/coverage-notice";
+import { StrategyFields } from "@/components/shared/strategy/strategy-fields";
+import { createBacktest, createSweep } from "@/lib/backtests/backtests.api";
+import {
+  type BacktestFormValues,
+  buildGrid,
+  combinationCount,
+  defaultBacktestValues,
+  gridError,
+  toBacktestInput,
+} from "@/lib/backtests/form";
+import { useStrategies } from "@/hooks/shared/use-catalog";
+import { useCapabilities } from "@/hooks/shared/use-system";
+import { errorMessage } from "@/lib/shared/api/messages";
+import { QueryKey } from "@/lib/shared/api/query-keys";
+import { decimalError, integerError, symbolError } from "@/lib/shared/validators";
+import { isDayString } from "@/lib/shared/dates";
+import { Timeframe } from "@/lib/shared/enums";
+import { defaultParamValues } from "@/lib/shared/strategies/params";
+import type { Strategy } from "@/lib/shared/strategies/strategies.api";
+
+const TIMEFRAMES = Object.values(Timeframe).map((value) => ({ label: value, value }));
+
+function BacktestForm({ strategies, exchanges }: { strategies: Strategy[]; exchanges: string[] }) {
+  const navigate = useNavigate();
+  const client = useQueryClient();
+  const [values, setValues] = useState<BacktestFormValues>(() =>
+    defaultBacktestValues(strategies[0]),
+  );
+  const [error, setError] = useState<string | null>(null);
+  const strategy = strategies.find((item) => item.type_key === values.strategyType);
+  const set = <K extends keyof BacktestFormValues>(key: K, value: BacktestFormValues[K]) =>
+    setValues((current) => ({ ...current, [key]: value }));
+
+  const grid = values.sweep ? buildGrid(strategy, values.grid) : {};
+  const gridProblem = typeof grid === "string" ? grid : values.sweep ? gridError(grid) : undefined;
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const input = toBacktestInput(values, strategy);
+      if (typeof grid !== "string" && values.sweep) {
+        const sweep = await createSweep(input, grid);
+        return { sweepId: sweep.id, runId: null };
+      }
+      const run = await createBacktest(input);
+      return { sweepId: null, runId: run.id };
+    },
+    onSuccess: async (created) => {
+      await client.invalidateQueries({ queryKey: QueryKey.Backtests.all() });
+      if (created.sweepId !== null) {
+        await navigate({ to: "/backtests/sweeps/$sweepId", params: { sweepId: created.sweepId } });
+        return;
+      }
+      if (created.runId !== null) {
+        await navigate({ to: "/backtests/$runId", params: { runId: created.runId } });
+      }
+    },
+    onError: (failure) => setError(errorMessage(failure)),
+  });
+
+  return (
+    <Form
+      onSubmit={() => {
+        setError(null);
+        if (gridProblem !== undefined) {
+          setError(gridProblem);
+          return;
+        }
+        mutation.mutate();
+      }}
+      className="space-y-6"
+    >
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Dados</CardTitle>
+          <CardDescription>
+            Datas em UTC. O período precisa estar nos candles salvos.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <FormSelect
+              label="Exchange"
+              items={exchanges.map((value) => ({ label: value, value }))}
+              value={values.exchange}
+              onValueChange={(value) => set("exchange", value)}
+            />
+            <FormInput
+              label="Símbolo"
+              required
+              value={values.symbol}
+              onValueChange={(value) => set("symbol", value)}
+              rules={[(value) => symbolError(value ?? "")]}
+            />
+            <FormSelect
+              label="Intervalo"
+              items={TIMEFRAMES}
+              value={values.timeframe}
+              onValueChange={(value) => set("timeframe", value)}
+            />
+            <FormInput
+              label="De (UTC)"
+              type="date"
+              value={values.start}
+              onValueChange={(value) => set("start", value)}
+              rules={[(value) => (isDayString(value ?? "") ? undefined : "Data inválida.")]}
+            />
+            <FormInput
+              label="Até (UTC)"
+              type="date"
+              value={values.end}
+              onValueChange={(value) => set("end", value)}
+              rules={[
+                (value) => (isDayString(value ?? "") ? undefined : "Data inválida."),
+                () => (values.start <= values.end ? undefined : "O fim deve ser depois do início."),
+              ]}
+            />
+          </div>
+          {isDayString(values.start) && isDayString(values.end) ? (
+            <CoverageNotice
+              exchange={values.exchange}
+              symbol={values.symbol.trim().toUpperCase()}
+              timeframe={values.timeframe}
+              start={values.start}
+              end={values.end}
+            />
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Estratégia</CardTitle>
+          <CardDescription>{strategy?.description}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <FormSelect
+            label="Estratégia"
+            items={strategies.map((item) => ({ label: item.name, value: item.type_key }))}
+            value={values.strategyType}
+            onValueChange={(value) =>
+              setValues((current) => ({
+                ...current,
+                strategyType: value,
+                params: defaultParamValues(strategies.find((item) => item.type_key === value)),
+                grid: {},
+              }))
+            }
+          />
+          <FormSwitch
+            label="Varredura de parâmetros"
+            description="Roda uma simulação para cada combinação de valores e compara os resultados."
+            value={values.sweep}
+            onValueChange={(value) => set("sweep", value)}
+          />
+          {values.sweep ? (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Informe valores separados por vírgula (ex.: 5, 9, 12). Parâmetros em branco usam o
+                valor padrão. Máximo de 200 combinações.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {strategy?.parameters.map((param) => (
+                  <FormInput
+                    key={param.name}
+                    label={param.name}
+                    description={param.description}
+                    value={values.grid[param.name] ?? ""}
+                    onValueChange={(value) => set("grid", { ...values.grid, [param.name]: value })}
+                  />
+                ))}
+              </div>
+              <p className="text-sm">
+                {typeof grid === "string" ? grid : `${combinationCount(grid)} combinações.`}
+              </p>
+            </div>
+          ) : (
+            <StrategyFields
+              strategy={strategy}
+              values={values.params}
+              onChange={(name, value) => set("params", { ...values.params, [name]: value })}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Capital, custos e validação</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <FormInput
+            label="Capital inicial"
+            required
+            inputMode="decimal"
+            value={values.initialCapital}
+            onValueChange={(value) => set("initialCapital", value)}
+            rules={[(value) => decimalError(value ?? "", true)]}
+          />
+          <FormInput
+            label="Taxa (fração)"
+            inputMode="decimal"
+            description="Vazio usa a taxa da exchange."
+            value={values.feeRate}
+            onValueChange={(value) => set("feeRate", value)}
+            rules={[(value) => decimalError(value ?? "", false)]}
+          />
+          <FormInput
+            label="Slippage (bps)"
+            required
+            inputMode="decimal"
+            value={values.slippageBps}
+            onValueChange={(value) => set("slippageBps", value)}
+            rules={[(value) => decimalError(value ?? "", true)]}
+          />
+          <FormInput
+            label="Semente"
+            inputMode="numeric"
+            value={values.seed}
+            onValueChange={(value) => set("seed", value)}
+            rules={[(value) => integerError(value ?? "")]}
+          />
+          <FormInput
+            label="Fração fora da amostra"
+            inputMode="decimal"
+            description="Parte final da série guardada para teste (0 a 1). Vazio desliga."
+            value={values.testFraction}
+            onValueChange={(value) => set("testFraction", value)}
+            rules={[
+              (value) => {
+                const text = (value ?? "").trim();
+                if (text === "") return undefined;
+                return (
+                  decimalError(text, false) ??
+                  (text.startsWith("0.") ? undefined : "Use um valor entre 0 e 1.")
+                );
+              },
+              rules.maxLength(8),
+            ]}
+          />
+        </CardContent>
+      </Card>
+
+      {error === null ? null : (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
+      <div className="flex gap-2">
+        <Button type="submit" disabled={mutation.isPending}>
+          {mutation.isPending ? "Enviando…" : values.sweep ? "Rodar varredura" : "Rodar backtest"}
+        </Button>
+        <Button type="button" variant="outline" onClick={() => void navigate({ to: "/backtests" })}>
+          Cancelar
+        </Button>
+      </div>
+    </Form>
+  );
+}
+
+export function BacktestFormPage() {
+  const strategies = useStrategies();
+  const capabilities = useCapabilities();
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Novo backtest"
+        description="Resultados são históricos e simulados; não garantem resultado futuro."
+      />
+      {strategies.isError ? (
+        <ErrorBlock error={strategies.error} onRetry={() => void strategies.refetch()} />
+      ) : strategies.data === undefined ? (
+        <SkeletonBlock rows={5} />
+      ) : (
+        <BacktestForm
+          strategies={strategies.data}
+          exchanges={capabilities.data?.exchanges ?? ["binance"]}
+        />
+      )}
+    </div>
+  );
+}

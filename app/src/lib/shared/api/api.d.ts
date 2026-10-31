@@ -1193,6 +1193,7 @@ export interface components {
             id: string;
             /** Name */
             name: string;
+            mode: components["schemas"]["ExecutionMode"];
             /** Exchange */
             exchange: string;
             /** Symbol */

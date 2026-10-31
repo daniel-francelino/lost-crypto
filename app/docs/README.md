@@ -4,7 +4,7 @@ The operator console of Lost Crypto: a single-user (or few-operator) web app to 
 
 The stack is the one of the sibling project `aura-creative` (TanStack Start, React 19, Tailwind 4, zod) and the UI comes from the shared library **`lost-ui`**. This documentation is the result of reading that project and its standards; where Lost Crypto differs, the difference is written down in [Deviations](#deviations-from-aura-creative).
 
-> **Status: F0 (scaffold) is done**; the app builds and renders the login page and the empty shell, nothing else exists yet. Every other screen is still a plan ([09](09-roadmap.md)). What F0 confirmed and what it did not is in [09](09-roadmap.md#f0-what-was-verified).
+> **Status: F0–F9 are implemented** (see [09](09-roadmap.md)): login and roles, dashboard, bots (list, detail, create/edit, controls), kill switch, backtests and sweeps, market data, connections, live promotion flow, audit, users. Verified against the real backend in Docker (13 end-to-end tests + WCAG A/AA scans in light and dark). **Not verified:** anything with real exchange keys or real money, a real static host, and other browsers. What was and was not checked is in [09](09-roadmap.md#what-was-verified).
 
 ## Map
 
@@ -18,7 +18,9 @@ The stack is the one of the sibling project `aura-creative` (TanStack Start, Rea
 | 06 | [Screens](06-screens.md) | Every screen: route, endpoints, lost-ui pieces, states, permissions |
 | 07 | [UX rules for a trading console](07-ux-rules.md) | Live-money safeguards in the UI, state coverage, money/date display, accessibility |
 | 08 | [Quality](08-quality.md) | Code rules, lint, tests, CI, Definition of Done |
-| 09 | [Roadmap](09-roadmap.md) | Build order, aligned with the backend phases |
+| 09 | [Roadmap](09-roadmap.md) | Build order, aligned with the backend phases, and what was verified |
+| 10 | [Deployment](10-deployment.md) | Static hosting, same-site cookies, security headers, operator runbook |
+| — | [lost-ui requests](lost-ui-requests.md) | What the library lacks and the workaround in use |
 
 Backend references the frontend depends on: [14 — Authentication](../../api/docs/architecture/14-authentication.md), [13 — Live trading](../../api/docs/architecture/13-live-trading.md), [`openapi.json`](../../api/docs/openapi.json) (also served at `/docs` by the running API).
 
@@ -26,7 +28,7 @@ Backend references the frontend depends on: [14 — Authentication](../../api/do
 
 | # | Decision | Why |
 |---|---|---|
-| F1 | TanStack Start + Router + Query, React 19, Vite, Tailwind 4, zod 3 — the aura-creative stack | One stack across the author's projects; the rules and lint config can be reused |
+| F1 | TanStack Start + Router + Query, React 19, Vite, Tailwind 4, zod 4 — the aura-creative stack | One stack across the author's projects; the rules and lint config can be reused |
 | F2 | **Client-rendered (Start's SPA mode); no server functions** | The access token lives in memory and the refresh cookie belongs to the API origin, so a server render cannot be authenticated. All data comes from FastAPI, so there is nothing for a Start server to do |
 | F3 | UI = `lost-ui` first; app-specific components only when the library has nothing (and a request is filed) | Same rule as aura-creative |
 | F4 | Folders by **module** (`bots`, `backtests`, …) mirroring the backend modules; modules never import each other, shared code goes to `shared` | Same idea as aura's "spaces", enforced by ESLint |

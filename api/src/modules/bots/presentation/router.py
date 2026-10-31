@@ -170,6 +170,7 @@ class PortfolioOut(BaseModel):
 class BotOverviewOut(BaseModel):
     id: UUID
     name: str
+    mode: ExecutionMode
     exchange: str
     symbol: str
     timeframe: Timeframe
@@ -306,6 +307,7 @@ async def get_overview(request: Request) -> list[BotOverviewOut]:
         BotOverviewOut(
             id=r.bot.id,
             name=r.bot.config.name,
+            mode=r.bot.config.mode,
             exchange=r.bot.config.exchange,
             symbol=r.bot.config.symbol,
             timeframe=r.bot.config.timeframe,

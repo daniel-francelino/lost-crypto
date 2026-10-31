@@ -1,4 +1,17 @@
 export const AppRoute = {
   Home: "/",
   Login: "/login",
+  Bots: "/bots",
+  BotsNew: "/bots/new",
+  Backtests: "/backtests",
+  BacktestsNew: "/backtests/new",
+  BacktestsCompare: "/backtests/compare",
+  MarketData: "/market-data",
+  Exchanges: "/exchanges",
+  ExchangesNew: "/exchanges/new",
+  Audit: "/audit",
+  Forbidden: "/forbidden",
+  System: "/system",
+  Profile: "/settings/profile",
+  Users: "/settings/users",
 } as const;

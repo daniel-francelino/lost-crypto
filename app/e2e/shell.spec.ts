@@ -7,10 +7,9 @@ test("the login page renders its form", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Entrar" })).toBeVisible();
 });
 
-test("the backoffice shell renders with its navigation", async ({ page }) => {
+test("the backoffice is not shown without a session", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Painel" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Painel" }).first()).toBeVisible();
+  await expect(page).toHaveURL(/\/login/);
 });
 
 test("an unknown address shows the not-found page inside the app", async ({ page }) => {

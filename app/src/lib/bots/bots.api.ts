@@ -1,0 +1,260 @@
+import { z } from "zod";
+import { request, requestPaged } from "@/lib/shared/api/client";
+import { HttpMethod } from "@/lib/shared/api/http";
+import {
+  decimalSchema,
+  emptySchema,
+  lenientEnum,
+  nullableDecimalSchema,
+  nullableTimestampSchema,
+} from "@/lib/shared/api/schemas";
+import { type Metrics, equityPointSchema, metricsSchema } from "@/lib/shared/analytics";
+import {
+  BotState,
+  ExecutionMode,
+  OrderStatus,
+  Side,
+  SignalKind,
+  type Timeframe,
+} from "@/lib/shared/enums";
+
+const riskSchema = z.object({
+  max_position_fraction: decimalSchema,
+  max_order_notional: nullableDecimalSchema,
+  max_daily_loss_pct: nullableDecimalSchema,
+  max_drawdown_pct: nullableDecimalSchema,
+  max_consecutive_losses: z.number().nullable(),
+  max_risk_per_trade_pct: nullableDecimalSchema,
+  require_stop_loss: z.boolean(),
+  max_candle_range_pct: nullableDecimalSchema,
+});
+export type Risk = z.infer<typeof riskSchema>;
+
+export const botSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  exchange: z.string(),
+  strategy_type: z.string(),
+  strategy_params: z.record(z.string(), z.unknown()),
+  symbol: z.string(),
+  timeframe: z.string(),
+  initial_capital: decimalSchema,
+  fee_rate: decimalSchema,
+  slippage_bps: decimalSchema,
+  risk: riskSchema,
+  mode: lenientEnum(ExecutionMode),
+  connection_id: z.string().nullable(),
+  desired_state: lenientEnum(BotState),
+  observed_state: lenientEnum(BotState),
+  config_version: z.number(),
+  live_approved: z.boolean(),
+  live_approved_at: nullableTimestampSchema,
+  last_heartbeat_at: nullableTimestampSchema,
+  last_error: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+export type Bot = z.infer<typeof botSchema>;
+
+const overviewSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  mode: lenientEnum(ExecutionMode),
+  exchange: z.string(),
+  symbol: z.string(),
+  timeframe: z.string(),
+  strategy_type: z.string(),
+  strategy_params: z.record(z.string(), z.unknown()),
+  desired_state: lenientEnum(BotState),
+  observed_state: lenientEnum(BotState),
+  equity: decimalSchema,
+  return_pct: decimalSchema,
+  realized_pnl: decimalSchema,
+  fees_paid: decimalSchema,
+  in_position: z.boolean(),
+  last_price: nullableDecimalSchema,
+  last_heartbeat_at: nullableTimestampSchema,
+});
+export type BotOverview = z.infer<typeof overviewSchema>;
+
+const summarySchema = z.object({
+  mode: lenientEnum(ExecutionMode),
+  quote_currency: z.string(),
+  bots: z.number(),
+  running: z.number(),
+  open_positions: z.number(),
+  initial_capital: decimalSchema,
+  equity: decimalSchema,
+  realized_pnl: decimalSchema,
+  fees_paid: decimalSchema,
+  return_pct: decimalSchema,
+});
+export type PortfolioSummary = z.infer<typeof summarySchema>;
+
+const portfolioSchema = z.object({
+  initial_capital: decimalSchema,
+  cash: decimalSchema,
+  quantity: decimalSchema,
+  avg_entry_price: decimalSchema,
+  last_price: nullableDecimalSchema,
+  equity: decimalSchema,
+  unrealized_pnl: decimalSchema,
+  realized_pnl: decimalSchema,
+  fees_paid: decimalSchema,
+  stop_price: nullableDecimalSchema,
+  take_profit_price: nullableDecimalSchema,
+  reserved_cash: decimalSchema,
+  native_stop_active: z.boolean(),
+});
+export type Portfolio = z.infer<typeof portfolioSchema>;
+
+const orderSchema = z.object({
+  id: z.string(),
+  client_order_id: z.string(),
+  order_type: z.string(),
+  exchange_order_id: z.string().nullable(),
+  symbol: z.string(),
+  side: lenientEnum(Side),
+  quantity: decimalSchema,
+  status: lenientEnum(OrderStatus),
+  filled_quantity: decimalSchema,
+  avg_fill_price: nullableDecimalSchema,
+  reject_reason: z.string().nullable(),
+  bar_time: z.string(),
+  created_at: z.string(),
+});
+export type Order = z.infer<typeof orderSchema>;
+
+const signalSchema = z.object({
+  bar_time: z.string(),
+  side: lenientEnum(Side),
+  kind: lenientEnum(SignalKind),
+  reason: z.string(),
+  decision: z.string(),
+  decision_reason: z.string().nullable(),
+  created_at: z.string(),
+});
+export type Signal = z.infer<typeof signalSchema>;
+
+const readinessSchema = z.object({
+  ready: z.boolean(),
+  checks: z.array(z.object({ name: z.string(), ok: z.boolean(), detail: z.string() })),
+});
+export type Readiness = z.infer<typeof readinessSchema>;
+
+const approvalSchema = z.object({ confirmation_token: z.string(), expires_at: z.string() });
+export type Approval = z.infer<typeof approvalSchema>;
+
+export type RiskInput = {
+  max_position_fraction: string;
+  max_order_notional: string | null;
+  max_daily_loss_pct: string | null;
+  max_drawdown_pct: string | null;
+  max_consecutive_losses: number | null;
+  max_risk_per_trade_pct: string | null;
+  require_stop_loss: boolean;
+  max_candle_range_pct: string | null;
+};
+
+export type BotInput = {
+  name: string;
+  exchange: string;
+  strategy_type: string;
+  strategy_params: Record<string, number>;
+  symbol: string;
+  timeframe: Timeframe;
+  initial_capital: string;
+  fee_rate: string | null;
+  slippage_bps: string;
+  risk: RiskInput;
+  mode: string;
+  connection_id: string | null;
+};
+
+export const listBots = (signal?: AbortSignal) =>
+  request({ path: "/bots", schema: z.array(botSchema), signal, query: { limit: 500 } });
+
+export const getOverview = (signal?: AbortSignal) =>
+  request({ path: "/bots/overview", schema: z.array(overviewSchema), signal });
+
+export const getSummary = (signal?: AbortSignal) =>
+  request({ path: "/bots/summary", schema: z.array(summarySchema), signal });
+
+export const getBot = (id: string, signal?: AbortSignal) =>
+  request({ path: `/bots/${id}`, schema: botSchema, signal });
+
+export const createBot = (body: BotInput) =>
+  request({ method: HttpMethod.Post, path: "/bots", schema: botSchema, body });
+
+export const updateBot = (id: string, body: Partial<BotInput>) =>
+  request({ method: HttpMethod.Patch, path: `/bots/${id}`, schema: botSchema, body });
+
+const command = (id: string, name: string, body?: unknown) =>
+  request({
+    method: HttpMethod.Post,
+    path: `/bots/${id}/${name}`,
+    schema: emptySchema,
+    ...(body === undefined ? {} : { body }),
+  });
+
+export const startBot = (id: string, confirmationToken: string | null) =>
+  command(
+    id,
+    "start",
+    confirmationToken === null ? undefined : { confirmation_token: confirmationToken },
+  );
+
+export const pauseBot = (id: string) => command(id, "pause");
+
+export const stopBot = (id: string) => command(id, "stop");
+
+export const resetPortfolio = (id: string) => command(id, "reset-portfolio");
+
+export const getPortfolio = (id: string, signal?: AbortSignal) =>
+  request({ path: `/bots/${id}/portfolio`, schema: portfolioSchema, signal });
+
+export const getPerformance = (id: string, signal?: AbortSignal): Promise<Metrics | null> =>
+  request({ path: `/bots/${id}/performance`, schema: metricsSchema.nullable(), signal });
+
+export const getBotEquity = (id: string, limit: number, signal?: AbortSignal) =>
+  request({
+    path: `/bots/${id}/equity`,
+    schema: z.array(equityPointSchema),
+    query: { limit },
+    signal,
+  });
+
+export const listOrders = (id: string, limit: number, offset: number, signal?: AbortSignal) =>
+  requestPaged({
+    path: `/bots/${id}/orders`,
+    schema: z.array(orderSchema),
+    query: { limit, offset },
+    signal,
+  });
+
+export const listSignals = (id: string, limit: number, offset: number, signal?: AbortSignal) =>
+  requestPaged({
+    path: `/bots/${id}/signals`,
+    schema: z.array(signalSchema),
+    query: { limit, offset },
+    signal,
+  });
+
+export const getReadiness = (id: string, signal?: AbortSignal) =>
+  request({ path: `/bots/${id}/live-readiness`, schema: readinessSchema, signal });
+
+export const promoteToLive = (id: string, connectionId: string) =>
+  request({
+    method: HttpMethod.Post,
+    path: `/bots/${id}/promote-to-live`,
+    schema: botSchema,
+    body: { connection_id: connectionId },
+  });
+
+export const requestApproval = (id: string, confirmName: string) =>
+  request({
+    method: HttpMethod.Post,
+    path: `/bots/${id}/live-approvals`,
+    schema: approvalSchema,
+    body: { confirm_name: confirmName },
+  });

@@ -2957,6 +2957,9 @@
             "type": "string",
             "title": "Name"
           },
+          "mode": {
+            "$ref": "#/components/schemas/ExecutionMode"
+          },
           "exchange": {
             "type": "string",
             "title": "Exchange"
@@ -3031,6 +3034,7 @@
         "required": [
           "id",
           "name",
+          "mode",
           "exchange",
           "symbol",
           "timeframe",
