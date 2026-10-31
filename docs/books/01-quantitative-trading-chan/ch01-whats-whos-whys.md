@@ -36,11 +36,13 @@ O livro não discute cripto, mercados 24/7 nem taxas de corretora. Tudo sobre cr
 
 ### O1 — Alertas de falha *(livro: C6, p. 7 · canal e gatilhos são adaptação nossa)*
 * **Problema:** worker parado, heartbeat de bot desatualizado, kill switch acionado, divergência na reconciliação, ordem live rejeitada e limite diário atingido passam despercebidos sem alguém olhando.
-* **Proposta:** uma porta `Notifier` com uma implementação por canal (webhook primeiro, depois chat), um arquivo por integração. Um avaliador no worker emite eventos de alerta com deduplicação, cooldown e mensagem de recuperação. Os críticos também vão para o log de auditoria.
-* **Benefício:** falhas percebidas em minutos, sem supervisão.
-* **Complexidade:** média (tarefa periódica no worker, segredo do canal).
-* **Riscos:** o caminho do alerta morre junto com o worker (precisa de uma checagem externa de vida, por exemplo healthcheck do container); um novo segredo a proteger; fadiga de alertas.
-* **Validação:** testes unitários de limites e deduplicação; teste de integração que para o worker e espera um alerta via notifier falso; segredos ausentes de logs/API.
+* **Decisão do operador:** o **canal inicial é a própria aplicação**: os alertas são vistos no front, sem serviço externo (sem webhook, chat ou e-mail) e, portanto, sem segredo de canal novo. Canais externos continuam possíveis depois, pela mesma porta, mas não fazem parte do primeiro escopo.
+* **Proposta:** uma porta `Notifier` com uma implementação por canal, um arquivo por integração. A primeira implementação, `in_app`, **grava o alerta no banco**; a API expõe a lista (mais recentes primeiro), a contagem de não lidos e a ação de marcar como lido; o front mostra um indicador de não lidos (ícone/contador no layout) e uma lista de alertas, atualizados por polling como o restante do app. Um avaliador no worker emite eventos de alerta com deduplicação, cooldown e mensagem de recuperação. Os críticos também vão para o log de auditoria.
+* **Dados do alerta (rascunho):** tipo, severidade, bot/par quando houver, mensagem, momento de criação, momento de recuperação (quando o problema some), lido/não lido. Um alerta por episódio: o mesmo problema não cria alertas repetidos enquanto estiver aberto; a recuperação fecha o episódio.
+* **Benefício:** falhas percebidas em minutos por quem está com o app aberto, sem depender de serviço externo.
+* **Complexidade:** média (tarefa periódica no worker, tabela, endpoints e interface no front). Mais simples que um canal externo por não ter segredo, mas com trabalho de front.
+* **Riscos:** **só avisa quem está olhando o app**; com o app fechado, o alerta fica esperando no banco e ninguém é chamado (limitação aceita nesta decisão). O caminho do alerta morre junto com o worker (precisa de uma checagem externa de vida, por exemplo healthcheck do container, que no canal in-app só aparece quando o app for aberto); fadiga de alertas e crescimento da tabela (prever retenção/limpeza de alertas antigos).
+* **Validação:** testes unitários de limites e deduplicação; teste de integração que para o worker e espera um alerta gravado e visível na API; teste de que marcar como lido e a recuperação do episódio funcionam; teste do front para o contador e a lista; nenhum dado sensível em logs/API.
 
 ### O2 — Importação incremental automática de dados *(livro: C6, pp. 6–7 · adaptação)*
 * **Problema:** lacunas nos candles armazenados só são reparadas por jobs manuais.
@@ -48,6 +50,51 @@ O livro não discute cripto, mercados 24/7 nem taxas de corretora. Tudo sobre cr
 * **Benefício:** backtests sempre rodam com dados atuais.
 * **Complexidade:** baixa. **Riscos:** limites de taxa (rate limits); lacunas legítimas sendo tentadas para sempre.
 * **Validação:** teste de integração com uma fonte falsa que deixa um buraco e espera que ele seja preenchido.
+
+#### Detalhamento do O2 (proposta, nada aprovado nem implementado)
+
+**Situação verificada no código**
+* O trader busca candles direto da exchange a cada ciclo (`trader.py:128`, `FETCH_LIMIT = 1000`) e os usa só na memória; eles não são gravados na tabela de candles. O banco só tem o que foi importado à mão (`market_data/application/service.py`, `BATCH_SIZE = 1000`).
+* O trader já evita chamadas à toa: só busca quando o próximo candle deve ter fechado (`trader.py:121`).
+
+**Frequência**
+* **Uma vez por minuto**, com uma pequena folga depois do fechamento do candle. O menor timeframe é 1 minuto e as estratégias só agem em candle fechado, então 30 segundos não traria candle fechado a mais.
+* Candle em formação (gráfico ao vivo) fica **fora do escopo**: exige distinguir candle aberto de fechado e há risco de gravar candle incompleto. Só tratar se for pedido.
+
+**Escopo da tarefa**
+1. Tarefa periódica no worker: para cada par e timeframe ativo, buscar desde o último candle gravado até agora e gravar **apenas candles fechados**.
+2. Gravação idempotente (sem duplicar candles); se houver buraco no meio, completar a partir do primeiro candle faltante, não só do último.
+3. Reaproveitar o job de importação existente em vez de criar um segundo caminho de gravação.
+4. Backoff crescente em lacunas de manutenção da exchange; lacunas legítimas não são tentadas para sempre.
+5. A leitura dos candles pelos bots a partir do banco fica como **etapa separada e posterior** (mudança maior no trader).
+
+**Limites de requisição da Binance (verificado em 2026-10-31)**
+* Spot: **6.000 de peso por minuto, por IP** (lido em `rateLimits` do `exchangeInfo` da mainnet; a documentação manda consultar o endpoint, então o valor pode mudar). O `GET /api/v3/klines` custa **2 de peso**, até 1.000 candles por chamada.
+* Atualizar N pares por minuto custa cerca de 2 × N de peso: 50 pares = ~100 de peso/min (~1,7% do limite). Para estourar seriam necessários mais de ~2.900 pares.
+* O maior consumo é a importação histórica: um ano de candles de 1 minuto são ~526 lotes (~1.050 de peso) por par.
+* **429:** esperar o tempo do cabeçalho `Retry-After`. **418:** banimento automático do IP (de 2 minutos a 3 dias) se insistir depois de um 429; como é por IP, derrubaria também os bots que operam.
+* O cliente já usa CCXT com `enableRateLimit` (`ccxt_exchange.py:64`), mas isso só enxerga o próprio processo; API e worker no mesmo IP contam separadamente na Binance. Erros de limite viram `TransientExchangeError` no caminho de ordens (`ccxt_exchange.py:245`); **não verifiquei** se a leitura de candles faz o mesmo. Não encontrei espera baseada em `Retry-After` nem leitura do cabeçalho de peso usado.
+* Não consultei os limites da testnet.
+
+**Medidas de proteção previstas**
+* Em caso de 429, aguardar o `Retry-After` e **nunca** tentar de novo antes; sem esse tempo, não repetir a chamada.
+* Ler `X-MBX-USED-WEIGHT-1M` e registrar o peso usado; alertar (ligado ao O1) se passar de, por exemplo, 50% do limite.
+* Importação histórica em fila separada, com limite de concorrência, para não competir com a atualização por minuto.
+* Alerta (O1) se a cobertura de um par ficar mais de N minutos defasada.
+
+**Riscos adicionais**
+* Gravar candle incompleto; separar testnet de mainnet na mesma tabela (confirmar como a tabela distingue as duas antes de gravar).
+* Duplicação de busca enquanto os bots ainda buscam por conta própria (some quando os bots lerem do banco).
+
+**Arquivos afetados (além dos já listados)**
+* `exchanges/infrastructure/ccxt_exchange.py` (tratamento de 429/`Retry-After` e peso usado na leitura de candles), `core/config.py` (intervalo e limiar de alerta de peso).
+
+**Critérios de aceite**
+* Com um par ativo, o banco acompanha a exchange com atraso de no máximo ~1 candle fechado.
+* Nenhum candle em formação é gravado; reexecutar a tarefa não cria duplicatas.
+* Um buraco injetado numa fonte falsa é preenchido; uma resposta 429 falsa faz a tarefa esperar o `Retry-After` sem nova chamada antes disso.
+* O peso usado fica visível em log/métrica; nenhum segredo vaza.
+* Fluxo de ordens e salvaguardas do live inalterados; testes, ruff e mypy verdes.
 
 ### O3 — Motivo das intervenções manuais *(livro: C5, pp. 5–6 · adaptação)*
 * **Problema:** não dá para saber se um stop/pause/reset foi reação a oscilações de P&L.
@@ -65,27 +112,29 @@ Apoia-se em uma frase de opinião. Capítulos posteriores dão critérios concre
 
 | # | Item | Confiabilidade | Gestão de risco | Qualidade do backtest | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O1 alertas | alta | alta | – | média | agendador do worker, segredo do canal |
+| 1 | O1 alertas (canal in-app) | alta | alta | – | média | agendador do worker, tabela de alertas, front |
 | 2 | O2 importação incremental | média | – | média | baixa | job de importação existente |
 | 3 | O3 motivo da intervenção | baixa | média | – | baixa | auditoria existente |
 | – | O4, O5 | adiados | | | | |
 
 ## 5. Arquivos afetados
-* O1: novo módulo `notifications` (porta + um arquivo por canal), `worker.py`, `container.py`, `core/config.py`, auditoria, páginas de status/configurações do app.
+* O1: novo módulo `notifications` (porta `Notifier` + `in_app`, entidade/tabela de alertas com migração, repositório, endpoints de listar/contar não lidos/marcar como lido), `worker.py`, `container.py`, `core/config.py`, auditoria, `docs/openapi.json`; no app: indicador de não lidos no layout, lista de alertas e página de status (regras em `app/AGENTS.md`).
 * O2: `modules/market_data/application/service.py`, `worker.py`, `container.py`.
 * O3: `modules/bots/application/service.py`, router de bots, payload de auditoria, formulários de controle do app.
 
 ## 6. Plano incremental
-1. O1a: porta `Notifier`, notifier falso, avaliador de condições (sem canal real).
-2. O1b: implementação de webhook, configuração por variáveis de ambiente, integração ao worker.
-3. O1c: a página de status mostra alertas recentes e canais configurados.
-4. O2: importação incremental periódica.
-5. O3: campo de motivo.
+1. O1a: porta `Notifier`, notifier falso, avaliador de condições com deduplicação, cooldown e recuperação (sem persistência).
+2. O1b: canal `in_app`: tabela e repositório de alertas, endpoints (listar, contar não lidos, marcar como lido), integração ao worker e retenção/limpeza.
+3. O1c: front: indicador de não lidos no layout, lista de alertas e alertas recentes na página de status.
+4. (Opcional, depois) canal externo (webhook/chat) pela mesma porta, se o operador sentir falta de aviso com o app fechado.
+5. O2: importação incremental periódica.
+6. O3: campo de motivo.
 
 ## 7. Critérios de aceite e testes
 * Um alerta por episódio em até N segundos após o rompimento do limite, mais uma mensagem de recuperação.
-* Um canal com falha nunca derruba o worker; a falha é registrada em log.
-* Nenhum segredo de canal em logs, auditoria ou respostas da API.
+* O alerta fica gravado e aparece no front (contador de não lidos e lista) mesmo que o app seja aberto só depois; marcar como lido atualiza o contador.
+* Um canal com falha (inclusive falha ao gravar o alerta) nunca derruba o worker; a falha é registrada em log.
+* Nenhum dado sensível em logs, auditoria ou respostas da API.
 * Fluxo de ordens e salvaguardas do live inalterados; testes unitários, de integração, ruff e mypy continuam verdes.
 
 ## Ressalva
