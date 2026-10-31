@@ -32,6 +32,7 @@ from modules.execution.domain.fills import slipped_price
 from modules.execution.domain.orders import Order, make_client_order_id
 from modules.execution.venues.paper import PaperExchangeGateway, StaticPriceFeed
 from modules.market_data.domain.models import Candle, MarketInfo, floor_to_timeframe
+from modules.market_data.domain.quality import CandleProblem, candle_problems
 from modules.portfolio.domain.models import InsufficientFunds, PortfolioSnapshot, PortfolioState
 from modules.risk_management.domain.models import (
     GlobalExposure,
@@ -141,12 +142,47 @@ class BotTrader:
             else strategy.initial_state()
         )
         for candle in candles:
+            problems = candle_problems(candle)
+            if problems:
+                await self._skip_invalid_candle(bot, session, strategy, state, candle, problems)
+                continue
             state, paused = await self._process_candle(
                 bot, session, strategy, state, candle, market
             )
             await self._submit_pending(bot)
             if paused:
                 break
+
+    async def _skip_invalid_candle(
+        self,
+        bot: Bot,
+        session: TradingSession,
+        strategy: Strategy[Any],
+        state: Any,
+        candle: Candle,
+        problems: list[CandleProblem],
+    ) -> None:
+        """A malformed candle never reaches the strategy (book 1 ch. 3, C4). The bar is marked
+        processed, so it is not fetched again, and the skip is audited."""
+        async with self._stores() as store:
+            await store.sessions.save_progress(
+                session.id, strategy.serialize_state(state), candle.open_time
+            )
+            await store.audit.add(
+                AuditEvent(
+                    "data.invalid_candle",
+                    "bot",
+                    str(bot.id),
+                    actor="worker",
+                    bot_id=bot.id,
+                    payload={
+                        "open_time": candle.open_time.isoformat(),
+                        "problems": [p.value for p in problems],
+                    },
+                )
+            )
+            await store.commit()
+        logger.warning("bot %s skipped invalid candle %s: %s", bot.id, candle.open_time, problems)
 
     async def _submit_pending(self, bot: Bot) -> None:
         """Phase 2 for real-exchange bots: send the intents the candle transaction created."""

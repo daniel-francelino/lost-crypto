@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select, update
@@ -8,9 +9,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
 from core.jobs import JobStatus
-from modules.market_data.application.ports import ImportJob
-from modules.market_data.domain.models import Candle, Timeframe
-from modules.market_data.infrastructure.orm import CandleImportJobRow, CandleRow
+from modules.market_data.application.ports import NO_ISSUES, ImportJob, ImportQuality
+from modules.market_data.domain.models import Candle, ListedMarket, Listing, Timeframe
+from modules.market_data.infrastructure.orm import (
+    CandleImportJobRow,
+    CandleRow,
+    ExchangeListingRow,
+)
+
+LISTING_ACTIVE = "active"
+LISTING_INACTIVE = "inactive"
+LISTING_DELISTED = "delisted"
 
 _UPSERT_CHUNK = 1000  # 1000 rows x 9 params stays below asyncpg's 32767 bind-parameter limit
 
@@ -110,6 +119,14 @@ class SqlAlchemyCandleRepository:
         )
 
 
+def _quality_values(quality: ImportQuality) -> dict[str, Any]:
+    return {
+        "candles_rejected": quality.rejected,
+        "candles_changed": quality.changed,
+        "rejection_samples": list(quality.samples),
+    }
+
+
 def _to_job(row: CandleImportJobRow) -> ImportJob:
     return ImportJob(
         id=row.id,
@@ -124,6 +141,9 @@ def _to_job(row: CandleImportJobRow) -> ImportJob:
         created_at=row.created_at,
         started_at=row.started_at,
         finished_at=row.finished_at,
+        candles_rejected=row.candles_rejected,
+        candles_changed=row.candles_changed,
+        rejection_samples=list(row.rejection_samples or []),
     )
 
 
@@ -131,6 +151,7 @@ class SqlAlchemyImportStore:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self.candles = SqlAlchemyCandleRepository(session)
+        self.listings = SqlAlchemyListingRepository(session)
 
     async def add_job(self, job: ImportJob) -> None:
         self._session.add(
@@ -184,14 +205,18 @@ class SqlAlchemyImportStore:
         )
         return int(result.rowcount or 0)  # type: ignore[attr-defined]
 
-    async def set_progress(self, job_id: UUID, candles_imported: int) -> None:
+    async def set_progress(
+        self, job_id: UUID, candles_imported: int, quality: ImportQuality = NO_ISSUES
+    ) -> None:
         await self._session.execute(
             update(CandleImportJobRow)
             .where(CandleImportJobRow.id == job_id)
-            .values(candles_imported=candles_imported)
+            .values(candles_imported=candles_imported, **_quality_values(quality))
         )
 
-    async def mark_completed(self, job_id: UUID, candles_imported: int) -> None:
+    async def mark_completed(
+        self, job_id: UUID, candles_imported: int, quality: ImportQuality = NO_ISSUES
+    ) -> None:
         await self._session.execute(
             update(CandleImportJobRow)
             .where(CandleImportJobRow.id == job_id)
@@ -199,6 +224,7 @@ class SqlAlchemyImportStore:
                 status=JobStatus.COMPLETED.value,
                 candles_imported=candles_imported,
                 finished_at=func.now(),
+                **_quality_values(quality),
             )
         )
 
@@ -211,3 +237,57 @@ class SqlAlchemyImportStore:
 
     async def commit(self) -> None:
         await self._session.commit()
+
+
+class SqlAlchemyListingRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def record(self, exchange: str, markets: list[ListedMarket], now: datetime) -> int:
+        """Upsert today's markets; pairs no longer listed become ``delisted``. Returns changes."""
+        rows = {
+            r.symbol: r
+            for r in (
+                await self._session.execute(
+                    select(ExchangeListingRow).where(ExchangeListingRow.exchange == exchange)
+                )
+            ).scalars()
+        }
+        changed = 0
+        seen: set[str] = set()
+        for market in markets:
+            seen.add(market.symbol)
+            status = LISTING_ACTIVE if market.active else LISTING_INACTIVE
+            row = rows.get(market.symbol)
+            if row is None:
+                self._session.add(
+                    ExchangeListingRow(
+                        exchange=exchange,
+                        symbol=market.symbol,
+                        status=status,
+                        first_seen=now,
+                        last_seen=now,
+                        delisted_at=None,
+                    )
+                )
+                changed += 1
+                continue
+            if row.status != status:
+                changed += 1
+            row.status, row.last_seen, row.delisted_at = status, now, None
+        for symbol, row in rows.items():
+            if symbol not in seen and row.status != LISTING_DELISTED:
+                row.status, row.delisted_at = LISTING_DELISTED, now
+                changed += 1
+        await self._session.flush()
+        return changed
+
+    async def list(self, exchange: str, symbol: str | None = None) -> list[Listing]:
+        query = select(ExchangeListingRow).where(ExchangeListingRow.exchange == exchange)
+        if symbol is not None:
+            query = query.where(ExchangeListingRow.symbol == symbol)
+        result = await self._session.execute(query.order_by(ExchangeListingRow.symbol))
+        return [
+            Listing(r.exchange, r.symbol, r.status, r.first_seen, r.last_seen, r.delisted_at)
+            for r in result.scalars()
+        ]

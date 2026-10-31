@@ -36,6 +36,7 @@ class BacktestConfig:
     # The operator's drawdown tolerance (book 1 ch. 2, C6): results that exceed it are flagged.
     max_drawdown_tolerance_pct: Decimal | None = None
     max_drawdown_tolerance_days: int | None = None
+    allow_gaps: bool = False  # run even when the range misses many candles (book 1 ch. 3, O4)
 
     def __post_init__(self) -> None:
         if self.start >= self.end:

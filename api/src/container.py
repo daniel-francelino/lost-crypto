@@ -24,6 +24,7 @@ from modules.bots.application.service import BotService
 from modules.exchanges.application.connections import ConnectionResolver, ConnectionService
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.exchanges.infrastructure.catalog import build_exchange_registry
+from modules.market_data.application.listings import ListingRecorder
 from modules.market_data.application.ports import ImportStore
 from modules.market_data.application.service import CandleImporter, MarketDataService
 from modules.market_data.infrastructure.repository import SqlAlchemyImportStore
@@ -136,11 +137,16 @@ class JobRunner:
     """Worker-side: advances the paper-trading bots, then drains the DB-backed job queues."""
 
     def __init__(
-        self, importer: CandleImporter, executor: BacktestExecutor, supervisor: BotSupervisor
+        self,
+        importer: CandleImporter,
+        executor: BacktestExecutor,
+        supervisor: BotSupervisor,
+        listings: ListingRecorder | None = None,
     ) -> None:
         self._importer = importer
         self._executor = executor
         self._supervisor = supervisor
+        self._listings = listings
 
     async def recover(self) -> int:
         """Jobs left 'running' by a crashed worker are queued again (all jobs are idempotent).
@@ -153,6 +159,8 @@ class JobRunner:
     async def run_once(self) -> bool:
         """One supervisor pass plus at most one job; False when there was no job to run."""
         await self._supervisor.run_once()
+        if self._listings is not None:
+            await self._listings.run_due()  # once a day; failures are logged, never raised
         return await self._importer.run_next() or await self._executor.run_next()
 
 
@@ -205,4 +213,5 @@ def build_job_runner(container: Container) -> JobRunner:
             reconcile_interval=timedelta(seconds=settings.reconcile_interval_seconds),
             stop_poll_interval=timedelta(seconds=settings.native_stop_poll_seconds),
         ),
+        ListingRecorder(container.import_stores, container.exchanges, container.clock),
     )

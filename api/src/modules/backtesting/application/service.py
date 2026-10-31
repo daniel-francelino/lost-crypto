@@ -16,12 +16,20 @@ from core.jobs import JobStatus
 from modules.analytics.domain.metrics import compute_metrics
 from modules.backtesting.application.ports import BacktestRun, BacktestStore, BacktestSweep
 from modules.backtesting.domain import cost_ladder
+from modules.backtesting.domain.data_quality import (
+    candle_report,
+    free_parameters,
+    gap_problem,
+    gaps_summary,
+    sample_check,
+)
 from modules.backtesting.domain.engine import run_backtest
 from modules.backtesting.domain.models import BacktestConfig, EquityPoint, hash_candles
 from modules.backtesting.domain.periods import compute_periods
 from modules.backtesting.domain.segments import compute_segments
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.execution.domain.orders import Fill
+from modules.market_data.domain.models import range_coverage
 from modules.strategies.domain.registry import StrategyRegistry
 
 logger = logging.getLogger(__name__)
@@ -46,6 +54,10 @@ class BacktestNotFound(NotFoundError):
 
 class InvalidSweep(DomainError):
     pass
+
+
+class DataGapsError(DomainError):
+    """The range misses too many candles to run silently (book 1 ch. 3, O4)."""
 
 
 class BacktestService:
@@ -75,7 +87,7 @@ class BacktestService:
             created_at=self._clock.now(),
         )
         async with self._stores() as store:
-            await self._check_candles(store, config)
+            run.data_quality = await self._check_candles(store, config)
             await store.add_run(run)
             await store.commit()
         return run
@@ -121,9 +133,10 @@ class BacktestService:
 
         sweep = BacktestSweep(sweep_id, now, base.strategy_type, grid, skipped, len(runs))
         async with self._stores() as store:
-            await self._check_candles(store, base)
+            quality = await self._check_candles(store, base)
             await store.add_sweep(sweep)  # before the runs that reference it
             for run in runs:
+                run.data_quality = quality
                 await store.add_run(run)
             prior = await store.count_prior_trials(sweep, base)
             await store.commit()
@@ -139,8 +152,9 @@ class BacktestService:
             prior = await store.count_prior_trials(sweep, runs[0].config) if runs else 0
             return sweep, runs, prior
 
-    @staticmethod
-    async def _check_candles(store: BacktestStore, config: BacktestConfig) -> None:
+    async def _check_candles(self, store: BacktestStore, config: BacktestConfig) -> dict[str, Any]:
+        """Refuse ranges without data, too large, or with gaps over the limits (unless
+        ``allow_gaps``). Returns the gap summary stored with the run."""
         available = await store.candles.count_range(
             config.exchange, config.symbol, config.timeframe, config.start, config.end
         )
@@ -156,6 +170,18 @@ class BacktestService:
                 f"cost sensitivity re-runs the backtest per cost level; {available} candles "
                 f"exceed its limit of {cost_ladder.MAX_CANDLES}"
             )
+        times = await store.candles.open_times(
+            config.exchange, config.symbol, config.timeframe, config.start, config.end
+        )
+        coverage = range_coverage(
+            times, config.timeframe, config.start, config.end, self._clock.now()
+        )
+        problem = gap_problem(coverage, config.timeframe)
+        if problem is not None and not config.allow_gaps:
+            raise DataGapsError(
+                f"{problem}; import the missing candles, or set allow_gaps to run anyway"
+            )
+        return {"gaps": gaps_summary(coverage, config.timeframe, config.allow_gaps)}
 
     async def get(self, run_id: UUID) -> BacktestRun:
         async with self._stores() as store:
@@ -250,6 +276,14 @@ class BacktestExecutor:
             benchmark_prices=[c.close for c in candles],
             in_market=outcome.in_market,
         )
+        free = free_parameters(
+            self._registry.get(config.strategy_type).PARAMETERS, config.strategy_params
+        )
+        quality = {
+            **(run.data_quality or {}),
+            **candle_report(candles),
+            "sample": sample_check(free, len(candles), metrics.round_trips),
+        }
         async with self._stores() as store:
             await store.save_result(
                 run.id,
@@ -260,6 +294,7 @@ class BacktestExecutor:
                 segments=compute_segments(config, candles, outcome),
                 periods=compute_periods(config, candles, outcome),
                 cost_ladder=ladder,
+                data_quality=quality,
                 equity_curve=outcome.equity_curve,
                 fills=outcome.fills,
             )

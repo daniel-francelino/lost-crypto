@@ -15,6 +15,7 @@ from modules.analytics.presentation.schemas import MetricsOut
 from modules.backtesting.application.ports import BacktestRun
 from modules.backtesting.application.service import BacktestNotFound
 from modules.backtesting.domain.models import BacktestConfig
+from modules.backtesting.domain.robustness import assess
 from modules.market_data.domain.models import Timeframe
 from modules.strategies.domain.types import Side
 
@@ -71,6 +72,13 @@ class BacktestCreate(BaseModel):
         gt=0,
         le=3650,
         description="Longest drawdown (days below the peak) the operator accepts.",
+    )
+    allow_gaps: bool = Field(
+        default=False,
+        description=(
+            "Run even when the range misses more than 1% of its candles or has a hole longer "
+            "than 24 h (otherwise 422). The gaps are reported in `data_quality.gaps`."
+        ),
     )
 
 
@@ -141,6 +149,73 @@ class ToleranceOut(BaseModel):
     )
 
 
+class GapItemOut(BaseModel):
+    start: datetime
+    end: datetime
+    missing: int
+
+
+class GapsSummaryOut(BaseModel):
+    expected: int
+    present: int
+    missing: int
+    gap_count: int
+    largest_gap_candles: int
+    largest_gap_seconds: int
+    over_limit: bool
+    allowed: bool
+    gaps: list[GapItemOut] = Field(description="Up to 20 gaps.")
+
+
+class CandleSampleOut(BaseModel):
+    open_time: datetime
+    problems: list[str]
+
+
+class OutlierSampleOut(BaseModel):
+    open_time: datetime
+    return_pct: Decimal
+    sigmas: Decimal
+
+
+class SampleCheckOut(BaseModel):
+    free_parameters: int
+    bars: int
+    round_trips: int
+    min_bars: int = Field(description="252 x free parameters (Chan's rule of thumb).")
+    min_round_trips: int
+    meets_bar_rule: bool
+    meets_trade_rule: bool
+
+
+class DataQualityOut(BaseModel):
+    """What the result rests on. Older runs miss some or all of it."""
+
+    gaps: GapsSummaryOut | None = None
+    invalid_candles: int | None = None
+    invalid_samples: list[CandleSampleOut] = Field(default_factory=list)
+    outlier_sigmas: Decimal | None = None
+    outliers: int | None = Field(
+        default=None, description="Close-to-close moves beyond outlier_sigmas std. deviations."
+    )
+    outlier_samples: list[OutlierSampleOut] = Field(default_factory=list)
+    sample: SampleCheckOut | None = None
+
+
+class RobustnessOut(BaseModel):
+    verdict: str = Field(description="`plateau`, `peak`, `unprofitable` or `insufficient`.")
+    metric: SweepRankBy
+    winner_score: Decimal | None
+    neighbours: int
+    neighbour_mean: Decimal | None
+    neighbour_min: Decimal | None
+    neighbour_ratio: Decimal | None = Field(description="Neighbour mean / winner score.")
+    profitable_share: Decimal | None = Field(description="% of scored combinations above 0.")
+    median: Decimal | None
+    top3_mean: Decimal | None
+    scored: int
+
+
 class SegmentsOut(BaseModel):
     split_at: datetime
     test_fraction: Decimal
@@ -166,6 +241,7 @@ class BacktestOut(BaseModel):
     cost_sensitivity: bool
     max_drawdown_tolerance_pct: Decimal | None
     max_drawdown_tolerance_days: int | None
+    allow_gaps: bool
     sweep_id: UUID | None
     data_hash: str | None
     candles_count: int | None
@@ -174,6 +250,7 @@ class BacktestOut(BaseModel):
     periods: PeriodsOut | None
     cost_ladder: CostLadderOut | None
     tolerance: ToleranceOut | None
+    data_quality: DataQualityOut | None
     error: str | None
     created_at: datetime
     started_at: datetime | None
@@ -214,6 +291,7 @@ class SweepOut(BaseModel):
     )
     ranked_by: SweepRankBy
     note: str
+    robustness: RobustnessOut | None
     runs: list[SweepRunOut]
 
 
@@ -251,6 +329,7 @@ def _out(run: BacktestRun) -> BacktestOut:
         cost_sensitivity=c.cost_sensitivity,
         max_drawdown_tolerance_pct=c.max_drawdown_tolerance_pct,
         max_drawdown_tolerance_days=c.max_drawdown_tolerance_days,
+        allow_gaps=c.allow_gaps,
         sweep_id=run.sweep_id,
         data_hash=run.data_hash,
         candles_count=run.candles_count,
@@ -259,6 +338,7 @@ def _out(run: BacktestRun) -> BacktestOut:
         periods=PeriodsOut.model_validate(run.periods) if run.periods else None,
         cost_ladder=CostLadderOut.model_validate(run.cost_ladder) if run.cost_ladder else None,
         tolerance=_tolerance(run),
+        data_quality=DataQualityOut.model_validate(run.data_quality) if run.data_quality else None,
         error=run.error,
         created_at=run.created_at,
         started_at=run.started_at,
@@ -287,6 +367,7 @@ def _config(body: BacktestCreate, container: Container) -> BacktestConfig:
         cost_sensitivity=body.cost_sensitivity,
         max_drawdown_tolerance_pct=body.max_drawdown_tolerance_pct,
         max_drawdown_tolerance_days=body.max_drawdown_tolerance_days,
+        allow_gaps=body.allow_gaps,
     )
 
 
@@ -377,6 +458,27 @@ async def create_sweep(body: SweepCreate, request: Request) -> SweepOut:
     return _sweep_out(sweep, runs, prior, None)
 
 
+def _robustness(
+    grid: dict[str, list[Any]], scored: list[tuple[dict[str, Any], Decimal]], metric: SweepRankBy
+) -> RobustnessOut | None:
+    if not scored:
+        return None
+    r = assess(grid, scored)
+    return RobustnessOut(
+        verdict=r.verdict.value,
+        metric=metric,
+        winner_score=r.winner_score,
+        neighbours=r.neighbours,
+        neighbour_mean=r.neighbour_mean,
+        neighbour_min=r.neighbour_min,
+        neighbour_ratio=r.neighbour_ratio,
+        profitable_share=r.profitable_share,
+        median=r.median,
+        top3_mean=r.top3_mean,
+        scored=r.scored,
+    )
+
+
 _NOTES = {
     SweepRankBy.TOTAL_RETURN: "Ranked by full-period return, which favours overfit parameters: "
     "use test_fraction to rank on the train part and check the winner out of sample.",
@@ -411,6 +513,11 @@ def _sweep_out(
         return value if value is not None else Decimal("-Infinity")
 
     rows.sort(key=score, reverse=True)
+    scored = [
+        (row.strategy_params, value)
+        for row in rows
+        if row.status is JobStatus.COMPLETED and (value := getattr(row, rank_by.value)) is not None
+    ]
     return SweepOut(
         id=sweep.id,
         created_at=sweep.created_at,
@@ -424,6 +531,7 @@ def _sweep_out(
         prior_trials=prior_trials,
         ranked_by=rank_by,
         note=_NOTES[rank_by],
+        robustness=_robustness(sweep.grid, scored, rank_by),
         runs=rows,
     )
 

@@ -25,6 +25,7 @@ class BacktestRun:
     segments: dict[str, Any] | None = None  # train/test metrics when test_fraction is set
     periods: dict[str, Any] | None = None  # metrics by calendar year/quarter
     cost_ladder: dict[str, Any] | None = None  # when config.cost_sensitivity is set
+    data_quality: dict[str, Any] | None = None  # gaps (at creation), invalid candles, outliers
     sweep_id: UUID | None = None
     error: str | None = None
 
@@ -72,6 +73,7 @@ class BacktestStore(Protocol):
         segments: dict[str, Any] | None,
         periods: dict[str, Any] | None,
         cost_ladder: dict[str, Any] | None,
+        data_quality: dict[str, Any] | None,
         equity_curve: list[EquityPoint],
         fills: list[Fill],
     ) -> None: ...

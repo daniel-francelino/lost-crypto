@@ -60,6 +60,7 @@ def _to_run(row: BacktestRunRow) -> BacktestRun:
             cost_sensitivity=row.cost_sensitivity,
             max_drawdown_tolerance_pct=row.max_drawdown_tolerance_pct,
             max_drawdown_tolerance_days=row.max_drawdown_tolerance_days,
+            allow_gaps=row.allow_gaps,
         ),
         created_at=row.created_at,
         started_at=row.started_at,
@@ -71,6 +72,7 @@ def _to_run(row: BacktestRunRow) -> BacktestRun:
         segments=row.segments,
         periods=row.periods,
         cost_ladder=row.cost_ladder,
+        data_quality=row.data_quality,
         sweep_id=row.sweep_id,
         error=row.error,
     )
@@ -100,6 +102,8 @@ class SqlAlchemyBacktestStore:
                 cost_sensitivity=c.cost_sensitivity,
                 max_drawdown_tolerance_pct=c.max_drawdown_tolerance_pct,
                 max_drawdown_tolerance_days=c.max_drawdown_tolerance_days,
+                allow_gaps=c.allow_gaps,
+                data_quality=run.data_quality,
                 sweep_id=run.sweep_id,
                 strategy_type=c.strategy_type,
                 strategy_params=dict(c.strategy_params),
@@ -213,6 +217,7 @@ class SqlAlchemyBacktestStore:
         segments: dict[str, Any] | None,
         periods: dict[str, Any] | None,
         cost_ladder: dict[str, Any] | None,
+        data_quality: dict[str, Any] | None,
         equity_curve: list[EquityPoint],
         fills: list[Fill],
     ) -> None:
@@ -228,6 +233,7 @@ class SqlAlchemyBacktestStore:
                 segments=segments,
                 periods=periods,
                 cost_ladder=cost_ladder,
+                data_quality=data_quality,
                 equity_curve=[[p.time.isoformat(), str(p.equity)] for p in equity_curve],
                 finished_at=func.now(),
             )

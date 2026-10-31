@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
@@ -9,7 +9,7 @@ from pydantic import AwareDatetime, BaseModel, Field
 from container import Container
 from core.jobs import JobStatus
 from modules.market_data.application.ports import ImportJob
-from modules.market_data.application.service import InvalidImportRequest
+from modules.market_data.application.service import REFERENCE_SYMBOL, InvalidImportRequest
 from modules.market_data.domain.models import Timeframe
 
 router = APIRouter(prefix="/market-data", tags=["market-data"])
@@ -38,6 +38,15 @@ class ImportJobOut(BaseModel):
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+    candles_rejected: int = Field(
+        default=0, description="Invalid candles (e.g. high below close) that were not stored."
+    )
+    candles_changed: int = Field(
+        default=0, description="Stored candles the exchange now reports differently (updated)."
+    )
+    rejection_samples: list[dict[str, Any]] = Field(
+        default_factory=list, description="Up to 20 rejected candles with their problem codes."
+    )
 
 
 class CandleOut(BaseModel):
@@ -55,6 +64,16 @@ class GapOut(BaseModel):
     missing: int
 
 
+class RangeCoverageOut(BaseModel):
+    start: datetime
+    end: datetime
+    expected: int = Field(description="Closed candles the range should have.")
+    present: int
+    missing: int
+    largest_gap: int = Field(description="Candles missing in the largest single hole.")
+    gaps: list[GapOut]
+
+
 class CoverageOut(BaseModel):
     exchange: str
     symbol: str
@@ -62,7 +81,22 @@ class CoverageOut(BaseModel):
     count: int
     first: datetime | None
     last: datetime | None
-    gaps: list[GapOut]
+    gaps: list[GapOut] = Field(description="Gaps of the whole stored series.")
+    in_range: RangeCoverageOut | None = Field(
+        default=None, description="Gaps inside start/end, when both were given."
+    )
+
+
+class OutlierOut(BaseModel):
+    open_time: datetime
+    close: Decimal
+    return_pct: Decimal
+    sigmas: Decimal
+    reference_symbol: str | None
+    reference_return_pct: Decimal | None = Field(
+        description="Same-candle move of the reference pair: if it also moved, it was probably "
+        "a market-wide move, not bad data."
+    )
 
 
 def _job_out(job: ImportJob) -> ImportJobOut:
@@ -79,6 +113,9 @@ def _job_out(job: ImportJob) -> ImportJobOut:
         created_at=job.created_at,
         started_at=job.started_at,
         finished_at=job.finished_at,
+        candles_rejected=job.candles_rejected,
+        candles_changed=job.candles_changed,
+        rejection_samples=job.rejection_samples,
     )
 
 
@@ -140,11 +177,28 @@ async def get_candles(
 
 @router.get("/coverage", response_model=CoverageOut)
 async def get_coverage(
-    request: Request, symbol: Symbol, timeframe: Timeframe, exchange: str = "binance"
+    request: Request,
+    symbol: Symbol,
+    timeframe: Timeframe,
+    exchange: str = "binance",
+    start: AwareDatetime | None = None,
+    end: AwareDatetime | None = None,
 ) -> CoverageOut:
-    """What is stored for a series, including detected gaps."""
+    """What is stored for a series, including detected gaps (and those inside start/end)."""
     container: Container = request.app.state.container
-    cov = await container.market_data.coverage(exchange, symbol, timeframe)
+    cov = await container.market_data.coverage(exchange, symbol, timeframe, start, end)
+    in_range = None
+    if cov.in_range is not None and start is not None and end is not None:
+        r = cov.in_range
+        in_range = RangeCoverageOut(
+            start=start,
+            end=end,
+            expected=r.expected,
+            present=r.present,
+            missing=r.missing,
+            largest_gap=r.largest_gap,
+            gaps=[GapOut(start=g.start, end=g.end, missing=g.missing) for g in r.gaps],
+        )
     return CoverageOut(
         exchange=cov.exchange,
         symbol=cov.symbol,
@@ -153,4 +207,70 @@ async def get_coverage(
         first=cov.first,
         last=cov.last,
         gaps=[GapOut(start=g.start, end=g.end, missing=g.missing) for g in cov.gaps],
+        in_range=in_range,
     )
+
+
+@router.get("/outliers", response_model=list[OutlierOut])
+async def get_outliers(
+    request: Request,
+    symbol: Symbol,
+    timeframe: Timeframe,
+    start: AwareDatetime,
+    end: AwareDatetime,
+    k: Annotated[Decimal, Query(gt=1, le=20)] = Decimal(4),
+    exchange: str = "binance",
+) -> list[OutlierOut]:
+    """Close-to-close moves beyond ``k`` standard deviations (Chan suggests ~4) to review.
+
+    Flags, never deletes: crashes are real. Each one comes with the same-candle move of
+    BTC/USDT when stored, as a hint of a market-wide move.
+    """
+    container: Container = request.app.state.container
+    try:
+        found = await container.market_data.outliers(exchange, symbol, timeframe, start, end, k)
+    except InvalidImportRequest as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    reference = None if symbol == REFERENCE_SYMBOL else REFERENCE_SYMBOL
+    return [
+        OutlierOut(
+            open_time=o.open_time,
+            close=o.close,
+            return_pct=o.return_pct,
+            sigmas=o.sigmas,
+            reference_symbol=reference if o.reference_return_pct is not None else None,
+            reference_return_pct=o.reference_return_pct,
+        )
+        for o in found
+    ]
+
+
+class ListingOut(BaseModel):
+    exchange: str
+    symbol: str
+    status: str = Field(description="`active`, `inactive` (listed but halted) or `delisted`.")
+    first_seen: datetime = Field(description="First daily snapshot that listed the pair.")
+    last_seen: datetime
+    delisted_at: datetime | None
+
+
+@router.get("/listings", response_model=list[ListingOut])
+async def get_listings(
+    request: Request, exchange: str = "binance", symbol: Symbol | None = None
+) -> list[ListingOut]:
+    """Pairs the exchange listed, from daily snapshots taken by the worker.
+
+    The history starts on the day the snapshots began: older delistings are unknown.
+    """
+    container: Container = request.app.state.container
+    return [
+        ListingOut(
+            exchange=item.exchange,
+            symbol=item.symbol,
+            status=item.status,
+            first_seen=item.first_seen,
+            last_seen=item.last_seen,
+            delisted_at=item.delisted_at,
+        )
+        for item in await container.market_data.listings(exchange, symbol)
+    ]
