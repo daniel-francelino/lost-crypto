@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Empty } from "lost-ui/data/empty";
+import { EmptyState as Empty } from "@/components/shared/feedback/empty-state";
 import { Button } from "lost-ui/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "lost-ui/ui/card";
 import { toast } from "lost-ui/ui/sonner";

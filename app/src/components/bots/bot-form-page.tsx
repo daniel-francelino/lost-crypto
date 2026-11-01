@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Bot as BotIcon, Brain, Radio, Shield, Wallet } from "lucide-react";
+import { Bot as BotIcon, Brain, Diff, Radio, Shield, Wallet } from "lucide-react";
 import { PageHeader } from "lost-ui/app/page-header";
 import { Form } from "lost-ui/forms/form";
 import { FormInput } from "lost-ui/forms/form-input";
@@ -15,6 +15,7 @@ import { Button } from "lost-ui/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
 import { toast } from "lost-ui/ui/sonner";
 import { ConfirmDialog } from "@/components/shared/feedback/confirm-dialog";
+import { EmptyState } from "@/components/shared/feedback/empty-state";
 import { backtestPrefillFromBot } from "@/lib/bots/execution";
 import { ErrorBlock, SkeletonBlock } from "@/components/shared/feedback/query-boundary";
 import { IconCardTitle } from "@/components/shared/metrics/icon-card-title";
@@ -499,15 +500,23 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
                   Rodar backtest com esta configuração
                 </Link>
               )}
-              <ul className="max-h-48 space-y-1 overflow-y-auto rounded border p-3 text-sm">
-                {pendingChanges.length === 0 ? <li>Nenhuma diferença detectada.</li> : null}
-                {pendingChanges.map(({ key, before, after }) => (
-                  <li key={key}>
-                    <strong>{CHANGE_LABELS[key] ?? key}:</strong> {JSON.stringify(before)} →{" "}
-                    {JSON.stringify(after)}
-                  </li>
-                ))}
-              </ul>
+              {pendingChanges.length === 0 ? (
+                <EmptyState
+                  icon={<Diff aria-hidden="true" />}
+                  title="Nenhuma diferença detectada"
+                  variant="naked"
+                  size="sm"
+                />
+              ) : (
+                <ul className="max-h-48 space-y-1 overflow-y-auto rounded border p-3 text-sm">
+                  {pendingChanges.map(({ key, before, after }) => (
+                    <li key={key}>
+                      <strong>{CHANGE_LABELS[key] ?? key}:</strong> {JSON.stringify(before)} →{" "}
+                      {JSON.stringify(after)}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           }
           confirmLabel="Salvar alterações"

@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import { CalendarSearch } from "lucide-react";
+import { EmptyState } from "@/components/shared/feedback/empty-state";
 import { listListings } from "@/lib/market-data/market-data.api";
 import { QueryKey } from "@/lib/shared/api/query-keys";
 import { formatUtcDay } from "@/lib/shared/dates";
@@ -15,10 +17,14 @@ export function ListingStatusLine({ exchange, symbol }: ListingStatusLineProps) 
   if (query.data === undefined) return null;
   if (listing === undefined) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Sem histórico de listagem para {symbol} ainda: o registro diário da exchange começa no dia
-        em que o worker passou a gravá-lo.
-      </p>
+      <EmptyState
+        icon={<CalendarSearch aria-hidden="true" />}
+        title={`Sem histórico de listagem para ${symbol}`}
+        description="O registro diário da exchange começa no dia em que o worker passou a gravá-lo."
+        variant="naked"
+        size="sm"
+        className="items-start text-left"
+      />
     );
   }
   if (listing.status === ListingStatus.Delisted) {

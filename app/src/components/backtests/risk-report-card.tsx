@@ -1,4 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
+import { EmptyState } from "@/components/shared/feedback/empty-state";
 import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import type { Backtest } from "@/lib/backtests/backtests.api";
 import { formatUtc } from "@/lib/shared/dates";
@@ -35,7 +36,12 @@ export function RiskReportCard({ run }: { run: Backtest }) {
           </p>
         )}
         {refusals.length === 0 ? (
-          <p className="text-muted-foreground">Nenhum sinal recusado.</p>
+          <EmptyState
+            title="Nenhum sinal recusado"
+            description="Todas as entradas passaram pelos limites de risco."
+            variant="naked"
+            size="sm"
+          />
         ) : (
           <ul className="space-y-1" aria-label="Sinais recusados por motivo">
             {refusals.map(([reason, count]) => (

@@ -1,5 +1,6 @@
-import { AlertTriangle, Info } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Info } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
+import { EmptyState } from "@/components/shared/feedback/empty-state";
 import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import type { Backtest } from "@/lib/backtests/backtests.api";
 import { ScreeningLevel, screeningFlags } from "@/lib/backtests/screening";
@@ -20,9 +21,13 @@ export function ScreeningPanel({ run, metrics }: ScreeningPanelProps) {
       </CardHeader>
       <CardContent>
         {flags.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Nenhum sinal de alerta nas regras práticas.
-          </p>
+          <EmptyState
+            icon={<BadgeCheck aria-hidden="true" />}
+            title="Nenhum sinal de alerta"
+            description="A triagem não encontrou alertas nas regras práticas."
+            variant="naked"
+            size="sm"
+          />
         ) : (
           <ul className="space-y-2" aria-label="Alertas da triagem">
             {flags.map((flag) => (

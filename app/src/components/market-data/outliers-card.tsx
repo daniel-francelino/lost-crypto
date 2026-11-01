@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { DataTable, type DataTableColumn } from "lost-ui/data/data-table";
-import { Empty } from "lost-ui/data/empty";
+import { EmptyState as Empty } from "@/components/shared/feedback/empty-state";
 import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
 import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import { ErrorBlock } from "@/components/shared/feedback/query-boundary";

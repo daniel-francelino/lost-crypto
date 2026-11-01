@@ -1,5 +1,6 @@
 import { ListChecks } from "lucide-react";
 import { Card, CardContent, CardHeader } from "lost-ui/ui/card";
+import { EmptyState } from "@/components/shared/feedback/empty-state";
 import { IconCardTitle } from "@/components/shared/metrics/icon-card-title";
 import { ErrorBlock, SkeletonBlock } from "@/components/shared/feedback/query-boundary";
 import { useInterventions } from "@/hooks/bots/use-bots";
@@ -30,7 +31,14 @@ export function BotInterventions({ botId }: { botId: string }) {
           {data.drawdown_threshold_pct}%
         </p>
         {data.total === 0 ? (
-          <p className="text-muted-foreground">Nenhuma intervenção: o plano está sendo seguido.</p>
+          <EmptyState
+            icon={<ListChecks aria-hidden="true" />}
+            title="Nenhuma intervenção"
+            description="O plano está sendo seguido."
+            variant="naked"
+            size="sm"
+            className="items-start text-left"
+          />
         ) : null}
         <ul className="space-y-1">
           {Object.entries(data.by_type).map(([type, count]) => (

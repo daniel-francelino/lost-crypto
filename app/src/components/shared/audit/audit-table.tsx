@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, type DataTableColumn } from "lost-ui/data/data-table";
-import { Empty } from "lost-ui/data/empty";
+import { EmptyState as Empty } from "@/components/shared/feedback/empty-state";
 import { ErrorBlock } from "@/components/shared/feedback/query-boundary";
 import { QueryKey } from "@/lib/shared/api/query-keys";
 import { type AuditEvent, listAudit } from "@/lib/shared/audit/audit.api";

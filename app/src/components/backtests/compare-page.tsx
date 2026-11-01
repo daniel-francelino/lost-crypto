@@ -1,7 +1,7 @@
 import { PageHeader } from "lost-ui/app/page-header";
 import { LineChart } from "lost-ui/charts/line-chart";
 import { DataTable, type DataTableColumn } from "lost-ui/data/data-table";
-import { Empty } from "lost-ui/data/empty";
+import { EmptyState as Empty } from "@/components/shared/feedback/empty-state";
 import { Alert, AlertDescription, AlertTitle } from "lost-ui/ui/alert";
 import { Card, CardContent, CardHeader } from "lost-ui/ui/card";
 import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";

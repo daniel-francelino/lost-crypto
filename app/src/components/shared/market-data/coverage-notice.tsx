@@ -1,4 +1,6 @@
+import { DatabaseX } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "lost-ui/ui/alert";
+import { EmptyState } from "@/components/shared/feedback/empty-state";
 import { useRangeCoverage, type RangeParams } from "@/hooks/shared/use-coverage";
 import { dayEndUtcIso, dayStartUtcIso, formatUtc, formatUtcDay, toMs } from "@/lib/shared/dates";
 import { formatDuration, formatInteger } from "@/lib/shared/format";
@@ -35,19 +37,26 @@ export function CoverageNotice(params: RangeParams) {
   const outside = range === null && !empty && isOutside(coverage, params.start, params.end);
   if (!empty && !missing && !outside) return null;
 
+  if (empty) {
+    return (
+      <EmptyState
+        icon={<DatabaseX aria-hidden="true" />}
+        title="Sem dados de mercado para este par"
+        description="Não há candles salvos para este símbolo e intervalo. Importe os dados antes de rodar."
+        variant="subtle"
+        size="sm"
+        className="border-destructive/50"
+      />
+    );
+  }
+
   return (
-    <Alert className={overLimit || empty ? "border-destructive/50" : "border-warning/40"}>
+    <Alert className={overLimit ? "border-destructive/50" : "border-warning/40"}>
       <AlertTitle>
-        {empty
-          ? "Sem dados de mercado para este par"
-          : overLimit
-            ? "Lacunas acima do limite neste período"
-            : "Há lacunas neste período"}
+        {overLimit ? "Lacunas acima do limite neste período" : "Há lacunas neste período"}
       </AlertTitle>
       <AlertDescription>
-        {empty
-          ? "Não há candles salvos para este símbolo e intervalo. Importe os dados antes de rodar."
-          : `Candles salvos: ${formatInteger(coverage.count)}, de ${formatUtcDay(coverage.first)} a ${formatUtcDay(coverage.last)}.`}
+        {`Candles salvos: ${formatInteger(coverage.count)}, de ${formatUtcDay(coverage.first)} a ${formatUtcDay(coverage.last)}.`}
         {!empty && range === null && isOutside(coverage, params.start, params.end)
           ? " O período escolhido ultrapassa o que está salvo."
           : ""}

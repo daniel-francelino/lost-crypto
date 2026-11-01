@@ -2,7 +2,7 @@ import { CheckCheck } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "lost-ui/app/page-header";
 import { DataTable, type DataTableColumn } from "lost-ui/data/data-table";
-import { Empty } from "lost-ui/data/empty";
+import { EmptyState as Empty } from "@/components/shared/feedback/empty-state";
 import { FormSelect } from "lost-ui/forms/form-select";
 import { Badge } from "lost-ui/ui/badge";
 import { Button } from "lost-ui/ui/button";

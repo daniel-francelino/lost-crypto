@@ -6,7 +6,7 @@ import { CalendarDays, Database } from "lucide-react";
 import { PageHeader } from "lost-ui/app/page-header";
 import { LineChart } from "lost-ui/charts/line-chart";
 import { DataTable, type DataTableColumn } from "lost-ui/data/data-table";
-import { Empty } from "lost-ui/data/empty";
+import { EmptyState as Empty } from "@/components/shared/feedback/empty-state";
 import { Form } from "lost-ui/forms/form";
 import { FormInput } from "lost-ui/forms/form-input";
 import { FormSelect } from "lost-ui/forms/form-select";
