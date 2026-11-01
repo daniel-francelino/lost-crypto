@@ -13,10 +13,11 @@ from modules.analytics.domain.mean_reversion import suggested_windows
 from modules.market_data.application.ports import ImportJob
 from modules.market_data.application.service import REFERENCE_SYMBOL, InvalidImportRequest
 from modules.market_data.domain.models import RegimeBreak, Timeframe
+from modules.market_data.domain.pairs import SUPPORTED_PAIRS
 
 router = APIRouter(prefix="/market-data", tags=["market-data"])
 
-Symbol = Annotated[str, Field(pattern=r"^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$", examples=["BTC/USDT"])]
+Symbol = Annotated[str, Field(pattern=r"^[A-Z0-9]{2,15}/USDT$", examples=["BTC/USDT"])]
 
 
 class ImportRequest(BaseModel):
@@ -210,6 +211,22 @@ async def get_candles(
             volume=c.volume,
         )
         for c in candles[:limit]
+    ]
+
+
+class SupportedPairOut(BaseModel):
+    symbol: str
+    base: str
+    quote: str
+    name: str
+
+
+@router.get("/symbols", response_model=list[SupportedPairOut])
+async def list_symbols() -> list[SupportedPairOut]:
+    """The USDT pairs offered in the selectors (the quote is always USDT)."""
+    return [
+        SupportedPairOut(symbol=p.symbol, base=p.base, quote="USDT", name=p.name)
+        for p in SUPPORTED_PAIRS
     ]
 
 

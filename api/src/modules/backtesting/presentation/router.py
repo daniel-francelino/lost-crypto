@@ -33,7 +33,7 @@ from modules.strategies.domain.types import Side
 
 router = APIRouter(prefix="/backtests", tags=["backtests"])
 
-Symbol = Annotated[str, Field(pattern=r"^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$")]
+Symbol = Annotated[str, Field(pattern=r"^[A-Z0-9]{2,15}/USDT$", examples=["BTC/USDT"])]
 
 
 class BacktestCreate(BaseModel):

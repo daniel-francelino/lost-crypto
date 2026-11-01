@@ -177,7 +177,7 @@ export function BacktestDetailPage({ runId }: { runId: string }) {
               ? null
               : ` Esta janela já foi usada em ${run.prior_runs} outras execuções: cada olhada a mais torna o teste menos fora da amostra.`}
           </p>
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="space-y-6">
             <div className="space-y-2">
               <h3 className="text-sm font-medium">Treino</h3>
               <MetricsGrid metrics={run.segments.train} quote={quote} />

@@ -161,3 +161,11 @@ def test_unprofitable_and_too_small_grids() -> None:
     rows = [({"fast": 9, "slow": 21}, Decimal(10)), ({"fast": 5, "slow": 21}, Decimal(9))]
     assert assess(tiny, rows).verdict is Verdict.INSUFFICIENT
     assert assess(GRID, []).verdict is Verdict.INSUFFICIENT
+
+
+def test_supported_pairs_are_all_quoted_in_usdt() -> None:
+    from modules.market_data.domain.pairs import QUOTE, SUPPORTED_PAIRS
+
+    assert QUOTE == "USDT"
+    assert all(pair.symbol == f"{pair.base}/USDT" for pair in SUPPORTED_PAIRS)
+    assert len({pair.symbol for pair in SUPPORTED_PAIRS}) == len(SUPPORTED_PAIRS)

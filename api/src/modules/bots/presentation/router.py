@@ -23,7 +23,7 @@ from modules.trading.domain.diagnosis import VOLUME_MARKER, checklist, execution
 
 router = APIRouter(prefix="/bots", tags=["bots"])
 
-Symbol = Annotated[str, Field(pattern=r"^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$")]
+Symbol = Annotated[str, Field(pattern=r"^[A-Z0-9]{2,15}/USDT$", examples=["BTC/USDT"])]
 Limit = Annotated[int, Query(ge=1, le=500)]
 
 
