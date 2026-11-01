@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   hurstText,
   sampleEveryValue,
+  TrendSuitability,
+  trendSuitability,
+  trendSuitabilityText,
   varianceRatioText,
 } from "@/lib/market-data/series-diagnostics";
 
@@ -25,5 +28,15 @@ describe("series diagnostics text", () => {
     expect(sampleEveryValue("0")).toBe(1);
     expect(sampleEveryValue("abc")).toBe(1);
     expect(sampleEveryValue("5000")).toBe(1);
+  });
+
+  it("rates a pair for trend following from Hurst and the 8-candle variance ratio", () => {
+    const ratio = (value: string) => [{ lag: 8, ratio: value }];
+    expect(trendSuitability("0.54", ratio("1.02"))).toBe(TrendSuitability.Favorable);
+    expect(trendSuitability("0.49", ratio("0.91"))).toBe(TrendSuitability.Unfavorable);
+    expect(trendSuitability("0.54", ratio("0.95"))).toBe(TrendSuitability.Inconclusive);
+    expect(trendSuitability(null, ratio("1.1"))).toBe(TrendSuitability.Inconclusive);
+    expect(trendSuitability("0.6", [{ lag: 2, ratio: "1.2" }])).toBe(TrendSuitability.Inconclusive);
+    expect(trendSuitabilityText(TrendSuitability.Unfavorable)).toContain("reversão");
   });
 });

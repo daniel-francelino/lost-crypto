@@ -59,6 +59,7 @@ class BacktestRunRow(Base):
     max_drawdown_tolerance_pct: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     max_drawdown_tolerance_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     allow_gaps: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    resume_daily_pause: Mapped[bool] = mapped_column(Boolean, server_default="false")
     fill_timing: Mapped[str] = mapped_column(Text, server_default="next_open")
     risk_limits: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     sweep_id: Mapped[UUID | None] = mapped_column(ForeignKey("backtest_sweeps.id"), nullable=True)

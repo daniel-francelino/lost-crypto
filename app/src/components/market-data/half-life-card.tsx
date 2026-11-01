@@ -9,6 +9,8 @@ import { getHalfLife } from "@/lib/shared/market-data/half-life.api";
 import {
   hurstText,
   sampleEveryValue,
+  trendSuitability,
+  trendSuitabilityText,
   varianceRatioText,
 } from "@/lib/market-data/series-diagnostics";
 import { QueryKey } from "@/lib/shared/api/query-keys";
@@ -126,6 +128,9 @@ export function HalfLifeCard({ exchange, symbol, timeframe, start, end }: Props)
                   description="Preços de cripto raramente são estacionários; são necessários pelo menos 100 observações."
                 />
               ) : null}
+              <p>
+                {trendSuitabilityText(trendSuitability(estimate.hurst, estimate.variance_ratios))}
+              </p>
               <p className="text-muted-foreground">{estimate.warning}</p>
               <p className="text-muted-foreground">
                 A razão de variâncias assume volatilidade constante, o que cripto não tem; leia como

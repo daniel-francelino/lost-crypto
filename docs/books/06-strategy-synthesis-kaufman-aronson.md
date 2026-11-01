@@ -204,3 +204,42 @@ Com 1% por operação o drawdown cai para 5%–16% na maioria dos casos, e o Sha
 | ETH, risco 1% (pausado em 2021) | 50% | 649% | 42% | 8 | 0,31 |
 
 Teste de entradas aleatórias do BTC (1.000 simulações): 10,8% das aleatórias fizeram tão bem ou melhor no período todo, o que não é significativo a 5%.
+
+## 12. Melhorias e estudo com vários pares (2026-11-01)
+
+**O que mudou no código**
+
+* **Pausa por perda diária no backtest** (`resume_daily_pause`, migração `0021`, API e `docs/openapi.json`): com `risk`, a pausa por perda diária pode terminar no dia UTC seguinte, como um operador que retoma o bot toda manhã. Pausas por drawdown e por sequência de perdas **nunca** terminam sozinhas. Padrão desligado, então nada antigo muda. Testes em `test_execution_systems.py`.
+* **Saída por ATR móvel** na `trend_quality_breakout` (`trail_atr_multiple`, quinto e último parâmetro, desligado por padrão): vende quando o fechamento fica `k` ATRs abaixo do maior fechamento desde a entrada. Só vende **antes** do canal, nunca depois. O pico é guardado no estado e sobrevive a reinício. Testes em `test_trend_quality_breakout.py`.
+* **Triagem de tipo de par** na tela de dados (card de meia-vida): com o Hurst e a razão de variâncias de 8 candles, o par é marcado como favorável, desfavorável ou inconclusivo para seguir tendência (`lib/market-data/series-diagnostics.ts`). É descritivo; não bloqueia nada.
+
+**Estudo com 15 pares** (BTC, ETH, BNB, XRP, ADA, DOGE, LTC, LINK, TRX, SOL, AVAX, DOT, ETC, ATOM e ETH/BTC), 1d, desenvolvimento antes de 2023 e avaliação depois, tudo declarado antes de olhar. Configurações fixas: baseline 40/20/3/0 (A) e com saída móvel de 2, 3 e 4 ATRs (T2, T3, T4), caixa todo investido.
+
+| Medida na avaliação (2023–2026), 15 pares | A | T2 | T3 | T4 | Comprar-e-segurar |
+|---|---|---|---|---|---|
+| Sharpe mediano | 0,38 | 0,43 | 0,41 | 0,44 | 0,43 |
+| Pares com Sharpe acima de comprar-e-segurar | 8 | 6 | 9 | 9 | – |
+| Pares com drawdown menor que o do ativo | 15 | 14 | 15 | 15 | – |
+| Drawdown mediano | 55% | 42% | 51% | 55% | 76% |
+
+* **A estratégia, entre pares, é um redutor de drawdown:** em 15 de 15 pares o drawdown ficou abaixo do ativo (mediana 55% contra 76%), com Sharpe mediano parecido com o de comprar-e-segurar (0,38 contra 0,43). Não é uma máquina de retorno.
+* **A saída móvel ajuda um pouco e de forma consistente nos dois trechos, mas pouco:** T3 melhora o Sharpe em 10 de 15 pares tanto no desenvolvimento quanto na avaliação, e reduz o drawdown em 11 de 15 na avaliação (15 de 15 no desenvolvimento). 10 de 15 não é significativo (p ≈ 0,15). T2, T3 e T4 dão medianas parecidas, o que é sinal de platô, não de pico. **Recomendo T3 para bots novos, sabendo que a evidência é fraca.** Padrão da estratégia continua desligado.
+* **O tipo de par importa:** os pares cujo Hurst ≥ 0,5 e razão de variâncias de 8 candles ≥ 1 **antes de 2023** (BTC, ETH, BNB, DOGE, SOL, AVAX, ETC, ETH/BTC) tiveram Sharpe médio de 0,59 com T3 e vantagem de +0,10 sobre comprar-e-segurar; os outros sete tiveram 0,23 e −0,13. Correlação entre o Hurst do desenvolvimento e a vantagem na avaliação: 0,39; com a razão de variâncias, 0,43. Com 15 pares isso é **indício, não prova**, e é por isso que a triagem é só um aviso.
+* **Pares pior com tendência neste estudo:** LTC (Sharpe −0,55 com T3), DOT e ATOM (perto de zero); XRP e LINK não vencem comprar-e-segurar. ETH/BTC (par relativo) teve Sharpe 0,36 com drawdown de 22%, ao contrário de 77% do ativo.
+
+**No banco (candles diários de 15 pares importados; 39 backtests do estudo)**
+
+| Par | A: Sharpe / DD | T3: Sharpe / DD | T3 com risco 1% e retomada diária: retorno / DD |
+|---|---|---|---|
+| BNB | 0,85 / 77% | 0,98 / 61% | 92% / 13% |
+| SOL | 1,40 / 63% | 1,33 / 55% | 53% / 7% |
+| AVAX | 1,06 / 72% | 1,18 / 58% | 50% / 16% |
+| DOGE | 0,62 / 94% | 0,66 / 87% | 19% / 20% |
+| LTC | 0,39 / 87% | 0,10 / 89% | 2% / 15% |
+| XRP | 0,18 / 90% | 0,34 / 76% | 15% / 11% |
+
+Período todo de cada par (dominado pelo desenvolvimento); a tabela completa está nas telas de backtests. Todos com divisão de teste em 2023-01-01.
+
+**Bots no banco, todos em paper e parados:** `Trend quality BTC 1d (paper)` (agora com `trail_atr_multiple = 3`, config v2) e um bot para cada um de ETH, BNB, SOL, AVAX e DOGE com os mesmos parâmetros e risco de 1% por operação. Esses cinco passaram na triagem de par (Hurst ≥ 0,5 e razão de variâncias de 8 ≥ 1 antes de 2023). **Nenhum foi iniciado.**
+
+**O que continua não feito:** a decisão de usar T3 como padrão, o teste de permutação Monte Carlo do melhor de N, a validação cruzada com purga, o filtro de volatilidade, um limite de exposição entre os bots (hoje cada bot arrisca 1% sem saber dos outros) e a avaliação de uma carteira desses pares como um todo.

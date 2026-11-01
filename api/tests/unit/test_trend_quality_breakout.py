@@ -40,7 +40,7 @@ def _flat_then_rise(rise: list[int]) -> list[int]:
     return [100 + (i % 2) for i in range(10)] + rise
 
 
-def test_it_is_a_trend_strategy_with_four_free_parameters():
+def test_it_is_a_trend_strategy_with_five_free_parameters():
     cls = TrendQualityBreakoutStrategy
     assert cls.STYLE is StrategyStyle.TREND
     assert [p.name for p in cls.PARAMETERS] == [
@@ -48,6 +48,7 @@ def test_it_is_a_trend_strategy_with_four_free_parameters():
         "exit_period",
         "atr_multiple",
         "er_min",
+        "trail_atr_multiple",
     ]
 
 
@@ -126,3 +127,42 @@ def test_atr_window_is_a_constant_not_a_parameter():
 def test_invalid_parameters_are_refused(params: dict[str, Any]):
     with pytest.raises(InvalidStrategyParams):
         _strategy(**params)
+
+
+def _rise_then_stall() -> list[int]:
+    return [*_flat_then_rise([110 + 4 * i for i in range(8)]), 138, 136, 134, 132, 130]
+
+
+def test_the_trailing_exit_is_off_by_default_and_sells_earlier_than_the_channel_when_on():
+    plain = _signals(_strategy(entry_period=10, exit_period=10), _rise_then_stall())
+    trailing = _signals(
+        _strategy(entry_period=10, exit_period=10, trail_atr_multiple="1"), _rise_then_stall()
+    )
+    assert [s.kind for _, s in plain] == [SignalKind.ENTRY]  # the channel never breaks
+    assert [s.kind for _, s in trailing] == [SignalKind.ENTRY, SignalKind.EXIT]
+    assert "trailing" in trailing[1][1].reason
+
+
+def test_a_wider_trailing_multiple_sells_later_or_never():
+    series = _rise_then_stall()
+    tight = _signals(_strategy(entry_period=10, exit_period=10, trail_atr_multiple="1"), series)
+    wide = _signals(_strategy(entry_period=10, exit_period=10, trail_atr_multiple="20"), series)
+    assert len(tight) == 2 and len(wide) == 1
+
+
+def test_the_trailing_peak_survives_a_restart():
+    strategy = _strategy(entry_period=10, exit_period=10, trail_atr_multiple="1")
+    state = strategy.initial_state()
+    position = D(0)
+    for candle in make_candles(_flat_then_rise([110, 120, 130])):
+        result = strategy.evaluate(StrategyContext(SYMBOL, candle, position), state)
+        state = result.state
+        if result.signals:
+            position = D(1)
+    reborn = strategy.deserialize_state(strategy.serialize_state(state))
+    assert reborn == state and state.peak_close == D(130)
+
+
+def test_trail_multiple_must_be_positive():
+    with pytest.raises(InvalidStrategyParams):
+        _strategy(trail_atr_multiple=0)

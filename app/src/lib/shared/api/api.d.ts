@@ -1537,6 +1537,12 @@ export interface components {
             /** @description Size and pause exactly like a bot with these limits (the bot's risk module). Null keeps the all-in sizing. */
             risk?: components["schemas"]["RiskLimitsIn-Input"] | null;
             /**
+             * Resume Daily Pause
+             * @description With `risk`: lift a daily-loss pause when the next UTC day starts, as an operator who resumes the bot every morning would. Drawdown and loss-streak pauses stay.
+             * @default false
+             */
+            resume_daily_pause: boolean;
+            /**
              * Allow Gaps
              * @description Run even when the range misses more than 1% of its candles or has a hole longer than 24 h (otherwise 422). The gaps are reported in `data_quality.gaps`.
              * @default false
@@ -1595,6 +1601,8 @@ export interface components {
             max_drawdown_tolerance_days: number | null;
             /** Allow Gaps */
             allow_gaps: boolean;
+            /** Resume Daily Pause */
+            resume_daily_pause: boolean;
             fill_timing: components["schemas"]["FillTiming"];
             risk: components["schemas"]["RiskLimitsIn-Output"] | null;
             /** Sweep Id */
@@ -3617,6 +3625,12 @@ export interface components {
             fill_timing: components["schemas"]["FillTiming"];
             /** @description Size and pause exactly like a bot with these limits (the bot's risk module). Null keeps the all-in sizing. */
             risk?: components["schemas"]["RiskLimitsIn-Input"] | null;
+            /**
+             * Resume Daily Pause
+             * @description With `risk`: lift a daily-loss pause when the next UTC day starts, as an operator who resumes the bot every morning would. Drawdown and loss-streak pauses stay.
+             * @default false
+             */
+            resume_daily_pause: boolean;
             /**
              * Allow Gaps
              * @description Run even when the range misses more than 1% of its candles or has a hole longer than 24 h (otherwise 422). The gaps are reported in `data_quality.gaps`.

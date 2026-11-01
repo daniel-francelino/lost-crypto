@@ -224,3 +224,27 @@ def test_divergence_checklist_follows_the_book() -> None:
     assert states["snooping"] is StepState.ATTENTION  # collapses without the tuning
     assert states["regime"] is StepState.ATTENTION
     assert {s.state for s in checklist(None, {}, 0, None)} <= {StepState.NO_DATA, StepState.OK}
+
+
+def test_a_daily_loss_pause_can_lift_at_the_next_utc_day() -> None:
+    candles = make_candles(_wave())
+    one_percent = replace(NO_LIMITS, max_daily_loss_pct=Decimal(1))
+    stays = run_backtest(replace(make_config(), risk=one_percent), candles, MARKET, _strategy())
+    lifts = run_backtest(
+        replace(make_config(), risk=one_percent, resume_daily_pause=True),
+        candles,
+        MARKET,
+        _strategy(),
+    )
+    assert stays.paused is not None and stays.paused[1] == "daily loss limit breached"
+    assert len(lifts.fills) > len(stays.fills)
+    assert len(lifts.rejected) < len(stays.rejected)
+
+
+def test_resuming_daily_pauses_never_lifts_a_drawdown_pause() -> None:
+    falling = make_candles([str(1000 - i * 4 + 30 * math.sin(i / 3)) for i in range(200)])
+    tight = replace(NO_LIMITS, max_drawdown_pct=Decimal(2))
+    outcome = run_backtest(
+        replace(make_config(), risk=tight, resume_daily_pause=True), falling, MARKET, _strategy()
+    )
+    assert outcome.paused is not None and "drawdown" in outcome.paused[1]

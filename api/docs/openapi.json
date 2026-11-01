@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Lost Crypto API",
-    "description": "Backend da plataforma Lost Crypto: dados de mercado, estratégias, backtests e paper trading.",
+    "description": "Backend da plataforma Lost Crypto: dados de mercado, estrat\u00e9gias, backtests e paper trading.",
     "version": "0.3.0"
   },
   "paths": {
@@ -4174,6 +4174,12 @@
             ],
             "description": "Size and pause exactly like a bot with these limits (the bot's risk module). Null keeps the all-in sizing."
           },
+          "resume_daily_pause": {
+            "type": "boolean",
+            "title": "Resume Daily Pause",
+            "description": "With `risk`: lift a daily-loss pause when the next UTC day starts, as an operator who resumes the bot every morning would. Drawdown and loss-streak pauses stay.",
+            "default": false
+          },
           "allow_gaps": {
             "type": "boolean",
             "title": "Allow Gaps",
@@ -4296,6 +4302,10 @@
           "allow_gaps": {
             "type": "boolean",
             "title": "Allow Gaps"
+          },
+          "resume_daily_pause": {
+            "type": "boolean",
+            "title": "Resume Daily Pause"
           },
           "fill_timing": {
             "$ref": "#/components/schemas/FillTiming"
@@ -4542,6 +4552,7 @@
           "max_drawdown_tolerance_pct",
           "max_drawdown_tolerance_days",
           "allow_gaps",
+          "resume_daily_pause",
           "fill_timing",
           "risk",
           "sweep_id",
@@ -9718,6 +9729,12 @@
             ],
             "description": "Size and pause exactly like a bot with these limits (the bot's risk module). Null keeps the all-in sizing."
           },
+          "resume_daily_pause": {
+            "type": "boolean",
+            "title": "Resume Daily Pause",
+            "description": "With `risk`: lift a daily-loss pause when the next UTC day starts, as an operator who resumes the bot every morning would. Drawdown and loss-streak pauses stay.",
+            "default": false
+          },
           "allow_gaps": {
             "type": "boolean",
             "title": "Allow Gaps",
@@ -10585,19 +10602,19 @@
     },
     {
       "name": "strategies",
-      "description": "Estratégias disponíveis e seus parâmetros."
+      "description": "Estrat\u00e9gias dispon\u00edveis e seus par\u00e2metros."
     },
     {
       "name": "market-data",
-      "description": "Importação (assíncrona, via worker) e consulta de candles históricos."
+      "description": "Importa\u00e7\u00e3o (ass\u00edncrona, via worker) e consulta de candles hist\u00f3ricos."
     },
     {
       "name": "backtests",
-      "description": "Execução (assíncrona, via worker) e resultados de backtests. Simulações em dados históricos — não são previsão de retorno."
+      "description": "Execu\u00e7\u00e3o (ass\u00edncrona, via worker) e resultados de backtests. Simula\u00e7\u00f5es em dados hist\u00f3ricos \u2014 n\u00e3o s\u00e3o previs\u00e3o de retorno."
     },
     {
       "name": "bots",
-      "description": "Bots de paper trading: configuração, comandos (start/pause/stop, executados pelo worker), ordens, portfólio virtual e performance. Sem dinheiro real."
+      "description": "Bots de paper trading: configura\u00e7\u00e3o, comandos (start/pause/stop, executados pelo worker), ordens, portf\u00f3lio virtual e performance. Sem dinheiro real."
     },
     {
       "name": "system",
@@ -10613,7 +10630,7 @@
     },
     {
       "name": "auth",
-      "description": "Login, sessões (refresh token em cookie httpOnly) e usuários."
+      "description": "Login, sess\u00f5es (refresh token em cookie httpOnly) e usu\u00e1rios."
     },
     {
       "name": "exchange-connections",

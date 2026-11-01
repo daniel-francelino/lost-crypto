@@ -6,7 +6,7 @@ Verified in the code on 2026-10-31. Every chapter report compares the book again
 
 * Spot only, **long-only**, one position per bot. No leverage, margin, futures or shorting.
 * Exchange: Binance (spot and testnet) behind a single `ExchangeRegistry`. Candle timeframes are time-based (no volume/tick bars).
-* Strategies: `ema_crossover`, `donchian_breakout`, `trend_quality_breakout` (trend; since the books 3+4 synthesis: Donchian entry gated by the efficiency ratio, ATR stop, no profit target) and `mean_reversion_zscore` (mean reversion, since book 2 ch. 3), each with a `StrategyStyle` (`api/src/modules/strategies/domain/`). Strategies emit *intents*; sizing and risk are elsewhere.
+* Strategies: `ema_crossover`, `donchian_breakout`, `trend_quality_breakout` (trend; since the books 3+4 synthesis: Donchian entry gated by the efficiency ratio, ATR stop, no profit target, optional ATR trailing exit) and `mean_reversion_zscore` (mean reversion, since book 2 ch. 3), each with a `StrategyStyle` (`api/src/modules/strategies/domain/`). Strategies emit *intents*; sizing and risk are elsewhere.
 
 ## Backtesting (`modules/backtesting`)
 
@@ -65,3 +65,5 @@ Per bot (book 2 ch. 3 added `max_close_jump_pct`, off by default: refuses entrie
 ## Known absences worth remembering when reading the books
 
 Portfolio-level optimisation (covariance; Kelly remains an advisory backtest reference), multiple concurrent strategies per capital pool, cross-validation beyond one split, cost models that depend on size or volatility, funding/borrow costs, short selling, mean-reversion/pairs/stat-arb strategies, machine-learning pipelines, labelling and meta-labelling. Historical regime descriptors and tail-loss sizing are available for backtests; they are descriptive advisories and no sizing suggestion is applied to orders.
+
+Since the books 3+4 strategy work: backtests take `resume_daily_pause` (migration `0021`, default false: with `risk`, a daily-loss pause lifts on the next UTC day; drawdown and loss-streak pauses never do), and the market-data half-life card rates a pair for trend following from Hurst and the 8-candle variance ratio (descriptive only).

@@ -116,6 +116,13 @@ class BacktestCreate(BaseModel):
             "Null keeps the all-in sizing."
         ),
     )
+    resume_daily_pause: bool = Field(
+        default=False,
+        description=(
+            "With `risk`: lift a daily-loss pause when the next UTC day starts, as an operator "
+            "who resumes the bot every morning would. Drawdown and loss-streak pauses stay."
+        ),
+    )
     allow_gaps: bool = Field(
         default=False,
         description=(
@@ -432,6 +439,7 @@ class BacktestOut(BaseModel):
     max_drawdown_tolerance_pct: Decimal | None
     max_drawdown_tolerance_days: int | None
     allow_gaps: bool
+    resume_daily_pause: bool
     fill_timing: FillTiming
     risk: RiskLimitsIn | None
     sweep_id: UUID | None
@@ -542,6 +550,7 @@ def _out(run: BacktestRun) -> BacktestOut:
         max_drawdown_tolerance_pct=c.max_drawdown_tolerance_pct,
         max_drawdown_tolerance_days=c.max_drawdown_tolerance_days,
         allow_gaps=c.allow_gaps,
+        resume_daily_pause=c.resume_daily_pause,
         fill_timing=c.fill_timing,
         risk=None if c.risk is None else RiskLimitsIn.from_domain(c.risk),
         sweep_id=run.sweep_id,
@@ -595,6 +604,7 @@ def _config(body: BacktestCreate, container: Container) -> BacktestConfig:
         max_drawdown_tolerance_pct=body.max_drawdown_tolerance_pct,
         max_drawdown_tolerance_days=body.max_drawdown_tolerance_days,
         allow_gaps=body.allow_gaps,
+        resume_daily_pause=body.resume_daily_pause,
         fill_timing=body.fill_timing,
         risk=None if body.risk is None else body.risk.to_domain(),
     )

@@ -48,6 +48,9 @@ class BacktestConfig:
     max_drawdown_tolerance_pct: Decimal | None = None
     max_drawdown_tolerance_days: int | None = None
     allow_gaps: bool = False  # run even when the range misses many candles (book 1 ch. 3, O4)
+    # With ``risk``: lift a daily-loss pause when the next UTC day starts, as an operator who
+    # resumes the bot every morning would. Drawdown and loss-streak pauses always stay.
+    resume_daily_pause: bool = False
     fill_timing: FillTiming = FillTiming.NEXT_OPEN
     # The bot's risk module inside the backtest (sizing and pauses); None = all-in sizing.
     risk: RiskLimits | None = None

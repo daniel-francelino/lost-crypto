@@ -223,6 +223,7 @@ def guard_reason(guard: "_RiskGuard") -> str:
 
 
 VOLUME_WINDOW = 20
+DAILY_LOSS_REASON = "daily loss limit breached"
 _SIM_BOT = UUID(int=0)
 
 
@@ -294,14 +295,19 @@ class _RiskGuard:
             self._day = day
         elif day != self._day:
             self._day, self._day_start = day, self._last_mark
+            if self.config.resume_daily_pause and self._paused_by_daily_loss():
+                self.paused = None
         self._last_mark = equity
         self._peak = max(self._peak, equity)
         if self.paused is not None:
             return
         if daily_loss_breached(equity, self._day_start, self.limits):
-            self.paused = (at, "daily loss limit breached")
+            self.paused = (at, DAILY_LOSS_REASON)
         elif drawdown_breached(equity, self._peak, self.limits):
             self.paused = (at, "max drawdown limit breached")
+
+    def _paused_by_daily_loss(self) -> bool:
+        return self.paused is not None and self.paused[1] == DAILY_LOSS_REASON
 
     def after_exit(self, fills: Sequence[Fill], at: datetime) -> None:
         if self.paused is None and consecutive_losses_breached(round_trip_pnls(fills), self.limits):
