@@ -12,8 +12,8 @@ from core.clock import Clock
 from core.errors import DomainError
 from core.ids import IdGenerator
 from core.jobs import JobStatus
-from modules.analytics.domain.mean_reversion import HalfLife
-from modules.analytics.domain.mean_reversion import half_life as estimate_half_life
+from modules.analytics.domain import mean_reversion
+from modules.analytics.domain.mean_reversion import HalfLife, VarianceRatio
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.market_data.application.ports import ImportJob, ImportQuality, ImportStore
 from modules.market_data.domain.models import (
@@ -59,6 +59,24 @@ class Coverage:
     last: datetime | None
     gaps: list[Gap]
     in_range: RangeCoverage | None = None  # when a start/end was asked for
+
+
+@dataclass(frozen=True, slots=True)
+class SeriesDiagnostics:
+    half_life: HalfLife | None
+    hurst: Decimal | None
+    variance_ratios: list[VarianceRatio]
+
+
+def _diagnose(closes: list[Decimal], log: bool) -> SeriesDiagnostics:
+    ratios = [
+        r
+        for lag in mean_reversion.VARIANCE_RATIO_LAGS
+        if (r := mean_reversion.variance_ratio(closes, lag, log=log)) is not None
+    ]
+    return SeriesDiagnostics(
+        mean_reversion.half_life(closes, log=log), mean_reversion.hurst(closes, log=log), ratios
+    )
 
 
 class MarketDataService:
@@ -177,7 +195,8 @@ class MarketDataService:
         end: datetime,
         *,
         log: bool = True,
-    ) -> tuple[HalfLife | None, int, int]:
+        sample_every: int = 1,
+    ) -> tuple[SeriesDiagnostics, int, int]:
         self._exchanges.profile(exchange)
         async with self._stores() as store:
             count = await store.candles.count_range(exchange, symbol, timeframe, start, end)
@@ -186,8 +205,9 @@ class MarketDataService:
                     f"at most {MAX_ANALYSIS_CANDLES} candles per half-life request"
                 )
             candles = await store.candles.get_range(exchange, symbol, timeframe, start, end)
-        estimate = await asyncio.to_thread(estimate_half_life, [c.close for c in candles], log=log)
-        return estimate, len(candles), len(find_gaps([c.open_time for c in candles], timeframe))
+        closes = mean_reversion.sample_every([c.close for c in candles], sample_every)
+        diagnostics = await asyncio.to_thread(_diagnose, closes, log)
+        return diagnostics, len(closes), len(find_gaps([c.open_time for c in candles], timeframe))
 
 
 class CandleImporter:

@@ -28,7 +28,9 @@ from modules.backtesting.domain.data_quality import (
 from modules.backtesting.domain.engine import risk_report, run_backtest
 from modules.backtesting.domain.models import BacktestConfig, EquityPoint, hash_candles
 from modules.backtesting.domain.periods import compute_periods
+from modules.backtesting.domain.random_entries import random_entries_block
 from modules.backtesting.domain.segments import compute_segments
+from modules.bots.domain.models import BotConfig
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.execution.domain.orders import Fill
 from modules.market_data.domain.models import range_coverage
@@ -192,6 +194,18 @@ class BacktestService:
             raise BacktestNotFound(str(run_id))
         return run
 
+    async def matching_runs(self, config: BotConfig, limit: int = 50) -> list[BacktestRun]:
+        """Completed runs on the bot's market and strategy (realized-vs-backtest comparison)."""
+        async with self._stores() as store:
+            return await store.matching_runs(
+                config.exchange, config.symbol, config.timeframe, config.strategy_type, limit
+            )
+
+    async def prior_runs(self, run: BacktestRun) -> int:
+        """How many other completed runs already used this strategy on overlapping data."""
+        async with self._stores() as store:
+            return await store.count_prior_runs(run.id, run.config)
+
     async def list_runs(self, limit: int = 50, offset: int = 0) -> tuple[list[BacktestRun], int]:
         async with self._stores() as store:
             return await store.list_runs(limit, offset), await store.count_runs()
@@ -301,6 +315,14 @@ class BacktestExecutor:
                 tail_risk=tail_risk(outcome.equity_curve, candles, config.timeframe.delta),
                 regime=await asyncio.to_thread(
                     regime_report, candles, outcome.equity_curve, outcome.in_market
+                ),
+                significance=await asyncio.to_thread(
+                    random_entries_block,
+                    candles,
+                    outcome.fills,
+                    fee_rate=config.fee_rate,
+                    slippage_bps=config.slippage_bps,
+                    seed=config.seed,
                 ),
                 equity_curve=outcome.equity_curve,
                 fills=outcome.fills,

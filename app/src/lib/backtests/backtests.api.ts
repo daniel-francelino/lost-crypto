@@ -87,6 +87,20 @@ const regimeSchema = z.object({
 });
 export type Regime = z.infer<typeof regimeSchema>;
 
+const randomEntriesSchema = z.object({
+  available: z.boolean(),
+  reason: z.string().nullish(),
+  simulations: z.number().nullish(),
+  as_good_or_better: z.number().nullish(),
+  fraction: nullableDecimalSchema.optional(),
+  trades: z.number().nullish(),
+  seed: z.number().nullish(),
+  observed_log_return: nullableDecimalSchema.optional(),
+  overlap_allowed: z.boolean().nullish(),
+});
+const significanceSchema = z.object({ random_entries: randomEntriesSchema.nullish() });
+export type Significance = z.infer<typeof significanceSchema>;
+
 const dataQualitySchema = z.object({
   gaps: z
     .object({
@@ -155,6 +169,8 @@ export const backtestSchema = z.object({
     .nullish(),
   tail_risk: z.record(z.string(), z.unknown()).nullish(),
   regime: regimeSchema.nullish(),
+  significance: significanceSchema.nullish(),
+  prior_runs: z.number().nullish(),
   sweep_id: z.string().nullable(),
   data_hash: z.string().nullable(),
   candles_count: z.number().nullable(),

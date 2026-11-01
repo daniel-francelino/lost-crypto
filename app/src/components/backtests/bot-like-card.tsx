@@ -1,7 +1,8 @@
 import { FormInput } from "lost-ui/forms/form-input";
 import { FormSelect } from "lost-ui/forms/form-select";
 import { FormSwitch } from "lost-ui/forms/form-switch";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "lost-ui/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
+import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import type { BacktestFormValues, RiskValues } from "@/lib/backtests/form";
 import { FillTiming } from "@/lib/shared/enums";
 import { decimalError, integerError } from "@/lib/shared/validators";

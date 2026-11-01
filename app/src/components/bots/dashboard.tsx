@@ -1,8 +1,10 @@
 import { Link } from "@tanstack/react-router";
+import { Bot as BotIcon } from "lucide-react";
 import { PageHeader } from "lost-ui/app/page-header";
 import { Empty } from "lost-ui/data/empty";
 import { Alert, AlertDescription, AlertTitle } from "lost-ui/ui/alert";
-import { Card, CardContent, CardHeader, CardTitle } from "lost-ui/ui/card";
+import { Card, CardContent, CardHeader } from "lost-ui/ui/card";
+import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import { QueryBoundary } from "@/components/shared/feedback/query-boundary";
 import { UpdatedAt } from "@/components/shared/feedback/updated-at";
 import { StatTile } from "@/components/shared/metrics/stat-tile";
@@ -61,7 +63,7 @@ function BotCard({ bot }: { bot: BotOverview }) {
   return (
     <Card>
       <CardHeader className="space-y-2 pb-2">
-        <CardTitle className="text-base">
+        <CardTitle className="text-base" icon={BotIcon}>
           <Link
             to="/bots/$botId"
             params={{ botId: bot.id }}

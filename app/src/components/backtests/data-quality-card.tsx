@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "lost-ui/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
+import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import type { Backtest, DataQuality } from "@/lib/backtests/backtests.api";
 import { dayString, formatUtc, toMs } from "@/lib/shared/dates";
 import {

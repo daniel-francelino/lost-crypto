@@ -72,6 +72,7 @@ class BacktestRunRow(Base):
     risk_report: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     tail_risk: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     regime: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    significance: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     equity_curve: Mapped[list[list[str]] | None] = mapped_column(JSONB, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

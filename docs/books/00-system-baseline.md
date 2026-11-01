@@ -29,7 +29,11 @@ Verified in the code on 2026-10-31. Every chapter report compares the book again
 
 Net PnL, total return %, buy-and-hold return %, max drawdown %, fees paid, fills, round trips, win rate, profit factor, average trade PnL, open-position flag, rejected signals. Since book 1 ch. 2: Sharpe, Sortino, information ratio vs. holding the asset, annualised return and volatility (365-day year, risk-free 0, `None` below 30 returns or 30 days; `risk_ratios.py`), exposure, sample size and gaps, drawdown duration, peak/trough, current and open drawdown. Same functions for backtests and bots.
 
-**Not computed:** Calmar, trade-level distribution (skew, kurtosis, tails), confidence intervals, any significance test (PSR/DSR).
+Since book 2 ch. 2: Hurst exponent, variance ratios (lags 2, 4, 8), optional sampling every N candles and suggested look-back windows around the half-life, all descriptive and served by `/market-data/half-life`.
+
+Since book 2 ch. 1: `sharpe_t_stat` and `significance_p` (Gaussian test, one-sided table 0.10 to 0.001, `analytics/domain/significance.py`); each backtest also stores a random-entries test (`significance` JSONB, migration `0015`, 1,000 seeded simulations, needs 10 trades) and the detail reports `prior_runs`. `GET /bots/{id}/backtest-comparison` compares a bot's realized Sharpe with its equivalent backtest.
+
+**Not computed:** Calmar, trade-level distribution (skew, kurtosis, tails), confidence intervals, PSR/DSR and any multiple-testing correction.
 
 ## Risk (`modules/risk_management`)
 

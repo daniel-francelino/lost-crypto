@@ -366,6 +366,31 @@ export const getParity = (id: string, signal?: AbortSignal) =>
 export const requestParity = (id: string) =>
   request({ method: HttpMethod.Post, path: `/bots/${id}/parity`, schema: paritySchema });
 
+const realizedSharpeSchema = z.object({
+  sharpe: nullableDecimalSchema,
+  return_periods: z.number().nullable(),
+  days: nullableDecimalSchema,
+});
+const realizedVsBacktestSchema = z.object({
+  run_id: z.string().nullable(),
+  run_created_at: nullableTimestampSchema,
+  realized: realizedSharpeSchema.nullable(),
+  backtest: z.object({ sharpe: nullableDecimalSchema }).nullable(),
+  ratio: nullableDecimalSchema,
+  min_periods: z.number(),
+  chan_min_ratio: decimalSchema,
+  reason: z.string().nullable(),
+});
+export type RealizedVsBacktest = z.infer<typeof realizedVsBacktestSchema>;
+
+export const getBacktestComparison = (id: string, runId?: string, signal?: AbortSignal) =>
+  request({
+    path: `/bots/${id}/backtest-comparison`,
+    ...(runId === undefined ? {} : { query: { run_id: runId } }),
+    schema: realizedVsBacktestSchema,
+    signal,
+  });
+
 const stepSchema = z.object({
   key: lenientEnum(DivergenceStep),
   state: lenientEnum(StepState),

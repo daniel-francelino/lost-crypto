@@ -1,11 +1,13 @@
 import { useNavigate } from "@tanstack/react-router";
+import { UserRound } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "lost-ui/app/page-header";
 import { Form } from "lost-ui/forms/form";
 import { FormInputPassword } from "lost-ui/forms/form-input-password";
 import { rules } from "lost-ui/forms/rules";
 import { Button } from "lost-ui/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "lost-ui/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
+import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import { toast } from "lost-ui/ui/sonner";
 import { useSessionUser } from "@/hooks/shared/use-session";
 import { changePassword } from "@/lib/auth/auth.api";
@@ -52,7 +54,7 @@ export function ProfilePage() {
       <PageHeader title="Meu perfil" description="Seus dados e a troca de senha." />
       <Card>
         <CardHeader>
-          <CardTitle>{user?.username}</CardTitle>
+          <CardTitle icon={UserRound}>{user?.username}</CardTitle>
           <CardDescription>
             {user === null ? "" : roleLabel(user.role)} · último acesso{" "}
             {formatDateTime(user?.last_login_at ?? null)}

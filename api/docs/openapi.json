@@ -887,6 +887,18 @@
             }
           },
           {
+            "name": "sample_every",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Sample Every"
+            }
+          },
+          {
             "name": "exchange",
             "in": "query",
             "required": false,
@@ -2574,6 +2586,67 @@
         }
       }
     },
+    "/api/v1/bots/{bot_id}/backtest-comparison": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Get Backtest Comparison",
+        "description": "Compare the bot's realized Sharpe with the backtest of its configuration (the newest\ncompleted one with the same strategy parameters, or ``run_id``). Read-only.",
+        "operationId": "get_backtest_comparison_api_v1_bots__bot_id__backtest_comparison_get",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RealizedVsBacktestOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/bots/{bot_id}/divergence": {
       "get": {
         "tags": [
@@ -3846,6 +3919,28 @@
               }
             ]
           },
+          "significance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignificanceOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prior_runs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prior Runs",
+            "description": "Detail only: other completed runs of the same strategy on overlapping data (same exchange, symbol and timeframe). Each look at the same window makes its test part less out of sample."
+          },
           "error": {
             "anyOf": [
               {
@@ -3925,6 +4020,26 @@
           "finished_at"
         ],
         "title": "BacktestOut"
+      },
+      "BacktestSharpeOut": {
+        "properties": {
+          "sharpe": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpe"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sharpe"
+        ],
+        "title": "BacktestSharpeOut"
       },
       "BackupOut": {
         "properties": {
@@ -5471,6 +5586,40 @@
           "warning": {
             "type": "string",
             "title": "Warning"
+          },
+          "sample_every": {
+            "type": "integer",
+            "title": "Sample Every",
+            "description": "One close per this many candles (1 = every candle).",
+            "default": 1
+          },
+          "hurst": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hurst",
+            "description": "Hurst exponent by the variance-of-differences method: below 0.5 reverts, 0.5 is a random walk, above 0.5 trends. Null on a short series."
+          },
+          "suggested_windows": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Suggested Windows",
+            "description": "Look-back windows around the half-life (0.5x, 1x, 2x), in the sampled bars; empty unless the series looks stationary at 5%. A search range, not advice."
+          },
+          "variance_ratios": {
+            "items": {
+              "$ref": "#/components/schemas/VarianceRatioOut"
+            },
+            "type": "array",
+            "title": "Variance Ratios",
+            "description": "Variance ratio per lag: below 1 reverts, 1 random walk, above 1 trends. z_stat assumes constant volatility, which crypto does not have."
           }
         },
         "type": "object",
@@ -6239,6 +6388,30 @@
             ],
             "title": "Drawdown Open",
             "description": "The curve ends below its high watermark (not recovered)."
+          },
+          "sharpe_t_stat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpe T Stat",
+            "description": "Mean return / std * sqrt(n) of the periodic returns (Gaussian test, book 2 ch. 1). Null below 30 returns."
+          },
+          "significance_p": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Significance P",
+            "description": "Strictest p-value of the Gaussian table (0.10, 0.05, 0.01, 0.001) that the statistic reaches; null when it does not reach 0.10. Not the chance that the strategy works."
           }
         },
         "type": "object",
@@ -6879,6 +7052,111 @@
         ],
         "title": "PromoteIn"
       },
+      "RandomEntriesOut": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why the test was not computed (too few trades)."
+          },
+          "simulations": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simulations"
+          },
+          "as_good_or_better": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Good Or Better",
+            "description": "Simulations with random entries that did as well or better."
+          },
+          "fraction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fraction",
+            "description": "as_good_or_better / simulations: a small value means luck is an unlikely explanation. It is not the chance that the strategy works."
+          },
+          "trades": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trades"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "observed_log_return": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Log Return"
+          },
+          "overlap_allowed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overlap Allowed",
+            "description": "Random trades are drawn independently and may overlap."
+          }
+        },
+        "type": "object",
+        "required": [
+          "available"
+        ],
+        "title": "RandomEntriesOut"
+      },
       "RangeCoverageOut": {
         "properties": {
           "start": {
@@ -6949,6 +7227,147 @@
           "checks"
         ],
         "title": "ReadinessOut"
+      },
+      "RealizedSharpeOut": {
+        "properties": {
+          "sharpe": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpe",
+            "description": "Annualised (365 days); null on a short sample."
+          },
+          "return_periods": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Periods",
+            "description": "The size of the live sample."
+          },
+          "days": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sharpe",
+          "return_periods",
+          "days"
+        ],
+        "title": "RealizedSharpeOut"
+      },
+      "RealizedVsBacktestOut": {
+        "properties": {
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id",
+            "description": "The backtest compared with; null if none matches."
+          },
+          "run_created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Created At"
+          },
+          "realized": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RealizedSharpeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "backtest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BacktestSharpeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratio",
+            "description": "Realized Sharpe / backtest Sharpe."
+          },
+          "min_periods": {
+            "type": "integer",
+            "title": "Min Periods",
+            "description": "Live returns needed before a ratio is given."
+          },
+          "chan_min_ratio": {
+            "type": "string",
+            "title": "Chan Min Ratio",
+            "description": "Chan's rule of thumb (his experience, not a standard): a ratio of at least this is usually acceptable."
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why there is no ratio, when there is none."
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "run_created_at",
+          "realized",
+          "backtest",
+          "ratio",
+          "min_periods",
+          "chan_min_ratio",
+          "reason"
+        ],
+        "title": "RealizedVsBacktestOut"
       },
       "ReasonIn": {
         "properties": {
@@ -7632,6 +8051,22 @@
           "created_at"
         ],
         "title": "SignalOut"
+      },
+      "SignificanceOut": {
+        "properties": {
+          "random_entries": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RandomEntriesOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "SignificanceOut"
       },
       "SizingAdviceOut": {
         "properties": {
@@ -8808,6 +9243,29 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VarianceRatioOut": {
+        "properties": {
+          "lag": {
+            "type": "integer",
+            "title": "Lag"
+          },
+          "ratio": {
+            "type": "string",
+            "title": "Ratio"
+          },
+          "z_stat": {
+            "type": "string",
+            "title": "Z Stat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lag",
+          "ratio",
+          "z_stat"
+        ],
+        "title": "VarianceRatioOut"
       },
       "WorkerHealthResponse": {
         "properties": {

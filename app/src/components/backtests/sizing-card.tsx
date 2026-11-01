@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "lost-ui/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
+import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import { Input } from "lost-ui/ui/input";
 import { useSizing } from "@/hooks/backtests/use-backtests";
 import type { Backtest } from "@/lib/backtests/backtests.api";

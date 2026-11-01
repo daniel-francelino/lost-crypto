@@ -1,6 +1,8 @@
 import { PageHeader } from "lost-ui/app/page-header";
 import { Badge } from "lost-ui/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "lost-ui/ui/card";
+import { Card, CardContent, CardHeader } from "lost-ui/ui/card";
+import { Activity, Bot, Settings2 } from "lucide-react";
+import { IconCardTitle } from "@/components/shared/metrics/icon-card-title";
 import { QueryBoundary } from "@/components/shared/feedback/query-boundary";
 import { UpdatedAt } from "@/components/shared/feedback/updated-at";
 import { StatTile } from "@/components/shared/metrics/stat-tile";
@@ -52,7 +54,9 @@ export function SystemPage() {
             <UnprotectedPositions status={data} />
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Bots por estado</CardTitle>
+                <IconCardTitle className="text-base" icon={Bot}>
+                  Bots por estado
+                </IconCardTitle>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
                 {Object.entries(data.bots_by_state).map(([state, count]) => (
@@ -65,7 +69,9 @@ export function SystemPage() {
             {data.stale_bots.length === 0 ? null : (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Bots que não estão avançando</CardTitle>
+                  <IconCardTitle className="text-base" icon={Activity}>
+                    Bots que não estão avançando
+                  </IconCardTitle>
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-1 text-sm">
@@ -87,7 +93,9 @@ export function SystemPage() {
         {(data) => (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">O que este ambiente permite</CardTitle>
+              <IconCardTitle className="text-base" icon={Settings2}>
+                O que este ambiente permite
+              </IconCardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-2">

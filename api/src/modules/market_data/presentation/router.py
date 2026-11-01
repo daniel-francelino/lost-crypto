@@ -8,6 +8,7 @@ from pydantic import AwareDatetime, BaseModel, Field
 
 from container import Container
 from core.jobs import JobStatus
+from modules.analytics.domain.mean_reversion import suggested_windows
 from modules.market_data.application.ports import ImportJob
 from modules.market_data.application.service import REFERENCE_SYMBOL, InvalidImportRequest
 from modules.market_data.domain.models import Timeframe
@@ -99,6 +100,12 @@ class OutlierOut(BaseModel):
     )
 
 
+class VarianceRatioOut(BaseModel):
+    lag: int
+    ratio: Decimal
+    z_stat: Decimal
+
+
 class HalfLifeOut(BaseModel):
     n: int
     slope: Decimal | None
@@ -109,6 +116,24 @@ class HalfLifeOut(BaseModel):
     log_prices: bool
     gaps: int
     warning: str
+    sample_every: int = Field(
+        default=1, description="One close per this many candles (1 = every candle)."
+    )
+    hurst: Decimal | None = Field(
+        default=None,
+        description="Hurst exponent by the variance-of-differences method: below 0.5 reverts, "
+        "0.5 is a random walk, above 0.5 trends. Null on a short series.",
+    )
+    suggested_windows: list[int] = Field(
+        default_factory=list,
+        description="Look-back windows around the half-life (0.5x, 1x, 2x), in the sampled "
+        "bars; empty unless the series looks stationary at 5%. A search range, not advice.",
+    )
+    variance_ratios: list[VarianceRatioOut] = Field(
+        default_factory=list,
+        description="Variance ratio per lag: below 1 reverts, 1 random walk, above 1 trends. "
+        "z_stat assumes constant volatility, which crypto does not have.",
+    )
 
 
 def _job_out(job: ImportJob) -> ImportJobOut:
@@ -265,6 +290,7 @@ async def get_half_life(
     start: AwareDatetime,
     end: AwareDatetime,
     log_prices: bool = True,
+    sample_every: Annotated[int, Query(ge=1, le=1000)] = 1,
     exchange: str = "binance",
 ) -> HalfLifeOut:
     """Estimate mean-reversion half-life from stored close prices; descriptive only."""
@@ -272,9 +298,10 @@ async def get_half_life(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "start must be before end")
     container: Container = request.app.state.container
     try:
-        estimate, n, gaps = await container.market_data.half_life(
-            exchange, symbol, timeframe, start, end, log=log_prices
+        diagnostics, n, gaps = await container.market_data.half_life(
+            exchange, symbol, timeframe, start, end, log=log_prices, sample_every=sample_every
         )
+        estimate = diagnostics.half_life
     except InvalidImportRequest as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     return HalfLifeOut(
@@ -290,6 +317,17 @@ async def get_half_life(
         ),
         log_prices=log_prices,
         gaps=gaps,
+        sample_every=sample_every,
+        hurst=diagnostics.hurst,
+        suggested_windows=(
+            suggested_windows(estimate.half_life_bars)
+            if estimate is not None and estimate.stationary
+            else []
+        ),
+        variance_ratios=[
+            VarianceRatioOut(lag=r.lag, ratio=r.ratio, z_stat=r.z_stat)
+            for r in diagnostics.variance_ratios
+        ],
         warning=(
             "Estimativa descritiva, não é previsão. A meia-vida só é interpretável quando "
             "a série é estacionária; dados com lacunas foram usados como estão."

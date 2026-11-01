@@ -19,6 +19,8 @@ export const metricsSchema = z.object({
   sharpe_ratio: nullableDecimalSchema.optional(),
   sortino_ratio: nullableDecimalSchema.optional(),
   information_ratio: nullableDecimalSchema.optional(),
+  sharpe_t_stat: nullableDecimalSchema.optional(),
+  significance_p: nullableDecimalSchema.optional(),
   annualized_return_pct: nullableDecimalSchema.optional(),
   annualized_volatility_pct: nullableDecimalSchema.optional(),
   exposure_pct: nullableDecimalSchema.optional(),

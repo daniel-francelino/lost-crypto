@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { DataTable, type DataTableColumn } from "lost-ui/data/data-table";
 import { Empty } from "lost-ui/data/empty";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "lost-ui/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
+import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import { ErrorBlock } from "@/components/shared/feedback/query-boundary";
 import { SignedValue } from "@/components/shared/status/signed-value";
 import { type Outlier, listOutliers } from "@/lib/market-data/market-data.api";

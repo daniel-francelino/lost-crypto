@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from modules.analytics.domain import risk_ratios
+from modules.analytics.domain import risk_ratios, significance
 from modules.backtesting.domain.models import EquityPoint
 from modules.execution.domain.orders import Fill
 from modules.strategies.domain.types import Side
@@ -51,6 +51,9 @@ class Metrics:
     max_drawdown_trough_at: datetime | None = None
     current_drawdown_pct: Decimal | None = None
     drawdown_open: bool | None = None  # the curve ends below its high watermark
+    # Gaussian test of the mean return against zero (book 2 ch. 1); None on short samples.
+    sharpe_t_stat: Decimal | None = None
+    significance_p: Decimal | None = None  # strictest table p-value reached; None if above 0.10
 
     def to_dict(self) -> dict[str, Any]:
         def plain(value: Any) -> Any:
@@ -204,7 +207,10 @@ def _ratio_fields(
         [p.time for p in equity_curve], [p.equity for p in equity_curve], bar, benchmark_prices
     )
     returns = series.returns
+    t_stat = significance.sharpe_t_stat(returns)
     return {
+        "sharpe_t_stat": _q(t_stat),
+        "significance_p": None if t_stat is None else significance.significance_level(t_stat),
         "sharpe_ratio": _q(risk_ratios.sharpe(returns, n_t)),
         "sortino_ratio": _q(risk_ratios.sortino(returns, n_t)),
         "information_ratio": _q(risk_ratios.information_ratio(returns, series.benchmark, n_t))

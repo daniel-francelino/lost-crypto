@@ -79,6 +79,7 @@ def _to_run(row: BacktestRunRow) -> BacktestRun:
         risk_report=row.risk_report,
         tail_risk=row.tail_risk,
         regime=row.regime,
+        significance=row.significance,
         sweep_id=row.sweep_id,
         error=row.error,
     )
@@ -180,6 +181,40 @@ class SqlAlchemyBacktestStore:
         )
         return int(result.scalar_one())
 
+    async def count_prior_runs(self, run_id: UUID, config: BacktestConfig) -> int:
+        result = await self._session.execute(
+            select(func.count())
+            .select_from(BacktestRunRow)
+            .where(
+                BacktestRunRow.id != run_id,
+                BacktestRunRow.status == JobStatus.COMPLETED.value,
+                BacktestRunRow.strategy_type == config.strategy_type,
+                BacktestRunRow.exchange == config.exchange,
+                BacktestRunRow.symbol == config.symbol,
+                BacktestRunRow.timeframe == config.timeframe.value,
+                BacktestRunRow.start_at < config.end,
+                BacktestRunRow.end_at > config.start,
+            )
+        )
+        return int(result.scalar_one())
+
+    async def matching_runs(
+        self, exchange: str, symbol: str, timeframe: Timeframe, strategy_type: str, limit: int
+    ) -> list[BacktestRun]:
+        result = await self._session.execute(
+            select(BacktestRunRow)
+            .where(
+                BacktestRunRow.status == JobStatus.COMPLETED.value,
+                BacktestRunRow.strategy_type == strategy_type,
+                BacktestRunRow.exchange == exchange,
+                BacktestRunRow.symbol == symbol,
+                BacktestRunRow.timeframe == timeframe.value,
+            )
+            .order_by(BacktestRunRow.created_at.desc())
+            .limit(limit)
+        )
+        return [_to_run(r) for r in result.scalars()]
+
     async def list_runs(self, limit: int, offset: int = 0) -> list[BacktestRun]:
         result = await self._session.execute(
             select(BacktestRunRow)
@@ -229,6 +264,7 @@ class SqlAlchemyBacktestStore:
         risk_report: dict[str, Any] | None,
         tail_risk: dict[str, Any] | None,
         regime: dict[str, Any] | None,
+        significance: dict[str, Any] | None,
         equity_curve: list[EquityPoint],
         fills: list[Fill],
     ) -> None:
@@ -248,6 +284,7 @@ class SqlAlchemyBacktestStore:
                 risk_report=risk_report,
                 tail_risk=tail_risk,
                 regime=regime,
+                significance=significance,
                 equity_curve=[[p.time.isoformat(), str(p.equity)] for p in equity_curve],
                 finished_at=func.now(),
             )

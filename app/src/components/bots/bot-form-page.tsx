@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { Bot as BotIcon, Brain, Radio, Shield, Wallet } from "lucide-react";
 import { PageHeader } from "lost-ui/app/page-header";
 import { Form } from "lost-ui/forms/form";
 import { FormInput } from "lost-ui/forms/form-input";
@@ -9,11 +10,12 @@ import { FormSwitch } from "lost-ui/forms/form-switch";
 import { rules } from "lost-ui/forms/rules";
 import { Alert, AlertDescription, AlertTitle } from "lost-ui/ui/alert";
 import { Button } from "lost-ui/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "lost-ui/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
 import { toast } from "lost-ui/ui/sonner";
 import { ConfirmDialog } from "@/components/shared/feedback/confirm-dialog";
 import { backtestPrefillFromBot } from "@/lib/bots/execution";
 import { ErrorBlock, SkeletonBlock } from "@/components/shared/feedback/query-boundary";
+import { IconCardTitle } from "@/components/shared/metrics/icon-card-title";
 import { StrategyFields } from "@/components/shared/strategy/strategy-fields";
 import { useBot, useOrders, useOverview, usePerformance } from "@/hooks/bots/use-bots";
 import { useConnections, useStrategies } from "@/hooks/shared/use-catalog";
@@ -165,7 +167,9 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
         ) : null}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Identificação</CardTitle>
+            <IconCardTitle className="text-base" icon={BotIcon}>
+              Identificação
+            </IconCardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <FormInput
@@ -202,7 +206,9 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Estratégia</CardTitle>
+            <IconCardTitle className="text-base" icon={Brain}>
+              Estratégia
+            </IconCardTitle>
             <CardDescription>{strategy?.description}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -229,7 +235,9 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Capital e custos</CardTitle>
+            <IconCardTitle className="text-base" icon={Wallet}>
+              Capital e custos
+            </IconCardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-3">
             <FormInput
@@ -264,7 +272,9 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Limites de risco</CardTitle>
+            <IconCardTitle className="text-base" icon={Shield}>
+              Limites de risco
+            </IconCardTitle>
             <CardDescription>
               Os limites do servidor valem sempre; no live os tetos globais valem ainda mais.
             </CardDescription>
@@ -344,7 +354,9 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
         {isLive ? null : (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Modo de execução</CardTitle>
+              <IconCardTitle className="text-base" icon={Radio}>
+                Modo de execução
+              </IconCardTitle>
               <CardDescription>
                 Bots LIVE não são criados aqui: use “Promover para LIVE” no detalhe de um bot
                 parado.

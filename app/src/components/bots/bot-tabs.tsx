@@ -1,8 +1,10 @@
+import { BacktestComparisonCard } from "@/components/bots/backtest-comparison-card";
 import { useState } from "react";
 import { DataTable, type DataTableColumn } from "lost-ui/data/data-table";
 import { Empty } from "lost-ui/data/empty";
 import { Alert, AlertDescription, AlertTitle } from "lost-ui/ui/alert";
-import { Card, CardContent, CardHeader, CardTitle } from "lost-ui/ui/card";
+import { Card, CardContent, CardHeader } from "lost-ui/ui/card";
+import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import { ErrorBlock, QueryBoundary } from "@/components/shared/feedback/query-boundary";
 import { MetricsGrid } from "@/components/shared/metrics/metrics-grid";
 import { EquityChart } from "@/components/shared/metrics/equity-chart";
@@ -299,18 +301,21 @@ export function SignalsTab({ bot }: { bot: Bot }) {
 export function PerformanceTab({ bot }: { bot: Bot }) {
   const query = usePerformance(bot.id);
   return (
-    <QueryBoundary query={query}>
-      {(metrics) =>
-        metrics === null ? (
-          <Empty
-            title="Sem dados ainda"
-            description="O desempenho aparece depois dos primeiros candles."
-          />
-        ) : (
-          <MetricsGrid metrics={metrics} quote={quoteCurrency(bot.symbol)} />
-        )
-      }
-    </QueryBoundary>
+    <div className="space-y-6">
+      <QueryBoundary query={query}>
+        {(metrics) =>
+          metrics === null ? (
+            <Empty
+              title="Sem dados ainda"
+              description="O desempenho aparece depois dos primeiros candles."
+            />
+          ) : (
+            <MetricsGrid metrics={metrics} quote={quoteCurrency(bot.symbol)} />
+          )
+        }
+      </QueryBoundary>
+      <BacktestComparisonCard bot={bot} />
+    </div>
   );
 }
 

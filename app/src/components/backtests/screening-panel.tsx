@@ -1,5 +1,6 @@
 import { AlertTriangle, Info } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "lost-ui/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
+import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import type { Backtest } from "@/lib/backtests/backtests.api";
 import { ScreeningLevel, screeningFlags } from "@/lib/backtests/screening";
 import type { Metrics } from "@/lib/shared/analytics";

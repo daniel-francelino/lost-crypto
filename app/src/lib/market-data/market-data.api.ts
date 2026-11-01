@@ -104,22 +104,6 @@ const listingSchema = z.object({
 });
 export type Listing = z.infer<typeof listingSchema>;
 
-const halfLifeSchema = z.object({
-  n: z.number(),
-  slope: nullableDecimalSchema,
-  t_stat: nullableDecimalSchema,
-  stationary_at_5pct: z.boolean().nullable(),
-  half_life_bars: nullableDecimalSchema,
-  half_life_seconds: nullableDecimalSchema,
-  log_prices: z.boolean(),
-  gaps: z.number(),
-  warning: z.string(),
-});
-export type HalfLifeEstimate = z.infer<typeof halfLifeSchema>;
-
-export const getHalfLife = (params: ImportInput, signal?: AbortSignal) =>
-  request({ path: "/market-data/half-life", schema: halfLifeSchema, query: params, signal });
-
 export const listListings = (
   exchange: string,
   symbol: string,

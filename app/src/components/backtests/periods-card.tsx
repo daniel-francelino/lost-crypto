@@ -1,6 +1,7 @@
 import { DataTable, type DataTableColumn } from "lost-ui/data/data-table";
 import { Alert, AlertDescription, AlertTitle } from "lost-ui/ui/alert";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "lost-ui/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
+import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import { SignedValue } from "@/components/shared/status/signed-value";
 import type { Periods } from "@/lib/backtests/backtests.api";
 import { PeriodGranularity } from "@/lib/shared/enums";

@@ -1,4 +1,5 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "lost-ui/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
+import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import type { Regime } from "@/lib/backtests/backtests.api";
 import { formatInteger, formatPercent, formatRatio } from "@/lib/shared/format";
 

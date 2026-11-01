@@ -141,6 +141,13 @@ O desenho da estratégia de z-score (`mean_reversion_zscore`, cinco parâmetros,
 
 É exatamente o `StrategyStyle` e a dica de stop do [livro 1, cap. 6, Fase C](../01-quantitative-trading-chan/ch06-money-and-risk-management.md). Não há trabalho extra aqui além de conferir que o texto para `MEAN_REVERSION` cobre o alerta do livro (p. 61): *"escalonar sem limite e usar stop curto sai no pior momento; prefira o teto de risco"*.
 
+### Estado da implementação (2026-11-01)
+
+* **Fase 0 implementada:** `test_half_life.py`, `test_regime.py`, `test_sizing.py` (inclui `tail_risk`), `test_time_exit.py` e o teste de integração do endpoint. Todos passam **sem alterar código de produção**: nenhum bug apareceu nesses módulos. A reprodução dos Exemplos 6.1 e 6.2 do livro 1 (Kelly 2,528; `g` = 13,14% e 9,8%) está em `test_sizing.py`.
+* **Fase A implementada:** `variance_ratio`, `hurst`, `sample_every` e `suggested_windows` em `analytics/domain/mean_reversion.py`; o mesmo endpoint `/market-data/half-life` ganhou os campos aditivos `hurst`, `variance_ratios` (lags 2, 4 e 8), `sample_every` e `suggested_windows`. Decisão adotada: **mesmo endpoint**, sem `/series-diagnostics`. Card atualizado com o campo "amostrar a cada N candles". Testes: `test_mean_reversion_stats.py`.
+* **Fase B implementada, com um desvio:** a faixa vem do **servidor** (`suggested_windows`, em `Decimal`: 0,5×, 1× e 2× a meia-vida, só quando a série é estacionária a 5%), para o app não fazer aritmética. A dica aparece no formulário de backtest (`half-life-hint.tsx`); o botão "usar na varredura" só existe para `mean_reversion_zscore` (`lib/backtests/half-life-hint.ts`), que **ainda não existe**: hoje a dica é só informativa. A chamada da API foi para `lib/shared/market-data/half-life.api.ts` porque módulos do app não importam uns dos outros.
+* **Fases C e D:** nada a implementar neste capítulo (a estratégia e o `StrategyStyle` seguem os planos do livro 1, cap. 7 Fase 2 e cap. 6 Fase C).
+
 ### Ordem, dependências e estimativa
 
 0 → A → B; C e D seguem os planos do livro 1. Estimativa grosseira: Fase 0 ≈ 1,5 dia (só testes); A ≈ 2 (1,5 back, 0,5 front); B ≈ 1 (front). Nenhuma fase deste capítulo mexe no banco.

@@ -6,6 +6,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -233,7 +234,9 @@ async def test_strategy_catalog_reports_parameter_count(stack: Any) -> None:
     client, _, _, _ = stack
     strategies = (await client.get("/api/v1/strategies")).json()
     ema = next(s for s in strategies if s["type_key"] == "ema_crossover")
-    assert ema["parameter_count"] == 4 and ema["too_many_parameters"] is False
+    assert (
+        ema["parameter_count"] == 5 and ema["too_many_parameters"] is False
+    )  # 4 + max_holding_candles
 
 
 class InvalidCandleSource(PathSource):
@@ -261,3 +264,137 @@ async def test_trader_skips_an_invalid_candle_and_audits_it(env: Env) -> None:
     equity = (await env.http.get(f"/api/v1/bots/{bot_id}/equity")).json()
     assert len(equity) == 19  # the bad candle got no snapshot; later candles were processed
     assert (await env.bot(bot_id))["observed_state"] == "running"
+
+
+async def test_prior_runs_counts_other_looks_at_the_same_window(stack: Any) -> None:
+    client, runner, _, _ = stack
+    await _import(client, runner)
+    spec = {"strategy_type": "ema_crossover", "allow_gaps": True, "symbol": SYMBOL}
+    early = {"start": START.isoformat(), "end": (START + timedelta(hours=100)).isoformat()}
+    late = {
+        "start": (START + timedelta(hours=300)).isoformat(),
+        "end": (START + timedelta(hours=400)).isoformat(),
+    }
+    ids = []
+    for window in (early, early, late):
+        resp = await client.post("/api/v1/backtests", json={**spec, "timeframe": "1h", **window})
+        assert resp.status_code == 202, resp.text
+        ids.append(resp.json()["id"])
+    await _drain(runner)
+
+    detail = [(await client.get(f"/api/v1/backtests/{i}")).json() for i in ids]
+    assert [d["status"] for d in detail] == ["completed"] * 3
+    assert detail[0]["prior_runs"] == 1  # the other early run; the late one does not overlap
+    assert detail[1]["prior_runs"] == 1
+    assert detail[2]["prior_runs"] == 0
+    listed = (await client.get("/api/v1/backtests")).json()
+    assert all(item["prior_runs"] is None for item in listed)  # only the detail pays the query
+
+
+async def test_backtest_comparison_finds_the_equivalent_run(stack: Any) -> None:
+    client, runner, _, container = stack
+    await _import(client, runner)
+    params = {"fast_period": 3, "slow_period": 13}
+    spec = {**BODY, "strategy_type": "ema_crossover", "strategy_params": params, "allow_gaps": True}
+    run_id = (await client.post("/api/v1/backtests", json=spec)).json()["id"]
+    await _drain(runner)
+    bot = await client.post(
+        "/api/v1/bots",
+        json={
+            "name": "dq-comparison",
+            "strategy_type": "ema_crossover",
+            "strategy_params": params,
+            "symbol": SYMBOL,
+            "timeframe": "1h",
+            "initial_capital": "1000",
+            "risk": {"max_daily_loss_pct": None},
+        },
+    )
+    assert bot.status_code == 201, bot.text
+    bot_id = bot.json()["id"]
+    try:
+        found = await client.get(f"/api/v1/bots/{bot_id}/backtest-comparison")
+        assert found.status_code == 200, found.text
+        body = found.json()
+        assert body["run_id"] == run_id and body["ratio"] is None
+        assert body["min_periods"] == 30 and body["chan_min_ratio"] == "0.5"
+        assert body["reason"] and "short live sample" in body["reason"]  # the bot never ran
+
+        other = {**params, "slow_period": 21}
+        none = await client.post(
+            "/api/v1/bots",
+            json={
+                "name": "dq-comparison-2",
+                "strategy_type": "ema_crossover",
+                "strategy_params": other,
+                "symbol": SYMBOL,
+                "timeframe": "1h",
+                "initial_capital": "1000",
+                "risk": {"max_daily_loss_pct": None},
+            },
+        )
+        unmatched = (
+            await client.get(f"/api/v1/bots/{none.json()['id']}/backtest-comparison")
+        ).json()
+        assert unmatched["run_id"] is None and "no completed backtest" in unmatched["reason"]
+
+        missing = await client.get(f"/api/v1/bots/{uuid4()}/backtest-comparison")
+        assert missing.status_code == 404
+    finally:
+        async with container.engine.begin() as conn:
+            await conn.execute(text("DELETE FROM bots WHERE name LIKE 'dq-comparison%'"))
+
+
+async def test_run_stores_the_random_entries_test_and_it_is_repeatable(stack: Any) -> None:
+    client, runner, _, _ = stack
+    await _import(client, runner)
+    spec = {
+        **BODY,
+        "strategy_type": "ema_crossover",
+        "strategy_params": {"fast_period": 3, "slow_period": 13},
+        "allow_gaps": True,
+        "seed": 5,
+    }
+    ids = [(await client.post("/api/v1/backtests", json=spec)).json()["id"] for _ in range(2)]
+    await _drain(runner)
+    blocks = []
+    for run_id in ids:
+        run = (await client.get(f"/api/v1/backtests/{run_id}")).json()
+        assert run["status"] == "completed", run["error"]
+        blocks.append(run["significance"]["random_entries"])
+    # The oscillating series makes only a handful of trades, below the minimum: the block says
+    # so instead of a misleading number (the available path is covered in unit tests).
+    assert blocks[0]["available"] is False and "fewer than" in blocks[0]["reason"]
+    assert blocks[0]["fraction"] is None
+    assert blocks[0] == blocks[1]
+
+
+async def test_half_life_endpoint_shape_and_validation(stack: Any) -> None:
+    client, runner, _, _ = stack
+    await _import(client, runner)
+    params = {"symbol": SYMBOL, "timeframe": "1h", "start": BODY["start"], "end": BODY["end"]}
+    found = await client.get("/api/v1/market-data/half-life", params=params)
+    assert found.status_code == 200, found.text
+    body = found.json()
+    assert (
+        body["n"] > 100
+        and body["log_prices"] is True
+        and "Estimativa descritiva" in body["warning"]
+    )
+    assert body["gaps"] >= 1  # the hole of the flawed series is reported, not hidden
+    assert (
+        body["sample_every"] == 1 and "hurst" in body and isinstance(body["variance_ratios"], list)
+    )
+    assert {r["lag"] for r in body["variance_ratios"]} <= {2, 4, 8}
+    assert isinstance(body["suggested_windows"], list)
+    sampled = (
+        await client.get("/api/v1/market-data/half-life", params={**params, "sample_every": 4})
+    ).json()
+    assert sampled["sample_every"] == 4 and sampled["n"] <= body["n"] // 4 + 1
+    zero = await client.get("/api/v1/market-data/half-life", params={**params, "sample_every": 0})
+    assert zero.status_code == 422
+    bad = await client.get(
+        "/api/v1/market-data/half-life",
+        params={**params, "start": BODY["end"], "end": BODY["start"]},
+    )
+    assert bad.status_code == 422

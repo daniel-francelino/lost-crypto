@@ -165,6 +165,17 @@ Objetivo: dizer "este Sharpe é distinguível de acaso a p < X?", pela tabela do
 
 Não codar antes de analisar a validação com purga e embargo do livro 5. Desenho mínimo para quando chegar a hora: generalizar `backtesting/domain/segments.py` de "uma divisão" para *k* janelas cronológicas; para cada janela, ajustar na anterior e avaliar na seguinte; mostrar a dispersão (mínimo, mediana, máximo) por métrica. O custo cresce com *k*; reaproveitar a fila de execuções das varreduras.
 
+### Estado da implementação (2026-11-01)
+
+Fases **A, B, C e D implementadas**; a E continua só desenho.
+
+* **A** — `analytics/domain/significance.py`; campos `sharpe_t_stat` e `significance_p` em `Metrics` (sem migração); tile e flag `significance` no app. Testes: `test_significance.py`.
+* **B** — `count_prior_runs` e `BacktestOut.prior_runs` (só no detalhe, a lista devolve `null`); flag `reuse` com limite 10. Teste de integração em `test_data_quality_flow.py`.
+* **C** — `backtesting/domain/random_entries.py`, migração `0015_backtest_significance`, `BacktestOut.significance.random_entries`, card no detalhe. Decisões adotadas: entradas **podem se sobrepor**; 1.000 simulações (teto 2.000); mesmo custo de ida e volta nos dois lados; o resultado é "indisponível" com motivo abaixo de 10 operações. Testes: `test_random_entries.py` (caminho disponível) e integração (caminho indisponível, com a série oscilante do teste).
+* **D** — `trading/domain/comparison.py` e `trading/application/comparison.py` (protocolos, ligados no `container.py`), `GET /bots/{id}/backtest-comparison`, card na aba "Desempenho". O backtest equivalente é o mais recente concluído com os mesmos parâmetros de estratégia, preferindo o que usou os limites de risco do bot. Testes: `test_realized_vs_backtest.py` e integração.
+* **Desvios do plano:** o texto da comparação mora em `lib/bots/backtest-comparison.ts`, com teste; `BacktestStore.matching_runs` foi o método novo em vez de `find_matching`.
+* **Decisões ainda abertas:** valor-p contínuo (fica sem `float`, só a faixa da tabela).
+
 ### Ordem, dependências e estimativa
 
 A → B → D → C → E. A e B são independentes e pequenas; D alimenta o cap. 4; C é a única com migração e a mais cara de testar. Estimativa grosseira: A ≈ 1,5 dia (1 back, 0,5 front); B ≈ 1; D ≈ 2 (1,5 back, 0,5 front); C ≈ 3; E fora do corte.

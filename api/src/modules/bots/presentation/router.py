@@ -17,6 +17,7 @@ from modules.risk_management.domain.models import RiskLimits
 from modules.risk_management.presentation.schemas import RiskLimitsIn
 from modules.strategies.domain.types import Side, SignalKind
 from modules.trading.application.parity_store import ParityRun
+from modules.trading.domain.comparison import CHAN_MIN_RATIO, MIN_PERIODS
 from modules.trading.domain.diagnosis import VOLUME_MARKER, checklist, execution_quality
 
 router = APIRouter(prefix="/bots", tags=["bots"])
@@ -623,6 +624,56 @@ async def request_parity(bot_id: UUID, request: Request) -> ParityOut:
 async def get_parity(bot_id: UUID, request: Request) -> ParityOut | None:
     run = await _container(request).parity.latest(bot_id)
     return None if run is None else _parity_out(run)
+
+
+class RealizedSharpeOut(BaseModel):
+    sharpe: Decimal | None = Field(description="Annualised (365 days); null on a short sample.")
+    return_periods: int | None = Field(description="The size of the live sample.")
+    days: Decimal | None
+
+
+class BacktestSharpeOut(BaseModel):
+    sharpe: Decimal | None
+
+
+class RealizedVsBacktestOut(BaseModel):
+    run_id: UUID | None = Field(description="The backtest compared with; null if none matches.")
+    run_created_at: datetime | None
+    realized: RealizedSharpeOut | None
+    backtest: BacktestSharpeOut | None
+    ratio: Decimal | None = Field(description="Realized Sharpe / backtest Sharpe.")
+    min_periods: int = Field(description="Live returns needed before a ratio is given.")
+    chan_min_ratio: Decimal = Field(
+        description="Chan's rule of thumb (his experience, not a standard): a ratio of at "
+        "least this is usually acceptable."
+    )
+    reason: str | None = Field(description="Why there is no ratio, when there is none.")
+
+
+@router.get("/{bot_id}/backtest-comparison", response_model=RealizedVsBacktestOut)
+async def get_backtest_comparison(
+    bot_id: UUID, request: Request, run_id: UUID | None = None
+) -> RealizedVsBacktestOut:
+    """Compare the bot's realized Sharpe with the backtest of its configuration (the newest
+    completed one with the same strategy parameters, or ``run_id``). Read-only."""
+    result = await _container(request).comparison.compare(bot_id, run_id)
+    comparison = result.comparison
+    return RealizedVsBacktestOut(
+        run_id=result.run_id,
+        run_created_at=result.run_created_at,
+        realized=None
+        if comparison is None
+        else RealizedSharpeOut(
+            sharpe=comparison.realized,
+            return_periods=comparison.realized_periods,
+            days=result.realized_days,
+        ),
+        backtest=None if comparison is None else BacktestSharpeOut(sharpe=comparison.backtest),
+        ratio=None if comparison is None else comparison.ratio,
+        min_periods=MIN_PERIODS,
+        chan_min_ratio=CHAN_MIN_RATIO,
+        reason=result.reason if comparison is None else comparison.reason,
+    )
 
 
 class StepOut(BaseModel):

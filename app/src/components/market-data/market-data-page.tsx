@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { CalendarDays, Database } from "lucide-react";
 import { PageHeader } from "lost-ui/app/page-header";
 import { LineChart } from "lost-ui/charts/line-chart";
 import { DataTable, type DataTableColumn } from "lost-ui/data/data-table";
@@ -9,10 +10,11 @@ import { FormInput } from "lost-ui/forms/form-input";
 import { FormSelect } from "lost-ui/forms/form-select";
 import { rules } from "lost-ui/forms/rules";
 import { Button } from "lost-ui/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "lost-ui/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
 import { toast } from "lost-ui/ui/sonner";
 import { ErrorBlock, QueryBoundary } from "@/components/shared/feedback/query-boundary";
 import { CoverageNotice } from "@/components/shared/market-data/coverage-notice";
+import { IconCardTitle } from "@/components/shared/metrics/icon-card-title";
 import { ListingStatusLine } from "@/components/market-data/listing-status";
 import { OutliersCard } from "@/components/market-data/outliers-card";
 import { HalfLifeCard } from "@/components/market-data/half-life-card";
@@ -151,7 +153,9 @@ export function MarketDataPage({ initial = {} }: { initial?: MarketDataSearch })
       />
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Par e período</CardTitle>
+          <IconCardTitle className="text-base" icon={CalendarDays}>
+            Par e período
+          </IconCardTitle>
           <CardDescription>
             O mesmo recorte alimenta a cobertura, a prévia e a importação.
           </CardDescription>
@@ -230,7 +234,9 @@ export function MarketDataPage({ initial = {} }: { initial?: MarketDataSearch })
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Prévia do fechamento</CardTitle>
+          <IconCardTitle className="text-base" icon={Database}>
+            Prévia do fechamento
+          </IconCardTitle>
           <CardDescription>Até {CANDLE_LIMIT} candles do recorte; horários em UTC.</CardDescription>
         </CardHeader>
         <CardContent>

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { Brain, Database, Shield, Wallet } from "lucide-react";
 import { PageHeader } from "lost-ui/app/page-header";
 import { Form } from "lost-ui/forms/form";
 import { FormInput } from "lost-ui/forms/form-input";
@@ -9,9 +10,11 @@ import { FormCheckbox } from "lost-ui/forms/form-checkbox";
 import { FormSwitch } from "lost-ui/forms/form-switch";
 import { rules } from "lost-ui/forms/rules";
 import { Button } from "lost-ui/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "lost-ui/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
+import { IconCardTitle } from "@/components/shared/metrics/icon-card-title";
 import { ErrorBlock, SkeletonBlock } from "@/components/shared/feedback/query-boundary";
 import { CoverageNotice } from "@/components/shared/market-data/coverage-notice";
+import { HalfLifeHint } from "@/components/backtests/half-life-hint";
 import { StrategyFields } from "@/components/shared/strategy/strategy-fields";
 import { createBacktest, createSweep } from "@/lib/backtests/backtests.api";
 import { BotLikeCard } from "@/components/backtests/bot-like-card";
@@ -119,7 +122,9 @@ function BacktestForm({ strategies, exchanges, prefill }: BacktestFormProps) {
     >
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Dados</CardTitle>
+          <IconCardTitle className="text-base" icon={Database}>
+            Dados
+          </IconCardTitle>
           <CardDescription>
             Datas em UTC. O período precisa estar nos candles salvos.
           </CardDescription>
@@ -193,7 +198,9 @@ function BacktestForm({ strategies, exchanges, prefill }: BacktestFormProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Estratégia</CardTitle>
+          <IconCardTitle className="text-base" icon={Brain}>
+            Estratégia
+          </IconCardTitle>
           <CardDescription>{strategy?.description}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -250,12 +257,31 @@ function BacktestForm({ strategies, exchanges, prefill }: BacktestFormProps) {
               onChange={(name, value) => set("params", { ...values.params, [name]: value })}
             />
           )}
+          {validRange ? (
+            <HalfLifeHint
+              exchange={values.exchange}
+              symbol={values.symbol}
+              timeframe={values.timeframe}
+              start={values.start}
+              end={values.end}
+              strategyType={values.strategyType}
+              onUseInSweep={(param, value) =>
+                setValues((current) => ({
+                  ...current,
+                  sweep: true,
+                  grid: { ...current.grid, [param]: value },
+                }))
+              }
+            />
+          ) : null}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Capital, custos e validação</CardTitle>
+          <IconCardTitle className="text-base" icon={Wallet}>
+            Capital, custos e validação
+          </IconCardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <FormInput
@@ -320,7 +346,9 @@ function BacktestForm({ strategies, exchanges, prefill }: BacktestFormProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Robustez e tolerância</CardTitle>
+          <IconCardTitle className="text-base" icon={Shield}>
+            Robustez e tolerância
+          </IconCardTitle>
           <CardDescription>
             Opcional. Mostra se o resultado aguenta custos maiores e se cabe no drawdown que você
             aceita.

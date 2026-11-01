@@ -244,6 +244,32 @@ class RegimeDimensionOut(BaseModel):
     bands: list[RegimeBandOut]
 
 
+class RandomEntriesOut(BaseModel):
+    available: bool
+    reason: str | None = Field(
+        default=None, description="Why the test was not computed (too few trades)."
+    )
+    simulations: int | None = None
+    as_good_or_better: int | None = Field(
+        default=None, description="Simulations with random entries that did as well or better."
+    )
+    fraction: Decimal | None = Field(
+        default=None,
+        description="as_good_or_better / simulations: a small value means luck is "
+        "an unlikely explanation. It is not the chance that the strategy works.",
+    )
+    trades: int | None = None
+    seed: int | None = None
+    observed_log_return: Decimal | None = None
+    overlap_allowed: bool | None = Field(
+        default=None, description="Random trades are drawn independently and may overlap."
+    )
+
+
+class SignificanceOut(BaseModel):
+    random_entries: RandomEntriesOut | None = None
+
+
 class RegimeOut(BaseModel):
     window: int
     method: str
@@ -358,6 +384,15 @@ class BacktestOut(BaseModel):
     risk_report: RiskReportOut | None
     tail_risk: dict[str, Any] | None = None
     regime: RegimeOut | None = None
+    significance: SignificanceOut | None = None
+    prior_runs: int | None = Field(
+        default=None,
+        description=(
+            "Detail only: other completed runs of the same strategy on overlapping data "
+            "(same exchange, symbol and timeframe). Each look at the same window makes its "
+            "test part less out of sample."
+        ),
+    )
     error: str | None
     created_at: datetime
     started_at: datetime | None
@@ -451,6 +486,9 @@ def _out(run: BacktestRun) -> BacktestOut:
         risk_report=RiskReportOut.model_validate(run.risk_report) if run.risk_report else None,
         tail_risk=run.tail_risk,
         regime=RegimeOut.model_validate(run.regime) if run.regime else None,
+        significance=(
+            SignificanceOut.model_validate(run.significance) if run.significance else None
+        ),
         error=run.error,
         created_at=run.created_at,
         started_at=run.started_at,
@@ -684,9 +722,12 @@ async def get_sweep(sweep_id: UUID, request: Request, rank_by: RankBy = None) ->
 async def get_backtest(run_id: UUID, request: Request) -> BacktestOut:
     container: Container = request.app.state.container
     try:
-        return _out(await container.backtests.get(run_id))
+        run = await container.backtests.get(run_id)
     except BacktestNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "backtest not found") from exc
+    out = _out(run)
+    out.prior_runs = await container.backtests.prior_runs(run)
+    return out
 
 
 @router.get("/{run_id}/sizing", response_model=SizingAdviceOut)

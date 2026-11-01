@@ -6,6 +6,7 @@ import {
   getExecutionQuality,
   getInterventions,
   getOverview,
+  getBacktestComparison,
   getParity,
   getPerformance,
   getPortfolio,
@@ -158,6 +159,13 @@ export const useParity = (id: string) =>
       !isJobFinished(query.state.data.status)
         ? Poll.Fast
         : false,
+  });
+
+export const useBacktestComparison = (id: string, runId = "") =>
+  useQuery({
+    queryKey: QueryKey.Bots.backtestComparison(id, runId),
+    queryFn: ({ signal }) => getBacktestComparison(id, runId === "" ? undefined : runId, signal),
+    refetchInterval: Poll.Detail,
   });
 
 export const useDivergence = (id: string) =>

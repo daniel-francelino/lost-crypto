@@ -45,6 +45,10 @@ curl "$B/backtests/<run_id>/sizing?tolerable_loss_pct=10&scope=day"  # referênc
 curl "$B/market-data/half-life?symbol=BTC%2FUSDT&timeframe=1h&start=2024-01-01T00:00:00Z&end=2024-07-01T00:00:00Z" # meia-vida descritiva
 ```
 
+Diagnóstico de reversão (livro 2, cap. 2): `GET /market-data/half-life` devolve, além da meia-vida, `hurst`, `variance_ratios` (lags 2, 4 e 8), `sample_every` (um fechamento a cada N candles) e `suggested_windows` (0,5×, 1× e 2× a meia-vida, só se a série parece estacionária a 5%). É descritivo; não é previsão.
+
+Significância (livro 2, cap. 1): toda `metrics` traz `sharpe_t_stat` (`Sharpe por barra × √n`) e `significance_p` (o menor p da tabela gaussiana de Chan, 0,10 a 0,001, que a estatística alcança; `null` abaixo de 0,10). O detalhe de um backtest traz `prior_runs` (outras execuções concluídas da mesma estratégia em janela sobreposta) e `significance.random_entries` (teste de entradas aleatórias com `seed`: fração de 1.000 simulações que igualaram o resultado; `available: false` com motivo abaixo de 10 operações). Nenhum dos dois diz que a estratégia funciona. Para um bot, `GET /bots/{id}/backtest-comparison[?run_id=]` compara o Sharpe real com o do backtest equivalente (mesma estratégia e parâmetros; prefere a mesma configuração de risco); sem amostra real (< 30 retornos) devolve o motivo em vez da razão.
+
 O endpoint `GET /backtests/{run_id}/sizing` aceita `tolerable_loss_pct` em `(0, 100]` e `scope=day|bar`. Ele calcula Kelly, meio Kelly e limites da pior perda observada. O resultado é apenas orientação histórica; não modifica posições ou ordens. Backtests anteriores à inclusão dos dados de cauda retornam `409` e precisam ser executados novamente.
 
 Bots que já estavam posicionados ao ativar `max_holding_candles` iniciam a contagem persistida em zero; podem permanecer posicionados até N candles adicionais.

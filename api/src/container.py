@@ -43,6 +43,7 @@ from modules.risk_management.application.service import KillSwitchService
 from modules.risk_management.domain.models import GlobalRiskLimits, LiveLimits
 from modules.strategies.catalog import build_strategy_registry
 from modules.strategies.domain.registry import StrategyRegistry
+from modules.trading.application.comparison import ComparisonService
 from modules.trading.application.operations import OperationsMonitor
 from modules.trading.application.orders import OrderExecutor
 from modules.trading.application.parity import ParityExecutor, ParityService
@@ -78,6 +79,7 @@ class Container:
     alert_monitor: AlertMonitor
     status: StatusService
     parity: ParityService
+    comparison: ComparisonService
     connections: ConnectionService
     resolver: ConnectionResolver
     auth: AuthService
@@ -107,6 +109,8 @@ def build_container(
         exchanges.exchange_ids,
         timedelta(seconds=settings.worker_stale_after_seconds),
     )
+    backtests = BacktestService(backtest_stores, registry, exchanges, clock, ids)
+    bots = BotService(trading_stores, registry, exchanges, clock, ids, live)
     return Container(
         settings=settings,
         engine=engine,
@@ -120,8 +124,8 @@ def build_container(
         trading_stores=trading_stores,
         alert_stores=alert_stores,
         market_data=MarketDataService(import_stores, exchanges, clock, ids),
-        backtests=BacktestService(backtest_stores, registry, exchanges, clock, ids),
-        bots=BotService(trading_stores, registry, exchanges, clock, ids, live),
+        backtests=backtests,
+        bots=bots,
         kill_switch=KillSwitchService(trading_stores),
         audit=AuditService(trading_stores),
         alerts=AlertService(alert_stores, clock),
@@ -154,6 +158,7 @@ def build_container(
         ),
         resolver=ConnectionResolver(trading_stores, vault, exchanges, clock),
         parity=ParityService(trading_stores, clock, ids),
+        comparison=ComparisonService(trading_stores, bots, backtests),
         status=status,
     )
 

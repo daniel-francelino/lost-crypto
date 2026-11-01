@@ -20,6 +20,8 @@ export const QueryKey = {
     readiness: (id: string) => ["bots", id, "live-readiness"] as const,
     executionQuality: (id: string) => ["bots", id, "execution-quality"] as const,
     parity: (id: string) => ["bots", id, "parity"] as const,
+    backtestComparison: (id: string, runId: string) =>
+      ["bots", id, "backtest-comparison", runId] as const,
     divergence: (id: string) => ["bots", id, "divergence"] as const,
   },
   Backtests: {
@@ -39,8 +41,15 @@ export const QueryKey = {
       ["market-data", "coverage", exchange, symbol, timeframe, start, end] as const,
     outliers: (exchange: string, symbol: string, timeframe: string, start: string, end: string) =>
       ["market-data", "outliers", exchange, symbol, timeframe, start, end] as const,
-    halfLife: (exchange: string, symbol: string, timeframe: string, start: string, end: string) =>
-      ["market-data", "half-life", exchange, symbol, timeframe, start, end] as const,
+    halfLife: (
+      exchange: string,
+      symbol: string,
+      timeframe: string,
+      start: string,
+      end: string,
+      sampleEvery = 1,
+    ) =>
+      ["market-data", "half-life", exchange, symbol, timeframe, start, end, sampleEvery] as const,
     listings: (exchange: string, symbol: string) =>
       ["market-data", "listings", exchange, symbol] as const,
     imports: (limit: number) => ["market-data", "imports", limit] as const,

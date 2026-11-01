@@ -37,6 +37,21 @@ describe("screening flags (Chan's rules of thumb)", () => {
     expect(ids(BASE)).toEqual([]);
   });
 
+  it("flags a test window looked at too many times, only when there is a split", () => {
+    const segments = {
+      split_at: "2025-09-01T00:00:00Z",
+      test_fraction: "0.3",
+      train: BASE,
+      test: BASE,
+    } as Backtest["segments"];
+    const split = { ...YEAR, segments };
+    const flagged = (priorRuns: number, run: Run) =>
+      screeningFlags({ ...run, prior_runs: priorRuns, metrics: BASE }).map((flag) => flag.id);
+    expect(flagged(10, split)).toEqual(["reuse"]);
+    expect(flagged(9, split)).toEqual([]);
+    expect(flagged(50, YEAR)).toEqual([]);
+  });
+
   it("flags each rule on its own", () => {
     expect(ids({ ...BASE, sharpe_ratio: "0.7" })).toEqual(["sharpe"]);
     expect(ids({ ...BASE, max_drawdown_pct: "12.5" })).toEqual(["drawdown-depth"]);
@@ -45,6 +60,8 @@ describe("screening flags (Chan's rules of thumb)", () => {
     ]);
     expect(ids({ ...BASE, round_trips: 3 })).toEqual(["few-trades"]);
     expect(ids({ ...BASE, exposure_pct: "8" })).toEqual(["exposure"]);
+    expect(ids({ ...BASE, sharpe_t_stat: "1.2" })).toEqual(["significance"]);
+    expect(ids({ ...BASE, sharpe_t_stat: "1.7" })).toEqual([]);
     expect(ids({ ...BASE, total_return_pct: "5" })).toEqual(["benchmark"]);
     expect(ids({ ...BASE, drawdown_open: true, current_drawdown_pct: "3" })).toEqual([
       "drawdown-open",

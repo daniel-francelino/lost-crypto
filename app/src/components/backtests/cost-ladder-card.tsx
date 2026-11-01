@@ -1,7 +1,8 @@
 import { DataTable, type DataTableColumn } from "lost-ui/data/data-table";
 import { Alert, AlertDescription, AlertTitle } from "lost-ui/ui/alert";
 import { Badge } from "lost-ui/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "lost-ui/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
+import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import { SignedValue } from "@/components/shared/status/signed-value";
 import type { CostLadder, CostLevel } from "@/lib/backtests/backtests.api";
 import { BreakEvenStatus } from "@/lib/shared/enums";

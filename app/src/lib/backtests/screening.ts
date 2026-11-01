@@ -1,6 +1,7 @@
 import type { Backtest, DataQuality } from "@/lib/backtests/backtests.api";
 import type { Metrics } from "@/lib/shared/analytics";
 import { toMs } from "@/lib/shared/dates";
+import { belowFivePercent } from "@/lib/shared/significance";
 import {
   compareDecimal,
   formatFraction,
@@ -25,6 +26,8 @@ export const CHAN_THRESHOLDS = {
   minRoundTripsPerYear: 12,
   minExposurePct: "20",
   minTestFraction: "0.25",
+  minTStat: "1.645",
+  maxWindowReuse: 10,
 } as const;
 
 const DAY_MS = 24 * 3600 * 1000;
@@ -39,6 +42,17 @@ const above = (value: string | null | undefined, limit: string): boolean =>
 
 const yearsOf = (run: Pick<Backtest, "start" | "end">): number =>
   Math.max((toMs(run.end) - toMs(run.start)) / DAY_MS / YEAR_DAYS, 1 / YEAR_DAYS);
+
+const significanceFlags = (metrics: Metrics): ScreeningFlag[] =>
+  belowFivePercent(metrics.sharpe_t_stat, CHAN_THRESHOLDS.minTStat)
+    ? [
+        {
+          id: "significance",
+          level: ScreeningLevel.Warning,
+          text: `Estatística t de ${formatRatio(metrics.sharpe_t_stat)}: não se distingue de acaso a 5% (teste gaussiano, otimista para cripto).`,
+        },
+      ]
+    : [];
 
 const sharpeFlags = (metrics: Metrics): ScreeningFlag[] => {
   if (below(metrics.sharpe_ratio, CHAN_THRESHOLDS.minSharpe)) {
@@ -192,8 +206,26 @@ const fractionFlags = (fraction: string | null | undefined): ScreeningFlag[] =>
       ]
     : [];
 
+const reuseFlags = (
+  priorRuns: number | null | undefined,
+  segments: Backtest["segments"],
+): ScreeningFlag[] =>
+  segments !== null &&
+  priorRuns !== null &&
+  priorRuns !== undefined &&
+  priorRuns >= CHAN_THRESHOLDS.maxWindowReuse
+    ? [
+        {
+          id: "reuse",
+          level: ScreeningLevel.Warning,
+          text: `Esta janela já foi usada em ${priorRuns} outras execuções: a cada olhada o teste deixa de ser fora da amostra.`,
+        },
+      ]
+    : [];
+
 export const screeningFlags = (
   run: Pick<Backtest, "start" | "end" | "segments"> & {
+    prior_runs?: number | null | undefined;
     metrics: Metrics;
     data_quality?: DataQuality | null | undefined;
     test_fraction?: string | null | undefined;
@@ -202,11 +234,13 @@ export const screeningFlags = (
   const sampleKnown = run.data_quality?.sample !== null && run.data_quality?.sample !== undefined;
   const flags = [
     ...sharpeFlags(run.metrics),
+    ...significanceFlags(run.metrics),
     ...drawdownFlags(run.metrics),
     ...activityFlags(run.metrics, run).filter((flag) => !(sampleKnown && flag.id === "few-trades")),
     ...segmentFlags(run),
     ...dataFlags(run.data_quality),
     ...fractionFlags(run.test_fraction),
+    ...reuseFlags(run.prior_runs, run.segments),
   ];
   return [
     ...flags.filter((flag) => flag.level === ScreeningLevel.Warning),

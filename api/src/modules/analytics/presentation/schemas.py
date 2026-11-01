@@ -52,3 +52,14 @@ class MetricsOut(BaseModel):
     drawdown_open: bool | None = Field(
         default=None, description="The curve ends below its high watermark (not recovered)."
     )
+    sharpe_t_stat: Decimal | None = Field(
+        default=None,
+        description="Mean return / std * sqrt(n) of the periodic returns (Gaussian test, book 2 "
+        "ch. 1). Null below 30 returns.",
+    )
+    significance_p: Decimal | None = Field(
+        default=None,
+        description="Strictest p-value of the Gaussian table (0.10, 0.05, 0.01, 0.001) that "
+        "the statistic reaches; null when it does not reach 0.10. Not the chance that the "
+        "strategy works.",
+    )

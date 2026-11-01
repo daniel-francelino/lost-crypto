@@ -1,10 +1,12 @@
 import { Link } from "@tanstack/react-router";
+import { Fingerprint, TrendingUp } from "lucide-react";
 import { PageHeader } from "lost-ui/app/page-header";
 import { DataTable, type DataTableColumn } from "lost-ui/data/data-table";
 import { Empty } from "lost-ui/data/empty";
 import { Alert, AlertDescription, AlertTitle } from "lost-ui/ui/alert";
 import { Button } from "lost-ui/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "lost-ui/ui/card";
+import { Card, CardContent, CardHeader } from "lost-ui/ui/card";
+import { IconCardTitle } from "@/components/shared/metrics/icon-card-title";
 import {
   ErrorBlock,
   QueryBoundary,
@@ -13,6 +15,7 @@ import {
 import { CostLadderCard } from "@/components/backtests/cost-ladder-card";
 import { DataQualityCard } from "@/components/backtests/data-quality-card";
 import { RiskReportCard } from "@/components/backtests/risk-report-card";
+import { SignificanceCard } from "@/components/backtests/significance-card";
 import { SizingCard } from "@/components/backtests/sizing-card";
 import { RegimeCard } from "@/components/backtests/regime-card";
 import { PeriodsCard } from "@/components/backtests/periods-card";
@@ -145,6 +148,7 @@ export function BacktestDetailPage({ runId }: { runId: string }) {
         <DataQualityCard run={run} quality={run.data_quality} />
       )}
       <RiskReportCard run={run} />
+      <SignificanceCard significance={run.significance ?? null} />
       {completed ? <SizingCard run={run} /> : null}
       {run.metrics === null ? null : (
         <section className="space-y-3" aria-label="Métricas">
@@ -158,6 +162,9 @@ export function BacktestDetailPage({ runId }: { runId: string }) {
           <p className="text-sm text-muted-foreground">
             O corte está em {formatUtc(run.segments.split_at)}. O teste usa a fração final de{" "}
             {formatFraction(run.segments.test_fraction)} da série e vale tanto quanto o treino.
+            {run.prior_runs === null || run.prior_runs === undefined
+              ? null
+              : ` Esta janela já foi usada em ${run.prior_runs} outras execuções: cada olhada a mais torna o teste menos fora da amostra.`}
           </p>
           <div className="grid gap-6 lg:grid-cols-2">
             <div className="space-y-2">
@@ -175,7 +182,9 @@ export function BacktestDetailPage({ runId }: { runId: string }) {
         <>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Curva de capital</CardTitle>
+              <IconCardTitle className="text-base" icon={TrendingUp}>
+                Curva de capital
+              </IconCardTitle>
             </CardHeader>
             <CardContent>
               <QueryBoundary query={equity}>
@@ -224,7 +233,9 @@ export function BacktestDetailPage({ runId }: { runId: string }) {
       ) : null}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Reprodutibilidade</CardTitle>
+          <IconCardTitle className="text-base" icon={Fingerprint}>
+            Reprodutibilidade
+          </IconCardTitle>
         </CardHeader>
         <CardContent>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">

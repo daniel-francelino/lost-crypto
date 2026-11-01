@@ -7,7 +7,7 @@ from core.jobs import JobStatus
 from modules.backtesting.domain.models import BacktestConfig, EquityPoint
 from modules.execution.domain.orders import Fill
 from modules.market_data.application.ports import CandleRepository
-from modules.market_data.domain.models import MarketInfo
+from modules.market_data.domain.models import MarketInfo, Timeframe
 
 
 @dataclass(slots=True)
@@ -29,6 +29,7 @@ class BacktestRun:
     risk_report: dict[str, Any] | None = None  # sizing used, pause, refusals by reason
     tail_risk: dict[str, Any] | None = None
     regime: dict[str, Any] | None = None
+    significance: dict[str, Any] | None = None
     sweep_id: UUID | None = None
     error: str | None = None
 
@@ -63,6 +64,17 @@ class BacktestStore(Protocol):
         and outside it: how many other tries the sweep's winner competed with."""
         ...
 
+    async def count_prior_runs(self, run_id: UUID, config: BacktestConfig) -> int:
+        """Other completed runs of the same strategy on overlapping data (any time): how many
+        times this window has already been looked at (book 2 ch. 1, O5)."""
+        ...
+
+    async def matching_runs(
+        self, exchange: str, symbol: str, timeframe: Timeframe, strategy_type: str, limit: int
+    ) -> list[BacktestRun]:
+        """Newest completed runs of this strategy on this market (the caller narrows further)."""
+        ...
+
     async def claim_next_queued(self) -> BacktestRun | None: ...
     async def requeue_running(self) -> int: ...
     async def save_result(
@@ -80,6 +92,7 @@ class BacktestStore(Protocol):
         risk_report: dict[str, Any] | None,
         tail_risk: dict[str, Any] | None,
         regime: dict[str, Any] | None,
+        significance: dict[str, Any] | None,
         equity_curve: list[EquityPoint],
         fills: list[Fill],
     ) -> None: ...

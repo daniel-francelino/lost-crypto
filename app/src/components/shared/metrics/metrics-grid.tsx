@@ -2,6 +2,7 @@ import { SignedValue } from "@/components/shared/status/signed-value";
 import { StatTile } from "@/components/shared/metrics/stat-tile";
 import type { Metrics } from "@/lib/shared/analytics";
 import { formatUtcShort } from "@/lib/shared/dates";
+import { significanceHint, significanceValue } from "@/lib/shared/significance";
 import {
   formatDuration,
   formatInteger,
@@ -82,6 +83,11 @@ export function MetricsGrid({ metrics, quote }: MetricsGridProps) {
         label="Sharpe (anual.)"
         value={formatRatio(metrics.sharpe_ratio)}
         hint={sampleHint(metrics)}
+      />
+      <StatTile
+        label="Significância do Sharpe"
+        value={significanceValue(metrics)}
+        hint={significanceHint(metrics)}
       />
       <StatTile
         label="Sortino (anual.)"

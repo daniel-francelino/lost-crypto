@@ -925,6 +925,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bots/{bot_id}/backtest-comparison": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Backtest Comparison
+         * @description Compare the bot's realized Sharpe with the backtest of its configuration (the newest
+         *     completed one with the same strategy parameters, or ``run_id``). Read-only.
+         */
+        get: operations["get_backtest_comparison_api_v1_bots__bot_id__backtest_comparison_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bots/{bot_id}/divergence": {
         parameters: {
             query?: never;
@@ -1441,6 +1462,12 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             regime?: components["schemas"]["RegimeOut"] | null;
+            significance?: components["schemas"]["SignificanceOut"] | null;
+            /**
+             * Prior Runs
+             * @description Detail only: other completed runs of the same strategy on overlapping data (same exchange, symbol and timeframe). Each look at the same window makes its test part less out of sample.
+             */
+            prior_runs?: number | null;
             /** Error */
             error: string | null;
             /**
@@ -1452,6 +1479,11 @@ export interface components {
             started_at: string | null;
             /** Finished At */
             finished_at: string | null;
+        };
+        /** BacktestSharpeOut */
+        BacktestSharpeOut: {
+            /** Sharpe */
+            sharpe: string | null;
         };
         /** BackupOut */
         BackupOut: {
@@ -2035,6 +2067,27 @@ export interface components {
             gaps: number;
             /** Warning */
             warning: string;
+            /**
+             * Sample Every
+             * @description One close per this many candles (1 = every candle).
+             * @default 1
+             */
+            sample_every: number;
+            /**
+             * Hurst
+             * @description Hurst exponent by the variance-of-differences method: below 0.5 reverts, 0.5 is a random walk, above 0.5 trends. Null on a short series.
+             */
+            hurst?: string | null;
+            /**
+             * Suggested Windows
+             * @description Look-back windows around the half-life (0.5x, 1x, 2x), in the sampled bars; empty unless the series looks stationary at 5%. A search range, not advice.
+             */
+            suggested_windows?: number[];
+            /**
+             * Variance Ratios
+             * @description Variance ratio per lag: below 1 reverts, 1 random walk, above 1 trends. z_stat assumes constant volatility, which crypto does not have.
+             */
+            variance_ratios?: components["schemas"]["VarianceRatioOut"][];
         };
         /** HealthResponse */
         HealthResponse: {
@@ -2328,6 +2381,16 @@ export interface components {
              * @description The curve ends below its high watermark (not recovered).
              */
             drawdown_open?: boolean | null;
+            /**
+             * Sharpe T Stat
+             * @description Mean return / std * sqrt(n) of the periodic returns (Gaussian test, book 2 ch. 1). Null below 30 returns.
+             */
+            sharpe_t_stat?: string | null;
+            /**
+             * Significance P
+             * @description Strictest p-value of the Gaussian table (0.10, 0.05, 0.01, 0.001) that the statistic reaches; null when it does not reach 0.10. Not the chance that the strategy works.
+             */
+            significance_p?: string | null;
         };
         /** OrderOut */
         OrderOut: {
@@ -2567,6 +2630,39 @@ export interface components {
              */
             connection_id: string;
         };
+        /** RandomEntriesOut */
+        RandomEntriesOut: {
+            /** Available */
+            available: boolean;
+            /**
+             * Reason
+             * @description Why the test was not computed (too few trades).
+             */
+            reason?: string | null;
+            /** Simulations */
+            simulations?: number | null;
+            /**
+             * As Good Or Better
+             * @description Simulations with random entries that did as well or better.
+             */
+            as_good_or_better?: number | null;
+            /**
+             * Fraction
+             * @description as_good_or_better / simulations: a small value means luck is an unlikely explanation. It is not the chance that the strategy works.
+             */
+            fraction?: string | null;
+            /** Trades */
+            trades?: number | null;
+            /** Seed */
+            seed?: number | null;
+            /** Observed Log Return */
+            observed_log_return?: string | null;
+            /**
+             * Overlap Allowed
+             * @description Random trades are drawn independently and may overlap.
+             */
+            overlap_allowed?: boolean | null;
+        };
         /** RangeCoverageOut */
         RangeCoverageOut: {
             /**
@@ -2602,6 +2698,53 @@ export interface components {
             ready: boolean;
             /** Checks */
             checks: components["schemas"]["CheckOut"][];
+        };
+        /** RealizedSharpeOut */
+        RealizedSharpeOut: {
+            /**
+             * Sharpe
+             * @description Annualised (365 days); null on a short sample.
+             */
+            sharpe: string | null;
+            /**
+             * Return Periods
+             * @description The size of the live sample.
+             */
+            return_periods: number | null;
+            /** Days */
+            days: string | null;
+        };
+        /** RealizedVsBacktestOut */
+        RealizedVsBacktestOut: {
+            /**
+             * Run Id
+             * @description The backtest compared with; null if none matches.
+             */
+            run_id: string | null;
+            /** Run Created At */
+            run_created_at: string | null;
+            realized: components["schemas"]["RealizedSharpeOut"] | null;
+            backtest: components["schemas"]["BacktestSharpeOut"] | null;
+            /**
+             * Ratio
+             * @description Realized Sharpe / backtest Sharpe.
+             */
+            ratio: string | null;
+            /**
+             * Min Periods
+             * @description Live returns needed before a ratio is given.
+             */
+            min_periods: number;
+            /**
+             * Chan Min Ratio
+             * @description Chan's rule of thumb (his experience, not a standard): a ratio of at least this is usually acceptable.
+             */
+            chan_min_ratio: string;
+            /**
+             * Reason
+             * @description Why there is no ratio, when there is none.
+             */
+            reason: string | null;
         };
         /** ReasonIn */
         ReasonIn: {
@@ -2838,6 +2981,10 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /** SignificanceOut */
+        SignificanceOut: {
+            random_entries?: components["schemas"]["RandomEntriesOut"] | null;
         };
         /** SizingAdviceOut */
         SizingAdviceOut: {
@@ -3297,6 +3444,15 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** VarianceRatioOut */
+        VarianceRatioOut: {
+            /** Lag */
+            lag: number;
+            /** Ratio */
+            ratio: string;
+            /** Z Stat */
+            z_stat: string;
         };
         /** WorkerHealthResponse */
         WorkerHealthResponse: {
@@ -3855,6 +4011,7 @@ export interface operations {
                 start: string;
                 end: string;
                 log_prices?: boolean;
+                sample_every?: number;
                 exchange?: string;
             };
             header?: never;
@@ -4893,6 +5050,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ParityOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_backtest_comparison_api_v1_bots__bot_id__backtest_comparison_get: {
+        parameters: {
+            query?: {
+                run_id?: string | null;
+            };
+            header?: never;
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RealizedVsBacktestOut"];
                 };
             };
             /** @description Validation Error */

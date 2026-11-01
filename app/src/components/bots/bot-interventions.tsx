@@ -1,4 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from "lost-ui/ui/card";
+import { ListChecks } from "lucide-react";
+import { Card, CardContent, CardHeader } from "lost-ui/ui/card";
+import { IconCardTitle } from "@/components/shared/metrics/icon-card-title";
 import { ErrorBlock, SkeletonBlock } from "@/components/shared/feedback/query-boundary";
 import { useInterventions } from "@/hooks/bots/use-bots";
 import { formatSignedPercent } from "@/lib/shared/format";
@@ -20,7 +22,7 @@ export function BotInterventions({ botId }: { botId: string }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Intervenções nos últimos 30 dias</CardTitle>
+        <IconCardTitle icon={ListChecks}>Intervenções nos últimos 30 dias</IconCardTitle>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
         <p>
