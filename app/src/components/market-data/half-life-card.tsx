@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { FormInputNumber } from "lost-ui/forms/form-input-number";
 import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
 import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import { Empty } from "lost-ui/data/empty";
@@ -23,6 +24,7 @@ type Props = {
 
 export function HalfLifeCard({ exchange, symbol, timeframe, start, end }: Props) {
   const [step, setStep] = useState("1");
+  const stepValue = step.trim() === "" ? null : Number(step);
   const sampleEvery = sampleEveryValue(step);
   const params = {
     exchange,
@@ -49,19 +51,22 @@ export function HalfLifeCard({ exchange, symbol, timeframe, start, end }: Props)
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <label className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-muted-foreground">Amostrar a cada</span>
-          <input
-            className="h-8 w-20 rounded-md border bg-background px-2"
-            inputMode="numeric"
-            value={step}
-            onChange={(event) => setStep(event.target.value)}
-            aria-label="Amostrar a cada N candles"
+        <div className="flex flex-wrap items-end gap-2 text-sm">
+          <FormInputNumber
+            label="Amostrar a cada (candles)"
+            className="w-40"
+            showControls={false}
+            min={1}
+            max={1000}
+            step={1}
+            value={stepValue}
+            onValueChange={(value) => setStep(value === null ? "" : String(value))}
+            rules={[(value) => (value === null ? "Informe um valor." : undefined)]}
           />
-          <span className="text-muted-foreground">
-            candles (candles curtos sobrepostos não são observações independentes)
+          <span className="pb-2 text-muted-foreground">
+            Candles curtos sobrepostos nao sao observacoes independentes.
           </span>
-        </label>
+        </div>
         <QueryBoundary query={query}>
           {(estimate) => (
             <div className="space-y-3 text-sm">

@@ -5,10 +5,11 @@ import { Brain, Database, Shield, Wallet } from "lucide-react";
 import { PageHeader } from "lost-ui/app/page-header";
 import { Form } from "lost-ui/forms/form";
 import { FormInput } from "lost-ui/forms/form-input";
+import { FormInputMoney } from "lost-ui/forms/form-input-money";
+import { FormInputNumber } from "lost-ui/forms/form-input-number";
 import { FormSelect } from "lost-ui/forms/form-select";
 import { FormCheckbox } from "lost-ui/forms/form-checkbox";
 import { FormSwitch } from "lost-ui/forms/form-switch";
-import { rules } from "lost-ui/forms/rules";
 import { Button } from "lost-ui/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
 import { IconCardTitle } from "@/components/shared/metrics/icon-card-title";
@@ -48,6 +49,16 @@ import { defaultParamValues } from "@/lib/shared/strategies/params";
 import type { Strategy } from "@/lib/shared/strategies/strategies.api";
 
 const TIMEFRAMES = Object.values(Timeframe).map((value) => ({ label: value, value }));
+const numberValue = (value: string): number | null => (value.trim() === "" ? null : Number(value));
+const numberText = (value: number | null): string => (value === null ? "" : String(value));
+const quoteCurrency = (symbol: string): string | undefined => {
+  const quote = symbol.split("/")[1]?.trim().toUpperCase();
+  return quote !== undefined && /^[A-Z]{3}$/.test(quote) ? quote : undefined;
+};
+const quoteCurrencyProps = (symbol: string): { currency?: string } => {
+  const currency = quoteCurrency(symbol);
+  return currency === undefined ? {} : { currency };
+};
 
 type BacktestFormProps = {
   strategies: Strategy[];
@@ -316,29 +327,32 @@ function BacktestForm({ strategies, exchanges, prefill }: BacktestFormProps) {
           </IconCardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <FormInput
+          <FormInputMoney
             label="Capital inicial"
             required
-            inputMode="decimal"
-            value={values.initialCapital}
-            onValueChange={(value) => set("initialCapital", value)}
-            rules={[(value) => decimalError(value ?? "", true)]}
+            {...quoteCurrencyProps(values.symbol)}
+            locale="pt-PT"
+            fractionDigits={8}
+            min={0}
+            value={numberValue(values.initialCapital)}
+            onValueChange={(value) => set("initialCapital", numberText(value))}
+            rules={[(value) => decimalError(numberText(value), true)]}
           />
-          <FormInput
+          <FormInputNumber
             label="Taxa (fração)"
-            inputMode="decimal"
+            showControls={false}
             description="Vazio usa a taxa da exchange."
-            value={values.feeRate}
-            onValueChange={(value) => set("feeRate", value)}
-            rules={[(value) => decimalError(value ?? "", false)]}
+            value={numberValue(values.feeRate)}
+            onValueChange={(value) => set("feeRate", numberText(value))}
+            rules={[(value) => decimalError(numberText(value), false)]}
           />
-          <FormInput
+          <FormInputNumber
             label="Slippage (bps)"
             required
-            inputMode="decimal"
-            value={values.slippageBps}
-            onValueChange={(value) => set("slippageBps", value)}
-            rules={[(value) => decimalError(value ?? "", true)]}
+            showControls={false}
+            value={numberValue(values.slippageBps)}
+            onValueChange={(value) => set("slippageBps", numberText(value))}
+            rules={[(value) => decimalError(numberText(value), true)]}
           />
           <FormSelect
             label="Modelo de custo (slippage)"
@@ -351,47 +365,48 @@ function BacktestForm({ strategies, exchanges, prefill }: BacktestFormProps) {
           />
           {values.slippageModel === SlippageModel.Fixed ? null : (
             <>
-              <FormInput
+              <FormInputNumber
                 label="Slippage extra por volatilidade (k)"
-                inputMode="decimal"
+                showControls={false}
                 description="Bps extras por bps de amplitude do candle. Calibre com o slippage realizado dos seus bots; não há valor padrão."
-                value={values.slippageKRange}
-                onValueChange={(value) => set("slippageKRange", value)}
-                rules={[(value) => decimalError(value ?? "", false)]}
+                value={numberValue(values.slippageKRange)}
+                onValueChange={(value) => set("slippageKRange", numberText(value))}
+                rules={[(value) => decimalError(numberText(value), false)]}
               />
-              <FormInput
+              <FormInputNumber
                 label="Slippage extra por tamanho (k)"
-                inputMode="decimal"
+                showControls={false}
                 description="Bps extras por bps da fatia do valor negociado do candle que a ordem ocupa. O bot continua com custo fixo."
-                value={values.slippageKSize}
-                onValueChange={(value) => set("slippageKSize", value)}
-                rules={[(value) => decimalError(value ?? "", false)]}
+                value={numberValue(values.slippageKSize)}
+                onValueChange={(value) => set("slippageKSize", numberText(value))}
+                rules={[(value) => decimalError(numberText(value), false)]}
               />
             </>
           )}
-          <FormInput
+          <FormInputNumber
             label="Semente"
-            inputMode="numeric"
-            value={values.seed}
-            onValueChange={(value) => set("seed", value)}
-            rules={[(value) => integerError(value ?? "")]}
+            step={1}
+            showControls={false}
+            value={numberValue(values.seed)}
+            onValueChange={(value) => set("seed", numberText(value))}
+            rules={[(value) => integerError(numberText(value))]}
           />
-          <FormInput
+          <FormInputNumber
             label="Fração fora da amostra"
-            inputMode="decimal"
+            showControls={false}
             description="Parte final da série guardada para teste (0 a 1). Vazio desliga."
-            value={values.testFraction}
-            onValueChange={(value) => set("testFraction", value)}
+            value={numberValue(values.testFraction)}
+            onValueChange={(value) => set("testFraction", numberText(value))}
             rules={[
               (value) => {
-                const text = (value ?? "").trim();
+                const text = numberText(value).trim();
                 if (text === "") return undefined;
                 return (
                   decimalError(text, false) ??
                   (text.startsWith("0.") ? undefined : "Use um valor entre 0 e 1.")
                 );
               },
-              rules.maxLength(8),
+              (value) => value === null || String(value).length <= 8 || "Limite: 8 caracteres.",
             ]}
           />
           {fractionWarning === undefined ? null : (

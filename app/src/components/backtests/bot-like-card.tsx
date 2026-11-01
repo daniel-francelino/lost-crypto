@@ -1,4 +1,5 @@
-import { FormInput } from "lost-ui/forms/form-input";
+import { FormInputMoney } from "lost-ui/forms/form-input-money";
+import { FormInputNumber } from "lost-ui/forms/form-input-number";
 import { FormSelect } from "lost-ui/forms/form-select";
 import { FormSwitch } from "lost-ui/forms/form-switch";
 import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
@@ -12,11 +13,24 @@ const TIMINGS = [
   { label: "Fechamento do candle do sinal (como os bots)", value: FillTiming.SignalClose },
 ];
 
-type Field = { key: keyof RiskValues; label: string; integer?: boolean; hint?: string };
+type Field = {
+  key: keyof RiskValues;
+  label: string;
+  integer?: boolean;
+  money?: boolean;
+  hint?: string;
+};
+
+const numberValue = (value: string): number | null => (value.trim() === "" ? null : Number(value));
+const numberText = (value: number | null): string => (value === null ? "" : String(value));
+const quoteCurrency = (symbol: string): string | undefined => {
+  const quote = symbol.split("/")[1]?.trim().toUpperCase();
+  return quote !== undefined && /^[A-Z]{3}$/.test(quote) ? quote : undefined;
+};
 
 const FIELDS: Field[] = [
   { key: "maxPositionFraction", label: "Fração máxima por posição (0 a 1)" },
-  { key: "maxOrderNotional", label: "Valor máximo por ordem" },
+  { key: "maxOrderNotional", label: "Valor máximo por ordem", money: true },
   { key: "maxDailyLossPct", label: "Perda diária máxima (%)" },
   { key: "maxDrawdownPct", label: "Drawdown máximo (%)" },
   { key: "maxConsecutiveLosses", label: "Perdas consecutivas máximas", integer: true },
@@ -67,22 +81,38 @@ export function BotLikeCard({ values, onChange }: BotLikeCardProps) {
         />
         {values.riskEnabled ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {FIELDS.map((field) => (
-              <FormInput
-                key={field.key}
-                label={field.label}
-                inputMode={field.integer === true ? "numeric" : "decimal"}
-                description={field.hint ?? "Vazio desliga."}
-                value={String(values.risk[field.key])}
-                onValueChange={(value) => setRisk(field.key, value)}
-                rules={[
-                  (value) =>
+            {FIELDS.map((field) => {
+              const common = {
+                label: field.label,
+                description: field.hint ?? "Vazio desliga.",
+                showControls: false,
+                step: field.integer === true ? 1 : 0.1,
+                min: 0,
+                ...(field.key === "maxPositionFraction" ? { max: 1 } : {}),
+                value: numberValue(String(values.risk[field.key])),
+                onValueChange: (value: number | null) => setRisk(field.key, numberText(value)),
+                rules: [
+                  (value: number | null) =>
                     field.integer === true
-                      ? integerError(value ?? "")
-                      : decimalError(value ?? "", false),
-                ]}
-              />
-            ))}
+                      ? integerError(numberText(value))
+                      : decimalError(numberText(value), false),
+                ],
+              };
+              if (field.money === true) {
+                const currency = quoteCurrency(values.symbol);
+                const { showControls: _showControls, step: _step, ...moneyProps } = common;
+                return (
+                  <FormInputMoney
+                    key={field.key}
+                    {...moneyProps}
+                    {...(currency === undefined ? {} : { currency })}
+                    locale="pt-PT"
+                    fractionDigits={8}
+                  />
+                );
+              }
+              return <FormInputNumber key={field.key} {...common} />;
+            })}
             <FormSwitch
               label="Exigir stop-loss"
               value={values.risk.requireStopLoss}
