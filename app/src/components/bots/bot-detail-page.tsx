@@ -18,6 +18,7 @@ import { NoteTarget } from "@/lib/shared/audit/audit.api";
 import { ErrorBlock, SkeletonBlock } from "@/components/shared/feedback/query-boundary";
 import { UpdatedAt } from "@/components/shared/feedback/updated-at";
 import { BotStateBadge, ModeBadge } from "@/components/shared/status/badges";
+import { SymbolLabel } from "@/components/shared/market-data/coin-icon";
 import { isConverging, useBot } from "@/hooks/bots/use-bots";
 import { useNow } from "@/hooks/shared/use-now";
 import { useSystemStatus } from "@/hooks/shared/use-system";
@@ -59,7 +60,14 @@ export function BotDetailPage({ botId, tab, onTabChange }: BotDetailPageProps) {
             <BotStateBadge state={bot.observed_state} />
           </span>
         }
-        description={`${bot.symbol} · ${bot.timeframe} · ${bot.strategy_type}`}
+        description={
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <SymbolLabel symbol={bot.symbol} size={18} />
+            <span>
+              · {bot.timeframe} · {bot.strategy_type}
+            </span>
+          </span>
+        }
         actions={<BotControls bot={bot} />}
       />
       {isLive ? (

@@ -1,4 +1,5 @@
 import { BacktestComparisonCard } from "@/components/bots/backtest-comparison-card";
+import type { ReactNode } from "react";
 import { useState } from "react";
 import { DataTable, type DataTableColumn } from "lost-ui/data/data-table";
 import { EmptyState as Empty } from "@/components/shared/feedback/empty-state";
@@ -11,6 +12,7 @@ import { EquityChart } from "@/components/shared/metrics/equity-chart";
 import { UnderwaterChart } from "@/components/shared/metrics/underwater-chart";
 import { StatTile } from "@/components/shared/metrics/stat-tile";
 import { OrderStatusBadge, SideBadge } from "@/components/shared/status/badges";
+import { SymbolLabel } from "@/components/shared/market-data/coin-icon";
 import { SignedValue } from "@/components/shared/status/signed-value";
 import { useConnections } from "@/hooks/shared/use-catalog";
 import {
@@ -323,9 +325,9 @@ const orDash = (value: string | number | null): string => (value === null ? "—
 
 export function ConfigTab({ bot }: { bot: Bot }) {
   const risk = bot.risk;
-  const rows: [string, string][] = [
+  const rows: [string, ReactNode][] = [
     ["Exchange", bot.exchange],
-    ["Símbolo", bot.symbol],
+    ["Símbolo", <SymbolLabel symbol={bot.symbol} size={18} />],
     ["Intervalo", bot.timeframe],
     ["Estratégia", bot.strategy_type],
     ["Capital inicial", formatMoney(bot.initial_capital, quoteCurrency(bot.symbol))],

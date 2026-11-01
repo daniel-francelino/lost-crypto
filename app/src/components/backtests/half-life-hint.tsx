@@ -1,4 +1,6 @@
+import { ChartNoAxesCombined } from "lucide-react";
 import { Button } from "lost-ui/ui/button";
+import { EmptyState } from "@/components/shared/feedback/empty-state";
 import { SkeletonBlock } from "@/components/shared/feedback/query-boundary";
 import { useHalfLife } from "@/hooks/shared/use-half-life";
 import { gridValue, windowParamOf, windowsText } from "@/lib/backtests/half-life-hint";
@@ -33,10 +35,14 @@ export function HalfLifeHint({
   return (
     <div className="rounded-md border p-3 text-sm" aria-label="Dica de janela pela meia-vida">
       {text === null || windows === undefined ? (
-        <p className="text-muted-foreground">
-          Sem meia-vida estimável neste par e período (a série não parece estacionária): não há
-          janela sugerida.
-        </p>
+        <EmptyState
+          icon={<ChartNoAxesCombined aria-hidden="true" />}
+          title="Sem meia-vida estimável"
+          description="A série deste par e período não parece estacionária; não há janela sugerida."
+          variant="naked"
+          size="sm"
+          className="items-start text-left p-0"
+        />
       ) : (
         <div className="space-y-2">
           <p>

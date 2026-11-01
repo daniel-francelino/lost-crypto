@@ -4,7 +4,8 @@ import { Badge } from "lost-ui/ui/badge";
 import { useAlertSummary } from "@/hooks/shared/use-alerts";
 import { AppRoute } from "@/lib/shared/routes";
 
-const ICON = "size-3";
+const ICON = "size-4";
+const HEADER_BADGE = "h-8 px-2.5 py-0";
 const TONE_DANGER = "border-destructive/40 bg-destructive/10 text-destructive";
 const TONE_WARNING = "border-warning/40 bg-warning/10 text-warning";
 
@@ -22,7 +23,10 @@ export function AlertsIndicator() {
 
   return (
     <Link to={AppRoute.Alerts} title="Alertas" aria-label={label}>
-      <Badge variant="outline" className={`gap-1 ${alertTone(critical, data.unread > 0)}`}>
+      <Badge
+        variant="outline"
+        className={`${HEADER_BADGE} gap-1.5 ${alertTone(critical, data.unread > 0)}`}
+      >
         <Bell className={ICON} aria-hidden="true" />
         <span className="hidden sm:inline">Alertas</span>
         {data.unread > 0 ? <span>{data.unread}</span> : null}

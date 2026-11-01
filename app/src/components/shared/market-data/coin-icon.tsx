@@ -3,14 +3,14 @@ import { coinIconSrc, coinInitial } from "@/lib/shared/market-data/coins";
 
 type IconProps = { symbol: string; size?: number | undefined };
 
-export function CoinIcon({ symbol, size = 20 }: IconProps) {
+export function CoinIcon({ symbol, size = 24 }: IconProps) {
   const [failed, setFailed] = useState(false);
-  const style = { width: size, height: size };
+  const style = { width: size, height: size, borderRadius: "50%" };
   return failed ? (
     <span
       aria-hidden="true"
       style={style}
-      className="inline-flex shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium"
+      className="inline-flex shrink-0 items-center justify-center bg-muted text-xs font-medium"
     >
       {coinInitial(symbol)}
     </span>
@@ -21,7 +21,7 @@ export function CoinIcon({ symbol, size = 20 }: IconProps) {
       aria-hidden="true"
       loading="lazy"
       style={style}
-      className="shrink-0 rounded-full"
+      className="shrink-0 rounded-[50%] bg-muted object-contain"
       onError={() => setFailed(true)}
     />
   );

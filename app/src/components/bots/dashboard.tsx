@@ -2,20 +2,17 @@ import { Link } from "@tanstack/react-router";
 import { Bot as BotIcon } from "lucide-react";
 import { PageHeader } from "lost-ui/app/page-header";
 import { EmptyState as Empty } from "@/components/shared/feedback/empty-state";
-import { Alert, AlertDescription, AlertTitle } from "lost-ui/ui/alert";
 import { Card, CardContent, CardHeader } from "lost-ui/ui/card";
 import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import { QueryBoundary } from "@/components/shared/feedback/query-boundary";
 import { UpdatedAt } from "@/components/shared/feedback/updated-at";
 import { StatTile } from "@/components/shared/metrics/stat-tile";
 import { BotStateBadge, ModeBadge } from "@/components/shared/status/badges";
+import { SymbolLabel } from "@/components/shared/market-data/coin-icon";
 import { SignedValue } from "@/components/shared/status/signed-value";
 import { useOverview, useSummary } from "@/hooks/bots/use-bots";
-import { useConnections } from "@/hooks/shared/use-catalog";
-import { useSystemStatus } from "@/hooks/shared/use-system";
 import type { BotOverview, PortfolioSummary } from "@/lib/bots/bots.api";
 import { ageSeconds, formatAge } from "@/lib/shared/dates";
-import { BotState, ConnectionStatus } from "@/lib/shared/enums";
 import {
   formatInteger,
   formatMoney,
@@ -76,8 +73,9 @@ function BotCard({ bot }: { bot: BotOverview }) {
         <div className="flex flex-wrap items-center gap-2">
           <ModeBadge mode={bot.mode} />
           <BotStateBadge state={bot.observed_state} />
-          <span className="text-xs text-muted-foreground">
-            {bot.symbol} · {bot.timeframe}
+          <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+            <SymbolLabel symbol={bot.symbol} size={18} />
+            <span>· {bot.timeframe}</span>
           </span>
         </div>
       </CardHeader>
@@ -101,42 +99,6 @@ function BotCard({ bot }: { bot: BotOverview }) {
   );
 }
 
-function Attention({ overview }: { overview: BotOverview[] }) {
-  const status = useSystemStatus();
-  const connections = useConnections();
-  const failing = overview.filter((bot) => bot.observed_state === BotState.Error);
-  const stale = status.data?.stale_bots ?? [];
-  const invalid = (connections.data ?? []).filter(
-    (item) => item.status === ConnectionStatus.Invalid,
-  );
-  if (failing.length === 0 && stale.length === 0 && invalid.length === 0) return null;
-  return (
-    <Alert variant="destructive">
-      <AlertTitle>Atenção</AlertTitle>
-      <AlertDescription>
-        <ul className="list-disc space-y-1 pl-4">
-          {failing.map((bot) => (
-            <li key={bot.id}>
-              Bot <strong>{bot.name}</strong> está em erro.
-            </li>
-          ))}
-          {stale.map((bot) => (
-            <li key={bot.bot_id}>
-              Bot <strong>{bot.name}</strong> sem heartbeat (
-              {formatAge(bot.age_seconds === null ? null : Math.round(bot.age_seconds))}).
-            </li>
-          ))}
-          {invalid.map((item) => (
-            <li key={item.id}>
-              Conexão <strong>{item.label}</strong> está inválida.
-            </li>
-          ))}
-        </ul>
-      </AlertDescription>
-    </Alert>
-  );
-}
-
 export function Dashboard() {
   const summary = useSummary();
   const overview = useOverview();
@@ -148,7 +110,6 @@ export function Dashboard() {
         description="Visão geral dos bots e do sistema."
         actions={<UpdatedAt updatedAtMs={overview.dataUpdatedAt} failed={overview.isError} />}
       />
-      <QueryBoundary query={overview}>{(bots) => <Attention overview={bots} />}</QueryBoundary>
       <QueryBoundary query={summary}>
         {(groups) =>
           groups.length === 0 ? null : (

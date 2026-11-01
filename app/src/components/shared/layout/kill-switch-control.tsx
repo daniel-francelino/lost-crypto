@@ -34,12 +34,12 @@ export function KillSwitchControl() {
   return (
     <>
       {active ? (
-        <Button size="sm" variant="outline" onClick={() => setOpen(true)} className="gap-1.5">
+        <Button size="sm" variant="outline" onClick={() => setOpen(true)} className="h-8 gap-1.5">
           <OctagonX className="size-4" aria-hidden="true" />
           Liberar kill switch
         </Button>
       ) : (
-        <DangerButton size="sm" onClick={() => setOpen(true)} className="gap-1.5">
+        <DangerButton size="sm" onClick={() => setOpen(true)} className="h-8 gap-1.5">
           <OctagonX className="size-4" aria-hidden="true" />
           Kill switch
         </DangerButton>

@@ -30,6 +30,7 @@ import { EquityChart } from "@/components/shared/metrics/equity-chart";
 import { MetricsGrid } from "@/components/shared/metrics/metrics-grid";
 import { UnderwaterChart } from "@/components/shared/metrics/underwater-chart";
 import { JobStatusBadge, SideBadge } from "@/components/shared/status/badges";
+import { SymbolLabel } from "@/components/shared/market-data/coin-icon";
 import { useSessionUser } from "@/hooks/shared/use-session";
 import { useBacktest, useBacktestEquity, useTrades } from "@/hooks/backtests/use-backtests";
 import type { Tolerance } from "@/lib/backtests/backtests.api";
@@ -122,7 +123,14 @@ export function BacktestDetailPage({ runId }: { runId: string }) {
             <JobStatusBadge status={run.status} />
           </span>
         }
-        description={`${run.symbol} · ${run.timeframe} · ${formatUtcDay(run.start)} → ${formatUtcDay(run.end)}`}
+        description={
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <SymbolLabel symbol={run.symbol} size={18} />
+            <span>
+              · {run.timeframe} · {formatUtcDay(run.start)} → {formatUtcDay(run.end)}
+            </span>
+          </span>
+        }
         actions={
           completed && can(user, Capability.BotsEdit) ? (
             <Button variant="outline" asChild>

@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card"
 import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import { toast } from "lost-ui/ui/sonner";
 import { StatTile } from "@/components/shared/metrics/stat-tile";
+import { SymbolLabel } from "@/components/shared/market-data/coin-icon";
 import { formatDateTime } from "@/lib/shared/dates";
 import { env } from "@/lib/shared/env";
 import { formatInteger, formatPrice, formatQuantity } from "@/lib/shared/format";
@@ -93,7 +94,8 @@ export function UnprotectedPositions({ status }: { status: SystemStatus }) {
               >
                 {position.name}
               </Link>{" "}
-              — {position.symbol} ({position.mode}), {formatQuantity(position.quantity)}
+              — <SymbolLabel symbol={position.symbol} size={16} /> ({position.mode}),{" "}
+              {formatQuantity(position.quantity)}
               {position.stop_price === null
                 ? ", sem stop"
                 : `, stop vigiado só pelo worker em ${formatPrice(position.stop_price)}`}
