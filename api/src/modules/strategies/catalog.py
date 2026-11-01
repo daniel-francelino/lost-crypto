@@ -14,11 +14,13 @@ from modules.strategies.domain.donchian_breakout import DonchianBreakoutStrategy
 from modules.strategies.domain.ema_crossover import EmaCrossoverStrategy
 from modules.strategies.domain.mean_reversion_zscore import MeanReversionZScoreStrategy
 from modules.strategies.domain.registry import StrategyConfigurationError, StrategyRegistry
+from modules.strategies.domain.trend_quality_breakout import TrendQualityBreakoutStrategy
 
 AVAILABLE_STRATEGIES: tuple[type[Strategy[Any]], ...] = (
     EmaCrossoverStrategy,
     DonchianBreakoutStrategy,
     MeanReversionZScoreStrategy,
+    TrendQualityBreakoutStrategy,
 )
 
 

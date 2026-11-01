@@ -30,6 +30,9 @@ from modules.strategies.domain.registry import (
 from modules.strategies.domain.types import Side, Signal, StrategyContext, StrategyResult
 
 SYMBOL = "BTC/USDT"
+# Strategies whose entries always carry a stop, because the stop is part of the design.
+STOP_BY_DESIGN = frozenset({"trend_quality_breakout"})
+DEFAULT_PRICE_CEILING = Decimal(10_000)
 
 
 def _dips() -> list[Candle]:
@@ -162,7 +165,12 @@ def test_signals_are_well_formed_and_the_strategy_trades_a_clear_trend(
     sides = [s.side for _, s in emitted]
     assert sides[:2] == [Side.BUY, Side.SELL]  # enters the move it was built for, then exits
     assert all(s.symbol == SYMBOL and s.reason for _, s in emitted)
-    assert all(s.stop_loss is None and s.take_profit is None for _, s in emitted)  # off by default
+    assert all(s.take_profit is None for _, s in emitted)  # off by default
+    entries = [s for _, s in emitted if s.side is Side.BUY]
+    if strategy_cls.TYPE_KEY in STOP_BY_DESIGN:
+        assert all(s.stop_loss is not None and s.stop_loss < DEFAULT_PRICE_CEILING for s in entries)
+    else:
+        assert all(s.stop_loss is None for _, s in emitted)  # off by default
     assert sides == [Side.BUY, Side.SELL] * (len(sides) // 2)  # alternating, never doubled
 
 
@@ -231,7 +239,12 @@ def test_donchian_rejects_invalid_params(raw: dict[str, Any]) -> None:
 def test_catalog_offers_every_strategy_with_unique_keys() -> None:
     registry = build_strategy_registry()
     keys = [s.TYPE_KEY for s in registry.list()]
-    assert keys == ["ema_crossover", "donchian_breakout", "mean_reversion_zscore"]
+    assert keys == [
+        "ema_crossover",
+        "donchian_breakout",
+        "mean_reversion_zscore",
+        "trend_quality_breakout",
+    ]
     assert len(set(keys)) == len(keys)
     assert isinstance(registry.create("donchian_breakout", {}), DonchianBreakoutStrategy)
 

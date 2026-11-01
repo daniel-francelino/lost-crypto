@@ -6,7 +6,7 @@ Verified in the code on 2026-10-31. Every chapter report compares the book again
 
 * Spot only, **long-only**, one position per bot. No leverage, margin, futures or shorting.
 * Exchange: Binance (spot and testnet) behind a single `ExchangeRegistry`. Candle timeframes are time-based (no volume/tick bars).
-* Strategies: `ema_crossover`, `donchian_breakout` (trend) and `mean_reversion_zscore` (mean reversion, since book 2 ch. 3), each with a `StrategyStyle` (`api/src/modules/strategies/domain/`). Strategies emit *intents*; sizing and risk are elsewhere.
+* Strategies: `ema_crossover`, `donchian_breakout`, `trend_quality_breakout` (trend; since the books 3+4 synthesis: Donchian entry gated by the efficiency ratio, ATR stop, no profit target) and `mean_reversion_zscore` (mean reversion, since book 2 ch. 3), each with a `StrategyStyle` (`api/src/modules/strategies/domain/`). Strategies emit *intents*; sizing and risk are elsewhere.
 
 ## Backtesting (`modules/backtesting`)
 
