@@ -107,7 +107,7 @@ curl -H "Authorization: Bearer $API_TOKEN" -X POST $B/exchange-connections \
   -d '{"label":"my-testnet","api_key":"...","api_secret":"..."}' -H 'content-type: application/json'
 curl -H "Authorization: Bearer $API_TOKEN" -X POST $B/bots -H 'content-type: application/json' -d '{
   "name":"ema-testnet","mode":"testnet","connection_id":"<id>","symbol":"BTC/USDT",
-  "strategy_type":"ema_crossover","strategy_params":{"stop_loss_pct":2}}'
+  "strategy_type":"trend_quality_breakout","strategy_params":{"entry_period":40,"exit_period":20}}'
 ```
 
 Keys come from https://testnet.binance.vision (GitHub login). Use testnet keys only; withdrawal

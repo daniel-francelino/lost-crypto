@@ -10,8 +10,8 @@ from modules.backtesting.domain.engine import run_backtest
 from modules.backtesting.domain.models import InvalidBacktestConfig
 from modules.execution.domain.fills import SlippageModel, effective_slippage_bps
 from modules.market_data.domain.models import Candle, Timeframe
-from modules.strategies.domain.ema_crossover import EmaCrossoverParams, EmaCrossoverStrategy
 from modules.strategies.domain.types import Side
+from reference_ema_crossover import EmaCrossoverParams, EmaCrossoverStrategy
 
 D = Decimal
 

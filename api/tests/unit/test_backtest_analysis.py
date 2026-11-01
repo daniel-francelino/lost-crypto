@@ -14,7 +14,7 @@ from modules.backtesting.domain.engine import run_backtest
 from modules.backtesting.domain.models import InvalidBacktestConfig
 from modules.backtesting.domain.periods import compute_periods
 from modules.market_data.domain.models import Timeframe
-from modules.strategies.domain.ema_crossover import EmaCrossoverParams, EmaCrossoverStrategy
+from reference_ema_crossover import EmaCrossoverParams, EmaCrossoverStrategy
 
 
 def _strategy() -> EmaCrossoverStrategy:

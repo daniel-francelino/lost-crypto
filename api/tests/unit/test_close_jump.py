@@ -18,8 +18,8 @@ from modules.risk_management.domain.models import (
     limits_from_dict,
     limits_to_dict,
 )
-from modules.strategies.domain.ema_crossover import EmaCrossoverParams, EmaCrossoverStrategy
 from modules.strategies.domain.types import Side, Signal, SignalKind
+from reference_ema_crossover import EmaCrossoverParams, EmaCrossoverStrategy
 
 PRICE = Decimal(100)
 LIMITS = RiskLimits(max_close_jump_pct=Decimal(10))

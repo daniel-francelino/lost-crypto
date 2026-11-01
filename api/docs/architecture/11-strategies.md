@@ -10,8 +10,8 @@ flowchart TB
     CAT["strategies/catalog.py<br/>AVAILABLE_STRATEGIES + build_strategy_registry()<br/>(the place that chooses)"] --> REG
     REG["StrategyRegistry<br/>register / get / create(type_key, params)"]
     CONTRACT{{"Strategy (ABC)<br/>TYPE_KEY, NAME, DESCRIPTION, PARAMETERS<br/>from_params, initial_state, evaluate,<br/>serialize_state, deserialize_state"}}
-    EMA["ema_crossover.py"]
-    DON["donchian_breakout.py"]
+    EMA["trend_quality_breakout.py"]
+    DON["mean_reversion_zscore.py"]
     NEXT["your_next_strategy.py"]
     CONTRACT --> EMA
     CONTRACT --> DON
@@ -52,8 +52,8 @@ to the contract: `parse_numeric_params`, `percent_below_above`, `validate_percen
 |---|---|
 | `strategies/domain/base.py` | **The contract** and helpers |
 | `strategies/domain/types.py` | Data the contract exchanges: `Signal`, `StrategyContext`, `StrategyResult`, `Side` |
-| `strategies/domain/ema_crossover.py` | Strategy: EMA fast/slow crossover |
-| `strategies/domain/donchian_breakout.py` | Strategy: Donchian channel breakout |
+| `strategies/domain/trend_quality_breakout.py` | Strategy: channel breakout, noise filter, ATR stop |
+| `strategies/domain/mean_reversion_zscore.py` | Strategy: z-score mean reversion |
 | `strategies/domain/registry.py` | `StrategyRegistry` (validates metadata, refuses duplicates) |
 | `strategies/catalog.py` | **The choice**: `AVAILABLE_STRATEGIES` and `build_strategy_registry(enabled)` |
 
@@ -61,7 +61,7 @@ to the contract: `parse_numeric_params`, `percent_below_above`, `validate_percen
 
 1. Create `strategies/domain/my_strategy.py` with a class `MyStrategy(Strategy[MyState])`:
    set `TYPE_KEY`, `NAME`, `DESCRIPTION`, `PARAMETERS`; implement `from_params`, `initial_state`,
-   `evaluate`, `serialize_state`, `deserialize_state`. Copy `donchian_breakout.py` as a template.
+   `evaluate`, `serialize_state`, `deserialize_state`. Copy `trend_quality_breakout.py` as a template.
 2. Add the class to `AVAILABLE_STRATEGIES` in `strategies/catalog.py`.
 3. Run `make test`. `tests/unit/test_strategy_contract.py` automatically runs the whole contract
    against it: metadata, param validation, JSON state round trip, determinism, no state mutation,
@@ -81,6 +81,6 @@ To keep a work-in-progress strategy off a production worker, set `ENABLED_STRATE
 * Use only the candle in `ctx` and your own `state`: no clock, no network, no randomness (an AI
   advisor would be injected as a pure dependency of the instance and cached for backtests).
 * Look-ahead is impossible by construction (one closed candle at a time), but don't build
-  indicators from the *current* candle where the rule says "previous" (see Donchian's channel).
+  indicators from the *current* candle where the rule says "previous" (see the breakout channel in `trend_quality_breakout.py`).
 * Keep `evaluate` quiet while warming up; the trader also feeds warm-up candles without trading.
 * Leave sizing and exits-by-risk to the risk module; propose stop/target levels instead.

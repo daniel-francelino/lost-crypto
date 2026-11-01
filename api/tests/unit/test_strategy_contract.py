@@ -21,13 +21,13 @@ from modules.strategies.domain.base import (
     Strategy,
     StrategyStyle,
 )
-from modules.strategies.domain.donchian_breakout import DonchianBreakoutStrategy, DonchianParams
 from modules.strategies.domain.registry import (
     StrategyConfigurationError,
     StrategyRegistry,
     UnknownStrategy,
 )
 from modules.strategies.domain.types import Side, Signal, StrategyContext, StrategyResult
+from reference_donchian_breakout import DonchianBreakoutStrategy, DonchianParams
 
 SYMBOL = "BTC/USDT"
 # Strategies whose entries always carry a stop, because the stop is part of the design.

@@ -38,7 +38,7 @@ Symbol = Annotated[str, Field(pattern=r"^[A-Z0-9]{2,15}/USDT$", examples=["BTC/U
 
 class BacktestCreate(BaseModel):
     exchange: str = "binance"
-    strategy_type: str = Field(examples=["ema_crossover"])
+    strategy_type: str = Field(examples=["trend_quality_breakout"])
     strategy_params: dict[str, Any] = Field(
         default_factory=dict, examples=[{"fast_period": 9, "slow_period": 21}]
     )

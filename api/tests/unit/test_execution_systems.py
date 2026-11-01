@@ -25,10 +25,10 @@ from modules.risk_management.domain.models import (
     limits_from_dict,
     limits_to_dict,
 )
-from modules.strategies.domain.ema_crossover import EmaCrossoverParams, EmaCrossoverStrategy
 from modules.strategies.domain.types import Side, Signal, SignalKind
 from modules.trading.domain.diagnosis import StepState, checklist, execution_quality
 from modules.trading.domain.parity import BotSignal, ParityClass, ReplayEvent, compare
+from reference_ema_crossover import EmaCrossoverParams, EmaCrossoverStrategy
 
 H = timedelta(hours=1)
 NO_LIMITS = RiskLimits(max_daily_loss_pct=None, max_candle_range_pct=None)

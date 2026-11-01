@@ -20,7 +20,7 @@ from modules.market_data.domain.quality import (
     find_outliers,
     returns_by_time,
 )
-from modules.strategies.domain.ema_crossover import EmaCrossoverStrategy
+from reference_ema_crossover import EmaCrossoverStrategy
 
 H = timedelta(hours=1)
 

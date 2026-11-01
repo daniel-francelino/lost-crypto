@@ -32,8 +32,8 @@ curl "$B/market-data/listings?symbol=BTC/USDT"               # listado/deslistad
 
 # 2. Rodar o backtest
 curl -X POST $B/backtests -H 'content-type: application/json' -d '{
-  "strategy_type": "ema_crossover",
-  "strategy_params": {"fast_period": 9, "slow_period": 21},
+  "strategy_type": "trend_quality_breakout",
+  "strategy_params": {"entry_period": 40, "exit_period": 20},
   "symbol": "BTC/USDT", "timeframe": "1h",
   "start": "2024-01-01T00:00:00Z", "end": "2024-07-01T00:00:00Z",
   "initial_capital": "1000", "fee_rate": "0.001", "slippage_bps": "5"
@@ -87,8 +87,8 @@ B=localhost:8000/api/v1
 
 # 1. Criar o bot (nasce parado)
 curl -X POST $B/bots -H 'content-type: application/json' -d '{
-  "name": "ema-btc-1h", "strategy_type": "ema_crossover",
-  "strategy_params": {"fast_period": 9, "slow_period": 21},
+  "name": "trend-btc-1d", "strategy_type": "trend_quality_breakout",
+  "strategy_params": {"entry_period": 40, "exit_period": 20},
   "symbol": "BTC/USDT", "timeframe": "1h", "initial_capital": "1000",
   "risk": {"max_position_fraction": "1", "max_daily_loss_pct": "10"}
 }'
@@ -142,8 +142,8 @@ A estratégia EMA aceita `stop_loss_pct` e `take_profit_pct` (% sobre o preço d
 
 ```bash
 curl -X POST $B/bots -H 'content-type: application/json' -d '{
-  "name": "ema-stop", "strategy_type": "ema_crossover",
-  "strategy_params": {"fast_period": 9, "slow_period": 21, "stop_loss_pct": 2, "take_profit_pct": 6},
+  "name": "trend-stop", "strategy_type": "trend_quality_breakout",
+  "strategy_params": {"entry_period": 40, "exit_period": 20, "atr_multiple": 3},
   "risk": {
     "max_position_fraction": "1",     "max_order_notional": "500",
     "max_risk_per_trade_pct": "1",    "require_stop_loss": true,
@@ -167,14 +167,14 @@ Limites **globais** (todos os bots) ficam no ambiente do worker, não na API: `R
 ```bash
 # Treino/teste: reserva o fim da série como out-of-sample e reporta os dois lados em `segments`
 curl -X POST $B/backtests -H 'content-type: application/json' -d '{
-  "strategy_type": "ema_crossover", "start": "2024-01-01T00:00:00Z", "end": "2024-07-01T00:00:00Z",
+  "strategy_type": "trend_quality_breakout", "start": "2024-01-01T00:00:00Z", "end": "2024-07-01T00:00:00Z",
   "test_fraction": "0.3"
 }'
 
 # Varredura: uma execução por combinação (combinações inválidas, ex. fast >= slow, são puladas)
 curl -X POST $B/backtests/sweeps -H 'content-type: application/json' -d '{
-  "strategy_type": "ema_crossover", "start": "2024-01-01T00:00:00Z", "end": "2024-07-01T00:00:00Z",
-  "test_fraction": "0.3", "grid": {"fast_period": [5, 9, 20], "slow_period": [21, 50, 100]}
+  "strategy_type": "trend_quality_breakout", "start": "2024-01-01T00:00:00Z", "end": "2024-07-01T00:00:00Z",
+  "test_fraction": "0.3", "grid": {"entry_period": [20, 40, 80], "atr_multiple": [2, 3, 4]}
 }'
 curl $B/backtests/sweeps/<id>                                  # ranking pelo TREINO; o teste confere o vencedor
 curl "$B/backtests/sweeps/<id>?rank_by=test_sharpe_ratio"      # outro critério (consome o teste)
@@ -182,7 +182,7 @@ curl "$B/backtests/compare?ids=<id1>&ids=<id2>"                # lado a lado
 
 # Robustez: escada de custos (0x a 3x taxa+slippage, até 50.000 candles) e tolerância de drawdown
 curl -X POST $B/backtests -H 'content-type: application/json' -d '{
-  "strategy_type": "ema_crossover", "start": "2024-01-01T00:00:00Z", "end": "2024-07-01T00:00:00Z",
+  "strategy_type": "trend_quality_breakout", "start": "2024-01-01T00:00:00Z", "end": "2024-07-01T00:00:00Z",
   "cost_sensitivity": true, "max_drawdown_tolerance_pct": "15", "max_drawdown_tolerance_days": 60
 }'
 ```
@@ -212,10 +212,10 @@ Mesmo desenho das exchanges: um contrato (`Strategy`, em `strategies/domain/base
 
 | `strategy_type` | Arquivo | Ideia |
 |---|---|---|
-| `ema_crossover` | `strategies/domain/ema_crossover.py` | compra no cruzamento da EMA rápida acima da lenta |
-| `donchian_breakout` | `strategies/domain/donchian_breakout.py` | compra o rompimento da máxima dos últimos N candles, vende ao perder a mínima dos últimos M |
+| `trend_quality_breakout` | `strategies/domain/trend_quality_breakout.py` | rompimento de canal com filtro de ruído opcional, stop em ATR e saída móvel opcional (tendência) |
+| `mean_reversion_zscore` | `strategies/domain/mean_reversion_zscore.py` | compra abaixo de `-entry_z` desvios da média e vende de volta à média (reversão) |
 
-`GET /strategies` lista todas com seus parâmetros. Para criar uma nova: copie `donchian_breakout.py`, registre em `catalog.py`, rode `make test` (a suíte de contrato valida a estratégia sozinha) e use o `TYPE_KEY` em bots/backtests/varreduras. Passo a passo e padrões de projeto: [docs/architecture/11-strategies.md](docs/architecture/11-strategies.md).
+`GET /strategies` lista todas com seus parâmetros. Para criar uma nova: copie `trend_quality_breakout.py`, registre em `catalog.py`, rode `make test` (a suíte de contrato valida a estratégia sozinha) e use o `TYPE_KEY` em bots/backtests/varreduras. Passo a passo e padrões de projeto: [docs/architecture/11-strategies.md](docs/architecture/11-strategies.md).
 
 ## Fase 4 — testnet da exchange (dinheiro fictício, ordens reais no sandbox)
 
@@ -240,8 +240,8 @@ curl -H "$H" -X POST $B/exchange-connections -H 'content-type: application/json'
   -d '{"label":"minha-testnet","api_key":"...","api_secret":"..."}'
 # 2. Bot em modo testnet usando essa conexão
 curl -H "$H" -X POST $B/bots -H 'content-type: application/json' -d '{
-  "name":"ema-testnet","mode":"testnet","connection_id":"<id>","symbol":"BTC/USDT","timeframe":"1h",
-  "strategy_type":"ema_crossover","strategy_params":{"stop_loss_pct":2}}'
+  "name":"trend-testnet","mode":"testnet","connection_id":"<id>","symbol":"BTC/USDT","timeframe":"1h",
+  "strategy_type":"trend_quality_breakout","strategy_params":{"entry_period":40,"exit_period":20}}'
 curl -H "$H" -X POST $B/bots/<id>/start
 curl -H "$H" $B/bots/<id>/orders      # status (SUBMITTING/UNKNOWN/FILLED...), exchange_order_id, tipo
 curl -H "$H" $B/bots/<id>/portfolio   # reserved_cash e native_stop_active

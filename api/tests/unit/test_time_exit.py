@@ -7,12 +7,12 @@ import pytest
 
 from factories import make_candles
 from modules.strategies.domain.base import InvalidStrategyParams, Strategy
-from modules.strategies.domain.donchian_breakout import (
+from modules.strategies.domain.types import Side, StrategyContext
+from reference_donchian_breakout import (
     DonchianBreakoutStrategy,
     DonchianParams,
 )
-from modules.strategies.domain.ema_crossover import EmaCrossoverParams, EmaCrossoverStrategy
-from modules.strategies.domain.types import Side, StrategyContext
+from reference_ema_crossover import EmaCrossoverParams, EmaCrossoverStrategy
 
 # warm-up, then a rise that keeps both strategies long with no signal of their own
 RISING = [10, 10, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34]

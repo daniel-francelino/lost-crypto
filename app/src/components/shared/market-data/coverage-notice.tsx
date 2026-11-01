@@ -1,4 +1,4 @@
-import { DatabaseX } from "lucide-react";
+import { Database } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "lost-ui/ui/alert";
 import { EmptyState } from "@/components/shared/feedback/empty-state";
 import { useRangeCoverage, type RangeParams } from "@/hooks/shared/use-coverage";
@@ -40,7 +40,7 @@ export function CoverageNotice(params: RangeParams) {
   if (empty) {
     return (
       <EmptyState
-        icon={<DatabaseX aria-hidden="true" />}
+        icon={<Database aria-hidden="true" />}
         title="Sem dados de mercado para este par"
         description="Não há candles salvos para este símbolo e intervalo. Importe os dados antes de rodar."
         variant="subtle"

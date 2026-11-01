@@ -12,7 +12,7 @@ from modules.backtesting.domain.break_segments import (
     compute_break_segments,
 )
 from modules.backtesting.domain.engine import run_backtest
-from modules.strategies.domain.ema_crossover import EmaCrossoverParams, EmaCrossoverStrategy
+from reference_ema_crossover import EmaCrossoverParams, EmaCrossoverStrategy
 
 HOUR = timedelta(hours=1)
 CLOSES = [100 + (i % 7) * 3 - (i // 25) * 2 + (10 if i % 31 < 5 else 0) for i in range(120)]

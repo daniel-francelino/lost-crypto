@@ -11,11 +11,11 @@ from modules.backtesting.domain.models import (
     hash_candles,
 )
 from modules.market_data.domain.models import Timeframe
-from modules.strategies.domain.ema_crossover import (
+from modules.strategies.domain.types import Side
+from reference_ema_crossover import (
     EmaCrossoverParams,
     EmaCrossoverStrategy,
 )
-from modules.strategies.domain.types import Side
 
 # Cross up is detected on the close of candle 3 (index); cross down on the close of candle 7.
 CLOSES = [10, 10, 10, 12, 14, 16, 18, 14, 8, 4, 4]

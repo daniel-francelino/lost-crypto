@@ -68,7 +68,7 @@ RiskIn = RiskLimitsIn  # shared with backtests
 class BotCreate(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     exchange: str = "binance"
-    strategy_type: str = Field(examples=["ema_crossover"])
+    strategy_type: str = Field(examples=["trend_quality_breakout"])
     strategy_params: dict[str, Any] = Field(default_factory=dict)
     symbol: Symbol = "BTC/USDT"
     timeframe: Timeframe = Timeframe.H1
