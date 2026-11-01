@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
+import { SymbolLabel } from "@/components/shared/market-data/coin-icon";
 import { GitCompare, Plus } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "lost-ui/app/page-header";
@@ -47,7 +48,12 @@ const columns: DataTableColumn<Backtest>[] = [
     ),
   },
   { id: "params", header: "Parâmetros", cell: paramsText },
-  { id: "symbol", header: "Símbolo", accessor: "symbol" },
+  {
+    id: "symbol",
+    header: "Par",
+    accessor: "symbol",
+    cell: (row) => <SymbolLabel symbol={row.symbol} />,
+  },
   { id: "timeframe", header: "Intervalo", accessor: "timeframe" },
   {
     id: "period",

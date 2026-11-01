@@ -303,6 +303,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/market-data/symbols": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Symbols
+         * @description The USDT pairs offered in the selectors (the quote is always USDT).
+         */
+        get: operations["list_symbols_api_v1_market_data_symbols_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/market-data/coverage": {
         parameters: {
             query?: never;
@@ -1456,6 +1476,7 @@ export interface components {
             /**
              * Symbol
              * @default BTC/USDT
+             * @example BTC/USDT
              */
             symbol: string;
             /** @default 1h */
@@ -1695,6 +1716,7 @@ export interface components {
             /**
              * Symbol
              * @default BTC/USDT
+             * @example BTC/USDT
              */
             symbol: string;
             /** @default 1h */
@@ -3520,6 +3542,17 @@ export interface components {
          * @enum {string}
          */
         StrategyStyle: "trend" | "mean_reversion";
+        /** SupportedPairOut */
+        SupportedPairOut: {
+            /** Symbol */
+            symbol: string;
+            /** Base */
+            base: string;
+            /** Quote */
+            quote: string;
+            /** Name */
+            name: string;
+        };
         /** SweepCreate */
         SweepCreate: {
             /**
@@ -3545,6 +3578,7 @@ export interface components {
             /**
              * Symbol
              * @default BTC/USDT
+             * @example BTC/USDT
              */
             symbol: string;
             /** @default 1h */
@@ -4390,6 +4424,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_symbols_api_v1_market_data_symbols_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportedPairOut"][];
                 };
             };
         };

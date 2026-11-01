@@ -144,3 +144,9 @@ Still not available: server-side sorting and text search on lists, "today's PnL"
 ## Bot interventions
 
 The bot summary shows interventions from the last 30 days: totals, event types, items after a 5% drawdown, actor, reason and drawdown at the time. Pause, stop and reset ask for an optional reason. Editing shows configuration differences and requires a reason when the bot has orders; edits invalidate a live approval.
+
+## Pares e ícones das moedas
+
+* O par é sempre um **seletor** (`SymbolSelect`), alimentado por `GET /market-data/symbols` (hook `useSupportedPairs`); todos são cotados em USDT. Um par antigo salvo num bot continua aparecendo no seletor, mesmo fora da lista.
+* Ícones: SVG em `public/coins/<base em minúsculas>.svg`, exibidos por `CoinIcon`/`SymbolLabel`; sem o arquivo, aparece a inicial da moeda. Para acrescentar uma moeda: adicione o par em `api/src/modules/market_data/domain/pairs.py` e o SVG correspondente. Os 14 SVGs atuais vêm de `@web3icons/core` 4.0.58 (MIT).
+* No formulário de backtest, o capital inicial é **100 ou 1.000 USDT** (padrão 1.000).

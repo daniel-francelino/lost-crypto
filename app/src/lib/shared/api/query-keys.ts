@@ -39,6 +39,7 @@ export const QueryKey = {
   },
   MarketData: {
     all: () => ["market-data"] as const,
+    symbols: () => ["market-data", "symbols"] as const,
     coverage: (exchange: string, symbol: string, timeframe: string, start = "", end = "") =>
       ["market-data", "coverage", exchange, symbol, timeframe, start, end] as const,
     outliers: (exchange: string, symbol: string, timeframe: string, start: string, end: string) =>

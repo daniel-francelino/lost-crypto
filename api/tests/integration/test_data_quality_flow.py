@@ -763,3 +763,18 @@ async def test_a_drawdown_breach_stops_or_pauses_as_configured(
     assert ("risk.budget_exhausted" in events) is budget_event
     portfolio = (await env.http.get(f"/api/v1/bots/{bot_id}/portfolio")).json()
     assert portfolio["quantity"] is not None  # the position is kept either way
+
+
+async def test_only_usdt_pairs_are_offered_and_accepted(stack: Any) -> None:
+    client, _, _, _ = stack
+    offered = (await client.get("/api/v1/market-data/symbols")).json()
+    assert offered and all(item["quote"] == "USDT" for item in offered)
+    assert {"BTC/USDT", "ETH/USDT"} <= {item["symbol"] for item in offered}
+
+    window = {"start": START.isoformat(), "end": END.isoformat()}
+    other_quote = {"symbol": "ETH/BTC", **window}
+    assert (await client.post("/api/v1/market-data/imports", json=other_quote)).status_code == 422
+    backtest = {"strategy_type": "ema_crossover", **other_quote}
+    assert (await client.post("/api/v1/backtests", json=backtest)).status_code == 422
+    bot = {"name": "x", "strategy_type": "ema_crossover", "symbol": "ETH/BTC"}
+    assert (await client.post("/api/v1/bots", json=bot)).status_code == 422

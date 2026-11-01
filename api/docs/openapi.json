@@ -533,7 +533,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+              "pattern": "^[A-Z0-9]{2,15}/USDT$",
               "examples": [
                 "BTC/USDT"
               ],
@@ -619,6 +619,32 @@
         }
       }
     },
+    "/api/v1/market-data/symbols": {
+      "get": {
+        "tags": [
+          "market-data"
+        ],
+        "summary": "List Symbols",
+        "description": "The USDT pairs offered in the selectors (the quote is always USDT).",
+        "operationId": "list_symbols_api_v1_market_data_symbols_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SupportedPairOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Symbols Api V1 Market Data Symbols Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/market-data/coverage": {
       "get": {
         "tags": [
@@ -634,7 +660,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+              "pattern": "^[A-Z0-9]{2,15}/USDT$",
               "examples": [
                 "BTC/USDT"
               ],
@@ -733,7 +759,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+              "pattern": "^[A-Z0-9]{2,15}/USDT$",
               "examples": [
                 "BTC/USDT"
               ],
@@ -841,7 +867,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+              "pattern": "^[A-Z0-9]{2,15}/USDT$",
               "examples": [
                 "BTC/USDT"
               ],
@@ -960,7 +986,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+                  "pattern": "^[A-Z0-9]{2,15}/USDT$",
                   "examples": [
                     "BTC/USDT"
                   ]
@@ -1034,7 +1060,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+                  "pattern": "^[A-Z0-9]{2,15}/USDT$",
                   "examples": [
                     "BTC/USDT"
                   ]
@@ -1167,7 +1193,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+              "pattern": "^[A-Z0-9]{2,15}/USDT$",
               "examples": [
                 "BTC/USDT"
               ],
@@ -4003,9 +4029,12 @@
           },
           "symbol": {
             "type": "string",
-            "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+            "pattern": "^[A-Z0-9]{2,15}/USDT$",
             "title": "Symbol",
-            "default": "BTC/USDT"
+            "default": "BTC/USDT",
+            "examples": [
+              "BTC/USDT"
+            ]
           },
           "timeframe": {
             "$ref": "#/components/schemas/Timeframe",
@@ -4710,9 +4739,12 @@
           },
           "symbol": {
             "type": "string",
-            "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+            "pattern": "^[A-Z0-9]{2,15}/USDT$",
             "title": "Symbol",
-            "default": "BTC/USDT"
+            "default": "BTC/USDT",
+            "examples": [
+              "BTC/USDT"
+            ]
           },
           "timeframe": {
             "$ref": "#/components/schemas/Timeframe",
@@ -5117,7 +5149,10 @@
             "anyOf": [
               {
                 "type": "string",
-                "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$"
+                "pattern": "^[A-Z0-9]{2,15}/USDT$",
+                "examples": [
+                  "BTC/USDT"
+                ]
               },
               {
                 "type": "null"
@@ -6723,7 +6758,7 @@
           },
           "symbol": {
             "type": "string",
-            "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+            "pattern": "^[A-Z0-9]{2,15}/USDT$",
             "title": "Symbol",
             "default": "BTC/USDT",
             "examples": [
@@ -8482,7 +8517,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+                "pattern": "^[A-Z0-9]{2,15}/USDT$",
                 "examples": [
                   "BTC/USDT"
                 ]
@@ -9531,6 +9566,34 @@
         "title": "StrategyStyle",
         "description": "The family a strategy belongs to: it decides which tests and warnings apply to it."
       },
+      "SupportedPairOut": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "base": {
+            "type": "string",
+            "title": "Base"
+          },
+          "quote": {
+            "type": "string",
+            "title": "Quote"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "base",
+          "quote",
+          "name"
+        ],
+        "title": "SupportedPairOut"
+      },
       "SweepCreate": {
         "properties": {
           "exchange": {
@@ -9558,9 +9621,12 @@
           },
           "symbol": {
             "type": "string",
-            "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+            "pattern": "^[A-Z0-9]{2,15}/USDT$",
             "title": "Symbol",
-            "default": "BTC/USDT"
+            "default": "BTC/USDT",
+            "examples": [
+              "BTC/USDT"
+            ]
           },
           "timeframe": {
             "$ref": "#/components/schemas/Timeframe",

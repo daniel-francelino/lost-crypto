@@ -27,7 +27,8 @@ import { type BotFormValues, defaultFormValues, formFromBot, toBotInput } from "
 import { ApiError } from "@/lib/shared/api/api-error";
 import { errorMessage } from "@/lib/shared/api/messages";
 import { QueryKey } from "@/lib/shared/api/query-keys";
-import { decimalError, integerError, symbolError } from "@/lib/shared/validators";
+import { decimalError, integerError } from "@/lib/shared/validators";
+import { SymbolSelect } from "@/components/shared/market-data/symbol-select";
 import { type BotPrefill, prefillParams } from "@/lib/shared/bot-prefill";
 import {
   ConnectionStatus,
@@ -206,13 +207,12 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
               value={values.exchange}
               onValueChange={(value) => set("exchange", value)}
             />
-            <FormInput
-              label="Símbolo"
+            <SymbolSelect
+              label="Par"
               required
               value={values.symbol}
               onValueChange={(value) => set("symbol", value)}
               errorMessage={err("symbol") ?? ""}
-              rules={[(value) => symbolError(value ?? "")]}
             />
             <FormSelect
               label="Intervalo"

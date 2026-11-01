@@ -5,7 +5,6 @@ import { Brain, Database, Shield, Wallet } from "lucide-react";
 import { PageHeader } from "lost-ui/app/page-header";
 import { Form } from "lost-ui/forms/form";
 import { FormInput } from "lost-ui/forms/form-input";
-import { FormInputMoney } from "lost-ui/forms/form-input-money";
 import { FormInputNumber } from "lost-ui/forms/form-input-number";
 import { FormSelect } from "lost-ui/forms/form-select";
 import { FormCheckbox } from "lost-ui/forms/form-checkbox";
@@ -14,6 +13,7 @@ import { Button } from "lost-ui/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
 import { IconCardTitle } from "@/components/shared/metrics/icon-card-title";
 import { ErrorBlock, SkeletonBlock } from "@/components/shared/feedback/query-boundary";
+import { SymbolSelect } from "@/components/shared/market-data/symbol-select";
 import { CoverageNotice } from "@/components/shared/market-data/coverage-notice";
 import { HalfLifeHint } from "@/components/backtests/half-life-hint";
 import { DEFAULT_OFFSETS, START_OFFSET_KEY } from "@/lib/backtests/start-sensitivity";
@@ -25,6 +25,7 @@ import type { BacktestPrefill } from "@/lib/shared/backtest-prefill";
 import {
   applyBacktestPrefill,
   type BacktestFormValues,
+  CAPITAL_ITEMS,
   MAX_PARAMETERS,
   buildGrid,
   combinationCount,
@@ -41,7 +42,7 @@ import { useStrategies } from "@/hooks/shared/use-catalog";
 import { useCapabilities } from "@/hooks/shared/use-system";
 import { errorMessage } from "@/lib/shared/api/messages";
 import { QueryKey } from "@/lib/shared/api/query-keys";
-import { decimalError, integerError, symbolError } from "@/lib/shared/validators";
+import { decimalError, integerError } from "@/lib/shared/validators";
 import { isDayString } from "@/lib/shared/dates";
 import { SlippageModel, Timeframe } from "@/lib/shared/enums";
 import { slippageModelLabel } from "@/lib/shared/labels";
@@ -51,14 +52,6 @@ import type { Strategy } from "@/lib/shared/strategies/strategies.api";
 const TIMEFRAMES = Object.values(Timeframe).map((value) => ({ label: value, value }));
 const numberValue = (value: string): number | null => (value.trim() === "" ? null : Number(value));
 const numberText = (value: number | null): string => (value === null ? "" : String(value));
-const quoteCurrency = (symbol: string): string | undefined => {
-  const quote = symbol.split("/")[1]?.trim().toUpperCase();
-  return quote !== undefined && /^[A-Z]{3}$/.test(quote) ? quote : undefined;
-};
-const quoteCurrencyProps = (symbol: string): { currency?: string } => {
-  const currency = quoteCurrency(symbol);
-  return currency === undefined ? {} : { currency };
-};
 
 type BacktestFormProps = {
   strategies: Strategy[];
@@ -151,12 +144,11 @@ function BacktestForm({ strategies, exchanges, prefill }: BacktestFormProps) {
               value={values.exchange}
               onValueChange={(value) => set("exchange", value)}
             />
-            <FormInput
-              label="Símbolo"
+            <SymbolSelect
+              label="Par"
               required
               value={values.symbol}
               onValueChange={(value) => set("symbol", value)}
-              rules={[(value) => symbolError(value ?? "")]}
             />
             <FormSelect
               label="Intervalo"
@@ -327,16 +319,12 @@ function BacktestForm({ strategies, exchanges, prefill }: BacktestFormProps) {
           </IconCardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <FormInputMoney
+          <FormSelect
             label="Capital inicial"
             required
-            {...quoteCurrencyProps(values.symbol)}
-            locale="pt-PT"
-            fractionDigits={8}
-            min={0}
-            value={numberValue(values.initialCapital)}
-            onValueChange={(value) => set("initialCapital", numberText(value))}
-            rules={[(value) => decimalError(numberText(value), true)]}
+            items={CAPITAL_ITEMS}
+            value={values.initialCapital}
+            onValueChange={(value) => set("initialCapital", value)}
           />
           <FormInputNumber
             label="Taxa (fração)"

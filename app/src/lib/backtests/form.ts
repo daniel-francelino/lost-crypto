@@ -15,6 +15,12 @@ const MAX_COMBINATIONS = 200;
 const DEFAULT_DAYS = 90;
 const DEFAULT_TEST_FRACTION = "0.3";
 
+export const CAPITAL_ITEMS = [
+  { label: "100 USDT", value: "100" },
+  { label: "1.000 USDT", value: "1000" },
+];
+export const DEFAULT_CAPITAL = "1000";
+
 export type BacktestFormValues = {
   exchange: string;
   symbol: string;
@@ -81,7 +87,7 @@ export const defaultBacktestValues = (
   end: daysAgoString(0, now),
   strategyType: strategy?.type_key ?? "",
   params: defaultParamValues(strategy),
-  initialCapital: "1000",
+  initialCapital: DEFAULT_CAPITAL,
   feeRate: "",
   slippageBps: "5",
   slippageModel: SlippageModel.Fixed,

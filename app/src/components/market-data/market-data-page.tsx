@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { SymbolLabel } from "@/components/shared/market-data/coin-icon";
+import { SymbolSelect } from "@/components/shared/market-data/symbol-select";
 import { useState } from "react";
 import { CalendarDays, Database } from "lucide-react";
 import { PageHeader } from "lost-ui/app/page-header";
@@ -8,7 +10,6 @@ import { Empty } from "lost-ui/data/empty";
 import { Form } from "lost-ui/forms/form";
 import { FormInput } from "lost-ui/forms/form-input";
 import { FormSelect } from "lost-ui/forms/form-select";
-import { rules } from "lost-ui/forms/rules";
 import { Button } from "lost-ui/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
 import { toast } from "lost-ui/ui/sonner";
@@ -54,7 +55,12 @@ const TIMEFRAMES = Object.values(Timeframe).map((value) => ({ label: value, valu
 const SERIES = [{ key: "close", label: "Fechamento" }];
 
 const importColumns: DataTableColumn<ImportJob>[] = [
-  { id: "symbol", header: "Símbolo", accessor: "symbol" },
+  {
+    id: "symbol",
+    header: "Par",
+    accessor: "symbol",
+    cell: (row) => <SymbolLabel symbol={row.symbol} />,
+  },
   { id: "timeframe", header: "Intervalo", accessor: "timeframe" },
   {
     id: "range",
@@ -178,12 +184,7 @@ export function MarketDataPage({ initial = {} }: { initial?: MarketDataSearch })
                 value={exchange}
                 onValueChange={setExchange}
               />
-              <FormInput
-                label="Símbolo"
-                value={symbol}
-                onValueChange={setSymbol}
-                rules={[rules.required("Informe o símbolo.")]}
-              />
+              <SymbolSelect label="Par" value={symbol} onValueChange={setSymbol} />
               <FormSelect
                 label="Intervalo"
                 items={TIMEFRAMES}

@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
+import { SymbolLabel } from "@/components/shared/market-data/coin-icon";
 import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { PageHeader } from "lost-ui/app/page-header";
@@ -48,7 +49,13 @@ const columns: DataTableColumn<Row>[] = [
       </Link>
     ),
   },
-  { id: "symbol", header: "Símbolo", accessor: (row) => row.bot.symbol, sortable: true },
+  {
+    id: "symbol",
+    header: "Par",
+    accessor: (row) => row.bot.symbol,
+    sortable: true,
+    cell: (row) => <SymbolLabel symbol={row.bot.symbol} />,
+  },
   { id: "timeframe", header: "Intervalo", accessor: (row) => row.bot.timeframe },
   { id: "strategy", header: "Estratégia", accessor: (row) => row.bot.strategy_type },
   {
