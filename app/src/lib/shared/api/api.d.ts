@@ -580,6 +580,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/backtests/{run_id}/exposure-curve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Exposure Curve
+         * @description Growth and drawdown at exposures in (0, 1], from the run's per-bar returns. Kelly is an
+         *     upper bound to discount, never a recommendation to size up; the optional bootstrap resamples
+         *     the returns (it destroys their autocorrelation). Advisory: nothing is applied to any bot.
+         */
+        get: operations["get_exposure_curve_api_v1_backtests__run_id__exposure_curve_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/backtests/{run_id}/sizing": {
         parameters: {
             query?: never;
@@ -1325,7 +1347,7 @@ export interface components {
          * AlertKind
          * @enum {string}
          */
-        AlertKind: "worker_down" | "bot_stale" | "bot_error" | "kill_switch_active" | "candles_stale" | "exchange_rate_limited" | "performance_degraded";
+        AlertKind: "worker_down" | "bot_stale" | "bot_error" | "kill_switch_active" | "candles_stale" | "exchange_rate_limited" | "performance_degraded" | "protective_exit_slippage";
         /** AlertOut */
         AlertOut: {
             /** Id */
@@ -1465,6 +1487,23 @@ export interface components {
              */
             slippage_bps: number | string;
             /**
+             * @description `fixed` (default, one number per run, what the bots use) or `volatility_size`: adds to slippage_bps with the candle's range and the order's share of the candle's traded value. The extra cost only worsens the fill.
+             * @default fixed
+             */
+            slippage_model: components["schemas"]["SlippageModel"];
+            /**
+             * Slippage K Range
+             * @description Extra bps per bps of candle range (high-low over open). Calibrate with the realized slippage of your bots; there is no default.
+             * @default 0
+             */
+            slippage_k_range: number | string;
+            /**
+             * Slippage K Size
+             * @description Extra bps per bps of the order's share of the candle's traded value.
+             * @default 0
+             */
+            slippage_k_size: number | string;
+            /**
              * Seed
              * @default 0
              */
@@ -1539,6 +1578,11 @@ export interface components {
             fee_rate: string;
             /** Slippage Bps */
             slippage_bps: string;
+            slippage_model: components["schemas"]["SlippageModel"];
+            /** Slippage K Range */
+            slippage_k_range: string;
+            /** Slippage K Size */
+            slippage_k_size: string;
             /** Seed */
             seed: number;
             /** Test Fraction */
@@ -1573,6 +1617,7 @@ export interface components {
             regime?: components["schemas"]["RegimeOut"] | null;
             significance?: components["schemas"]["SignificanceOut"] | null;
             break_metrics?: components["schemas"]["BreakMetricsOut"] | null;
+            excursion?: components["schemas"]["ExcursionOut"] | null;
             /**
              * Prior Runs
              * @description Detail only: other completed runs of the same strategy on overlapping data (same exchange, symbol and timeframe). Each look at the same window makes its test part less out of sample.
@@ -2098,6 +2143,16 @@ export interface components {
             sample?: components["schemas"]["SampleCheckOut"] | null;
         };
         /**
+         * DrawdownAction
+         * @description What a bot does when ``max_drawdown_pct`` is breached (book 2 ch. 8, O2).
+         *
+         *     ``pause`` waits for the operator and can simply be resumed; ``stop`` ends the session, because
+         *     a budget that is spent ends the strategy. Either way the position is kept and exits stay
+         *     allowed.
+         * @enum {string}
+         */
+        DrawdownAction: "pause" | "stop";
+        /**
          * Environment
          * @enum {string}
          */
@@ -2111,6 +2166,37 @@ export interface components {
             time: string;
             /** Equity */
             equity: string;
+        };
+        /** ExcursionOut */
+        ExcursionOut: {
+            /** Trades */
+            trades: number;
+            /**
+             * Worst Pct
+             * @description Deepest drop below the entry, in percent.
+             */
+            worst_pct: string;
+            /** Median Pct */
+            median_pct: string;
+            /** P95 Pct */
+            p95_pct: string;
+            /** Worst Trades */
+            worst_trades: components["schemas"]["ExcursionTradeOut"][];
+        };
+        /** ExcursionTradeOut */
+        ExcursionTradeOut: {
+            /**
+             * Entry At
+             * Format: date-time
+             */
+            entry_at: string;
+            /**
+             * Exit At
+             * Format: date-time
+             */
+            exit_at: string;
+            /** Pct */
+            pct: string;
         };
         /**
          * ExecutionMode
@@ -2133,6 +2219,54 @@ export interface components {
              * @description Realized market-order slippage above the assumption (+1 bps tolerance).
              */
             above_configured: boolean;
+        };
+        /** ExposureCurveOut */
+        ExposureCurveOut: {
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Points */
+            points: components["schemas"]["ExposurePointOut"][];
+            /** Kelly Full */
+            kelly_full: string | null;
+            /** Kelly Half */
+            kelly_half: string | null;
+            /** Configured Fraction */
+            configured_fraction: string;
+            /**
+             * Ruin Fraction
+             * @description 1 / |worst return|: above this one bar wipes the account out.
+             */
+            ruin_fraction: string | null;
+            /** Returns */
+            returns: number;
+            /** Gaps */
+            gaps: number;
+            /**
+             * Bootstrap Returns
+             * @description Returns resampled by the bootstrap (the latest ones, capped).
+             */
+            bootstrap_returns: number | null;
+            /** Warnings */
+            warnings: string[];
+        };
+        /** ExposurePointOut */
+        ExposurePointOut: {
+            /** Fraction */
+            fraction: string;
+            /**
+             * Growth
+             * @description Mean log growth per bar at this exposure; null when it would wipe the account.
+             */
+            growth: string | null;
+            /** Max Drawdown Pct */
+            max_drawdown_pct: string;
+            /** Bootstrap P50 */
+            bootstrap_p50?: string | null;
+            /** Bootstrap P95 */
+            bootstrap_p95?: string | null;
         };
         /**
          * FillTiming
@@ -3083,6 +3217,11 @@ export interface components {
              * @description Refuse entries when the close moved more than this % from the previous close (a bad tick often looks like a jump). Exits are never refused. Null = off.
              */
             max_close_jump_pct?: number | string | null;
+            /**
+             * @description What happens when max_drawdown_pct is breached: `pause` (resume by hand) or `stop` (ends the session; to start again, reset the portfolio with a reason, which also starts a new drawdown peak). The position is kept either way.
+             * @default pause
+             */
+            drawdown_action: components["schemas"]["DrawdownAction"];
         };
         /**
          * RiskLimitsIn
@@ -3127,6 +3266,11 @@ export interface components {
              * @description Refuse entries when the close moved more than this % from the previous close (a bad tick often looks like a jump). Exits are never refused. Null = off.
              */
             max_close_jump_pct?: string | null;
+            /**
+             * @description What happens when max_drawdown_pct is breached: `pause` (resume by hand) or `stop` (ends the session; to start again, reset the portfolio with a reason, which also starts a new drawdown peak). The position is kept either way.
+             * @default pause
+             */
+            drawdown_action: components["schemas"]["DrawdownAction"];
         };
         /** RiskReportOut */
         RiskReportOut: {
@@ -3294,6 +3438,14 @@ export interface components {
          * @enum {string}
          */
         SizingScope: "day" | "bar";
+        /**
+         * SlippageModel
+         * @description How the backtest prices slippage. ``fixed`` is one number per run (and what the paper
+         *     trader uses); ``volatility_size`` adds to it with the candle's range and the order's size
+         *     against the candle's traded value (book 2 ch. 7, O2).
+         * @enum {string}
+         */
+        SlippageModel: "fixed" | "volatility_size";
         /** StaleBotOut */
         StaleBotOut: {
             /** Bot Id */
@@ -3415,6 +3567,23 @@ export interface components {
              * @default 5
              */
             slippage_bps: number | string;
+            /**
+             * @description `fixed` (default, one number per run, what the bots use) or `volatility_size`: adds to slippage_bps with the candle's range and the order's share of the candle's traded value. The extra cost only worsens the fill.
+             * @default fixed
+             */
+            slippage_model: components["schemas"]["SlippageModel"];
+            /**
+             * Slippage K Range
+             * @description Extra bps per bps of candle range (high-low over open). Calibrate with the realized slippage of your bots; there is no default.
+             * @default 0
+             */
+            slippage_k_range: number | string;
+            /**
+             * Slippage K Size
+             * @description Extra bps per bps of the order's share of the candle's traded value.
+             * @default 0
+             */
+            slippage_k_size: number | string;
             /**
              * Seed
              * @default 0
@@ -4699,6 +4868,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_exposure_curve_api_v1_backtests__run_id__exposure_curve_get: {
+        parameters: {
+            query?: {
+                steps?: number;
+                bootstrap?: boolean;
+                simulations?: number;
+                seed?: number;
+            };
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExposureCurveOut"];
                 };
             };
             /** @description Validation Error */

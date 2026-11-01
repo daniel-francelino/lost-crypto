@@ -1,7 +1,7 @@
 import type { BacktestInput, RiskInput } from "@/lib/backtests/backtests.api";
 import { type BacktestPrefill, parseJsonRecord } from "@/lib/shared/backtest-prefill";
 import { dayEndUtcIso, dayStartUtcIso, daysAgoString } from "@/lib/shared/dates";
-import { FillTiming, Timeframe } from "@/lib/shared/enums";
+import { DrawdownAction, FillTiming, SlippageModel, Timeframe } from "@/lib/shared/enums";
 import { compareDecimal, trimDecimalZeros } from "@/lib/shared/format";
 import {
   type ParamValues,
@@ -26,6 +26,9 @@ export type BacktestFormValues = {
   initialCapital: string;
   feeRate: string;
   slippageBps: string;
+  slippageModel: string;
+  slippageKRange: string;
+  slippageKSize: string;
   seed: string;
   testFraction: string;
   costSensitivity: boolean;
@@ -50,6 +53,7 @@ export type RiskValues = {
   maxCandleRangePct: string;
   maxOrderPctOfVolume: string;
   maxCloseJumpPct: string;
+  drawdownAction: string;
 };
 
 export const DEFAULT_RISK: RiskValues = {
@@ -63,6 +67,7 @@ export const DEFAULT_RISK: RiskValues = {
   maxCandleRangePct: "25",
   maxOrderPctOfVolume: "",
   maxCloseJumpPct: "",
+  drawdownAction: DrawdownAction.Pause,
 };
 
 export const defaultBacktestValues = (
@@ -79,6 +84,9 @@ export const defaultBacktestValues = (
   initialCapital: "1000",
   feeRate: "",
   slippageBps: "5",
+  slippageModel: SlippageModel.Fixed,
+  slippageKRange: "",
+  slippageKSize: "",
   seed: "0",
   testFraction: DEFAULT_TEST_FRACTION,
   costSensitivity: false,
@@ -149,6 +157,9 @@ export const toBacktestInput = (
     initial_capital: values.initialCapital.trim(),
     fee_rate: fee === "" ? null : fee,
     slippage_bps: values.slippageBps.trim(),
+    slippage_model: values.slippageModel,
+    slippage_k_range: values.slippageKRange.trim() === "" ? "0" : values.slippageKRange.trim(),
+    slippage_k_size: values.slippageKSize.trim() === "" ? "0" : values.slippageKSize.trim(),
     seed: Number.parseInt(values.seed.trim() === "" ? "0" : values.seed, 10),
     test_fraction: fraction === "" ? null : fraction,
     cost_sensitivity: values.costSensitivity && !values.sweep,
@@ -200,6 +211,7 @@ export const riskInput = (risk: RiskValues): RiskInput => ({
   max_candle_range_pct: blankToNull(risk.maxCandleRangePct),
   max_order_pct_of_volume: blankToNull(risk.maxOrderPctOfVolume),
   max_close_jump_pct: blankToNull(risk.maxCloseJumpPct),
+  drawdown_action: risk.drawdownAction,
 });
 
 const textOf = (value: unknown): string =>
@@ -216,6 +228,7 @@ export const riskValuesFrom = (raw: Record<string, unknown>): RiskValues => ({
   maxCandleRangePct: textOf(raw["max_candle_range_pct"]),
   maxOrderPctOfVolume: textOf(raw["max_order_pct_of_volume"]),
   maxCloseJumpPct: textOf(raw["max_close_jump_pct"]),
+  drawdownAction: textOf(raw["drawdown_action"]) || DrawdownAction.Pause,
 });
 
 export const applyBacktestPrefill = (

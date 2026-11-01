@@ -1,5 +1,7 @@
 import {
   AlertKind,
+  DrawdownAction,
+  SlippageModel,
   StrategyStyle,
   AlertSeverity,
   BotState,
@@ -40,6 +42,24 @@ export const strategyStyleLabel = (value: string): string =>
     value,
   );
 
+export const drawdownActionLabel = (value: string): string =>
+  pick(
+    {
+      [DrawdownAction.Pause]: "Pausar (retomar à mão)",
+      [DrawdownAction.Stop]: "Encerrar a sessão",
+    },
+    value,
+  );
+
+export const slippageModelLabel = (value: string): string =>
+  pick(
+    {
+      [SlippageModel.Fixed]: "Fixo (como os bots)",
+      [SlippageModel.VolatilitySize]: "Volatilidade e tamanho da ordem",
+    },
+    value,
+  );
+
 export const alertKindLabel = (value: string): string =>
   pick(
     {
@@ -50,6 +70,7 @@ export const alertKindLabel = (value: string): string =>
       [AlertKind.CandlesStale]: "Candles atrasados",
       [AlertKind.ExchangeRateLimited]: "Exchange limitando requisições",
       [AlertKind.PerformanceDegraded]: "Desempenho fora da faixa do backtest",
+      [AlertKind.ProtectiveExitSlippage]: "Stop preencheu muito pior que o esperado",
     },
     value,
   );

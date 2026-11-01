@@ -42,7 +42,8 @@ import { errorMessage } from "@/lib/shared/api/messages";
 import { QueryKey } from "@/lib/shared/api/query-keys";
 import { decimalError, integerError, symbolError } from "@/lib/shared/validators";
 import { isDayString } from "@/lib/shared/dates";
-import { Timeframe } from "@/lib/shared/enums";
+import { SlippageModel, Timeframe } from "@/lib/shared/enums";
+import { slippageModelLabel } from "@/lib/shared/labels";
 import { defaultParamValues } from "@/lib/shared/strategies/params";
 import type { Strategy } from "@/lib/shared/strategies/strategies.api";
 
@@ -339,6 +340,35 @@ function BacktestForm({ strategies, exchanges, prefill }: BacktestFormProps) {
             onValueChange={(value) => set("slippageBps", value)}
             rules={[(value) => decimalError(value ?? "", true)]}
           />
+          <FormSelect
+            label="Modelo de custo (slippage)"
+            items={Object.values(SlippageModel).map((item) => ({
+              label: slippageModelLabel(item),
+              value: item,
+            }))}
+            value={values.slippageModel}
+            onValueChange={(value) => set("slippageModel", value)}
+          />
+          {values.slippageModel === SlippageModel.Fixed ? null : (
+            <>
+              <FormInput
+                label="Slippage extra por volatilidade (k)"
+                inputMode="decimal"
+                description="Bps extras por bps de amplitude do candle. Calibre com o slippage realizado dos seus bots; não há valor padrão."
+                value={values.slippageKRange}
+                onValueChange={(value) => set("slippageKRange", value)}
+                rules={[(value) => decimalError(value ?? "", false)]}
+              />
+              <FormInput
+                label="Slippage extra por tamanho (k)"
+                inputMode="decimal"
+                description="Bps extras por bps da fatia do valor negociado do candle que a ordem ocupa. O bot continua com custo fixo."
+                value={values.slippageKSize}
+                onValueChange={(value) => set("slippageKSize", value)}
+                rules={[(value) => decimalError(value ?? "", false)]}
+              />
+            </>
+          )}
           <FormInput
             label="Semente"
             inputMode="numeric"

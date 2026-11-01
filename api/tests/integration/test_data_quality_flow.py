@@ -638,3 +638,128 @@ async def test_start_offset_sweep_shifts_each_run_and_is_not_a_robustness_axis(s
         json={**spec, "grid": {"fast_period": [3, 5], "slow_period": [13]}},
     )
     assert plain.status_code == 202 and len({r["start"] for r in plain.json()["runs"]}) == 1
+
+
+async def test_the_slippage_model_is_stored_and_only_worsens_the_result(stack: Any) -> None:
+    client, runner, _, _ = stack
+    await _import(client, runner)
+    base = {
+        **BODY,
+        "strategy_type": "ema_crossover",
+        "strategy_params": {"fast_period": 3, "slow_period": 13},
+        "allow_gaps": True,
+    }
+    plain = (await client.post("/api/v1/backtests", json=base)).json()
+    assert plain["slippage_model"] == "fixed" and plain["slippage_k_range"] == "0"
+    heavy = (
+        await client.post(
+            "/api/v1/backtests",
+            json={
+                **base,
+                "slippage_model": "volatility_size",
+                "slippage_k_range": "0.5",
+                "slippage_k_size": "0.5",
+            },
+        )
+    ).json()
+    assert heavy["slippage_model"] == "volatility_size" and heavy["slippage_k_range"] == "0.5"
+    await _drain(runner)
+    runs = [(await client.get(f"/api/v1/backtests/{r['id']}")).json() for r in (plain, heavy)]
+    assert [r["status"] for r in runs] == ["completed", "completed"], runs[0]["error"]
+    assert Decimal(runs[1]["metrics"]["final_equity"]) <= Decimal(
+        runs[0]["metrics"]["final_equity"]
+    )
+    assert runs[1]["slippage_model"] == "volatility_size"
+    assert Decimal(runs[1]["slippage_k_size"]) == Decimal("0.5")  # the column keeps 18 decimals
+    assert Decimal(runs[0]["slippage_k_range"]) == 0
+    for bad in ({"slippage_k_range": "-1"}, {"slippage_model": "nope"}):
+        assert (await client.post("/api/v1/backtests", json={**base, **bad})).status_code == 422
+
+
+async def test_run_stores_the_adverse_excursion_of_its_trades(stack: Any) -> None:
+    client, runner, _, _ = stack
+    await _import(client, runner)
+    spec = {
+        **BODY,
+        "strategy_type": "ema_crossover",
+        "strategy_params": {"fast_period": 3, "slow_period": 13},
+        "allow_gaps": True,
+    }
+    run_id = (await client.post("/api/v1/backtests", json=spec)).json()["id"]
+    await _drain(runner)
+    run = (await client.get(f"/api/v1/backtests/{run_id}")).json()
+    assert run["status"] == "completed", run["error"]
+    block = run["excursion"]
+    assert block["trades"] == run["metrics"]["round_trips"] >= 1
+    assert Decimal(block["worst_pct"]) >= Decimal(block["median_pct"]) >= 0
+    assert Decimal(block["worst_pct"]) >= Decimal(block["p95_pct"]) >= Decimal(block["median_pct"])
+    assert Decimal(block["worst_trades"][0]["pct"]) == Decimal(block["worst_pct"])
+
+
+async def test_exposure_curve_endpoint_shape_errors_and_determinism(stack: Any) -> None:
+    client, runner, _, _ = stack
+    await _import(client, runner)
+    spec = {
+        **BODY,
+        "strategy_type": "ema_crossover",
+        "strategy_params": {"fast_period": 3, "slow_period": 13},
+        "allow_gaps": True,
+    }
+    run_id = (await client.post("/api/v1/backtests", json=spec)).json()["id"]
+    queued = (await client.post("/api/v1/backtests", json=spec)).json()["id"]
+    assert (await client.get(f"/api/v1/backtests/{queued}/exposure-curve")).status_code == 409
+    await _drain(runner)
+
+    found = await client.get(f"/api/v1/backtests/{run_id}/exposure-curve", params={"steps": 4})
+    assert found.status_code == 200, found.text
+    body = found.json()
+    assert [Decimal(p["fraction"]) for p in body["points"]] == [
+        Decimal("0.25"),
+        Decimal("0.5"),
+        Decimal("0.75"),
+        Decimal(1),
+    ]
+    drawdowns = [Decimal(p["max_drawdown_pct"]) for p in body["points"]]
+    assert drawdowns == sorted(drawdowns)
+    assert body["returns"] > 30 and body["bootstrap_returns"] is None
+    assert any("teto" in w for w in body["warnings"]) and Decimal(body["configured_fraction"]) == 1
+    assert all(p["bootstrap_p95"] is None for p in body["points"])
+
+    boot_params = {"steps": 2, "bootstrap": "true", "simulations": 20, "seed": 3}
+    first = (
+        await client.get(f"/api/v1/backtests/{run_id}/exposure-curve", params=boot_params)
+    ).json()
+    again = (
+        await client.get(f"/api/v1/backtests/{run_id}/exposure-curve", params=boot_params)
+    ).json()
+    assert first == again and first["bootstrap_returns"] > 0
+    assert all(Decimal(p["bootstrap_p95"]) >= Decimal(p["bootstrap_p50"]) for p in first["points"])
+
+    for bad in ({"steps": 0}, {"steps": 51}, {"simulations": 0}, {"simulations": 5000}):
+        resp = await client.get(f"/api/v1/backtests/{run_id}/exposure-curve", params=bad)
+        assert resp.status_code == 422, bad
+    missing = await client.get(f"/api/v1/backtests/{uuid4()}/exposure-curve")
+    assert missing.status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("action", "desired", "budget_event"), [("stop", "stopped", True), ("pause", "paused", False)]
+)
+async def test_a_drawdown_breach_stops_or_pauses_as_configured(
+    env: Env, action: str, desired: str, budget_event: bool
+) -> None:
+    runner = env.make_runner()
+    risk = {"max_daily_loss_pct": None, "max_drawdown_pct": "10", "drawdown_action": action}
+    bot_id = await env.create_bot(risk=risk)
+    assert (await env.bot(bot_id))["risk"]["drawdown_action"] == action
+    assert (await env.command(bot_id, "start")).status_code == 202
+    await runner.run_once()
+    await env.run_until(runner, 40)  # the price falls from 130 to 100 at hour 26: about -23%
+
+    bot = await env.bot(bot_id)
+    assert bot["desired_state"] == desired and bot["observed_state"] == desired
+    events = await env.audit_types(bot_id)
+    assert "risk.drawdown_breached" in events
+    assert ("risk.budget_exhausted" in events) is budget_event
+    portfolio = (await env.http.get(f"/api/v1/bots/{bot_id}/portfolio")).json()
+    assert portfolio["quantity"] is not None  # the position is kept either way

@@ -7,6 +7,7 @@ from enum import StrEnum
 from typing import Any
 
 from core.errors import DomainError
+from modules.execution.domain.fills import SlippageModel
 from modules.execution.domain.orders import Fill
 from modules.market_data.domain.models import Candle, Timeframe
 from modules.risk_management.domain.models import RiskLimits
@@ -50,6 +51,11 @@ class BacktestConfig:
     fill_timing: FillTiming = FillTiming.NEXT_OPEN
     # The bot's risk module inside the backtest (sizing and pauses); None = all-in sizing.
     risk: RiskLimits | None = None
+    # Slippage model (book 2 ch. 7, O2): ``fixed`` keeps one number per run; the other adds terms
+    # that grow with the candle's range and with the order's size against its traded value.
+    slippage_model: SlippageModel = SlippageModel.FIXED
+    slippage_k_range: Decimal = Decimal(0)
+    slippage_k_size: Decimal = Decimal(0)
 
     def __post_init__(self) -> None:
         if self.start >= self.end:
@@ -60,6 +66,8 @@ class BacktestConfig:
             raise InvalidBacktestConfig("fee_rate must be in [0, 1)")
         if not (0 <= self.slippage_bps < 10_000):
             raise InvalidBacktestConfig("slippage_bps must be in [0, 10000)")
+        if self.slippage_k_range < 0 or self.slippage_k_size < 0:
+            raise InvalidBacktestConfig("slippage coefficients must not be negative")
         if self.test_fraction is not None and not (0 < self.test_fraction < 1):
             raise InvalidBacktestConfig("test_fraction must be between 0 and 1 (exclusive)")
         if self.cost_sensitivity:

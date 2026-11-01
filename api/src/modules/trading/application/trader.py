@@ -36,6 +36,7 @@ from modules.market_data.domain.models import Candle, MarketInfo, floor_to_timef
 from modules.market_data.domain.quality import CandleProblem, candle_problems
 from modules.portfolio.domain.models import InsufficientFunds, PortfolioSnapshot, PortfolioState
 from modules.risk_management.domain.models import (
+    DrawdownAction,
     GlobalExposure,
     GlobalRiskLimits,
     LiveLimits,
@@ -415,18 +416,30 @@ class BotTrader:
                 if event_type == "risk.live_daily_loss_cap":
                     # Real money lost past the hard cap: stop everything, not just this bot.
                     await store.flags.set_kill_switch(True, message)
-                await store.bots.set_desired(bot.id, BotState.PAUSED)
-                await store.bots.set_observed(bot.id, BotState.PAUSED, message)
-                await store.audit.add(
-                    AuditEvent(
-                        event_type,
-                        "bot",
-                        str(bot.id),
-                        actor="worker",
-                        bot_id=bot.id,
-                        payload={"reason": message},
-                    )
+                ends_session = (
+                    event_type == "risk.drawdown_breached"
+                    and cfg.risk.drawdown_action is DrawdownAction.STOP
                 )
+                if ends_session:
+                    # The supervisor settles the session (desired stopped, observed not yet).
+                    await store.bots.set_desired(bot.id, BotState.STOPPED)
+                else:
+                    await store.bots.set_desired(bot.id, BotState.PAUSED)
+                    await store.bots.set_observed(bot.id, BotState.PAUSED, message)
+                for kind in (event_type, *(("risk.budget_exhausted",) if ends_session else ())):
+                    await store.audit.add(
+                        AuditEvent(
+                            kind,
+                            "bot",
+                            str(bot.id),
+                            actor="worker",
+                            bot_id=bot.id,
+                            payload={
+                                "reason": message,
+                                "action": "stop" if ends_session else "pause",
+                            },
+                        )
+                    )
             await store.commit()
         return result.state, breach is not None
 

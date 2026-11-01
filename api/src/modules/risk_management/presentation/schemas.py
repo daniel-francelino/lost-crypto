@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
-from modules.risk_management.domain.models import RiskLimits
+from modules.risk_management.domain.models import DrawdownAction, RiskLimits
 
 
 class RiskLimitsIn(BaseModel):
@@ -31,6 +31,13 @@ class RiskLimitsIn(BaseModel):
         "close (a bad tick often looks like a jump). Exits are never refused. Null = off.",
     )
 
+    drawdown_action: DrawdownAction = Field(
+        default=DrawdownAction.PAUSE,
+        description="What happens when max_drawdown_pct is breached: `pause` (resume by hand) or "
+        "`stop` (ends the session; to start again, reset the portfolio with a reason, which also "
+        "starts a new drawdown peak). The position is kept either way.",
+    )
+
     def to_domain(self) -> RiskLimits:
         return RiskLimits(**self.model_dump())
 
@@ -47,4 +54,5 @@ class RiskLimitsIn(BaseModel):
             max_candle_range_pct=limits.max_candle_range_pct,
             max_order_pct_of_volume=limits.max_order_pct_of_volume,
             max_close_jump_pct=limits.max_close_jump_pct,
+            drawdown_action=limits.drawdown_action,
         )

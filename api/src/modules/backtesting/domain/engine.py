@@ -35,6 +35,7 @@ from modules.backtesting.domain.models import (
 )
 from modules.execution.domain.fills import (
     affordable_buy_quantity,
+    effective_slippage_bps,
     simulate_market_fill,
     slipped_price,
 )
@@ -84,15 +85,28 @@ def run_backtest(
     guard = _RiskGuard(config) if config.risk is not None else None
     at_close = config.fill_timing is FillTiming.SIGNAL_CLOSE
 
+    def slippage(candle: Candle, notional: Decimal) -> Decimal:
+        return effective_slippage_bps(
+            config.slippage_model,
+            config.slippage_bps,
+            config.slippage_k_range,
+            config.slippage_k_size,
+            candle,
+            notional,
+        )
+
     def execute(signal: Signal, reference: Decimal, when: datetime, candle: Candle) -> None:
         nonlocal cash, quantity, stop_price, take_profit_price
+        # A buy is priced as if it used all the cash (an upper bound: it can only cost more), a
+        # sell by its real size, so the fill never costs less than the sizing assumed.
+        bps = slippage(candle, cash if signal.side is Side.BUY else quantity * reference)
         try:
             if guard is not None:
-                wanted = guard.size(signal, cash, quantity, reference, market, candle)
+                wanted = guard.size(signal, cash, quantity, reference, market, candle, bps)
             elif signal.side is Side.BUY:
                 if quantity > 0:
                     raise OrderRejected("already in position")
-                price = slipped_price(Side.BUY, reference, config.slippage_bps)
+                price = slipped_price(Side.BUY, reference, bps)
                 wanted = affordable_buy_quantity(cash, price, config.fee_rate, market)
             else:
                 if quantity <= 0:
@@ -103,7 +117,7 @@ def run_backtest(
                 wanted,
                 reference,
                 config.fee_rate,
-                config.slippage_bps,
+                bps,
                 market,
                 when,
             )
@@ -134,14 +148,18 @@ def run_backtest(
         if quantity > 0:
             hit = check_protective_exit(candle, stop_price, take_profit_price)
             if hit is not None:
-                slippage = config.slippage_bps if hit.reason is ExitReason.STOP_LOSS else Decimal(0)
+                stop_slippage = (
+                    slippage(candle, quantity * hit.trigger_price)
+                    if hit.reason is ExitReason.STOP_LOSS
+                    else Decimal(0)
+                )
                 try:
                     exit_fill = simulate_market_fill(
                         Side.SELL,
                         quantity,
                         hit.trigger_price,
                         config.fee_rate,
-                        slippage,
+                        stop_slippage,
                         market,
                         candle.open_time,
                     )
@@ -250,6 +268,7 @@ class _RiskGuard:
         reference: Decimal,
         market: MarketInfo,
         candle: Candle,
+        slippage_bps: Decimal,
     ) -> Decimal:
         portfolio = PortfolioState(bot_id=_SIM_BOT, cash=cash, quantity=quantity)
         decision = assess_signal(
@@ -258,7 +277,7 @@ class _RiskGuard:
             reference,
             market,
             fee_rate=self.config.fee_rate,
-            slippage_bps=self.config.slippage_bps,
+            slippage_bps=slippage_bps,
             limits=self.limits,
             kill_switch_active=False,
             candle_range=candle_range_pct(candle.high, candle.low),

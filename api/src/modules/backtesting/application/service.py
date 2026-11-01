@@ -11,11 +11,15 @@ from typing import Any
 from uuid import UUID
 
 from core.clock import Clock
-from core.errors import DomainError, NotFoundError
+from core.errors import ConflictError, DomainError, NotFoundError
 from core.ids import IdGenerator
 from core.jobs import JobStatus
+from modules.analytics.domain import exposure
+from modules.analytics.domain.excursion import adverse_excursions
 from modules.analytics.domain.metrics import compute_metrics
 from modules.analytics.domain.regime import regime_report
+from modules.analytics.domain.risk_ratios import periodic_returns
+from modules.analytics.domain.sizing import MIN_KELLY_RETURNS, half_kelly, kelly_fraction
 from modules.analytics.domain.tail_risk import tail_risk
 from modules.backtesting.application.ports import BacktestRun, BacktestStore, BacktestSweep
 from modules.backtesting.domain import cost_ladder
@@ -247,6 +251,57 @@ class BacktestService:
         async with self._stores() as store:
             return await store.list_trades(run_id)
 
+    async def exposure_curve(
+        self, run_id: UUID, steps: int, bootstrap: bool, simulations: int, seed: int
+    ) -> dict[str, Any]:
+        """Growth and drawdown at exposures in (0, 1] from the run's stored equity curve (book 2
+        ch. 8, O1). Raises ``ConflictError`` for a run without a finished curve and
+        ``InvalidSweep``-style ``DomainError`` for a bad request."""
+        run = await self.get(run_id)
+        if run.status is not JobStatus.COMPLETED:
+            raise ConflictError("the backtest has not finished")
+        curve = await self.equity_curve(run_id)
+        if len(curve) < 2:
+            raise ConflictError("run the backtest again to calculate the exposure curve")
+        series = periodic_returns(
+            [p.time for p in curve], [p.equity for p in curve], run.config.timeframe.delta
+        )
+        returns = series.returns
+        try:
+            points = await asyncio.to_thread(
+                exposure.exposure_curve,
+                returns,
+                steps,
+                bootstrap=bootstrap,
+                simulations=simulations,
+                seed=seed,
+            )
+        except ValueError as exc:
+            raise InvalidSweep(str(exc)) from exc
+        mean = sum(returns, Decimal(0)) / len(returns)
+        variance = sum(((r - mean) ** 2 for r in returns), Decimal(0)) / (len(returns) - 1)
+        full = (
+            None
+            if len(returns) < MIN_KELLY_RETURNS
+            else Decimal(0)
+            if mean <= 0
+            else kelly_fraction(mean, variance)
+        )
+        return {
+            "points": points,
+            "kelly_full": full,
+            "kelly_half": None if full is None else half_kelly(full),
+            "configured_fraction": run.config.risk.max_position_fraction
+            if run.config.risk
+            else Decimal(1),
+            "ruin_fraction": exposure.ruin_fraction(returns),
+            "returns": len(returns),
+            "gaps": series.gaps,
+            "bootstrap_returns": min(len(returns), exposure.MAX_BOOTSTRAP_RETURNS)
+            if bootstrap
+            else None,
+        }
+
     async def equity_curve(self, run_id: UUID) -> list[EquityPoint]:
         async with self._stores() as store:
             curve = await store.get_equity_curve(run_id)
@@ -365,6 +420,7 @@ class BacktestExecutor:
                     outcome,
                     [BreakRef(str(b.id), b.name, b.occurred_at, b.created_at) for b in breaks],
                 ),
+                excursion=await asyncio.to_thread(adverse_excursions, outcome.fills, candles),
                 equity_curve=outcome.equity_curve,
                 fills=outcome.fills,
             )

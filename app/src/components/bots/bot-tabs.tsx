@@ -22,7 +22,7 @@ import {
 } from "@/hooks/bots/use-bots";
 import type { Bot, Order, Signal } from "@/lib/bots/bots.api";
 import { formatDateTime, formatUtcShort } from "@/lib/shared/dates";
-import { ExecutionMode } from "@/lib/shared/enums";
+import { DrawdownAction, ExecutionMode } from "@/lib/shared/enums";
 import { ExecutionQualityCard } from "@/components/bots/bot-execution";
 import {
   compareDecimal,
@@ -35,7 +35,7 @@ import {
   quoteCurrency,
   shortId,
 } from "@/lib/shared/format";
-import { signalKindLabel } from "@/lib/shared/labels";
+import { drawdownActionLabel, signalKindLabel } from "@/lib/shared/labels";
 
 const PAGE_SIZE = 25;
 const DECISION_LABELS: Record<string, string> = {
@@ -341,6 +341,10 @@ export function ConfigTab({ bot }: { bot: Bot }) {
     ["Exigir stop-loss", risk.require_stop_loss ? "Sim" : "Não"],
     ["Amplitude máxima do candle (%)", orDash(risk.max_candle_range_pct)],
     ["Salto máximo do fechamento (%)", orDash(risk.max_close_jump_pct ?? null)],
+    [
+      "Ao atingir o drawdown máximo",
+      drawdownActionLabel(risk.drawdown_action ?? DrawdownAction.Pause),
+    ],
   ];
   return (
     <div className="grid gap-4 lg:grid-cols-2">

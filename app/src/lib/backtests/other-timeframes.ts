@@ -1,6 +1,6 @@
 import type { Backtest, BacktestInput } from "@/lib/backtests/backtests.api";
 import { riskInput, riskValuesFrom } from "@/lib/backtests/form";
-import { FillTiming } from "@/lib/shared/enums";
+import { FillTiming, SlippageModel } from "@/lib/shared/enums";
 
 export const COMPARISON_TIMEFRAMES = ["5m", "15m", "1h"] as const;
 
@@ -25,6 +25,9 @@ export type RunSource = Pick<
   | "initial_capital"
   | "fee_rate"
   | "slippage_bps"
+  | "slippage_model"
+  | "slippage_k_range"
+  | "slippage_k_size"
   | "seed"
   | "test_fraction"
   | "max_drawdown_tolerance_pct"
@@ -45,6 +48,9 @@ export const inputWithTimeframe = (run: RunSource, timeframe: string): BacktestI
   initial_capital: run.initial_capital,
   fee_rate: run.fee_rate,
   slippage_bps: run.slippage_bps,
+  slippage_model: run.slippage_model ?? SlippageModel.Fixed,
+  slippage_k_range: run.slippage_k_range ?? "0",
+  slippage_k_size: run.slippage_k_size ?? "0",
   seed: run.seed,
   test_fraction: run.test_fraction ?? null,
   cost_sensitivity: false,

@@ -65,6 +65,30 @@ describe("screening flags (Chan's rules of thumb)", () => {
     expect(withLimit(50, 0)).toEqual([]);
   });
 
+  it("flags a stop tighter than the deepest adverse excursion", () => {
+    const excursion = {
+      trades: 20,
+      worst_pct: "8",
+      median_pct: "2",
+      p95_pct: "6",
+      worst_trades: [],
+    };
+    const withStop = (stop: unknown) =>
+      screeningFlags({
+        ...YEAR,
+        strategy_params: { stop_loss_pct: stop },
+        excursion,
+        metrics: BASE,
+      }).map((flag) => flag.id);
+    expect(withStop(3)).toEqual(["stop-inside-excursion"]);
+    expect(withStop(8)).toEqual([]);
+    expect(withStop(12)).toEqual([]);
+    expect(withStop(null)).toEqual([]);
+    expect(
+      screeningFlags({ ...YEAR, strategy_params: { stop_loss_pct: 3 }, metrics: BASE }),
+    ).toEqual([]);
+  });
+
   it("flags each rule on its own", () => {
     expect(ids({ ...BASE, sharpe_ratio: "0.7" })).toEqual(["sharpe"]);
     expect(ids({ ...BASE, max_drawdown_pct: "12.5" })).toEqual(["drawdown-depth"]);

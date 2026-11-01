@@ -107,6 +107,18 @@ export const FillTiming = {
 } as const;
 export type FillTiming = ValueOf<typeof FillTiming>;
 
+export const DrawdownAction = {
+  Pause: "pause",
+  Stop: "stop",
+} as const;
+export type DrawdownAction = ValueOf<typeof DrawdownAction>;
+
+export const SlippageModel = {
+  Fixed: "fixed",
+  VolatilitySize: "volatility_size",
+} as const;
+export type SlippageModel = ValueOf<typeof SlippageModel>;
+
 export const SizingScope = { Day: "day", Bar: "bar" } as const;
 export type SizingScope = ValueOf<typeof SizingScope>;
 
@@ -189,6 +201,7 @@ export const AlertKind = {
   CandlesStale: "candles_stale",
   ExchangeRateLimited: "exchange_rate_limited",
   PerformanceDegraded: "performance_degraded",
+  ProtectiveExitSlippage: "protective_exit_slippage",
 } as const;
 export type AlertKind = ValueOf<typeof AlertKind>;
 

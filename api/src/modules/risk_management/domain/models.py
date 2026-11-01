@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 
 from core.errors import DomainError
 from modules.execution.domain.fills import affordable_buy_quantity, slipped_price
@@ -17,6 +18,17 @@ _PCT = Decimal(100)
 
 class InvalidRiskLimits(DomainError):
     pass
+
+
+class DrawdownAction(StrEnum):
+    """What a bot does when ``max_drawdown_pct`` is breached (book 2 ch. 8, O2).
+
+    ``pause`` waits for the operator and can simply be resumed; ``stop`` ends the session, because
+    a budget that is spent ends the strategy. Either way the position is kept and exits stay
+    allowed."""
+
+    PAUSE = "pause"
+    STOP = "stop"
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +49,7 @@ class RiskLimits:
     # Refuse entries when the candle's close moved more than this % from the previous close
     # (book 2 ch. 3, O5: a bad tick often shows as a jump, not as a wide candle). None = off.
     max_close_jump_pct: Decimal | None = None
+    drawdown_action: DrawdownAction = DrawdownAction.PAUSE
 
     def __post_init__(self) -> None:
         if not (0 < self.max_position_fraction <= 1):
@@ -275,6 +288,7 @@ def limits_to_dict(limits: RiskLimits) -> dict[str, object]:
     }
     out["max_consecutive_losses"] = limits.max_consecutive_losses
     out["require_stop_loss"] = limits.require_stop_loss
+    out["drawdown_action"] = limits.drawdown_action.value
     return out
 
 
@@ -287,4 +301,5 @@ def limits_from_dict(raw: dict[str, object]) -> RiskLimits:
     if raw.get("max_consecutive_losses") is not None:
         values["max_consecutive_losses"] = int(str(raw["max_consecutive_losses"]))
     values["require_stop_loss"] = bool(raw.get("require_stop_loss", False))
+    values["drawdown_action"] = DrawdownAction(str(raw.get("drawdown_action", "pause")))
     return RiskLimits(**values)  # type: ignore[arg-type]

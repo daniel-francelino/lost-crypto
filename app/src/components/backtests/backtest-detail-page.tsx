@@ -19,6 +19,8 @@ import { SignificanceCard } from "@/components/backtests/significance-card";
 import { NotesPanel } from "@/components/shared/notes/notes-panel";
 import { NoteTarget } from "@/lib/shared/audit/audit.api";
 import { BreaksCard } from "@/components/backtests/breaks-card";
+import { ExcursionCard } from "@/components/backtests/excursion-card";
+import { CostModelNote } from "@/components/backtests/cost-model-note";
 import { CompareTimeframesCard } from "@/components/backtests/compare-timeframes-card";
 import { SizingCard } from "@/components/backtests/sizing-card";
 import { RegimeCard } from "@/components/backtests/regime-card";
@@ -153,9 +155,11 @@ export function BacktestDetailPage({ runId }: { runId: string }) {
       )}
       <RiskReportCard run={run} />
       <SignificanceCard significance={run.significance ?? null} />
+      <ExcursionCard run={run} />
       <NotesPanel target={NoteTarget.Backtest} entityId={run.id} />
       {completed ? <SizingCard run={run} /> : null}
       <BreaksCard run={run} />
+      <CostModelNote run={run} />
       {completed ? <CompareTimeframesCard run={run} /> : null}
       {run.metrics === null ? null : (
         <section className="space-y-3" aria-label="Métricas">

@@ -27,7 +27,14 @@ import { errorMessage } from "@/lib/shared/api/messages";
 import { QueryKey } from "@/lib/shared/api/query-keys";
 import { decimalError, integerError, symbolError } from "@/lib/shared/validators";
 import { type BotPrefill, prefillParams } from "@/lib/shared/bot-prefill";
-import { ConnectionStatus, Environment, ExecutionMode, Timeframe } from "@/lib/shared/enums";
+import {
+  ConnectionStatus,
+  DrawdownAction,
+  Environment,
+  ExecutionMode,
+  Timeframe,
+} from "@/lib/shared/enums";
+import { drawdownActionLabel } from "@/lib/shared/labels";
 import { AppRoute } from "@/lib/shared/routes";
 import { defaultParamValues, paramsFromRecord } from "@/lib/shared/strategies/params";
 import type { Strategy } from "@/lib/shared/strategies/strategies.api";
@@ -342,6 +349,15 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
               value={values.maxOrderPctOfVolume}
               onValueChange={(value) => set("maxOrderPctOfVolume", value)}
               rules={[(value) => decimalError(value ?? "", false)]}
+            />
+            <FormSelect
+              label="Ao atingir o drawdown máximo"
+              items={Object.values(DrawdownAction).map((item) => ({
+                label: drawdownActionLabel(item),
+                value: item,
+              }))}
+              value={values.drawdownAction}
+              onValueChange={(value) => set("drawdownAction", value)}
             />
             <FormInput
               label="Salto máximo do fechamento (%)"

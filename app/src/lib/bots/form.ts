@@ -1,5 +1,5 @@
 import type { Bot, BotInput } from "@/lib/bots/bots.api";
-import { ExecutionMode, Timeframe } from "@/lib/shared/enums";
+import { DrawdownAction, ExecutionMode, Timeframe } from "@/lib/shared/enums";
 import {
   type ParamValues,
   buildStrategyParams,
@@ -31,6 +31,7 @@ export type BotFormValues = {
   maxCandleRangePct: string;
   maxOrderPctOfVolume: string;
   maxCloseJumpPct: string;
+  drawdownAction: string;
   mode: string;
   connectionId: string;
 };
@@ -55,6 +56,7 @@ export const defaultFormValues = (strategy: Strategy | undefined): BotFormValues
   maxCandleRangePct: "25",
   maxOrderPctOfVolume: "",
   maxCloseJumpPct: "",
+  drawdownAction: DrawdownAction.Pause,
   mode: ExecutionMode.Paper,
   connectionId: "",
 });
@@ -81,6 +83,7 @@ export const formFromBot = (bot: Bot, strategy: Strategy | undefined): BotFormVa
   maxCandleRangePct: text(bot.risk.max_candle_range_pct),
   maxOrderPctOfVolume: text(bot.risk.max_order_pct_of_volume ?? null),
   maxCloseJumpPct: text(bot.risk.max_close_jump_pct ?? null),
+  drawdownAction: bot.risk.drawdown_action ?? DrawdownAction.Pause,
   mode: bot.mode,
   connectionId: bot.connection_id ?? "",
 });
@@ -111,6 +114,7 @@ export const toBotInput = (values: BotFormValues, strategy: Strategy | undefined
     max_candle_range_pct: nullable(values.maxCandleRangePct),
     max_order_pct_of_volume: nullable(values.maxOrderPctOfVolume),
     max_close_jump_pct: nullable(values.maxCloseJumpPct),
+    drawdown_action: values.drawdownAction,
   },
   mode: values.mode,
   connection_id: values.mode === ExecutionMode.Paper ? null : nullable(values.connectionId),

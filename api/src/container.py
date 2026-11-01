@@ -237,6 +237,8 @@ def build_alert_monitor(
         update_report,
         deterioration,
         timedelta(seconds=settings.alert_deterioration_seconds),
+        settings.alert_protective_slippage_multiple,
+        timedelta(hours=settings.alert_protective_window_hours),
     )
 
 

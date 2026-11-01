@@ -29,6 +29,10 @@ Verified in the code on 2026-10-31. Every chapter report compares the book again
 
 Net PnL, total return %, buy-and-hold return %, max drawdown %, fees paid, fills, round trips, win rate, profit factor, average trade PnL, open-position flag, rejected signals. Since book 1 ch. 2: Sharpe, Sortino, information ratio vs. holding the asset, annualised return and volatility (365-day year, risk-free 0, `None` below 30 returns or 30 days; `risk_ratios.py`), exposure, sample size and gaps, drawdown duration, peak/trough, current and open drawdown. Same functions for backtests and bots.
 
+Since book 2 ch. 8: the maximum adverse excursion of each backtest trade (`excursion`, migration `0019`), an advisory exposure curve (`/backtests/{id}/exposure-curve`), a `protective_exit_slippage` alert for stops that fill far worse than configured, and `drawdown_action` (`pause` default | `stop`, migration `0020`) on a bot's risk limits.
+
+Since book 2 ch. 7: an optional backtest slippage model (`volatility_size`, migration `0018`) on top of the fixed one, which stays the default and what bots and parity use.
+
 Since book 2 ch. 6: a lagged-return correlation grid (`/market-data/momentum-grid`, non-overlapping samples, Bonferroni-corrected) and start-date sensitivity sweeps (`start_offset_days` in a sweep grid).
 
 Since book 2 ch. 5: named regime breaks (`regime_breaks`, operator-registered, never edited) and per-stretch metrics of each backtest between the breaks that fall inside it (`break_metrics`, with a snapshot of the breaks used).

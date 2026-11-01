@@ -74,6 +74,9 @@ class Settings(BaseSettings):
     alert_evaluation_seconds: float = 15.0
     alert_cooldown_seconds: float = 300.0
     alert_deterioration_seconds: float = 900.0  # how often bots are compared with their backtest
+    # A stop that fills worse than this many times the bot's slippage raises an alert.
+    alert_protective_slippage_multiple: Decimal = Decimal(3)
+    alert_protective_window_hours: float = 24.0
     alert_retention_days: float = 30.0
     alerts_api_evaluation_enabled: bool = True  # the API process watches the worker
     # Global risk limits across all bots (operator-controlled, not editable through the API).

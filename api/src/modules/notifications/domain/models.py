@@ -14,6 +14,7 @@ class AlertKind(StrEnum):
     CANDLES_STALE = "candles_stale"
     EXCHANGE_RATE_LIMITED = "exchange_rate_limited"
     PERFORMANCE_DEGRADED = "performance_degraded"
+    PROTECTIVE_EXIT_SLIPPAGE = "protective_exit_slippage"
 
 
 class AlertSeverity(StrEnum):

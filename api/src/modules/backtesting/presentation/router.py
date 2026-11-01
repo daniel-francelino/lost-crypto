@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from pydantic import AwareDatetime, BaseModel, Field
 
 from container import Container
-from core.errors import DomainError
+from core.errors import ConflictError, DomainError
 from core.jobs import JobStatus
 from core.pagination import Offset, set_total
 from core.security.auth import Principal, require_auth
@@ -26,6 +26,7 @@ from modules.backtesting.application.ports import BacktestRun
 from modules.backtesting.application.service import START_OFFSET_KEY, BacktestNotFound
 from modules.backtesting.domain.models import BacktestConfig, FillTiming
 from modules.backtesting.domain.robustness import assess
+from modules.execution.domain.fills import SlippageModel
 from modules.market_data.domain.models import Timeframe
 from modules.risk_management.presentation.schemas import RiskLimitsIn
 from modules.strategies.domain.types import Side
@@ -54,6 +55,23 @@ class BacktestCreate(BaseModel):
     )
     slippage_bps: Decimal = Field(
         default=Decimal("5"), ge=0, lt=10000, description="Adverse slippage per fill, in bps"
+    )
+    slippage_model: SlippageModel = Field(
+        default=SlippageModel.FIXED,
+        description="`fixed` (default, one number per run, what the bots use) or "
+        "`volatility_size`: adds to slippage_bps with the candle's range and the order's share "
+        "of the candle's traded value. The extra cost only worsens the fill.",
+    )
+    slippage_k_range: Decimal = Field(
+        default=Decimal(0),
+        ge=0,
+        description="Extra bps per bps of candle range (high-low over open). Calibrate with the "
+        "realized slippage of your bots; there is no default.",
+    )
+    slippage_k_size: Decimal = Field(
+        default=Decimal(0),
+        ge=0,
+        description="Extra bps per bps of the order's share of the candle's traded value.",
     )
     seed: int = 0
     test_fraction: Decimal | None = Field(
@@ -297,6 +315,20 @@ class BreakMetricsOut(BaseModel):
     segments: list[BreakSegmentOut]
 
 
+class ExcursionTradeOut(BaseModel):
+    entry_at: datetime
+    exit_at: datetime
+    pct: Decimal
+
+
+class ExcursionOut(BaseModel):
+    trades: int
+    worst_pct: Decimal = Field(description="Deepest drop below the entry, in percent.")
+    median_pct: Decimal
+    p95_pct: Decimal
+    worst_trades: list[ExcursionTradeOut]
+
+
 class RegimeOut(BaseModel):
     window: int
     method: str
@@ -391,6 +423,9 @@ class BacktestOut(BaseModel):
     initial_capital: Decimal
     fee_rate: Decimal
     slippage_bps: Decimal
+    slippage_model: SlippageModel
+    slippage_k_range: Decimal
+    slippage_k_size: Decimal
     seed: int
     test_fraction: Decimal | None
     cost_sensitivity: bool
@@ -413,6 +448,7 @@ class BacktestOut(BaseModel):
     regime: RegimeOut | None = None
     significance: SignificanceOut | None = None
     break_metrics: BreakMetricsOut | None = None
+    excursion: ExcursionOut | None = None
     prior_runs: int | None = Field(
         default=None,
         description=(
@@ -497,6 +533,9 @@ def _out(run: BacktestRun) -> BacktestOut:
         initial_capital=c.initial_capital,
         fee_rate=c.fee_rate,
         slippage_bps=c.slippage_bps,
+        slippage_model=c.slippage_model,
+        slippage_k_range=c.slippage_k_range,
+        slippage_k_size=c.slippage_k_size,
         seed=c.seed,
         test_fraction=c.test_fraction,
         cost_sensitivity=c.cost_sensitivity,
@@ -523,6 +562,7 @@ def _out(run: BacktestRun) -> BacktestOut:
         break_metrics=(
             BreakMetricsOut.model_validate(run.break_metrics) if run.break_metrics else None
         ),
+        excursion=ExcursionOut.model_validate(run.excursion) if run.excursion else None,
         error=run.error,
         created_at=run.created_at,
         started_at=run.started_at,
@@ -544,6 +584,9 @@ def _config(body: BacktestCreate, container: Container) -> BacktestConfig:
             else container.exchanges.profile(body.exchange).fees.taker_rate
         ),
         slippage_bps=body.slippage_bps,
+        slippage_model=body.slippage_model,
+        slippage_k_range=body.slippage_k_range,
+        slippage_k_size=body.slippage_k_size,
         strategy_type=body.strategy_type,
         strategy_params=body.strategy_params,
         seed=body.seed,
@@ -786,6 +829,85 @@ async def add_backtest_note(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "backtest not found") from exc
     await container.audit.add_note("backtest", str(run_id), None, principal.username, body.text)
     return NoteOut(actor=principal.username, text=body.text)
+
+
+class ExposurePointOut(BaseModel):
+    fraction: Decimal
+    growth: Decimal | None = Field(
+        description="Mean log growth per bar at this exposure; null when it would wipe the account."
+    )
+    max_drawdown_pct: Decimal
+    bootstrap_p50: Decimal | None = None
+    bootstrap_p95: Decimal | None = None
+
+
+class ExposureCurveOut(BaseModel):
+    run_id: UUID
+    points: list[ExposurePointOut]
+    kelly_full: Decimal | None
+    kelly_half: Decimal | None
+    configured_fraction: Decimal
+    ruin_fraction: Decimal | None = Field(
+        description="1 / |worst return|: above this one bar wipes the account out."
+    )
+    returns: int
+    gaps: int
+    bootstrap_returns: int | None = Field(
+        description="Returns resampled by the bootstrap (the latest ones, capped)."
+    )
+    warnings: list[str]
+
+
+@router.get("/{run_id}/exposure-curve", response_model=ExposureCurveOut)
+async def get_exposure_curve(
+    run_id: UUID,
+    request: Request,
+    steps: Annotated[int, Query(ge=1, le=50)] = 20,
+    bootstrap: bool = False,
+    simulations: Annotated[int, Query(ge=1, le=1000)] = 100,
+    seed: int = 0,
+) -> ExposureCurveOut:
+    """Growth and drawdown at exposures in (0, 1], from the run's per-bar returns. Kelly is an
+    upper bound to discount, never a recommendation to size up; the optional bootstrap resamples
+    the returns (it destroys their autocorrelation). Advisory: nothing is applied to any bot."""
+    container: Container = request.app.state.container
+    try:
+        result = await container.backtests.exposure_curve(
+            run_id, steps, bootstrap, simulations, seed
+        )
+    except BacktestNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "backtest not found") from exc
+    except ConflictError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    return ExposureCurveOut(
+        run_id=run_id,
+        points=[
+            ExposurePointOut(
+                fraction=p.fraction,
+                growth=p.growth,
+                max_drawdown_pct=p.max_drawdown_pct,
+                bootstrap_p50=p.bootstrap_p50,
+                bootstrap_p95=p.bootstrap_p95,
+            )
+            for p in result["points"]
+        ],
+        kelly_full=result["kelly_full"],
+        kelly_half=result["kelly_half"],
+        configured_fraction=result["configured_fraction"],
+        ruin_fraction=result["ruin_fraction"],
+        returns=result["returns"],
+        gaps=result["gaps"],
+        bootstrap_returns=result["bootstrap_returns"],
+        warnings=[
+            "Kelly é um teto a ser descontado, nunca uma recomendação de aumentar a posição.",
+            "Os retornos vêm da própria simulação: a otimização dentro da amostra tem o viés do "
+            "backtest, e retornos de cripto têm caudas gordas e autocorrelação.",
+            "O bootstrap reamostra os retornos e destrói a autocorrelação da série real.",
+            "Esta curva é consultiva e não altera o tamanho das ordens.",
+        ],
+    )
 
 
 @router.get("/{run_id}/sizing", response_model=SizingAdviceOut)

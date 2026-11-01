@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
 import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import { Input } from "lost-ui/ui/input";
+import { ExposureCurveBlock } from "@/components/backtests/exposure-curve-block";
 import { useSizing } from "@/hooks/backtests/use-backtests";
 import type { Backtest } from "@/lib/backtests/backtests.api";
 import { formatUtc } from "@/lib/shared/dates";
@@ -130,6 +131,7 @@ export function SizingCard({ run }: { run: Backtest }) {
                 <li key={warning}>{warning}</li>
               ))}
             </ul>
+            <ExposureCurveBlock run={run} />
           </>
         ) : null}
       </CardContent>

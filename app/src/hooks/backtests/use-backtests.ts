@@ -5,6 +5,7 @@ import {
   getBacktestEquity,
   getSweep,
   getTrades,
+  getExposureCurve,
   getSizing,
   listBacktests,
 } from "@/lib/backtests/backtests.api";
@@ -45,6 +46,13 @@ export const useSizing = (id: string, tolerable: string, scope: "day" | "bar", e
   useQuery({
     queryKey: QueryKey.Backtests.sizing(id, tolerable, scope),
     queryFn: ({ signal }) => getSizing(id, tolerable, scope, signal),
+    enabled,
+  });
+
+export const useExposureCurve = (id: string, bootstrap: boolean, enabled: boolean) =>
+  useQuery({
+    queryKey: QueryKey.Backtests.exposureCurve(id, bootstrap),
+    queryFn: ({ signal }) => getExposureCurve(id, bootstrap, signal),
     enabled,
   });
 

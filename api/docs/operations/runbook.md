@@ -59,3 +59,15 @@ The trader decides that a candle has closed by the server clock, and Binance ref
 ## 7. Counterparty risk
 
 The exchange holds the money. Keep on it only the capital the bots use; move the rest out.
+
+## 8. Operator judgment decisions (book 2 ch. 8, C9)
+
+The system enforces limits; some decisions stay with the operator. Write them down before you need them, and record the outcome as a note on the bot or backtest (`POST /bots/{id}/notes`), so that the reason survives the memory of it.
+
+1. **Reducing size before a known event.** Chan's advice is *not* to do it if the model already survived a similar stress, and to start conservative before it has been tested. Before an event, look at the backtest's worst period (`/backtests/{id}/sizing`, `/exposure-curve`) and at the bot's `max_drawdown_pct`: if the event is within what the model already lived through, leave it; if it is not, lower `max_position_fraction` (an edit that voids a live approval) rather than trading by feel.
+2. **Size by strategy, not as a joint portfolio.** Each bot is its own sub-account with its own limits; there is no covariance model and no pooled Kelly. A strong bot does not subsidise a weak one, which is why a weak one is easy to see and to retire.
+3. **When to end a model.** Use the signals the system gives, in this order: the `performance_degraded` alert (realized Sharpe below half of the backtest's, or a drawdown deeper than the backtest's maximum, after 30+ live returns), the divergence checklist of the bot, and its interventions count. A bot whose drawdown limit should end it, rather than wait for you, can use `drawdown_action = stop`; to start it again, reset its portfolio **with a reason** (that also starts a new drawdown peak). Keep `pause` for bots you are willing to resume by hand. Use `stop` in paper first; nothing here weakens a live safeguard.
+4. **A divergence from the backtest is often a regime change, not a backtest bug.** Check the named regime breaks and the per-stretch metrics of the backtest before concluding that it was wrong, and do not add rules to patch the last loss (that is how a backtest becomes overfit).
+5. **A stop that filled far worse than planned** (`protective_exit_slippage` alert) is a fact about liquidity, not bad luck: look at the order's realized slippage in the bot's execution tab and decide whether the size or the symbol is the problem. Stops are stop-market on purpose (see `docs/architecture/13-live-trading.md`).
+
+None of these is automated, and none of them is a guarantee: the numbers behind them come from history.

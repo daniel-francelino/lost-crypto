@@ -31,6 +31,7 @@ class BacktestRun:
     regime: dict[str, Any] | None = None
     significance: dict[str, Any] | None = None
     break_metrics: dict[str, Any] | None = None
+    excursion: dict[str, Any] | None = None
     sweep_id: UUID | None = None
     error: str | None = None
 
@@ -98,6 +99,7 @@ class BacktestStore(Protocol):
         regime: dict[str, Any] | None,
         significance: dict[str, Any] | None,
         break_metrics: dict[str, Any] | None,
+        excursion: dict[str, Any] | None,
         equity_curve: list[EquityPoint],
         fills: list[Fill],
     ) -> None: ...

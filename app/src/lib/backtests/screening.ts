@@ -226,6 +226,23 @@ const holdingFlags = (
     : [];
 };
 
+const stopFlags = (
+  params: Record<string, unknown> | undefined,
+  excursion: Backtest["excursion"],
+): ScreeningFlag[] => {
+  const stop = params?.["stop_loss_pct"];
+  if (typeof stop !== "number" || excursion === null || excursion === undefined) return [];
+  return compareDecimal(String(stop), excursion.worst_pct) < 0
+    ? [
+        {
+          id: "stop-inside-excursion",
+          level: ScreeningLevel.Warning,
+          text: `O stop de ${stop}% é menor que a pior queda que as operações tiveram antes de fechar (${formatPercent(excursion.worst_pct)}): ele dispararia em oscilações que a própria estratégia já teve e muda o resultado.`,
+        },
+      ]
+    : [];
+};
+
 const reuseFlags = (
   priorRuns: number | null | undefined,
   segments: Backtest["segments"],
@@ -247,6 +264,7 @@ export const screeningFlags = (
   run: Pick<Backtest, "start" | "end" | "segments"> & {
     prior_runs?: number | null | undefined;
     strategy_params?: Record<string, unknown> | undefined;
+    excursion?: Backtest["excursion"];
     metrics: Metrics;
     data_quality?: DataQuality | null | undefined;
     test_fraction?: string | null | undefined;
@@ -263,6 +281,7 @@ export const screeningFlags = (
     ...fractionFlags(run.test_fraction),
     ...reuseFlags(run.prior_runs, run.segments),
     ...holdingFlags(run.strategy_params, run.metrics.return_periods),
+    ...stopFlags(run.strategy_params, run.excursion),
   ];
   return [
     ...flags.filter((flag) => flag.level === ScreeningLevel.Warning),

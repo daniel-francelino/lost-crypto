@@ -5,8 +5,11 @@ so an open alert is only rewritten when something meaningful changes.
 """
 
 from collections.abc import Sequence
+from datetime import datetime, timedelta
+from decimal import Decimal
 
 from modules.bots.domain.models import Bot, BotState, ExecutionMode
+from modules.execution.domain.orders import Order, OrderStatus, realized_slippage_bps
 from modules.market_data.application.updater import UpdateReport
 from modules.notifications.domain.models import AlertKind, AlertSeverity, Condition
 from modules.trading.application.status import SystemStatus
@@ -109,6 +112,47 @@ def candles(report: UpdateReport) -> list[Condition]:
                 "clears.",
             )
         )
+    return out
+
+
+PROTECTIVE_ORDER_TYPE = "stop_loss"
+_FLOOR_BPS = Decimal(10)  # a bot configured with no slippage still tolerates this much
+
+
+def protective_slippage(
+    bot_orders: Sequence[tuple[Bot, Sequence[Order]]],
+    now: datetime,
+    window: timedelta,
+    multiple: Decimal,
+) -> list[Condition]:
+    """A protective exit that filled far worse than the bot's configured slippage (book 2 ch. 8,
+    O4: stops can fill at absurd prices when liquidity vanishes). Only filled stop-loss orders of
+    the window count; the message carries no numbers, so it stays stable while it lasts."""
+    out: list[Condition] = []
+    for bot, orders in bot_orders:
+        limit = max(bot.config.slippage_bps, _FLOOR_BPS) * multiple
+        worst = [
+            slip
+            for order in orders
+            if order.order_type == PROTECTIVE_ORDER_TYPE
+            and order.status is OrderStatus.FILLED
+            and order.first_fill_at is not None
+            and now - order.first_fill_at <= window
+            and (slip := realized_slippage_bps(order)) is not None
+            and slip > limit
+        ]
+        if worst:
+            out.append(
+                Condition(
+                    AlertKind.PROTECTIVE_EXIT_SLIPPAGE,
+                    f"protective_exit_slippage:{bot.id}",
+                    _severity(bot),
+                    f"Bot '{bot.config.name}': uma saída protetora preencheu com slippage muito "
+                    "acima do configurado.",
+                    bot_id=bot.id,
+                    payload={"multiple": str(multiple)},
+                )
+            )
     return out
 
 

@@ -3,6 +3,7 @@ import logging
 from collections.abc import Awaitable, Callable, Sequence
 from contextlib import AbstractAsyncContextManager, suppress
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Protocol
 from uuid import UUID
 
@@ -10,6 +11,7 @@ from core.clock import Clock
 from core.errors import NotFoundError
 from modules.bots.application.ports import BotRepository
 from modules.bots.domain.models import Bot
+from modules.execution.application.ports import OrderRepository
 from modules.market_data.application.updater import UpdateReport
 from modules.notifications.application import conditions
 from modules.notifications.application.evaluator import AlertEvaluator
@@ -35,8 +37,12 @@ WORKER_SCOPE = frozenset(
         AlertKind.CANDLES_STALE,
         AlertKind.EXCHANGE_RATE_LIMITED,
         AlertKind.PERFORMANCE_DEGRADED,
+        AlertKind.PROTECTIVE_EXIT_SLIPPAGE,
     }
 )
+
+
+PROTECTIVE_ORDERS_LOOKED_AT = 30  # newest orders read per bot to look for a bad stop fill
 
 
 class AlertNotFound(NotFoundError):
@@ -46,6 +52,9 @@ class AlertNotFound(NotFoundError):
 class MonitorStore(AlertStore, Protocol):
     @property
     def bots(self) -> BotRepository: ...
+
+    @property
+    def orders(self) -> OrderRepository: ...
 
 
 class AlertService:
@@ -102,6 +111,8 @@ class AlertMonitor:
         update_report: Callable[[], UpdateReport] | None = None,
         deterioration: Callable[[Sequence[Bot]], Awaitable[list[Condition]]] | None = None,
         deterioration_interval: timedelta = timedelta(minutes=15),
+        protective_multiple: Decimal = Decimal(3),
+        protective_window: timedelta = timedelta(hours=24),
     ) -> None:
         self._stores = stores
         self._status = status
@@ -111,6 +122,8 @@ class AlertMonitor:
         self._retention = retention
         self._update_report = update_report
         self._last_run: datetime | None = None
+        self._protective_multiple = protective_multiple
+        self._protective_window = protective_window
         self._deterioration = deterioration
         self._deterioration_interval = deterioration_interval
         self._deterioration_at: datetime | None = None
@@ -125,11 +138,18 @@ class AlertMonitor:
             status = await self._status.system_status()
             async with self._stores() as store:
                 active = await store.bots.list_active()
+                recent = [
+                    (bot, await store.orders.list_by_bot(bot.id, PROTECTIVE_ORDERS_LOOKED_AT))
+                    for bot in active
+                ]
             firing = [
                 *conditions.kill_switch(status),
                 *conditions.bots(status, active),
                 *(conditions.candles(self._update_report()) if self._update_report else []),
                 *await self._deterioration_firing(active, now),
+                *conditions.protective_slippage(
+                    recent, now, self._protective_window, self._protective_multiple
+                ),
             ]
             await self._evaluator.sync(WORKER_SCOPE, firing, actor="worker")
         except Exception:

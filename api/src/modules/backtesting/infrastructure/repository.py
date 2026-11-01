@@ -14,6 +14,7 @@ from modules.backtesting.infrastructure.orm import (
     BacktestSweepRow,
     BacktestTradeRow,
 )
+from modules.execution.domain.fills import SlippageModel
 from modules.execution.domain.orders import Fill
 from modules.market_data.domain.models import MarketInfo, Timeframe
 from modules.market_data.infrastructure.repository import (
@@ -57,6 +58,9 @@ def _to_run(row: BacktestRunRow) -> BacktestRun:
             initial_capital=row.initial_capital,
             fee_rate=row.fee_rate,
             slippage_bps=row.slippage_bps,
+            slippage_model=SlippageModel(row.slippage_model),
+            slippage_k_range=row.slippage_k_range or Decimal(0),
+            slippage_k_size=row.slippage_k_size or Decimal(0),
             strategy_type=row.strategy_type,
             strategy_params=row.strategy_params,
             seed=row.seed,
@@ -84,6 +88,7 @@ def _to_run(row: BacktestRunRow) -> BacktestRun:
         regime=row.regime,
         significance=row.significance,
         break_metrics=row.break_metrics,
+        excursion=row.excursion,
         sweep_id=row.sweep_id,
         error=row.error,
     )
@@ -109,6 +114,9 @@ class SqlAlchemyBacktestStore:
                 initial_capital=c.initial_capital,
                 fee_rate=c.fee_rate,
                 slippage_bps=c.slippage_bps,
+                slippage_model=c.slippage_model.value,
+                slippage_k_range=c.slippage_k_range,
+                slippage_k_size=c.slippage_k_size,
                 seed=c.seed,
                 test_fraction=c.test_fraction,
                 cost_sensitivity=c.cost_sensitivity,
@@ -271,6 +279,7 @@ class SqlAlchemyBacktestStore:
         regime: dict[str, Any] | None,
         significance: dict[str, Any] | None,
         break_metrics: dict[str, Any] | None,
+        excursion: dict[str, Any] | None,
         equity_curve: list[EquityPoint],
         fills: list[Fill],
     ) -> None:
@@ -292,6 +301,7 @@ class SqlAlchemyBacktestStore:
                 regime=regime,
                 significance=significance,
                 break_metrics=break_metrics,
+                excursion=excursion,
                 equity_curve=[[p.time.isoformat(), str(p.equity)] for p in equity_curve],
                 finished_at=func.now(),
             )

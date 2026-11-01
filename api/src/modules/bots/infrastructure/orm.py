@@ -70,6 +70,7 @@ class BotRow(Base):
     max_candle_range_pct: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     max_order_pct_of_volume: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     max_close_jump_pct: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
+    drawdown_action: Mapped[str] = mapped_column(Text, server_default="pause")
     mode: Mapped[str] = mapped_column(Text)
     desired_state: Mapped[str] = mapped_column(Text)
     observed_state: Mapped[str] = mapped_column(Text)

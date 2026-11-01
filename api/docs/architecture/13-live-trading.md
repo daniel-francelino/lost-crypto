@@ -76,6 +76,23 @@ chose in advance.
 Before any real money: run `make test-testnet` with testnet keys, then paper-trade, then promote
 with caps small enough that you would shrug at losing them.
 
+## Stop-market versus stop-limit (book 2 ch. 8, C7)
+
+Protective stops are **market-on-trigger** (stop-market): once the price touches the level the
+order is sent as a market order. The trade-off:
+
+| | Guarantees | Does not guarantee |
+|---|---|---|
+| Stop-market (what the system uses) | that the position **is closed** | the price: in a fast or thin market it can fill far below the level |
+| Stop-limit (not implemented) | a floor on the price | that the position is closed: if the market gaps past the limit the order stays open and the loss grows |
+
+For a long-only spot bot whose point is to cap a loss, closing matters more than the price, so
+stop-market stays. The cost of that choice is watched, not hidden: the alert
+`protective_exit_slippage` opens when a filled stop fills more than `ALERT_PROTECTIVE_SLIPPAGE_MULTIPLE`
+times worse than the bot's configured slippage (default 3x, with a floor of 10 bps) within
+`ALERT_PROTECTIVE_WINDOW_HOURS` (default 24). It only informs: it never changes or pauses a bot.
+Only native stop-loss orders (`order_type = stop_loss`, testnet and live) are watched.
+
 ## Known limitations
 
 * The hard daily-loss cap is per bot (absolute, quote currency), not a portfolio-wide sum.

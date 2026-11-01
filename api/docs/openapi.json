@@ -1615,6 +1615,94 @@
         }
       }
     },
+    "/api/v1/backtests/{run_id}/exposure-curve": {
+      "get": {
+        "tags": [
+          "backtests"
+        ],
+        "summary": "Get Exposure Curve",
+        "description": "Growth and drawdown at exposures in (0, 1], from the run's per-bar returns. Kelly is an\nupper bound to discount, never a recommendation to size up; the optional bootstrap resamples\nthe returns (it destroys their autocorrelation). Advisory: nothing is applied to any bot.",
+        "operationId": "get_exposure_curve_api_v1_backtests__run_id__exposure_curve_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "steps",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Steps"
+            }
+          },
+          {
+            "name": "bootstrap",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Bootstrap"
+            }
+          },
+          {
+            "name": "simulations",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 100,
+              "title": "Simulations"
+            }
+          },
+          {
+            "name": "seed",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Seed"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExposureCurveOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/backtests/{run_id}/sizing": {
       "get": {
         "tags": [
@@ -3672,7 +3760,8 @@
           "kill_switch_active",
           "candles_stale",
           "exchange_rate_limited",
-          "performance_degraded"
+          "performance_degraded",
+          "protective_exit_slippage"
         ],
         "title": "AlertKind"
       },
@@ -3977,6 +4066,39 @@
             "description": "Adverse slippage per fill, in bps",
             "default": "5"
           },
+          "slippage_model": {
+            "$ref": "#/components/schemas/SlippageModel",
+            "description": "`fixed` (default, one number per run, what the bots use) or `volatility_size`: adds to slippage_bps with the candle's range and the order's share of the candle's traded value. The extra cost only worsens the fill.",
+            "default": "fixed"
+          },
+          "slippage_k_range": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Slippage K Range",
+            "description": "Extra bps per bps of candle range (high-low over open). Calibrate with the realized slippage of your bots; there is no default.",
+            "default": "0"
+          },
+          "slippage_k_size": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Slippage K Size",
+            "description": "Extra bps per bps of the order's share of the candle's traded value.",
+            "default": "0"
+          },
           "seed": {
             "type": "integer",
             "title": "Seed",
@@ -4118,6 +4240,17 @@
           "slippage_bps": {
             "type": "string",
             "title": "Slippage Bps"
+          },
+          "slippage_model": {
+            "$ref": "#/components/schemas/SlippageModel"
+          },
+          "slippage_k_range": {
+            "type": "string",
+            "title": "Slippage K Range"
+          },
+          "slippage_k_size": {
+            "type": "string",
+            "title": "Slippage K Size"
           },
           "seed": {
             "type": "integer",
@@ -4323,6 +4456,16 @@
               }
             ]
           },
+          "excursion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExcursionOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "prior_runs": {
             "anyOf": [
               {
@@ -4390,6 +4533,9 @@
           "initial_capital",
           "fee_rate",
           "slippage_bps",
+          "slippage_model",
+          "slippage_k_range",
+          "slippage_k_size",
           "seed",
           "test_fraction",
           "cost_sensitivity",
@@ -5806,6 +5952,15 @@
         "title": "DataQualityOut",
         "description": "What the result rests on. Older runs miss some or all of it."
       },
+      "DrawdownAction": {
+        "type": "string",
+        "enum": [
+          "pause",
+          "stop"
+        ],
+        "title": "DrawdownAction",
+        "description": "What a bot does when ``max_drawdown_pct`` is breached (book 2 ch. 8, O2).\n\n``pause`` waits for the operator and can simply be resumed; ``stop`` ends the session, because\na budget that is spent ends the strategy. Either way the position is kept and exits stay\nallowed."
+      },
       "Environment": {
         "type": "string",
         "enum": [
@@ -5832,6 +5987,68 @@
           "equity"
         ],
         "title": "EquityPointOut"
+      },
+      "ExcursionOut": {
+        "properties": {
+          "trades": {
+            "type": "integer",
+            "title": "Trades"
+          },
+          "worst_pct": {
+            "type": "string",
+            "title": "Worst Pct",
+            "description": "Deepest drop below the entry, in percent."
+          },
+          "median_pct": {
+            "type": "string",
+            "title": "Median Pct"
+          },
+          "p95_pct": {
+            "type": "string",
+            "title": "P95 Pct"
+          },
+          "worst_trades": {
+            "items": {
+              "$ref": "#/components/schemas/ExcursionTradeOut"
+            },
+            "type": "array",
+            "title": "Worst Trades"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trades",
+          "worst_pct",
+          "median_pct",
+          "p95_pct",
+          "worst_trades"
+        ],
+        "title": "ExcursionOut"
+      },
+      "ExcursionTradeOut": {
+        "properties": {
+          "entry_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Entry At"
+          },
+          "exit_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Exit At"
+          },
+          "pct": {
+            "type": "string",
+            "title": "Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entry_at",
+          "exit_at",
+          "pct"
+        ],
+        "title": "ExcursionTradeOut"
       },
       "ExecutionMode": {
         "type": "string",
@@ -5867,6 +6084,154 @@
           "above_configured"
         ],
         "title": "ExecutionQualityOut"
+      },
+      "ExposureCurveOut": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Run Id"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/ExposurePointOut"
+            },
+            "type": "array",
+            "title": "Points"
+          },
+          "kelly_full": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kelly Full"
+          },
+          "kelly_half": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kelly Half"
+          },
+          "configured_fraction": {
+            "type": "string",
+            "title": "Configured Fraction"
+          },
+          "ruin_fraction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ruin Fraction",
+            "description": "1 / |worst return|: above this one bar wipes the account out."
+          },
+          "returns": {
+            "type": "integer",
+            "title": "Returns"
+          },
+          "gaps": {
+            "type": "integer",
+            "title": "Gaps"
+          },
+          "bootstrap_returns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bootstrap Returns",
+            "description": "Returns resampled by the bootstrap (the latest ones, capped)."
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "points",
+          "kelly_full",
+          "kelly_half",
+          "configured_fraction",
+          "ruin_fraction",
+          "returns",
+          "gaps",
+          "bootstrap_returns",
+          "warnings"
+        ],
+        "title": "ExposureCurveOut"
+      },
+      "ExposurePointOut": {
+        "properties": {
+          "fraction": {
+            "type": "string",
+            "title": "Fraction"
+          },
+          "growth": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Growth",
+            "description": "Mean log growth per bar at this exposure; null when it would wipe the account."
+          },
+          "max_drawdown_pct": {
+            "type": "string",
+            "title": "Max Drawdown Pct"
+          },
+          "bootstrap_p50": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bootstrap P50"
+          },
+          "bootstrap_p95": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bootstrap P95"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fraction",
+          "growth",
+          "max_drawdown_pct"
+        ],
+        "title": "ExposurePointOut"
       },
       "FillTiming": {
         "type": "string",
@@ -8421,6 +8786,11 @@
             ],
             "title": "Max Close Jump Pct",
             "description": "Refuse entries when the close moved more than this % from the previous close (a bad tick often looks like a jump). Exits are never refused. Null = off."
+          },
+          "drawdown_action": {
+            "$ref": "#/components/schemas/DrawdownAction",
+            "description": "What happens when max_drawdown_pct is breached: `pause` (resume by hand) or `stop` (ends the session; to start again, reset the portfolio with a reason, which also starts a new drawdown peak). The position is kept either way.",
+            "default": "pause"
           }
         },
         "type": "object",
@@ -8531,6 +8901,11 @@
             ],
             "title": "Max Close Jump Pct",
             "description": "Refuse entries when the close moved more than this % from the previous close (a bad tick often looks like a jump). Exits are never refused. Null = off."
+          },
+          "drawdown_action": {
+            "$ref": "#/components/schemas/DrawdownAction",
+            "description": "What happens when max_drawdown_pct is breached: `pause` (resume by hand) or `stop` (ends the session; to start again, reset the portfolio with a reason, which also starts a new drawdown peak). The position is kept either way.",
+            "default": "pause"
           }
         },
         "type": "object",
@@ -8977,6 +9352,15 @@
         ],
         "title": "SizingScope"
       },
+      "SlippageModel": {
+        "type": "string",
+        "enum": [
+          "fixed",
+          "volatility_size"
+        ],
+        "title": "SlippageModel",
+        "description": "How the backtest prices slippage. ``fixed`` is one number per run (and what the paper\ntrader uses); ``volatility_size`` adds to it with the candle's range and the order's size\nagainst the candle's traded value (book 2 ch. 7, O2)."
+      },
       "StaleBotOut": {
         "properties": {
           "bot_id": {
@@ -9225,6 +9609,39 @@
             "title": "Slippage Bps",
             "description": "Adverse slippage per fill, in bps",
             "default": "5"
+          },
+          "slippage_model": {
+            "$ref": "#/components/schemas/SlippageModel",
+            "description": "`fixed` (default, one number per run, what the bots use) or `volatility_size`: adds to slippage_bps with the candle's range and the order's share of the candle's traded value. The extra cost only worsens the fill.",
+            "default": "fixed"
+          },
+          "slippage_k_range": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Slippage K Range",
+            "description": "Extra bps per bps of candle range (high-low over open). Calibrate with the realized slippage of your bots; there is no default.",
+            "default": "0"
+          },
+          "slippage_k_size": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Slippage K Size",
+            "description": "Extra bps per bps of the order's share of the candle's traded value.",
+            "default": "0"
           },
           "seed": {
             "type": "integer",

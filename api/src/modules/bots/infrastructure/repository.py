@@ -9,7 +9,7 @@ from modules.bots.application.ports import LiveApproval
 from modules.bots.domain.models import Bot, BotConfig, BotState, ExecutionMode
 from modules.bots.infrastructure.orm import BotRow, LiveApprovalRow
 from modules.market_data.domain.models import Timeframe
-from modules.risk_management.domain.models import RiskLimits
+from modules.risk_management.domain.models import DrawdownAction, RiskLimits
 
 
 def _to_bot(row: BotRow) -> Bot:
@@ -36,6 +36,7 @@ def _to_bot(row: BotRow) -> Bot:
                 max_candle_range_pct=row.max_candle_range_pct,
                 max_order_pct_of_volume=row.max_order_pct_of_volume,
                 max_close_jump_pct=row.max_close_jump_pct,
+                drawdown_action=DrawdownAction(row.drawdown_action),
             ),
             mode=ExecutionMode(row.mode),
             connection_id=row.exchange_connection_id,
@@ -73,6 +74,7 @@ def _config_values(config: BotConfig) -> dict[str, object]:
         "max_candle_range_pct": config.risk.max_candle_range_pct,
         "max_order_pct_of_volume": config.risk.max_order_pct_of_volume,
         "max_close_jump_pct": config.risk.max_close_jump_pct,
+        "drawdown_action": config.risk.drawdown_action.value,
         "mode": config.mode.value,
         "exchange_connection_id": config.connection_id,
     }

@@ -12,6 +12,7 @@ import {
   RobustnessVerdict,
   SizingBinding,
   SizingScope,
+  SlippageModel,
   SweepRankBy,
 } from "@/lib/shared/enums";
 
@@ -103,6 +104,17 @@ const breakMetricsSchema = z.object({
 });
 export type BreakMetrics = z.infer<typeof breakMetricsSchema>;
 
+const excursionSchema = z.object({
+  trades: z.number(),
+  worst_pct: decimalSchema,
+  median_pct: decimalSchema,
+  p95_pct: decimalSchema,
+  worst_trades: z.array(
+    z.object({ entry_at: z.string(), exit_at: z.string(), pct: decimalSchema }),
+  ),
+});
+export type Excursion = z.infer<typeof excursionSchema>;
+
 const randomEntriesSchema = z.object({
   available: z.boolean(),
   reason: z.string().nullish(),
@@ -167,6 +179,9 @@ export const backtestSchema = z.object({
   initial_capital: z.string(),
   fee_rate: z.string(),
   slippage_bps: z.string(),
+  slippage_model: lenientEnum(SlippageModel).optional(),
+  slippage_k_range: nullableDecimalSchema.optional(),
+  slippage_k_size: nullableDecimalSchema.optional(),
   seed: z.number(),
   test_fraction: z.string().nullable(),
   cost_sensitivity: z.boolean().optional(),
@@ -187,6 +202,7 @@ export const backtestSchema = z.object({
   regime: regimeSchema.nullish(),
   significance: significanceSchema.nullish(),
   break_metrics: breakMetricsSchema.nullish(),
+  excursion: excursionSchema.nullish(),
   prior_runs: z.number().nullish(),
   sweep_id: z.string().nullable(),
   data_hash: z.string().nullable(),
@@ -265,6 +281,9 @@ export type BacktestInput = {
   initial_capital: string;
   fee_rate: string | null;
   slippage_bps: string;
+  slippage_model: string;
+  slippage_k_range: string;
+  slippage_k_size: string;
   seed: number;
   test_fraction: string | null;
   cost_sensitivity: boolean;
@@ -286,6 +305,7 @@ export type RiskInput = {
   max_candle_range_pct: string | null;
   max_order_pct_of_volume: string | null;
   max_close_jump_pct: string | null;
+  drawdown_action: string;
 };
 
 export const listBacktests = (limit: number, offset: number, signal?: AbortSignal) =>
@@ -366,3 +386,32 @@ export const getBacktestEquity = (id: string, signal?: AbortSignal) =>
 
 export const compareBacktests = (ids: string[], signal?: AbortSignal) =>
   request({ path: "/backtests/compare", schema: z.array(backtestSchema), query: { ids }, signal });
+
+const exposurePointSchema = z.object({
+  fraction: decimalSchema,
+  growth: nullableDecimalSchema,
+  max_drawdown_pct: decimalSchema,
+  bootstrap_p50: nullableDecimalSchema.optional(),
+  bootstrap_p95: nullableDecimalSchema.optional(),
+});
+const exposureCurveSchema = z.object({
+  run_id: z.string(),
+  points: z.array(exposurePointSchema),
+  kelly_full: nullableDecimalSchema,
+  kelly_half: nullableDecimalSchema,
+  configured_fraction: decimalSchema,
+  ruin_fraction: nullableDecimalSchema,
+  returns: z.number(),
+  gaps: z.number(),
+  bootstrap_returns: z.number().nullable(),
+  warnings: z.array(z.string()),
+});
+export type ExposureCurve = z.infer<typeof exposureCurveSchema>;
+
+export const getExposureCurve = (id: string, bootstrap: boolean, signal?: AbortSignal) =>
+  request({
+    path: `/backtests/${id}/exposure-curve`,
+    schema: exposureCurveSchema,
+    query: { steps: 20, bootstrap, simulations: 100, seed: 0 },
+    signal,
+  });

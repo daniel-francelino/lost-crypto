@@ -50,6 +50,8 @@ Escrito em 2026-11-01, com o código verificado nessa data. A conclusão não tr
 | – | Walk-forward e validação cruzada | [1, Fase E](ch01-backtesting-and-automated-execution.md) | – | livro 5 |
 | – | Verificação do volume do agressor | [7, Fase C](ch07-intraday-momentum.md) | só se positiva | – |
 
+**Estado da implementação (2026-11-01).** Feito: 0 (testes), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 (monitor de deterioração e alerta de saída protetora), 13, 14 (estratégia de reversão; o filtro de tendência **não**), 15, 16 e a documentação de julgamento. Não feito, por decisão ou por falta de insumo: o **filtro de tendência** (sexto parâmetro, estoura o limite de 5), a **pesquisa transversal** e a **pesquisa por horário** (precisam de vários pares importados), o **walk-forward** (depende do livro 5), o **volume do agressor** (verificado no `ccxt`, mas não implementado nem testado contra a API real) e a comparação **slippage previsto × realizado** do bot. Migrações criadas: `0015` a `0020`.
+
 **Migrações:** cada uma usa o próximo número livre quando for implementada (hoje a última é `0014_backtest_regime`); as fases 7, 9, 11, 13, 15 e 16 são as que mexem no banco, e 9 pode ser uma migração só. **Nenhuma salvaguarda live é alterada por qualquer fase.**
 
 **Decisões que atravessam capítulos:** o valor-p contínuo exigiria uma conversão `float` isolada (caps. 1 e 6; proposta: não), o limite de 5 parâmetros por estratégia (caps. 3 e 4) e o bootstrap em `Decimal` (cap. 8).

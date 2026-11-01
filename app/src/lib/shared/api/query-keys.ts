@@ -32,6 +32,8 @@ export const QueryKey = {
     equity: (id: string) => ["backtests", id, "equity"] as const,
     sizing: (id: string, tolerable: string, scope: string) =>
       ["backtests", id, "sizing", tolerable, scope] as const,
+    exposureCurve: (id: string, bootstrap: boolean) =>
+      ["backtests", id, "exposure-curve", bootstrap] as const,
     compare: (ids: string[]) => ["backtests", "compare", ...ids] as const,
     sweep: (id: string) => ["backtests", "sweep", id] as const,
   },
