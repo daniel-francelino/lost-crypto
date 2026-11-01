@@ -1,75 +1,85 @@
-# Book 4 · Chapter 17 — Adaptive Techniques
+# Livro 4 · Capítulo 17 — Técnicas adaptativas
 
-*Trading Systems and Methods*, 5th ed., Kaufman (2013). Book pages (PDF = book + 20). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Trading Systems and Methods*, 5ª ed., Kaufman (2013). Páginas do livro (PDF = livro + 20). Referência-base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 779–791 and 797–798 were read. The adaptive intraday breakout system (793–797) was only skimmed, and the pages on McGinley Dynamics detail, adaptive momentum variants and the closing "Considering Adaptive Methods" (790–796, 798–800) were read in part or not at all. The chapter's author is the book's author: KAMA is **his own method** (Smarter Trading, 1995), which is worth bearing in mind when reading the performance table.
+**Profundidade da leitura:** foram lidas as pp. 779–791 e 797–798. O sistema adaptativo intradiário de rompimento (793–797) foi consultado superficialmente. Os detalhes de McGinley Dynamics, variantes de momentum adaptativo e a seção final “Considerando métodos adaptativos” (790–796, 798–800) foram lidos em parte ou não foram lidos. O autor do capítulo é também o autor do livro: KAMA é **um método próprio dele** (*Smarter Trading*, 1995), algo importante ao interpretar a tabela de desempenho.
 
-## 1. Chapter summary (pages read)
+## 1. Resumo do capítulo (páginas lidas)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que aborda | Páginas |
 |---|---|---|---|
-| C1 | An **adaptive technique** changes with market conditions, mainly by automatically changing the calculation period of a trend or indicator: slow in sideways/noisy markets, fast in clean trends. The author concedes that **identifying a sideways market is very difficult** (a price can end where it started after a violent week). | One speed does not fit all conditions. | 779 |
-| C2 | **KAMA (Kaufman's Adaptive Moving Average)**: `KAMA_t = KAMA_{t−1} + sc_t × (p_t − KAMA_{t−1})`, `sc_t = [ER_t × (fastest − slowest) + slowest]²`, `fastest = 2/(2+1)`, `slowest = 2/(30+1)` by default; `ER_t = |p_t − p_{t−n}| / Σ|p_i − p_{i−1}|` (the **efficiency ratio** of chapter 1; `n` ≈ 8–10, the length is capped by how many consecutive same-direction closes occur). Squaring makes the slow end an extremely slow trend (about 900 periods) and the fast end about a 4–5-period trend. Noise is not volatility (the drunken-sailor walk). **Practical rules**: `ER = 1` can occur with tiny drifts, so add a small filter for a minimum average change; because an exponential trendline flips direction whenever price crosses it, add a **small filter of trend-direction changes** (for example 0.1 standard deviations of the trendline changes); trade the **direction of the trendline**; keep `n` below 14; keep the upper bound at 30 (to desensitise, raise the lower bound above 2). | Noise-adjusted trend speed. | 779–783 |
-| C3 | **Other adaptive averages**: Ehlers' **fractal adaptive MA** (fractal dimension), Chande's **VIDYA** (fixed constant 0.20 scaled by `k = stdev_n/stdev_m` of closes; the book notes returns might be better than prices), **correlation (r²) adaptive** average, Ehlers' **MAMA/FAMA** (phase rate of change; FAMA as signal line). | Variety of adaptation measures. | 783–786 |
-| C4 | **Comparison, 1990–July 2011, 15 futures markets (Table 17.1), before costs**: average profit factor **KAMA 1.53**, MAMA 1.36, correlation 1.22, VIDYA 1.17; fewer trades per market goes with better results (KAMA ~159 trades, VIDYA ~443); all methods profitable on average; **S&P index results are weak** (KAMA 1.11, others < 1). A fair comparison to a fixed moving average is difficult because KAMA spans periods 5² to 30² (25–900): sample fixed periods with a progressive (log or exponential) distribution. | Evidence and its limits. | 786–788 |
-| C5 | **Making momentum adaptive**: map any bounded oscillator to a 0–1 smoothing constant (`sc = M`, `|M|`, `M/100`, `|M/100|`); the adaptive RSI is more sensitive in sideways periods than KAMA unless squared; **adaptive stochastic** (look-back set from the efficiency ratio); **McGinley Dynamics** (`MD_t = MD_{t−1} + (p_t − MD_{t−1}) / (k·n·(p_t/MD_{t−1})^4)`, `k = 0.6`). | Extending the idea. | 788–790 |
-| C6 | **An adaptive process**: re-test the system regularly on recent data (fixed length or after regime change); the problem is **not enough data**, "the faster you react, the less data there is to make a decision"; **development example**: a variable-length moving average whose period interpolates between 30 and 5 days according to where the price-change z-score sits between 0.25 and 1.75 standard deviations (Arrington). | Adapting by re-estimation or by volatility. | 797–798 |
+| C1 | Uma **técnica adaptativa** muda conforme as condições do mercado, principalmente alterando automaticamente o período de cálculo de uma tendência ou indicador: lenta em mercados laterais/ruidosos e rápida em tendências nítidas. O autor reconhece que **identificar um mercado lateral é muito difícil** (o preço pode terminar onde começou depois de uma semana violenta). | Uma única velocidade não serve para todas as condições. | 779 |
+| C2 | **KAMA (média móvel adaptativa de Kaufman)**: `KAMA_t = KAMA_{t−1} + sc_t × (p_t − KAMA_{t−1})`, `sc_t = [ER_t × (fastest − slowest) + slowest]²`, `fastest = 2/(2+1)`, `slowest = 2/(30+1)` por padrão; `ER_t = |p_t − p_{t−n}| / Σ|p_i − p_{i−1}|` (a **razão de eficiência** do cap. 1; `n` ≈ 8–10, limitado pela quantidade de fechamentos consecutivos na mesma direção). Elevar ao quadrado torna a ponta lenta extremamente lenta (equivalente a cerca de 900 períodos) e a ponta rápida equivale a uma tendência de 4–5 períodos. Ruído não é volatilidade (analogia do passeio do marinheiro bêbado). **Regras práticas**: `ER = 1` pode ocorrer com pequenas derivações; acrescentar um filtro pequeno para uma variação média mínima. Como a linha exponencial de tendência inverte a direção sempre que o preço a cruza, acrescentar um **filtro pequeno às mudanças de direção** (por exemplo, 0,1 desvio-padrão das variações da linha); negociar a **direção da linha de tendência**; manter `n` abaixo de 14; manter o limite superior em 30 (para reduzir sensibilidade, elevar o limite inferior acima de 2). | Velocidade da tendência ajustada pelo ruído. | 779–783 |
+| C3 | **Outras médias adaptativas**: **MA fractal adaptativa** de Ehlers (dimensão fractal); **VIDYA** de Chande (constante fixa 0,20 escalada por `k = stdev_n/stdev_m` dos fechamentos; o livro observa que retornos talvez sejam melhores que preços); média adaptativa por **correlação (r²)**; **MAMA/FAMA** de Ehlers (variação da taxa de fase; FAMA como linha de sinal). | Variedade de medidas de adaptação. | 783–786 |
+| C4 | **Comparação, 1990–julho de 2011, 15 mercados futuros (Tabela 17.1), antes de custos**: fator de lucro médio **KAMA 1,53**, MAMA 1,36, correlação 1,22, VIDYA 1,17; menos operações por mercado acompanham melhores resultados (KAMA ~159 operações, VIDYA ~443); todos os métodos foram lucrativos em média; **resultados do índice S&P são fracos** (KAMA 1,11, outros < 1). É difícil comparar de forma justa com uma média móvel fixa porque KAMA abrange períodos de 5² a 30² (25–900): amostrar os períodos fixos com distribuição progressiva (logarítmica ou exponencial). | Evidências e limitações. | 786–788 |
+| C5 | **Tornar o momentum adaptativo**: mapear qualquer oscilador limitado para uma constante de suavização entre 0 e 1 (`sc = M`, `|M|`, `M/100`, `|M/100|`); o RSI adaptativo é mais sensível em períodos laterais que KAMA, a menos que seja elevado ao quadrado; **estocástico adaptativo** (retrospectiva definida pela razão de eficiência); **McGinley Dynamics** (`MD_t = MD_{t−1} + (p_t − MD_{t−1}) / (k·n·(p_t/MD_{t−1})^4)`, `k = 0.6`). | Ampliar a ideia. | 788–790 |
+| C6 | **Processo adaptativo**: testar o sistema novamente de forma regular com dados recentes (comprimento fixo ou após mudança de regime); o problema é a **falta de dados**: “quanto mais rápido você reage, menos dados tem para decidir”; **exemplo de desenvolvimento**: média móvel de comprimento variável, cujo período interpola entre 30 e 5 dias conforme o z-score da variação do preço esteja entre 0,25 e 1,75 desvios-padrão (Arrington). | Adaptar por reestimação ou volatilidade. | 797–798 |
 
-Examples are futures. Crypto remarks are **our adaptation**.
+Os exemplos são de futuros. As observações sobre cripto são **adaptações nossas**.
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| Adaptive moving averages | ❌ | `ema_crossover` uses fixed-period EMAs. |
-| Efficiency ratio | ❌ | Not computed anywhere (book 4 ch. 1 O1). |
-| Trendline-direction filter against micro-flips | ❌ | Not applicable yet. |
-| Fixed-period parameter grids sampled progressively | ❌ | See ch. 7 O1. |
-| Periodic re-estimation of parameters | ❌ | B-WALK-FORWARD. |
+| Médias móveis adaptativas | ❌ | `ema_crossover` usa EMAs de períodos fixos. |
+| Razão de eficiência | ❌ | Não é calculada em lugar algum (cap. 1, O1 do livro 4). |
+| Filtro de direção da linha de tendência contra microinversões | ❌ | Ainda não aplicável. |
+| Grades de parâmetros com períodos fixos amostrados progressivamente | ❌ | Ver O1 do cap. 7. |
+| Reestimação periódica de parâmetros | ❌ | B-WALK-FORWARD. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — `kama_trend` strategy (experiment) *(book: C2, C4, pp. 779–788)*
-* **Proposal:** a long-only trend strategy that holds when the KAMA trendline turns up and exits when it turns down, with parameters `er_period` (default 10), `fast_period` (2), `slow_period` (30) and `direction_filter` (minimum trendline change, in standard deviations of recent trendline changes). Sizing and risk go through the existing risk module. The implementation needs the efficiency ratio, the squared smoothing constant and a sample standard deviation, all expressible in `Decimal` with one documented float boundary for the standard deviation if needed.
-* **Why:** KAMA is the one adaptive trend method with a direct noise-based rationale (book 4 ch. 1) and, in the author's own table, the highest profit factor and the fewest trades of the four; an adaptive trendline reduces whipsaw in noisy phases, which crypto has many of. **Caveats:** the author developed KAMA, so his comparison favours it; the results are before costs, in futures, and S&P index results were poor, i.e. in the noisiest market; whether it helps in crypto must be measured.
-* **Complexity:** medium (new strategy file, registry, forms, tests). **Risks:** more parameters (5), correlation with other trend rules (effective N); the squared constant makes the slow end extremely slow (900-period equivalent), which can delay exits after reversals; edge cases when the trendline is flat. **Validation:** truncation test; ER boundary cases; comparison with a **progressively sampled** set of EMA periods (not one EMA), through the sweep → best-of-N → validation pipeline; cost sensitivity; stability across eras.
+### O1 — Estratégia `kama_trend` (experimento) *(livro: C2, C4, pp. 779–788)*
 
-### O2 — Shared efficiency-ratio helper *(book: C2, p. 781)*
-Used by the diagnostics (book 4 ch. 1 O1), the trend-quality filter (ch. 6 O1) and KAMA. Single implementation. **Complexity:** low.
+* **Proposta:** estratégia de tendência somente comprada, que mantém a posição quando a linha KAMA aponta para cima e sai quando aponta para baixo, com parâmetros `er_period` (padrão 10), `fast_period` (2), `slow_period` (30) e `direction_filter` (variação mínima da linha de tendência, em desvios-padrão das variações recentes da própria linha). Dimensionamento e risco passam pelo módulo existente. A implementação precisa da razão de eficiência, constante de suavização ao quadrado e desvio-padrão amostral; tudo pode ser expresso em `Decimal`, com uma fronteira `float` documentada para o desvio-padrão, se necessário.
+* **Motivo:** KAMA é o método adaptativo de tendência com justificativa direta baseada em ruído (cap. 1 do livro 4) e, na tabela do próprio autor, apresenta o maior fator de lucro e o menor número de operações entre os quatro; uma linha de tendência adaptativa reduz falsos sinais em fases ruidosas, comuns em cripto. **Ressalvas:** o autor desenvolveu KAMA, então a comparação o favorece; os resultados são anteriores a custos, em futuros, e foram fracos no índice S&P, o mercado mais ruidoso. É preciso medir se ajuda em cripto.
+* **Complexidade:** média (novo arquivo de estratégia, registro, formulários e testes). **Riscos:** mais parâmetros (5), correlação com outras regras de tendência (N efetivo); a constante elevada ao quadrado deixa a ponta lenta extremamente lenta (equivalente a 900 períodos), podendo atrasar saídas após reversões; casos-limite quando a linha fica plana. **Validação:** teste de truncamento; casos-limite de ER; comparação com conjunto de períodos EMA **amostrados progressivamente** (não apenas uma EMA), pelo pipeline varredura → melhor de N → validação; sensibilidade a custos; estabilidade entre épocas.
 
-### O3 — Fair comparison rule for adaptive vs fixed *(book: C4, p. 788)*
-Add to the research guidelines: when comparing an adaptive method with a fixed-period one, sample the fixed periods log-spaced across the adaptive method's range and report the distribution of fixed results, not a single period. This avoids choosing an unlucky or lucky fixed benchmark. **Complexity:** documentation + sweep helper (ch. 7 O1).
+### O2 — Helper compartilhado da razão de eficiência *(livro: C2, p. 781)*
 
-### O4 — Adaptive process = periodic re-estimation: link to walk-forward *(book: C6, p. 797)*
-The book's warning (little data when reacting fast) is the same trade-off as in the walk-forward design (book 3 ch. 6 O5). No separate work; the design of B-WALK-FORWARD must record how much data each re-estimation uses.
+Usado pelos diagnósticos (cap. 1, O1 do livro 4), pelo filtro de qualidade de tendência (cap. 6, O1) e por KAMA. Uma única implementação. **Complexidade:** baixa.
 
-### O5 — Do not add VIDYA, r², MAMA/FAMA or McGinley without evidence *(book: C3, C5)*
-They are alternative adaptation measures with the same purpose as KAMA; adding them multiplies the rule universe and the multiple-testing burden with near-duplicates. Prefer one adaptive method (KAMA) and compare it with fixed rules; add another only if a documented hypothesis says it behaves differently. **Complexity:** none.
+### O3 — Regra para comparação justa entre adaptativo e fixo *(livro: C4, p. 788)*
 
-### Not applicable
-Fractal dimension and MESA/Hilbert phase methods (cycle-based, ch. 11 not pursued), adaptive intraday breakout optimisation, Arrington variable-length MA (superseded by KAMA for our purpose).
+Acrescentar às diretrizes de pesquisa: ao comparar um método adaptativo com um de período fixo, amostrar os períodos fixos em escala logarítmica ao longo da faixa coberta pelo método adaptativo e apresentar a distribuição dos resultados fixos, não apenas um período. Isso evita escolher uma referência fixa excepcionalmente boa ou ruim. **Complexidade:** documentação + helper de varredura (O1 do cap. 7).
 
-## 4. Priority
+### O4 — Processo adaptativo = reestimação periódica: conexão com walk-forward *(livro: C6, p. 797)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+O alerta do livro (poucos dados quando se reage rapidamente) é a mesma troca envolvida no projeto walk-forward (cap. 6, O5 do livro 3). Não exige trabalho separado; o projeto B-WALK-FORWARD deve registrar quantos dados são usados em cada reestimação.
+
+### O5 — Não adicionar VIDYA, r², MAMA/FAMA ou McGinley sem evidência *(livro: C3, C5)*
+
+São medidas de adaptação alternativas com o mesmo propósito de KAMA; adicioná-las multiplica o universo de regras e a carga de testes múltiplos com métodos quase duplicados. Preferir um método adaptativo (KAMA) e compará-lo a regras fixas; adicionar outro somente se houver hipótese documentada de comportamento diferente. **Complexidade:** nenhuma.
+
+### Não aplicável
+
+Dimensão fractal e métodos de fase MESA/Hilbert (baseados em ciclos; cap. 11 não foi considerado), otimização do rompimento intradiário adaptativo, média móvel de comprimento variável de Arrington (KAMA a substitui para nosso propósito).
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O2 ER helper | – | – | – | low | – |
-| 2 | O3 comparison rule | high | – | – | doc | ch. 7 O1 |
-| 3 | O1 KAMA strategy | medium | – | – | medium | O2; pipeline from book 3 |
-| 4 | O5 no near-duplicates | – | – | – | none | – |
-| 5 | O4 walk-forward link | – | – | – | – | B-WALK-FORWARD |
+| 1 | Helper ER O2 | – | – | – | baixa | – |
+| 2 | Regra de comparação O3 | alta | – | – | doc. | O1 do cap. 7 |
+| 3 | Estratégia KAMA O1 | média | – | – | média | O2; pipeline do livro 3 |
+| 4 | Não duplicar métodos próximos O5 | – | – | – | nenhuma | – |
+| 5 | Conexão com walk-forward O4 | – | – | – | – | B-WALK-FORWARD |
 
-## 5. Affected files
-`strategies/domain/` (helper and new strategy file), registry, `strategies/catalog.py`, app strategy forms and labels, tests including the truncation test, `check:consistency`.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. ER helper with the book's boundary cases.
-2. KAMA strategy built behind the full validation pipeline (truncation test, cost sweep, best-of-N, validation lock).
-3. Compare against the progressive sample of fixed EMA periods.
+`strategies/domain/` (helper e novo arquivo de estratégia), registro, `strategies/catalog.py`, formulários e rótulos de estratégia do app, testes incluindo teste de truncamento, `check:consistency`.
 
-## 7. Acceptance criteria and tests
-* ER = 1 for a straight line, ≈ 0 for an alternating series; KAMA with `ER ≡ 1` equals an EMA of period `fast` and with `ER ≡ 0` follows the squared slow constant; trendline flips are filtered by the threshold.
-* No change to existing strategies; ruff, mypy and all tests green.
+## 6. Plano incremental
 
-## Caveats
-The performance table (average profit factors 1.17–1.53) is before costs, over unrelated futures markets including very trendy ones (Eurodollars), and was produced by the author of KAMA. The squared smoothing constants make KAMA far slower in noise than the nominal "30-period" suggests.
+1. Helper ER com os casos-limite do livro.
+2. Estratégia KAMA submetida ao pipeline completo de validação (teste de truncamento, varredura de custos, melhor de N, bloqueio de validação).
+3. Comparação com amostra progressiva de períodos EMA fixos.
+
+## 7. Critérios de aceitação e testes
+
+* ER = 1 para uma linha reta e ≈ 0 para uma série alternada; com `ER ≡ 1`, KAMA equivale a uma EMA de período `fast`; com `ER ≡ 0`, acompanha a constante lenta ao quadrado; inversões da linha são filtradas pelo limite.
+* Nenhuma alteração nas estratégias existentes; ruff, mypy e todos os testes aprovados.
+
+## Ressalvas
+
+A tabela de desempenho (fatores de lucro médios entre 1,17 e 1,53) é anterior a custos, cobre mercados futuros distintos — inclusive mercados muito tendenciais, como Eurodólares — e foi produzida pelo autor de KAMA. As constantes de suavização ao quadrado tornam KAMA muito mais lenta em ambientes ruidosos do que a indicação nominal de “30 períodos” sugere.

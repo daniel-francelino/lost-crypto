@@ -1,74 +1,84 @@
-# Book 4 · Chapter 24 — Diversification and Portfolio Allocation
+# Livro 4 · Capítulo 24 — Diversificação e alocação de carteira
 
-*Trading Systems and Methods*, 5th ed., Kaufman (2013). Book pages (PDF = book + 20). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Trading Systems and Methods*, 5ª ed., Kaufman (2013). Páginas do livro (PDF = livro + 20). Referência-base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 1099–1103 (introduction, diversification, multiple strategies) and 1115–1117 (portfolio theory for trading returns) were read. The section headings of the rest were seen (pp. 1103–1114: balanced risk, changing correlations, portfolio model types, classic allocation calculations, Excel Solver; pp. 1117–1146: objective function, constraints, the genetic-algorithm solution "GASP", optimal subsets, worked examples). Those parts were **not** read and are not summarised.
+**Profundidade da leitura:** foram lidas as pp. 1099–1103 (introdução, diversificação, múltiplas estratégias) e 1115–1117 (teoria de carteiras aplicada a retornos de negociação). Foram vistos os títulos do restante (pp. 1103–1114: equilíbrio de risco, correlações variáveis, tipos de modelos de carteira, cálculos clássicos de alocação, Solver do Excel; pp. 1117–1146: função objetivo, restrições, solução por algoritmo genético “GASP”, subconjuntos ótimos e exemplos trabalhados). Essas partes **não foram lidas** e não são resumidas aqui.
 
-**Fit with the platform:** the system is one asset per bot, spot, long-only. A portfolio of several bots is possible (several bots running at once) but there is no portfolio-level view or allocator. This chapter therefore matters mostly for **future** multi-bot capital allocation and for correlation-aware risk, and is lower priority than chapters 20–23.
+**Compatibilidade com a plataforma:** o sistema usa um ativo por bot, spot e somente comprado. É possível ter várias carteiras de bots (vários bots ao mesmo tempo), mas não há visão nem alocador no nível da carteira. Portanto, este capítulo é relevante principalmente para **futura** alocação de capital entre vários bots e para risco sensível a correlações; tem prioridade inferior aos caps. 20–23.
 
-## 1. Chapter summary (pages read)
+## 1. Resumo do capítulo (páginas lidas)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que aborda | Páginas |
 |---|---|---|---|
-| C1 | Diversification reduces **systematic** risk but not **market risk** (price shocks): "the subprime crisis proved that diversification can disappear under stress"; benefits are greatest when markets and decision methods are very different. | Limits of diversification. | 1099–1101 |
-| C2 | **Select unrelated assets** (low covariance/correlation, check history and the forces currently driving the market); the "financials" (fixed income, currencies, indexes) are strongly interrelated; commodities react to the dollar and rates; long periods exist where each group follows its own fundamentals, but **in a shock all markets become highly correlated** ("money moves the market, not fundamentals"). With perfect independence risk would fall to 1/N (50%, 33%, 25%); in practice a fully diversified portfolio might reduce initial risk by only about 50%; the gain from adding assets falls quickly after about 4. | How many assets and which. | 1101–1102 |
-| C3 | **Multiple strategies** also diversify, but methods that look different can be highly correlated (a moving average, ARIMA and point-and-figure are all trend following: they hold the same positions at some time); diversify by functional attribute: trend following vs countertrend/mean reversion, etc. | Strategy diversification. | 1102–1103 |
-| C4 | **Allocating to trading returns, not prices**: classic mean-variance portfolio theory assumes a return every day; a strategy that is out of the market part of the time has zero-return days, so its standard deviation shrinks and it receives a **larger allocation although its risk when active is the same**; the covariance of intermittent returns is also distorted (two strategies in the market 50% of the time, together 25%; two strategies on the same market active 3% of days: the combined risk jumps when both are active though the statistic hides it); selective strategies with 10–20% time in market look poor (low beta, high deviation) yet offer high returns when active and real diversification. The author proposes a genetic-algorithm allocator (GASP) instead of mean-variance. | Pitfalls of optimising on strategy equity. | 1115–1117 |
+| C1 | A diversificação reduz o risco **sistemático**, mas não o **risco de mercado** (choques de preço): “a crise do subprime provou que a diversificação pode desaparecer sob estresse”; os benefícios são maiores quando mercados e métodos de decisão são muito diferentes. | Limites da diversificação. | 1099–1101 |
+| C2 | **Escolher ativos não relacionados** (baixa covariância/correlação; verificar histórico e fatores que hoje movem o mercado). Os “financeiros” (renda fixa, moedas, índices) são muito inter-relacionados; commodities reagem ao dólar e às taxas. Há longos períodos em que cada grupo segue fundamentos próprios, mas **em um choque todos os mercados ficam altamente correlacionados** (“o dinheiro move o mercado, não os fundamentos”). Com independência perfeita, o risco cairia para 1/N (50%, 33%, 25%); na prática, uma carteira totalmente diversificada talvez reduza o risco inicial em apenas ~50%; o benefício de incluir ativos diminui rapidamente depois de cerca de 4. | Quantos ativos escolher e quais. | 1101–1102 |
+| C3 | **Várias estratégias** também diversificam, mas métodos que parecem diferentes podem ter alta correlação (média móvel, ARIMA e ponto-e-figura são todos seguidores de tendência: em algum momento mantêm as mesmas posições). Diversificar por característica funcional: seguimento de tendência versus contramovimento/reversão à média etc. | Diversificação de estratégias. | 1102–1103 |
+| C4 | **Alocar com base nos retornos das estratégias, não nos preços**: a teoria clássica média-variância presume um retorno diário. Uma estratégia que fica fora do mercado parte do tempo tem dias de retorno zero; assim, seu desvio-padrão diminui e recebe uma **alocação maior, embora seu risco quando ativa seja igual**. A covariância de retornos intermitentes também fica distorcida (duas estratégias ativas 50% do tempo estão simultaneamente ativas em 25%; duas estratégias no mesmo mercado ativas em 3% dos dias podem ter risco conjunto elevado quando ambas operam, embora a estatística o esconda). Estratégias seletivas, com 10–20% de tempo no mercado, parecem fracas (beta baixa, desvio alto), mas oferecem retornos altos quando ativas e diversificação real. O autor propõe um alocador por algoritmo genético (GASP) em vez de média-variância. | Problemas de otimizar com base no patrimônio da estratégia. | 1115–1117 |
 
-Crypto remarks below are **our adaptation**.
+As observações sobre cripto são **adaptações nossas**.
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| Multiple bots running at once | ✅ | The system supports several bots; each is independent (own capital, own risk caps). |
-| Portfolio-level view (aggregate exposure, correlation, drawdown) | ❌ | No portfolio module; the dashboard (app) shows per-bot data; live caps are per bot (verify whether a global cap exists in `risk_management`; the kill switch is global). |
-| Correlation between bots/assets | ❌ | None. |
-| Capital allocation across bots | ❌ | Manual; each bot has its own `capital` setting. |
-| Strategy diversification measure | ❌ | None. |
+| Vários bots operando simultaneamente | ✅ | O sistema permite diversos bots; cada um é independente (capital e limites de risco próprios). |
+| Visão no nível da carteira (exposição, correlação e drawdown agregados) | ❌ | Não há módulo de carteira; o dashboard (app) mostra dados por bot; limites ao vivo são por bot (verificar se há limite global em `risk_management`; o kill switch é global). |
+| Correlação entre bots/ativos | ❌ | Não existe. |
+| Alocação de capital entre bots | ❌ | Manual; cada bot tem sua própria configuração `capital`. |
+| Medida de diversificação de estratégias | ❌ | Não existe. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Portfolio view: aggregate exposure, drawdown, and cross-bot correlation (read-only) *(book: C1, C2, C3, pp. 1099–1103)*
-* **Proposal:** a read-only analytics view over all running/paper/live bots that shows total capital in use, aggregate open exposure per asset (and **effective exposure when assets are correlated**), combined equity curve and drawdown, and the **correlation matrix of bot returns and of asset returns** over a rolling window (daily returns of **equity**, not of price: see C4), with a warning when correlation among held assets is high (crypto assets typically are, particularly in downturns: our observation to verify with data, not from the book).
-* **Why:** the book's two lessons: unrelated assets reduce risk — "but in a shock correlations go to 1" — so the user must see the **concentration** that looks like diversification (several bots all long altcoins that follow BTC). **Complexity:** low–medium (analytics + endpoint + page). **Risks:** correlations are unstable and sample-dependent; show the window and sample size; no allocation recommendations. **Validation:** synthetic series with known correlation; handles bots with no positions (zero-return days) using the book's caution (C4): compute correlation also **only on days both are active** and display both versions.
+### O1 — Visão da carteira: exposição agregada, drawdown e correlação entre bots (somente leitura) *(livro: C1, C2, C3, pp. 1099–1103)*
 
-### O2 — Global portfolio caps (design for approval) *(book: C1, C2 and ch. 23 C1)*
-A global limit on the **sum of live exposure** and on **simultaneous correlated positions** (for example "no more than X% of total capital across assets in the same correlation cluster") in addition to per-bot caps. The existing global kill switch is a coarse version. This is a risk-policy change for a live-trading system and **must be decided with the user** before any code. **Complexity:** medium–high.
+* **Proposta:** visão analítica somente de leitura de todos os bots em execução/paper/ao vivo, mostrando capital total em uso, exposição aberta agregada por ativo (e **exposição efetiva quando há correlação entre ativos**), curva de patrimônio e drawdown combinados, além da **matriz de correlação dos retornos dos bots e dos ativos** em uma janela móvel (retornos diários do **patrimônio**, não do preço: ver C4). Alertar quando a correlação entre os ativos mantidos estiver alta (ativos cripto costumam ser correlacionados, sobretudo em quedas: observação nossa, a verificar com dados, não informação do livro).
+* **Motivo:** duas lições do livro: ativos não relacionados reduzem o risco, “mas em um choque as correlações vão a 1”; portanto, o usuário deve enxergar a **concentração disfarçada de diversificação** (vários bots comprados em altcoins que seguem BTC). **Complexidade:** baixa–média (analytics + endpoint + página). **Riscos:** correlações são instáveis e dependem da amostra; mostrar janela e tamanho da amostra; não recomendar alocações. **Validação:** séries sintéticas com correlações conhecidas; lidar com bots sem posições (retornos zero) considerando o alerta C4: calcular também a correlação **somente nos dias em que ambos estão ativos** e mostrar as duas versões.
 
-### O3 — Equal-risk allocation advisory (not an optimiser) *(book: C2 + ch. 23 C8, pp. 1050–1054)*
-When the user runs multiple bots, an advisory could suggest relative capital using **inverse volatility (equal-risk) weights** (ch. 23 O2/O3) rather than equal dollars; the book's own sizing example shows that equal money concentrates risk in the most volatile asset. Present as information; do not auto-allocate. **Complexity:** low–medium. **Validation:** weights sum to 1; scale invariance.
+### O2 — Limites globais da carteira (projeto sujeito a aprovação) *(livro: C1, C2 e cap. 23, C1)*
 
-### O4 — Do **not** build a mean-variance or genetic optimiser on bot equity now *(book: C4, pp. 1115–1117; remaining chapter not read)*
-The author's argument is that mean-variance optimisation on intermittent trading returns misallocates (inactive strategies look safer). Beyond that, optimising allocations on historical returns is another layer of overfitting (book 3 ch. 6; book 4 ch. 21), with a very small number of independent strategies and short crypto history. Recommendation: **no allocator now**; if portfolio construction becomes a goal, first read pp. 1103–1146 and decide the objective (return ratio) and constraints with the user. **Complexity:** high.
+Limite global para a **soma das exposições ao vivo** e para **posições simultâneas correlacionadas** (por exemplo, “no máximo X% do capital total em ativos do mesmo grupo de correlação”), além dos limites individuais dos bots. O kill switch global existente é uma versão mais ampla. Essa mudança de política de risco para um sistema de negociação ao vivo **precisa ser decidida com o usuário** antes de qualquer código. **Complexidade:** média–alta.
 
-### O5 — Strategy-diversification labelling *(book: C3, pp. 1102–1103)*
-Tag each strategy in the catalog with its functional family (trend following, breakout, mean reversion, …) and show in the portfolio view how many families are active; both current strategies (`ema_crossover`, `donchian_breakout`) are trend following and therefore likely correlated. Supports the case for adding a mean-reversion family (books 1–2) as a diversifier — subject to its own validation. **Complexity:** low.
+### O3 — Recomendação de alocação com risco igual (sem otimizador) *(livro: C2 + cap. 23, O8, pp. 1050–1054)*
 
-### Not applicable (this phase)
-Excel Solver procedures, classic Markowitz formulas, GASP implementation, futures sectors and the dollar–commodity relations, optimal subsets of markets.
+Quando o usuário executar vários bots, uma recomendação informativa pode sugerir capital relativo por pesos de **volatilidade inversa (risco igual)** (cap. 23, O2/O3), em vez de valores monetários iguais; o exemplo de dimensionamento do livro mostra que o mesmo valor concentra risco no ativo mais volátil. Apresentar como informação, sem alocação automática. **Complexidade:** baixa–média. **Validação:** pesos somam 1; invariância à escala.
 
-## 4. Priority
+### O4 — **Não** construir agora um otimizador média-variância ou genético sobre o patrimônio dos bots *(livro: C4, pp. 1115–1117; restante do capítulo não lido)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+O argumento do autor é que a otimização média-variância sobre retornos de negociação intermitentes aloca mal (estratégias inativas parecem mais seguras). Além disso, otimizar alocações com retornos históricos acrescenta outra camada de sobreajuste (cap. 6 do livro 3; cap. 21 do livro 4), com poucas estratégias independentes e histórico cripto curto. Recomendação: **nenhum alocador por enquanto**; se a construção de carteira virar um objetivo, primeiro ler as pp. 1103–1146 e decidir com o usuário o objetivo (razão de retorno) e as restrições. **Complexidade:** alta.
+
+### O5 — Classificação de diversificação das estratégias *(livro: C3, pp. 1102–1103)*
+
+Marcar cada estratégia no catálogo com sua família funcional (seguimento de tendência, rompimento, reversão à média etc.) e mostrar na visão da carteira quantas famílias estão ativas; as estratégias atuais (`ema_crossover`, `donchian_breakout`) seguem tendência e provavelmente são correlacionadas. Isso reforça a inclusão de uma família de reversão à média (livros 1–2) como diversificadora — sujeita à própria validação. **Complexidade:** baixa.
+
+### Não aplicável (nesta fase)
+
+Procedimentos do Solver do Excel, fórmulas clássicas de Markowitz, implementação do GASP, setores de futuros e relações entre dólar e commodities, subconjuntos ótimos de mercados.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O1 portfolio view | – | high | – | low–medium | – |
-| 2 | O5 family tagging | – | low | – | low | catalog |
-| 3 | O3 equal-risk advisory | – | medium | – | low–medium | ch. 23 O2 |
-| 4 | O2 global caps | – | high | high | medium–high | user decision |
-| 5 | O4 optimiser | – | – | – | high | **not recommended now** |
+| 1 | Visão da carteira O1 | – | alta | – | baixa–média | – |
+| 2 | Classificação por família O5 | – | baixa | – | baixa | catálogo |
+| 3 | Recomendação de risco igual O3 | – | média | – | baixa–média | cap. 23, O2 |
+| 4 | Limites globais O2 | – | alta | alta | média–alta | decisão do usuário |
+| 5 | Otimizador O4 | – | – | – | alta | **não recomendado agora** |
 
-## 5. Affected files
-New read-only analytics (portfolio) plus an endpoint, `strategies/catalog.py` (family field), app portfolio page; for O2 `risk_management/domain` and `trading` only after approval; tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. O1 and O5 (read-only).
-2. O3 advisory once volatility sizing exists.
-3. Discuss O2 with the user; decide whether to read the rest of the chapter.
+Novos analytics somente de leitura (carteira) e um endpoint, `strategies/catalog.py` (campo de família), página de carteira do app; para O2, `risk_management/domain` e `trading` somente após aprovação; testes.
 
-## 7. Acceptance criteria and tests
-* Correlation and exposure aggregates match hand-computed fixtures; handling of inactive days is explicit and documented.
-* No change in trading behaviour; ruff, mypy and existing tests green.
+## 6. Plano incremental
 
-## Caveats
-Only the introductory parts of the chapter were read; the author's claim that his genetic-algorithm allocator beats mean-variance rests on sections not read here. The diversification curve (≈50% maximum risk reduction) comes from the book's figure and futures/stocks data. For crypto, high cross-asset correlation is an expectation to verify with the platform's own data, not a finding.
+1. O1 e O5 (somente leitura).
+2. Recomendação O3 quando houver dimensionamento por volatilidade.
+3. Discutir O2 com o usuário; decidir se o restante do capítulo deve ser lido.
+
+## 7. Critérios de aceitação e testes
+
+* Agregados de correlação e exposição correspondem a fixtures calculadas manualmente; o tratamento de dias inativos é explícito e documentado.
+* Nenhuma mudança no comportamento de negociação; ruff, mypy e testes existentes aprovados.
+
+## Ressalvas
+
+Somente as partes introdutórias do capítulo foram lidas; a alegação do autor de que seu alocador genético supera média-variância vem de seções não consultadas. A curva de diversificação (redução máxima de risco de aproximadamente 50%) vem de uma figura do livro e de dados de futuros/ações. Para cripto, a correlação alta entre ativos é uma expectativa a verificar com os dados da plataforma, não uma conclusão comprovada.

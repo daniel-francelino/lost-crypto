@@ -1,45 +1,50 @@
-# Book 4 · Chapter 18 — Price Distribution Systems
+# Livro 4 · Capítulo 18 — Sistemas de distribuição de preços
 
-*Trading Systems and Methods*, 5th ed., Kaufman (2013). Book pages (PDF = book + 20). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Trading Systems and Methods*, 5ª ed., Kaufman (2013). Páginas do livro (PDF = livro + 20). Referência-base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** only pp. 801–802 (introduction and volatility measurement) were read. The sections "Use of Price Distributions and Patterns to Anticipate Moves" (805–810), "Distribution of Prices" (811–821), "Steidlmayer's Market Profile" (822–829) and "Using Daily Distributions to Identify Support and Resistance" (830–832) were **not** read; their headings and one table of profile letters were seen. This report is therefore short and its opportunities are tentative.
+**Profundidade da leitura:** foram lidas somente as pp. 801–802 (introdução e medição da volatilidade). As seções “Uso de distribuições e padrões de preços para antecipar movimentos” (805–810), “Distribuição de preços” (811–821), “Market Profile de Steidlmayer” (822–829) e “Uso de distribuições diárias para identificar suporte e resistência” (830–832) **não foram lidas**; apenas os títulos e uma tabela com letras do perfil foram vistos. Por isso, este relatório é breve e as oportunidades são provisórias.
 
-## 1. Chapter summary (what was read)
+## 1. Resumo do capítulo (conteúdo lido)
 
-| ID | Concept | Pages |
+| ID | Conceito | Páginas |
 |---|---|---|
-| C1 | Prices can be viewed as a **distribution** instead of a time series (options pricing compares historic and implied volatility; risk managers use annualised standard deviation). The standard deviation is the basic measure: ±1σ ≈ 68% of movement, ±2σ ≈ 95%, ±3σ ≈ 99.7%; theoretically all within ±3.5σ. | 801 |
-| C2 | **Measuring distribution needs enough data**, and volatility is compared over **20-day windows** to see changes; crude oil annualised volatility was 39% over 1983–2010 but spiked to 140% at the end of 2008 (a downward move can never exceed 100% while the standard deviation of returns includes upside swings from $30 to $150 and back); volatility can spike for short periods under extreme stress. | 801–802 |
-| C3 | (Not read) Market Profile (Steidlmayer) builds a distribution of time or volume at each price level during the session to find value areas and support/resistance. | 822–832 (headings only) |
+| C1 | Os preços podem ser vistos como uma **distribuição**, em vez de uma série temporal (precificação de opções compara volatilidade histórica e implícita; gestores de risco usam desvio-padrão anualizado). O desvio-padrão é a medida básica: ±1σ ≈ 68% do movimento, ±2σ ≈ 95%, ±3σ ≈ 99,7%; teoricamente, tudo fica dentro de ±3,5σ. | 801 |
+| C2 | **Medir uma distribuição exige dados suficientes**, e a volatilidade é comparada em **janelas de 20 dias** para observar mudanças. A volatilidade anualizada do petróleo bruto foi 39% entre 1983–2010, mas chegou a 140% no fim de 2008 (uma queda nunca pode exceder 100%, enquanto o desvio-padrão dos retornos também inclui oscilações de alta, de US$ 30 a US$ 150 e de volta); a volatilidade pode disparar por períodos curtos em situações extremas de estresse. | 801–802 |
+| C3 | (Não lido) O Market Profile (Steidlmayer) constrói uma distribuição do tempo ou volume em cada nível de preço durante a sessão para encontrar áreas de valor e suporte/resistência. | 822–832 (somente títulos) |
 
-## 2. Diagnosis
+## 2. Diagnóstico
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| Rolling realised volatility | ❌ | Not computed anywhere (no volatility metric in `analytics`). |
-| Price-level distribution (volume or time at price) | ❌ | None. |
-| Annualised volatility of a bot's returns | ❌ | Not in `Metrics` (book 4 ch. 2 O1). |
+| Volatilidade realizada móvel | ❌ | Não é calculada em lugar algum (não há métrica de volatilidade em `analytics`). |
+| Distribuição por nível de preço (volume ou tempo no preço) | ❌ | Não existe. |
+| Volatilidade anualizada dos retornos de um bot | ❌ | Não consta em `Metrics` (cap. 2, O1 do livro 4). |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Rolling realised volatility as a shared feature and display *(book: C1, C2, pp. 801–802)*
-The 20-bar (configurable) annualised realised volatility, with the convention of book 1 ch. 3 O1 (365 days for crypto), is a prerequisite for ATR/σ-based stops and sizing (ch. 20, 23), volatility targeting (ch. 2 O4) and shock ratios (ch. 14 O1). One implementation; display next to the candle chart. **Complexity:** low. **Caveat from the book:** realised volatility computed from returns reflects both directions; large upward moves raise it as much as crashes; for risk use downside or drawdown-based measures too (ch. 2 O1).
+### O1 — Volatilidade realizada móvel como recurso compartilhado e visualização *(livro: C1, C2, pp. 801–802)*
 
-### O2 — Volume-at-price profile (value area, point of control) as a research diagnostic only *(book: C3 · idea only, chapter not read)*
-Candle OHLCV allows an approximate volume profile (spread each candle's volume over its range) from which a point of control and value area can be computed. Whether these levels act as support/resistance in crypto is an empirical question; any such study must be conducted as the diagnostics-and-pipeline process in book 3 (objective definition, out-of-sample, multiple-testing counts). **Complexity:** medium. Recorded as **H-VOLUME-PROFILE**; **not recommended before reading the chapter**.
+A volatilidade realizada anualizada de 20 barras (configurável), usando a convenção do cap. 3, O1 do livro 1 (365 dias para cripto), é pré-requisito para stops e dimensionamento baseados em ATR/σ (caps. 20 e 23), metas de volatilidade (cap. 2, O4) e razões de choque (cap. 14, O1). Uma implementação; exibir junto ao gráfico de candles. **Complexidade:** baixa. **Ressalva do livro:** volatilidade realizada calculada a partir dos retornos reflete as duas direções; grandes altas a elevam tanto quanto quedas. Para risco, usar também medidas de queda ou baseadas em drawdown (cap. 2, O1).
 
-### Not applicable
-Options-implied volatility, Market Profile letter charts.
+### O2 — Perfil de volume por preço (área de valor, ponto de controle) somente como diagnóstico de pesquisa *(livro: C3 · apenas a ideia, capítulo não lido)*
 
-## 4. Priority
+OHLCV dos candles permite uma aproximação de perfil de volume (distribuir o volume de cada candle ao longo de sua faixa), da qual se calcula um ponto de controle e uma área de valor. Saber se esses níveis funcionam como suporte/resistência em cripto é uma questão empírica; qualquer estudo deve seguir o processo de diagnóstico e pipeline do livro 3 (definição do objetivo, fora da amostra e contagem de testes múltiplos). **Complexidade:** média. Registrar como **H-VOLUME-PROFILE**; **não recomendado antes da leitura do capítulo**.
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+### Não aplicável
+
+Volatilidade implícita de opções, gráficos de letras do Market Profile.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O1 realised volatility feature | medium | medium | – | low | – |
-| 2 | O2 volume profile | low | – | – | medium | reading the chapter |
+| 1 | Recurso de volatilidade realizada O1 | média | média | – | baixa | – |
+| 2 | Perfil de volume O2 | baixa | – | – | média | leitura do capítulo |
 
-## 5–7. Files, plan, acceptance
-`analytics/domain/` (rolling volatility), shared with strategies helpers; app chart display. Acceptance: matches hand-computed volatility on fixtures; scale-invariant; ruff, mypy, tests green.
+## 5–7. Arquivos, plano e aceitação
 
-## Caveats
-The chapter's main content (distribution-based systems and Market Profile) was not read. The only quantitative claim read is the volatility spike example from crude oil.
+`analytics/domain/` (volatilidade móvel), compartilhado com helpers de estratégias; visualização no gráfico do app. Aceitação: corresponder à volatilidade calculada manualmente em fixtures; invariância de escala; ruff, mypy e testes aprovados.
+
+## Ressalvas
+
+O conteúdo principal do capítulo (sistemas baseados em distribuições e Market Profile) não foi lido. A única afirmação quantitativa consultada foi o exemplo de pico de volatilidade do petróleo bruto.
