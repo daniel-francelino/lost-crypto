@@ -1,71 +1,80 @@
-# Book 5 · Chapter 15 — Understanding Strategy Risk
+# Livro 5 · Capítulo 15 — Compreender o risco da estratégia
 
-*Advances in Financial Machine Learning*, López de Prado (2018). Book pages (PDF = book + 27). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Advances in Financial Machine Learning*, López de Prado (2018). Páginas do livro (PDF = livro + 27). Referência-base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 211–217 were read (symmetric and asymmetric payouts, implied precision and frequency, probability of strategy failure and the start of the bootstrap algorithm). The rest of the algorithm, the numerical examples and the exercises (pp. 218–220) were **not** read.
+**Profundidade da leitura:** pp. 211–217 foram lidas (pagamentos simétricos/assimétricos, precisão e frequência implícitas, probabilidade de falha da estratégia e início do algoritmo bootstrap). Restante do algoritmo, exemplos numéricos e exercícios (pp. 218–220) **não foram lidos**.
 
-**Relevance:** a compact, closed-form way to relate **win rate (precision), payoff sizes (profit-taking/stop-loss) and bet frequency** to the Sharpe ratio, and to ask how fragile a strategy is to small changes in its hit rate. It maps directly onto trend/breakout statistics the platform already reports (win rate, average win/loss, number of trades).
+**Relevância:** forma compacta e fechada de relacionar **taxa de acerto (precisão), tamanho dos ganhos/perdas (take-profit/stop) e frequência de apostas** ao Sharpe, e perguntar quão frágil é estratégia a pequenas mudanças de acerto. Mapeia diretamente a estatísticas de tendência/rompimento já exibidas (taxa de acerto, ganho/perda médios, quantidade de operações).
 
-## 1. Chapter summary (pages read)
+## 1. Resumo do capítulo (páginas lidas)
 
-| ID | Concept | Pages |
+| ID | Conceito | Páginas |
 |---|---|---|
-| C1 | Most strategies have explicit or implicit **exit conditions** (profit-taking, stop-loss; even without a stop there is an implicit limit — margin call or pain). Modelling outcomes as a **binomial process** reveals which combinations of betting frequency, odds and payouts are uneconomic and when a strategy is vulnerable to small changes in them. | 211 |
-| C2 | **Symmetric payouts** (profit `π` with probability `p`, loss `−π` with `1−p`; `n` IID bets per year): `E[X] = π(2p−1)`, `V[X] = 4π²p(1−p)`, annualised Sharpe `θ[p, n] = (2p−1)/(2·sqrt(p(1−p)))·√n` — "a rescaled t-value of `p` under `H₀: p = 1/2`"; `π` cancels. Even a small edge gives a high Sharpe with a large `n` (the economic basis of high-frequency trading): for `p = 0.55` an annualised Sharpe of 2 requires **396 bets/year**; weekly bets (`n = 52`) need `p ≈ 0.6336` for Sharpe 2. Sharpe depends on **precision**, not accuracy (passing is neither rewarded nor punished). Solution for the implied precision: `p = (1/2)(1 + sqrt(1 − n/(θ² + n)))`. | 211–213 |
-| C3 | **Asymmetric payouts** (`π₊ > 0` w.p. `p`, `π₋ < π₊` w.p. `1−p`): `E[X] = (π₊−π₋)p + π₋`, `V[X] = (π₊−π₋)²p(1−p)`, `θ[p, n, π₋, π₊] = ((π₊−π₋)p + π₋)/((π₊−π₋)·sqrt(p(1−p)))·√n`; reduces to the symmetric case when `π₋ = −π₊`. Solving a quadratic gives the **implied precision `p`** for a target Sharpe (Snippet 15.3) and the **implied betting frequency `n`** (Snippet 15.4). Example: `n = 260`, `π₋ = −0.01`, `π₊ = 0.005`, target Sharpe 2 requires `p = 0.72`; a small change in `p` (0.70 → 0.72) moves Sharpe from 1.173 to 2 — **the strategy is vulnerable to small changes in `p`**; the more negative `π₋` (for given `n`), the higher `p` needed; fewer bets (smaller `n`) need higher `p`. | 213–216 |
-| C4 | **Probability of strategy failure**: `p_θ*` = the precision below which the strategy underperforms a target Sharpe `θ*`; because `p` is unknown, model it as a random variable; **strategy risk ≠ portfolio risk**: "strategy risk is the risk that the investment strategy will fail to succeed over time" (a question for the CIO), not the volatility of the underlying portfolio (the CRO's number). Example: a drop in `p` from 0.70 to 0.67 wipes out the profits. Failure probability `P[p < p_θ*]`. | 216–217 |
-| C5 | **Algorithm (start)**: from the series of bet outcomes `{π_t}`, estimate `π₋ = E[π_t | π_t ≤ 0]`, `π₊ = E[π_t | π_t > 0]` (alternatively fit a two-Gaussian mixture with the EF3M algorithm), the annual frequency `n = T/y`; then **bootstrap the distribution of precision**: draw `n·k` outcomes with replacement (k = years investors use to assess the strategy, e.g. 2), compute precision `p_i` for each of `I` iterations, fit its density `f[p]` (KDE) and compute `P[p < p_θ*]` (the rest of the algorithm — the approximate closed form with `E[p]` — was not read). | 217 |
+| C1 | Maioria das estratégias tem condições explícitas ou implícitas de saída (take-profit/stop-loss; sem stop, existe limite implícito, como chamada de margem ou tolerância à dor). Modelar resultados como **processo binomial** revela combinações antieconômicas de frequência de aposta, odds e pagamentos, e quando a estratégia é vulnerável a pequenas variações. | 211 |
+| C2 | **Pagamentos simétricos** (lucro `π` com probabilidade p, perda `−π` com `1−p`; n apostas IID/ano): `E[X] = π(2p−1)`, `V[X] = 4π²p(1−p)`, Sharpe anualizado `θ[p,n] = (2p−1)/(2·sqrt(p(1−p)))·√n` — “um valor t de p reescalado sob `H₀: p = 1/2`”; π se cancela. Pequena vantagem gera Sharpe alto com n grande (base econômica de alta frequência): para `p=0,55`, Sharpe anualizado 2 exige **396 apostas/ano**; apostas semanais (`n=52`) exigem `p ≈ 0,6336` para Sharpe 2. Sharpe depende de **precisão**, não acurácia (não operar não é premiado nem punido). Precisão implícita: `p = (1/2)(1 + sqrt(1 − n/(θ² + n)))`. | 211–213 |
+| C3 | **Pagamentos assimétricos** (`π₊ > 0` com p, `π₋ < π₊` com `1−p`): `E[X] = (π₊−π₋)p + π₋`, `V[X] = (π₊−π₋)²p(1−p)`, `θ[p,n,π₋,π₊] = ((π₊−π₋)p + π₋)/((π₊−π₋)·sqrt(p(1−p)))·√n`; reduz ao simétrico se `π₋ = −π₊`. Resolver quadrática dá **precisão implícita p** para Sharpe-alvo (trecho 15.3) e **frequência implícita n** (15.4). Exemplo: `n=260`, `π₋=−0,01`, `π₊=0,005`, Sharpe-alvo 2 exige `p=0,72`; mudança pequena de p (0,70→0,72) move Sharpe de 1,173 para 2 — **estratégia é vulnerável a pequenas mudanças na precisão**. Quanto mais negativo `π₋` para mesmo n, maior p necessária; menos apostas (n menor) exigem maior p. | 213–216 |
+| C4 | **Probabilidade de falha da estratégia**: `p_θ*` é precisão abaixo da qual estratégia fica aquém do Sharpe-alvo `θ*`; como p é desconhecido, modelá-lo como variável aleatória. **Risco da estratégia ≠ risco da carteira**: “risco da estratégia é risco de a estratégia de investimento deixar de funcionar ao longo do tempo” (pergunta do CIO), não volatilidade da carteira subjacente (métrica do CRO). Exemplo: queda de p de 0,70 para 0,67 elimina lucros. Probabilidade de falha `P[p < p_θ*]`. | 216–217 |
+| C5 | **Início do algoritmo**: a partir de resultados `{π_t}`, estimar `π₋ = E[π_t | π_t ≤ 0]`, `π₊ = E[π_t | π_t > 0]` (ou ajustar mistura de duas gaussianas pelo algoritmo EF3M), frequência anual `n = T/y`; então **reamostrar distribuição de precisão**: sortear com reposição `n·k` resultados (k anos que investidor usa para avaliar estratégia, ex.: 2), obter precisão `p_i` em cada I iterações, ajustar densidade `f[p]` (KDE) e calcular `P[p < p_θ*]` (restante — forma fechada aproximada com E[p] — não lida). | 217 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| Win rate, average win/loss, profit factor, trade count | ✅ | In `Metrics`. |
-| Bet outcome series (per-trade returns) | ✅ | Trades are stored; per-trade net P/L is available. |
-| Annualised bets per year | ⚠️ | Derivable from trades and period; not reported. |
-| Implied precision / Sharpe from `{p, n, π₊, π₋}` | ❌ | — |
-| Bootstrap distribution of win rate / strategy failure probability | ❌ | — |
-| Distinction between strategy risk and portfolio risk | ❌ | Risk metrics are drawdown-based (portfolio risk); no "will this strategy still work" metric. |
+| Taxa de acerto, ganho/perda médios, fator de lucro, quantidade de operações | ✅ | Em `Metrics`. |
+| Série de resultados por aposta (retorno por operação) | ✅ | Operações armazenadas; P/L líquido por operação disponível. |
+| Apostas anualizadas | ⚠️ | Derivável por operações/período; não informado. |
+| Precisão/Sharpe implícitos de `{p,n,π₊,π₋}` | ❌ | — |
+| Bootstrap da taxa de acerto/probabilidade de falha | ❌ | — |
+| Risco da estratégia versus risco da carteira | ❌ | Métricas de drawdown cobrem risco da carteira; sem métrica “a estratégia continuará funcionando?”. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — "Required win rate" calculator and fragility indicator for every backtest *(book: C2, C3, pp. 211–216)*
-* **Proposal:** from a backtest's trade list compute `π₊` (mean winning trade return), `π₋` (mean losing trade return, negative), observed precision `p̂` (win rate), and bets per year `n`. Report: (a) the analytical annualised Sharpe implied by `{p̂, n, π₊, π₋}` (consistency check vs the empirical Sharpe from the equity curve); (b) the **break-even precision** `p_0` (Sharpe = 0 ⇒ `p_0 = −π₋/(π₊ − π₋)`) and the **precision needed for Sharpe 1 and 2**; (c) the **margin of safety** `p̂ − p_0` and `p̂ − p_{θ=1}`, expressed in standard errors of a binomial proportion, to show how many percentage points of win-rate decay the strategy tolerates before it stops being worth running.
-* **Why:** trend strategies in this platform have win rates around 30–40% and payoff ratios > 1 (book 4 ch. 22 C15); this metric makes explicit how thin the margin is and how it depends on trades per year. A strategy that needs `p` within 2 points of its estimate is fragile, particularly with few trades (the standard error of `p̂` with 40 trades is about 7.7 points).
-* **Complexity:** low. **Risks:** the model assumes two-point payoffs and IID bets; real trade returns are widely dispersed, so `π₊`/`π₋` means hide the distribution (the Sharpe formula uses only means; use the empirical per-trade standard deviation as a check); trend systems have serially dependent outcomes. **Validation:** the book's numerical examples (p = 0.55 → n ≈ 396 for Sharpe 2; n = 52 → p ≈ 0.6336; n = 260, π₋ = −0.01, π₊ = 0.005, Sharpe 2 → p = 0.72) reproduce to the printed precision; at `p_0` implied Sharpe = 0; invariance to scaling payouts.
+### O1 — Calculadora de “taxa de acerto necessária” e indicador de fragilidade em cada backtest *(livro: C2, C3, pp. 211–216)*
 
-### O2 — Strategy-failure probability by bootstrap *(book: C4, C5, pp. 216–217)*
-Implement the algorithm start: resample trade outcomes to build the distribution of the precision over a horizon of `k` years (`n·k` draws), compute `P[p < p_θ*]` for target Sharpe thresholds (0 and 1) and display "probability this strategy's Sharpe falls below 0/1 over the next k years". Use a block bootstrap if outcomes are serially dependent (our addition). Combine with PSR/DSR (ch. 14) and PBO (ch. 11) as the "credibility panel": PBO about the *selection*, PSR/DSR about the *statistical significance*, strategy-failure probability about *future fragility*. **Complexity:** low–medium. **Risks:** bootstrap from a small trade set is itself noisy; selection bias is not corrected (use out-of-sample/locked-segment trades whenever possible). **Validation:** seeded determinism; coverage test on synthetic Bernoulli payoffs (nominal vs observed interval).
+* **Proposta:** da lista de operações, calcular `π₊` (retorno médio das vencedoras), `π₋` (retorno médio das perdedoras, negativo), precisão observada `p̂` (taxa de acerto) e apostas/ano `n`. Informar: (a) Sharpe anualizado analítico implícito em `{p̂,n,π₊,π₋}` (verificação do Sharpe empírico da curva); (b) **precisão de equilíbrio** `p₀` (Sharpe=0 ⇒ `p₀=−π₋/(π₊−π₋)`) e precisão para Sharpe 1 e 2; (c) **margem de segurança** `p̂−p₀` e `p̂−p_{θ=1}`, em erros-padrão da proporção binomial, para mostrar quantos pontos percentuais de queda da taxa de acerto a estratégia tolera. 
+* **Motivo:** estratégias de tendência da plataforma têm acerto em torno de 30–40% e ganho/perda >1 (livro 4 cap. 22 C15); explicita quão estreita é a margem e sua dependência da frequência anual. Se p precisa ficar a 2 pontos da estimativa, estratégia é frágil, sobretudo com poucas operações (erro-padrão de p̂ com 40 operações ≈ 7,7 pontos).
+* **Complexidade:** baixa. **Riscos:** modelo presume dois pagamentos e apostas IID; retornos reais são dispersos, então médias π₊/π₋ ocultam distribuição (Sharpe usa médias; conferir desvio-padrão empírico); resultados de tendência têm dependência serial. **Validação:** exemplos do livro (p=0,55 → n≈396 para Sharpe 2; n=52 → p≈0,6336; n=260, π₋=−0,01, π₊=0,005, Sharpe 2 → p=0,72) reproduzidos à precisão impressa; p₀ dá Sharpe zero; invariância ao escalar pagamentos.
 
-### O3 — Use required precision × frequency as a design rule when choosing timeframes *(book: C2, C3, pp. 212–216)*
-Lower timeframes mean larger `n` and therefore a smaller edge is needed for a given Sharpe — but costs per bet shrink `π₊` and enlarge `π₋` (fees and slippage are part of both; book 4 ch. 16/22). Provide an interactive calculator in the UI where the user enters `{win rate, average win, average loss (after costs), trades/year}` and sees the Sharpe, the break-even precision, and the implied precision for target Sharpe values. **Complexity:** low. **Validation:** as in O1.
+### O2 — Probabilidade de falha da estratégia por bootstrap *(livro: C4, C5, pp. 216–217)*
 
-### O4 — Report "strategy risk" alongside portfolio risk *(book: C4, p. 217)*
-Add the vocabulary to the docs and UI: drawdown and volatility are portfolio risk; the margin of safety in win rate, payoff and frequency is strategy risk. Strategy-risk metrics (O1/O2) are the ones that should trigger a pause or reduction in the lifecycle rules (ch. 1 O1; book 4 ch. 22 O2, ch. 21 O9): e.g. when the live win rate over the last `m` trades falls below `p_0` + margin with statistical significance (sequential binomial test — book 4 ch. 23 O8). **Complexity:** low–medium.
+Implementar início do algoritmo: reamostrar resultados de operações para formar distribuição de precisão num horizonte de k anos (`n·k` sorteios), calcular `P[p < p_θ*]` para Sharpe-alvo 0 e 1 e exibir “probabilidade de Sharpe da estratégia cair abaixo de 0/1 nos próximos k anos”. Usar bootstrap em blocos se resultados tiverem dependência serial (adaptação nossa). Combinar com PSR/DSR (cap. 14) e PBO (cap. 11) no painel: PBO = **seleção**, PSR/DSR = **significância estatística**, falha = **fragilidade futura**. **Complexidade:** baixa–média. **Riscos:** bootstrap de conjunto pequeno é ruidoso; viés de seleção não é corrigido (preferir operações fora da amostra/bloqueadas). **Validação:** determinismo com semente; cobertura em pagamentos Bernoulli sintéticos (intervalo nominal versus observado).
 
-### Not applicable
-EF3M mixture fitting (not read), high-frequency practicalities, the IID assumption beyond a sensitivity note.
+### O3 — Usar precisão exigida × frequência como regra ao escolher timeframes *(livro: C2, C3, pp. 212–216)*
 
-## 4. Priority
+Timeframes menores aumentam n e reduzem vantagem necessária para Sharpe dado, mas custos por operação reduzem `π₊` e pioram `π₋` (taxas/slippage entram em ambos; livros 4 caps. 16/22). Calculadora interativa: usuário fornece `{taxa de acerto, ganho médio, perda média após custos, operações/ano}`; interface exibe Sharpe, precisão de equilíbrio e precisão para Sharpe-alvo. **Complexidade:** baixa. **Validação:** igual a O1.
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+### O4 — Mostrar “risco da estratégia” junto ao risco da carteira *(livro: C4, p. 217)*
+
+Adicionar vocabulário à documentação/interface: drawdown/volatilidade = risco da carteira; margem de segurança em taxa de acerto, ganho/perda e frequência = risco da estratégia. Métricas O1/O2 podem acionar pausa/redução segundo regras do ciclo de vida (cap. 1 O1; livro 4 cap. 22 O2 e cap. 21 O9), por exemplo quando taxa de acerto nos últimos `m` negócios cai abaixo de `p₀` + margem com significância (teste binomial sequencial — livro 4 cap. 23 O8). **Complexidade:** baixa–média.
+
+### Não aplicável
+
+Ajuste de mistura EF3M (não lido), detalhes práticos de alta frequência, pressuposto IID além de nota de sensibilidade.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O1 required win-rate / fragility | high | high | – | low | trade list |
-| 2 | O3 interactive calculator | medium | medium | – | low | O1 |
-| 3 | O4 vocabulary + live monitor link | – | high | high | low–medium | alerts |
-| 4 | O2 failure probability by bootstrap | high | high | – | low–medium | O1 |
+| 1 | Taxa exigida/fragilidade O1 | alta | alta | – | baixa | lista de operações |
+| 2 | Calculadora interativa O3 | média | média | – | baixa | O1 |
+| 3 | Vocabulário + ligação a monitor ao vivo O4 | – | alta | alta | baixa–média | alertas |
+| 4 | Probabilidade de falha por bootstrap O2 | alta | alta | – | baixa–média | O1 |
 
-## 5. Affected files
-`analytics/domain/` (strategy-risk module), `docs/openapi.json`, app backtest results and a small calculator page, tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Closed-form functions with the book's examples as tests.
-2. Backtest-level fragility panel.
-3. Bootstrap failure probability.
-4. Live monitoring hooks (paper/live), after alerts exist.
+`analytics/domain/` (módulo de risco da estratégia), `docs/openapi.json`, resultados de backtest e pequena página de calculadora, testes.
 
-## 7. Acceptance criteria and tests
-* Reproduces the book's printed examples; monotonicity in `p` and `n`; break-even precision gives zero Sharpe; bootstrap deterministic with a seed; ruff, mypy, existing tests green.
+## 6. Plano incremental
 
-## Caveats
-The framework treats bets as IID Bernoulli outcomes with two payoff levels: it is a stylised model; trend strategies have fat-tailed winners (book 4 ch. 22) so the two-point approximation can mislead, and serial dependence between consecutive trades is ignored. The Sharpe here is per-bet-based and annualised by √n, not the time-series Sharpe from the equity curve. Pages 218–220 (remaining algorithm, examples, exercises) were not read.
+1. Funções fechadas com exemplos do livro como testes.
+2. Painel de fragilidade no nível do backtest.
+3. Probabilidade de falha por bootstrap.
+4. Hooks de monitoramento ao vivo/paper após existir sistema de alertas.
+
+## 7. Critérios de aceitação e testes
+
+* Reproduzir exemplos impressos; monotonicidade em p e n; precisão de equilíbrio implica Sharpe zero; bootstrap determinístico com semente; ruff, mypy e testes existentes aprovados.
+
+## Ressalvas
+
+Estrutura presume apostas Bernoulli IID e dois níveis de pagamento: modelo estilizado; vencedoras de tendência têm caudas pesadas (livro 4 cap. 22), então aproximação de dois pontos pode enganar; dependência serial é ignorada. Sharpe aqui é por aposta e anualizado por √n, diferente do Sharpe temporal da curva de patrimônio. Pp. 218–220 (restante do algoritmo, exemplos e exercícios) não foram lidas.

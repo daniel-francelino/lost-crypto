@@ -1,74 +1,84 @@
-# Book 5 · Chapter 10 — Bet Sizing
+# Livro 5 · Capítulo 10 — Dimensionamento de apostas
 
-*Advances in Financial Machine Learning*, López de Prado (2018). Book pages (PDF = book + 27). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Advances in Financial Machine Learning*, López de Prado (2018). Páginas do livro (PDF = livro + 27). Referência-base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 141–147 were read (strategy-independent sizing, sizing from predicted probabilities, averaging active bets, discretisation, dynamic sizing and limit prices start). Pages 148–150 (power-function alternative, exercises) were not read.
+**Profundidade da leitura:** pp. 141–147 foram lidas (dimensionamento independente da estratégia, por probabilidades previstas, média de apostas ativas, discretização, dimensionamento dinâmico e início de preços-limite). Pp. 148–150 (alternativa de função potência, exercícios) não foram lidas.
 
-**Fit with the platform:** the platform sizes by fixed position fraction and per-trade risk (risk module), with signals that are binary (buy/sell/hold). Sizing that scales with signal confidence is new; the **discretisation** and **averaging active bets** ideas also address over-trading, which matters for fees.
+**Compatibilidade com a plataforma:** dimensiona por fração fixa e risco por operação (módulo de risco); sinais binários (compra/venda/manter). Dimensionamento proporcional à confiança do sinal é novo; **discretização** e **média de apostas ativas** também combatem excesso de operações, relevante para taxas.
 
-## 1. Chapter summary (pages read)
+## 1. Resumo do capítulo (páginas lidas)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que aborda | Páginas |
 |---|---|---|---|
-| C1 | "Your ML algorithm can achieve high accuracy, but if you do not size your bets properly, your strategy will inevitably lose money." Bet size `m ∈ [−1, 1]` (−1 full short, +1 full long). Example: two strategies with identical forecasts but different sizing paths — one makes +0.5, the other loses −0.125 — because the second was forced to cut its bet as the market moved against it. | Sizing matters as much as direction. | 141 |
-| C2 | **Strategy-independent sizing**: (1) **bet concurrency** `c_t = c_{t,long} − c_{t,short}` (number of active long minus short bets) mapped through the CDF of a fitted two-Gaussian mixture, so stronger-than-usual signals get larger bets and cash is reserved for signals that may still strengthen; (2) **budgeting**: size = concurrent longs ÷ max concurrent longs − concurrent shorts ÷ max concurrent shorts, so the maximum position is not reached before the last concurrent signal; (3) **meta-labeling**: the secondary model's probability sets the size. | Sizing from signal flow. | 141–142 |
-| C3 | **From predicted probabilities**: for a binary side, test `H₀: p[x=1] = 1/2` with `z = (p − 1/2)/sqrt(p(1−p))`; size `m = 2 Z[z] − 1` (`Z` is the standard normal CDF); multi-class one-versus-rest with `1/X` as the null; the side comes from the predicted label. | Confidence-to-size map. | 142–143 |
-| C4 | **Averaging active bets**: instead of overriding the old bet with each new one (high turnover), average sizes across all bets still active (issued before now and not yet past their end time). | Turnover control. | 144 |
-| C5 | **Size discretisation**: `m = round(m/d)·d` with `d ∈ (0, 1]` to avoid trading on small changes (over-trading jitter); cap to [−1, 1]. | Fees from jitter. | 144–145 |
-| C6 | **Dynamic bet sizes and limit prices**: with a forecast price `f` and current price `p`, target position `q = int(m[w, f − p]·Q)` using a sigmoid `m = x/√(w + x²)` of the divergence `x = f − p`; as `p → f` the target tends to 0 (realise gains); the **breakeven limit price** for the order is the average of the inverse function over the sizes between current and target; the width `w` is calibrated from a desired `(x, m)` pair (example: 0.95 at a divergence of 10 gives `w = x²(m⁻² − 1)`; with Q = 100, f = 115 the limit price is 112.37); power-function alternative (not read). | Sizing that avoids realising losses. | 145–147 |
+| C1 | “Seu algoritmo ML pode alcançar alta acurácia, mas, sem dimensionar corretamente as apostas, a estratégia inevitavelmente perderá dinheiro.” Tamanho `m ∈ [−1, 1]` (−1 vendido integral, +1 comprado integral). Exemplo: duas estratégias com previsões idênticas, mas caminhos de dimensionamento diferentes — uma ganha +0,5, outra perde −0,125 — porque a segunda foi forçada a reduzir aposta quando o mercado se moveu contra ela. | Dimensionamento importa tanto quanto direção. | 141 |
+| C2 | **Dimensionamento independente da estratégia**: (1) **concorrência de apostas** `c_t = c_{t,long} − c_{t,short}` (compras ativas menos vendas) mapeada pela CDF de mistura ajustada de duas gaussianas; sinais acima do normal recebem apostas maiores e reserva-se caixa para sinais que possam se fortalecer; (2) **orçamento**: tamanho = compras simultâneas ÷ máximo de compras simultâneas − vendas simultâneas ÷ máximo de vendas simultâneas; posição máxima não é atingida antes do último sinal simultâneo; (3) **meta-rotulagem**: probabilidade do modelo secundário define tamanho. | Dimensionar pelo fluxo de sinais. | 141–142 |
+| C3 | **A partir de probabilidades previstas**: para lado binário, testar `H₀: p[x=1] = 1/2` com `z = (p − 1/2)/sqrt(p(1−p))`; tamanho `m = 2 Z[z] − 1` (`Z` CDF normal padrão); multiclasse um-contra-resto com `1/X` como nulo; lado vem do rótulo previsto. | Mapear confiança a tamanho. | 142–143 |
+| C4 | **Média de apostas ativas**: em vez de substituir aposta antiga a cada nova (alto giro), calcular média dos tamanhos de todas as apostas ainda ativas (emitidas antes de agora e ainda dentro do prazo final). | Controlar giro. | 144 |
+| C5 | **Discretização do tamanho**: `m = round(m/d)·d`, `d ∈ (0, 1]`, para evitar negociar pequenas alterações (oscilações de sobreoperação); limitar a [−1, 1]. | Taxas por oscilações. | 144–145 |
+| C6 | **Tamanhos dinâmicos e preços-limite**: com preço previsto `f` e preço atual `p`, posição-alvo `q = int(m[w, f − p]·Q)`, usando sigmoide `m = x/√(w + x²)` da divergência `x = f − p`; quando `p → f`, alvo tende a zero (realização de ganhos). **Preço-limite de equilíbrio** da ordem é média da função inversa entre tamanhos atual e alvo; largura `w` calibrada por par `(x, m)` desejado (ex.: 0,95 com divergência 10 dá `w = x²(m⁻² − 1)`; com Q = 100 e f = 115, limite 112,37). Alternativa por função potência não foi lida. | Dimensionar sem realizar perdas. | 145–147 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| Position size as a function of signal strength | ❌ | Signals are discrete; size from `position_fraction` and risk-per-trade via stop distance (`assess_signal`). |
-| Turnover control for sizing changes | n/a | Positions are entered and exited whole (no resizing). |
-| Concurrent bets / averaging | ❌ | One position per bot at a time. |
-| Dynamic limit prices | ❌ | Market orders (paper) and native stop orders (live); no limit-order entry logic (book 1 ch. 5 O2). |
-| Fee impact of over-trading | ✅ (accounted) | Fees and slippage are applied on every fill; the trade count is reported. |
+| Tamanho como função da força do sinal | ❌ | Sinais discretos; tamanho vem de `position_fraction` e risco por operação via distância do stop (`assess_signal`). |
+| Controle de giro de mudanças de tamanho | n/a | Posições entram/saem integralmente (sem redimensionamento). |
+| Apostas concorrentes/média | ❌ | Um bot mantém uma posição por vez. |
+| Preços-limite dinâmicos | ❌ | Ordens a mercado no paper e stops nativos ao vivo; sem entrada por limite (livro 1, cap. 5 O2). |
+| Efeito de taxas por excesso de operações | ✅ (contabilizado) | Taxas/slippage em cada execução; número de operações informado. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Strength-scaled position fraction as a research option for strategies with a continuous signal *(book: C3, pp. 142–143)*
-* **Proposal:** let strategies optionally emit a **conviction in [0, 1]** (e.g. normalised distance between fast and slow EMA, breakout margin in ATR units, or a model probability) and let the risk module scale the configured position fraction by `m = 2Z[z] − 1`-style or a simple clipped linear map, never above the existing caps. For long-only: `m ∈ [0, 1]`.
-* **Why:** converts the binary entry into graded exposure, the closest analogue of the chapter's central point. **Caveats:** for rule-based signals conviction measures are ad hoc; the benefit must be demonstrated (compare fixed vs scaled sizing on the same signals, per risk-adjusted metric, with the whole pipeline); scaling by strength can concentrate risk at breakout extremes (where volatility is high); the risk module's per-trade risk cap still applies. **Complexity:** medium (strategy interface change: add optional conviction; engine and trader). **Validation:** conviction 1 equals current behaviour; scaled size never exceeds the cap; deterministic.
+### O1 — Fração de posição escalada pela força para estratégias com sinal contínuo (pesquisa) *(livro: C3, pp. 142–143)*
 
-### O2 — Size discretisation (step size) to prevent micro-adjustments if resizing is ever added *(book: C5, p. 144–145)*
-If positions begin to be resized (volatility sizing, scale-in/scale-out; book 4 ch. 23 O2), enforce a minimum change threshold (`d`, e.g. 10–25% of the target) and exchange minimum-notional/lot-size constraints, to avoid fee-dominated churn. **Complexity:** low; part of any resizing feature. **Validation:** no order below the step; fee drag reduced on a jittery synthetic signal.
+* **Proposta:** permitir que estratégias emitam opcionalmente **convicção em [0, 1]** (ex.: distância normalizada entre EMAs, margem de rompimento em unidades ATR ou probabilidade de modelo) e módulo de risco escale fração configurada por `m = 2Z[z] − 1` ou mapa linear limitado, nunca além dos limites existentes. Somente comprado: `m ∈ [0, 1]`.
+* **Motivo:** transforma entrada binária em exposição graduada, analogia mais próxima da ideia central do capítulo. **Ressalvas:** convicção de regra é ad hoc; benefício precisa ser demonstrado (tamanho fixo versus escalado nos mesmos sinais, por métrica ajustada a risco e pipeline completo); escala pode concentrar risco em extremos de rompimento (volatilidade alta); limite de risco por operação segue valendo. **Complexidade:** média (mudar interface de estratégia para convicção opcional; motor e trader). **Validação:** convicção 1 equivale ao comportamento atual; tamanho escalado nunca excede limite; determinístico.
 
-### O3 — Fee-aware turnover metrics *(book: C4, C5)*
-Report **turnover** (sum of absolute position changes per year) and **fees as a share of gross profit**, and warn when fees consume a large fraction; combined with the cost-coverage guard (book 4 ch. 16 O4, ch. 21 O6). **Complexity:** low. **Validation:** fixtures.
+### O2 — Discretização do tamanho para evitar microajustes caso exista redimensionamento *(livro: C5, pp. 144–145)*
 
-### O4 — Dynamic exit price logic (limit-style take-profit approach) — recorded, not recommended *(book: C6, pp. 145–147)*
-The sigmoid target-position/limit-price scheme presumes a forecast price (`f`) from a model; the platform has no price forecast. If ML forecasts of barrier outcomes ever exist, revisit. Meanwhile it overlaps with the take-profit logic (book 4 ch. 23 O5: do not default to targets for trend strategies). **Complexity:** high.
+Se posições começarem a ser redimensionadas (dimensionamento por volatilidade, adicionar/remover parcelas; livro 4, cap. 23 O2), impor mudança mínima (`d`, por exemplo, 10–25% do alvo) e respeitar notional mínimo/lote da corretora para evitar giro dominado por taxas. **Complexidade:** baixa; parte de qualquer recurso de redimensionamento. **Validação:** nenhuma ordem abaixo do passo; taxa reduzida em sinal sintético oscilante.
 
-### O5 — Probability-to-size mapping is the output of the meta-labeling track *(book: C2, C3)*
-Part of ch. 3 O3: the secondary model's probability sets the position fraction through the book's map, with safe defaults (below threshold, no trade) and the existing caps. **Complexity:** part of the ML track.
+### O3 — Métricas de giro sensíveis a taxas *(livro: C4, C5)*
 
-### Not applicable
-Short positions and bet concurrency netting long against short (long-only spot), Texas Hold'em analogy, mixture-of-Gaussians fitting for concurrency.
+Informar **giro** (soma anual das mudanças absolutas de posição) e **taxas como proporção do lucro bruto**, com alerta quando consumirem fração grande; combinar com limite de cobertura de custos (livro 4, cap. 16 O4, cap. 21 O6). **Complexidade:** baixa. **Validação:** fixtures.
 
-## 4. Priority
+### O4 — Lógica de preço dinâmico de saída (take-profit tipo limite): registrar, não recomendar *(livro: C6, pp. 145–147)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+Esquema de posição-alvo/preço-limite sigmoidal pressupõe preço previsto (`f`) de modelo; plataforma não prevê preços. Retomar caso existam previsões ML de resultados de barreira. Por ora, sobrepõe-se à lógica de take-profit (livro 4, cap. 23 O5: não adotar alvos como padrão em tendência). **Complexidade:** alta.
+
+### O5 — Mapeamento probabilidade-tamanho pertence à linha de meta-rotulagem *(livro: C2, C3)*
+
+Parte de O3 do cap. 3: probabilidade do modelo secundário define fração de posição pelo mapa do livro, com padrões seguros (abaixo do limite, sem operação) e limites existentes. **Complexidade:** linha ML.
+
+### Não aplicável
+
+Vendas e compensação entre apostas compradas/vendidas (spot somente comprado), analogia do pôquer Texas Hold’em, ajuste de mistura gaussiana para concorrência.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O3 turnover and fee-share metrics | medium | – | – | low | metrics |
-| 2 | O1 strength-scaled fraction (research) | medium | medium | – | medium | strategy interface |
-| 3 | O2 discretisation (with any resizing) | – | medium | – | low | resizing feature |
-| 4 | O5 probability sizing | potentially high | medium | – | ML track | ML approval |
-| 5 | O4 dynamic limit prices | – | – | – | high | forecast model |
+| 1 | Métricas de giro e parcela de taxas O3 | média | – | – | baixa | métricas |
+| 2 | Fração escalada por força O1 (pesquisa) | média | média | – | média | interface de estratégia |
+| 3 | Discretização O2 (com redimensionamento) | – | média | – | baixa | recurso de redimensionamento |
+| 4 | Dimensionamento por probabilidade O5 | potencialmente alta | média | – | linha ML | aprovação ML |
+| 5 | Preços-limite dinâmicos O4 | – | – | – | alta | modelo de previsão |
 
-## 5. Affected files
-`analytics/domain/metrics.py` (turnover and fee share), `strategies/domain/types.py` (optional conviction), `risk_management/domain` (scaling), `backtesting/domain/engine.py`, `trading/application/trader.py`, app forms, tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Metrics.
-2. Conviction interface and experiment.
-3. Discretisation when resizing exists.
-4. Probability sizing with the ML track.
+`analytics/domain/metrics.py` (giro e parcela de taxas), `strategies/domain/types.py` (convicção opcional), `risk_management/domain` (escala), `backtesting/domain/engine.py`, `trading/application/trader.py`, formulários do app, testes.
 
-## 7. Acceptance criteria and tests
-* Turnover and fee share match hand-computed fixtures; conviction scaling bounded by caps and identical to the present behaviour at conviction 1; ruff, mypy and existing tests green.
+## 6. Plano incremental
 
-## Caveats
-The two-Gaussian concurrency approach, the probability-to-size mapping and the sigmoid dynamic sizing are the author's constructions with illustrative numbers; no empirical performance is shown in these pages. Sizing by predicted probability is only as good as the calibration of those probabilities (not discussed in the pages read).
+1. Métricas.
+2. Interface de convicção e experimento.
+3. Discretização quando houver redimensionamento.
+4. Dimensionamento por probabilidade com linha ML.
+
+## 7. Critérios de aceitação e testes
+
+* Giro e parcela de taxas correspondem a fixtures calculadas manualmente; escala por convicção respeita limites e convicção 1 reproduz comportamento atual; ruff, mypy e testes existentes aprovados.
+
+## Ressalvas
+
+Abordagem de duas gaussianas para concorrência, mapeamento de probabilidade para tamanho e dimensionamento sigmoidal são propostas do autor com números ilustrativos; estas páginas não mostram desempenho empírico. Dimensionamento por probabilidade prevista depende da calibração dessas probabilidades (não discutida nas páginas lidas).

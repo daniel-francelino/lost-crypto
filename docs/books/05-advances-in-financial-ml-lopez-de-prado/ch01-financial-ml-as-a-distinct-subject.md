@@ -1,80 +1,90 @@
-# Book 5 · Chapter 1 — Financial Machine Learning as a Distinct Subject
+# Livro 5 · Capítulo 1 — Aprendizado de máquina financeiro como área distinta
 
-*Advances in Financial Machine Learning*, López de Prado (2018). Book pages (PDF = book + 27). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Advances in Financial Machine Learning*, López de Prado (2018). Páginas do livro (PDF = livro + 27). Referência-base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 3–15 were read (motivation, why projects fail, book structure by production chain / component / pitfall, audience, FAQs up to the start of "econometrics"). Pp. 16–20 (remaining FAQs and the closing of the chapter) were not read. The chapter is organisational and methodological; it contains no algorithms. Its value is a map of pitfalls (Table 1.2) that the rest of the book addresses, plus a **strategy lifecycle** that matches the platform's paper/live gating.
+**Profundidade da leitura:** pp. 3–15 (motivação, razões do fracasso de projetos, estrutura do livro por cadeia de produção/componente/armadilha, público e perguntas frequentes até o início de “econometria”) foram lidas. Pp. 16–20 (restante das perguntas e encerramento do capítulo) não foram lidas. O capítulo é organizacional e metodológico; não contém algoritmos. Seu valor é o mapa de armadilhas (Tabela 1.2) abordadas no restante do livro e um **ciclo de vida de estratégias** que corresponde às etapas paper/ao vivo da plataforma.
 
-## 1. Chapter summary (pages read)
+## 1. Resumo do capítulo (páginas lidas)
 
-| ID | Concept | Pages |
+| ID | Conceito | Páginas |
 |---|---|---|
-| C1 | Motivation: bridge academia and industry; finance should serve a purpose; many investors will use off-the-shelf ML and lose money; **backtest overfitting** is the characteristic difficulty of financial ML; financial ML is a subject distinct from standard ML. | 3–4 |
-| C2 | **Why projects fail — the Sisyphus paradigm**: every researcher alone produces either a false positive from an overfit backtest or standard factor investing. Cure: the **meta-strategy paradigm** (a research factory with specialised stations: data curators, feature analysts, strategists, backtesters, deployment team, portfolio oversight). Producing one true strategy costs almost as much as producing a hundred. | 4–5 |
-| C3 | **Production chain details**: feature analysts' findings are libraries usable for execution/monitoring/market making, "a common error is to believe that feature analysts develop strategies"; **strategists** must formulate a theory identifying "the economic mechanism that causes an agent to lose money to us" (behavioural bias, asymmetric information, regulatory constraint) — "features may be discovered by a black box, but the strategy is developed in a white box"; **backtesters** must evaluate "the probability of backtest overfitting by taking into account the number of trials it took to distill the strategy" and **should not share results back** with research (to avoid feedback), reporting to management; the deployment team ensures the deployed solution is logically identical to the prototype. | 7–8 |
-| C4 | **Strategy lifecycle** (portfolio oversight): (1) **embargo** — run on data after the backtest end date; (2) **paper trading** on a live feed (latencies, execution delays); (3) **graduation** to a real position with precise attribution; (4) **re-allocation** — allocation follows a concave path (small at graduation, increases while it performs as expected, shrinks as performance decays); (5) **decommission** when it underperforms for long enough to conclude the supporting theory no longer holds; release new variations in parallel. | 8–9 |
-| C5 | **Structure by component (Table 1.1)** and **by pitfall (Table 1.2)**: Sisyphus paradigm → meta-strategy; research through backtesting → feature importance analysis; chronological sampling → volume clock (ch. 2); integer differentiation → fractional differentiation (ch. 5); fixed-time-horizon labelling → triple-barrier (ch. 3); learning side and size simultaneously → meta-labelling (ch. 3); weighting of non-IID samples → uniqueness weighting and sequential bootstrap (ch. 4); cross-validation leakage → purging and embargoing (ch. 7, 9); walk-forward (historical) backtesting → combinatorial purged cross-validation (ch. 12); backtest overfitting → synthetic-data backtests and the deflated Sharpe ratio (ch. 11–16). | 9–13 |
-| C6 | Experimental mathematics: "solve hard problems by experiment"; use experimental methods (ch. 11–15) to assess a strategy more reliably than a single historical simulation; "**whatever you do, always ask yourself in what way you may be overfitting**"; "overfitting is unethical … when done knowingly, overfitting is outright scientific fraud"; the industry "only pays for out-of-sample returns"; each backtest is overfit to some extent and the amount must be quantified. | 11–12 |
-| C7 | **Audience**: researchers with ML experience; code in Python (pandas, numpy, scikit-learn). FAQs: ML may help where decisions follow rules (execution, risk monitoring) and increasingly for judgement calls; machines comply with rules and keep logs; **meta-labelling lets an ML layer sit on top of a discretionary or rule-based side decision**; econometrics is mostly linear regression, which "does not learn". | 12–15 |
+| C1 | Motivação: aproximar academia e indústria; finanças devem servir a um propósito; muitos investidores usarão ML pronto e perderão dinheiro; **sobreajuste de backtest** é a dificuldade característica do ML financeiro; ML financeiro é uma área distinta do ML padrão. | 3–4 |
+| C2 | **Por que projetos fracassam — paradigma de Sísifo**: cada pesquisador sozinho produz um falso positivo de backtest sobreajustado ou investimento padrão em fatores. Solução: **paradigma de metaestratégia** (fábrica de pesquisa com estações especializadas: curadoria de dados, analistas de atributos, estrategistas, backtesters, implantação e supervisão de carteira). Produzir uma estratégia verdadeira custa quase tanto quanto produzir cem. | 4–5 |
+| C3 | **Detalhes da cadeia de produção**: descobertas dos analistas de atributos viram bibliotecas utilizáveis em execução, monitoramento e criação de mercado; “erro comum é pensar que analistas de atributos desenvolvem estratégias”. **Estrategistas** formulam teoria que identifique “o mecanismo econômico que faz um agente perder dinheiro para nós” (viés comportamental, informação assimétrica, restrição regulatória) — “atributos podem ser descobertos por caixa-preta, mas a estratégia é desenvolvida em caixa-branca”. **Backtesters** avaliam “a probabilidade de sobreajuste do backtest considerando quantas tentativas foram necessárias para destilar a estratégia” e **não devem devolver resultados à pesquisa** (para evitar feedback); reportam à gestão. A implantação garante que a solução implantada seja logicamente idêntica ao protótipo. | 7–8 |
+| C4 | **Ciclo de vida da estratégia** (supervisão de carteira): (1) **quarentena/embargo** — operar em dados posteriores à data final do backtest; (2) **paper trading** com fluxo ao vivo (latências, atrasos de execução); (3) **promoção** a posição real, com atribuição precisa; (4) **realocação** — alocação segue trajetória côncava (pequena na promoção, cresce enquanto desempenho corresponde ao esperado, diminui quando se deteriora); (5) **desativação** quando desempenho fica abaixo por tempo suficiente para concluir que a teoria de sustentação não se confirma; publicar novas variantes em paralelo. | 8–9 |
+| C5 | **Estrutura por componente (Tabela 1.1) e por armadilha (Tabela 1.2)**: paradigma de Sísifo → metaestratégia; pesquisa baseada em backtest → análise de importância de atributos; amostragem cronológica → relógio de volume (cap. 2); diferenciação inteira → fracionária (cap. 5); rotulagem de horizonte fixo → barreira tripla (cap. 3); aprender direção e tamanho simultaneamente → meta-rotulagem (cap. 3); ponderação de amostras não IID → ponderação por unicidade e bootstrap sequencial (cap. 4); vazamento em validação cruzada → purge e embargo (caps. 7, 9); backtest walk-forward histórico → validação cruzada purgada combinatória (cap. 12); sobreajuste de backtest → testes com dados sintéticos e Sharpe deflacionado (caps. 11–16). | 9–13 |
+| C6 | Matemática experimental: “resolver problemas difíceis por experimentação”; usar métodos experimentais (caps. 11–15) para avaliar estratégia com mais confiabilidade que uma única simulação histórica; “**seja o que for que fizer, pergunte sempre de que maneira pode estar sobreajustando**”; “sobreajuste é antiético… quando consciente, é fraude científica”; a indústria “só remunera retornos fora da amostra”; todo backtest tem algum sobreajuste e sua magnitude precisa ser quantificada. | 11–12 |
+| C7 | **Público**: pesquisadores com experiência em ML; código em Python (pandas, numpy, scikit-learn). Perguntas frequentes: ML pode ajudar onde decisões seguem regras (execução, monitoramento de risco) e cada vez mais em decisões de julgamento; máquinas obedecem regras e mantêm registros; **meta-rotulagem permite aplicar uma camada de ML sobre decisão direcional discricionária ou baseada em regras**; econometria é em grande parte regressão linear, que “não aprende”. | 12–15 |
 
-All numerical claims in the book that this chapter promises (e.g. the deflated Sharpe ratio, purging) are evaluated in later chapters; this chapter itself provides no empirical evidence.
+Afirmações quantitativas prometidas pelo livro (por exemplo, Sharpe deflacionado e purge) são avaliadas nos capítulos seguintes; este capítulo não apresenta evidência empírica.
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| Research process with stations and responsibilities | ⚠️ | A single developer; the platform has separate modules (market_data, strategies, backtesting, analytics, risk, trading) that mirror the stations at the code level, but no process or artefact separation (e.g. a "research log"). |
-| Trials accounting ("number of trials to distil the strategy") | ❌ | No count of runs per strategy family; sweeps are capped by `MAX_SWEEP_RUNS` and not corrected (ch. 21 O2 of book 4). |
-| Strategy hypothesis / economic mechanism metadata | ❌ | Strategies have a catalog description but no stated mechanism or expected profile (book 3, book 4 ch. 21/22). |
-| Embargo period (data after the backtest end) | ❌ | The train/test split is internal to the same period; no "forward holdout" kept untouched (book 3 ch. 6 O5 / book 4 ch. 21 O3). |
-| Paper trading before live | ✅ | Paper trading and a paper-days gate before live exist. |
-| Graduation / re-allocation / decommission lifecycle | ⚠️ | States exist (draft, paper, live, stopped) but no automatic performance-vs-expectation reassessment, no decay-based reduction of allocation, no retirement rule. |
-| Decoupling backtest feedback from research | ❌ | Results are visible to the user and iterated upon freely; no locked evaluation. |
-| ML pipeline (features, labels, models) | ❌ | None. The platform is rule-based; see the later chapters for what an ML layer would need. |
-| Reproducibility | ✅ | Seed and candle SHA-256 stored per backtest. |
+| Processo de pesquisa com estações e responsabilidades | ⚠️ | Um único desenvolvedor; módulos separados (market_data, strategies, backtesting, analytics, risk, trading) espelham as estações no código, mas não há separação de processos/artefatos (por exemplo, “registro de pesquisa”). |
+| Contagem de tentativas (“tentativas para destilar a estratégia”) | ❌ | Sem contagem de execuções por família; varreduras limitadas por `MAX_SWEEP_RUNS` e sem correção (livro 4, cap. 21, O2). |
+| Metadados da hipótese/mecanismo econômico | ❌ | Estratégias têm descrição no catálogo, mas não mecanismo declarado nem perfil esperado (livro 3, livros 4 caps. 21/22). |
+| Período de embargo (dados depois do fim do backtest) | ❌ | Divisão treino/teste dentro do mesmo período; sem “holdout futuro” intocado (livro 3, cap. 6 O5 / livro 4, cap. 21 O3). |
+| Paper trading antes do ao vivo | ✅ | Há paper trading e gate de permanência mínima antes do modo ao vivo. |
+| Ciclo de promoção/realocação/desativação | ⚠️ | Existem estados (rascunho, paper, ao vivo, parado), mas sem reavaliação automática desempenho versus expectativa, redução de alocação por deterioração ou regra de aposentadoria. |
+| Separar feedback de backtest da pesquisa | ❌ | Resultados ficam visíveis ao usuário e podem ser iterados livremente; não há avaliação bloqueada. |
+| Pipeline de ML (atributos, rótulos, modelos) | ❌ | Nenhum. Plataforma é baseada em regras; capítulos posteriores descrevem requisitos de uma camada ML. |
+| Reprodutibilidade | ✅ | Semente e SHA-256 dos candles são armazenados por backtest. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Strategy lifecycle states with evidence gates *(book: C4, pp. 8–9)*
-* **Proposal:** formalise the promotion path already partly present: **research (backtest-only) → embargo check → paper → graduated live (small allocation) → re-allocation → decommission**, with each transition requiring evidence recorded in the database: (a) embargo: performance on data **after** the backtest's end date compared with the backtest within a tolerance; (b) paper: duration and number of trades reached the planned sample; (c) graduation: starts at a small `position fraction`; (d) re-allocation: increase/decrease based on live-vs-expected statistics; (e) decommission when performance is below expectation for a defined time (the book: "enough to conclude the supporting theory is no longer backed by empirical evidence").
-* **Why:** matches the platform's safety philosophy (live disabled by default, paper gating) and gives the paper-days gate **content** (book 4 ch. 22 O2, ch. 21 O9). The concave allocation path (small, grow, shrink as it decays) is a natural risk rule for a retail account.
-* **Complexity:** medium–high (state machine, evidence fields, UI); decisions about automatic vs manual promotions are the user's. **Risks:** over-engineering for one user; start with a checklist view only. **Validation:** transition tests; no live order can occur from a state that has not passed required gates.
+### O1 — Estados de ciclo de vida da estratégia com gates de evidência *(livro: C4, pp. 8–9)*
 
-### O2 — Embargo period: reserve forward data after the backtest end *(book: C4, p. 8)*
-Add the concept of a **forward embargo**: when a strategy is validated on data up to date T, record T and later evaluate the same fixed configuration on the data accumulated after T (for paper trading it is automatically the live feed; for backtests it is the newer candles imported later). Report embargo performance vs backtest expectation. Without extra modelling this uses the existing data import and a stored "validated until" timestamp on the backtest/bot. **Complexity:** low–medium. **Validation:** the embargo evaluation uses only candles after T; configuration is immutable between validation and embargo.
+* **Proposta:** formalizar o caminho de promoção parcialmente existente: **pesquisa (somente backtest) → verificação de embargo → paper → promoção ao vivo (alocação pequena) → realocação → desativação**, exigindo evidência registrada no banco a cada transição: (a) embargo: desempenho em dados **posteriores** ao fim do backtest comparado ao backtest dentro de uma tolerância; (b) paper: duração e número planejado de operações alcançados; (c) promoção: começar com `position fraction` pequeno; (d) realocação: aumentar/reduzir conforme estatísticas ao vivo versus esperadas; (e) desativar quando desempenho ficar abaixo da expectativa por período definido (no livro: “tempo suficiente para concluir que a teoria de sustentação deixou de ter apoio empírico”).
+* **Motivo:** combina com a filosofia de segurança da plataforma (modo ao vivo desativado por padrão, gate de paper) e dá **conteúdo** ao gate de dias no paper (livro 4, cap. 22 O2 e cap. 21 O9). A trajetória côncava de alocação (pequena, cresce, encolhe com deterioração) é regra de risco natural para conta de varejo.
+* **Complexidade:** média–alta (máquina de estados, campos de evidência, interface); decisão sobre promoção automática ou manual cabe ao usuário. **Riscos:** excesso de engenharia para um usuário; começar por checklist. **Validação:** testes de transição; nenhuma ordem ao vivo pode surgir de estado que não passou pelos gates exigidos.
 
-### O3 — Hypothesis/mechanism field and trial counter on each strategy configuration *(book: C3, p. 7–8)*
-A required text field "why should this make money (who loses to us)" for any bot promoted beyond backtest, and a **trial counter** attached to each strategy family (number of backtests/sweep runs, including discarded ones) shown beside reported results (inputs for the deflated Sharpe ratio, chapter 14). Same as book 4 ch. 21 O2. **Complexity:** low. **Risks:** the text is only an honesty aid.
+### O2 — Período de embargo: reservar dados futuros após o fim do backtest *(livro: C4, p. 8)*
 
-### O4 — Treat backtest feedback as consumable: separate research and evaluation *(book: C3, p. 8)*
-The book's backtester station does not share evaluation results with research because feeding results back creates selection bias (explained in ch. 11). Platform analogue: an **evaluation backtest** (locked data, run once per configuration family, result stored and not used to tune) distinct from **research backtests**. Same as book 3 ch. 6 O5 / book 4 ch. 21 O3. **Complexity:** medium.
+Adicionar o conceito de **embargo futuro**: ao validar estratégia com dados até T, registrar T e avaliar depois a mesma configuração fixa com dados acumulados após T (no paper, fluxo ao vivo; em backtests, candles mais novos importados posteriormente). Comparar desempenho no embargo com expectativa do backtest. Sem modelagem adicional: usar importação existente e timestamp “validado até” armazenado no backtest/bot. **Complexidade:** baixa–média. **Validação:** avaliação usa somente candles após T; configuração imutável entre validação e embargo.
 
-### O5 — Roadmap use of the rest of the book
-Map the pitfalls in Table 1.2 to potential platform work, in order of relevance to a rule-based, one-asset, long-only system: (1) backtest statistics, deflated Sharpe, trials accounting (ch. 14, 11), (2) purged/embargoed validation and combinatorial purged CV (ch. 7, 12) if any ML or parameter-learning is added, (3) triple-barrier labels and meta-labelling (ch. 3) as a way to add an ML filter **on top of** the existing rule-based signals without replacing them, (4) bet sizing from probabilities (ch. 10), (5) structural breaks and entropy features (ch. 17–18) as diagnostics, (6) volume/dollar bars (ch. 2), (7) fractional differentiation (ch. 5) only if features for models are built. Details are in the corresponding chapter reports.
+### O3 — Campo de hipótese/mecanismo e contador de tentativas em cada configuração *(livro: C3, pp. 7–8)*
 
-### Not applicable
-Organisational advice for teams of PhDs, high-performance computing and quantum algorithms (ch. 20–22; the platform is a single-user system), market microstructure data protocols (FIX) and multi-asset-class data curation.
+Campo de texto obrigatório “por que isso deveria dar lucro (quem perde para nós)” para qualquer bot promovido além do backtest; **contador de tentativas** por família de estratégia (backtests/execuções de varredura, inclusive descartados), exibido junto aos resultados (entrada para Sharpe deflacionado, cap. 14). Igual a O2 do cap. 21 do livro 4. **Complexidade:** baixa. **Riscos:** texto serve apenas como apoio à honestidade.
 
-## 4. Priority
+### O4 — Tratar feedback do backtest como recurso consumível: separar pesquisa e avaliação *(livro: C3, p. 8)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+Backtester do livro não compartilha resultados de avaliação com pesquisa, pois realimentar resultados cria viés de seleção (explicado no cap. 11). Análogo na plataforma: **backtest de avaliação** (dados bloqueados, uma execução por família de configuração, resultado armazenado e não usado para ajuste) separado dos **backtests de pesquisa**. Igual a O5 do cap. 6 do livro 3 / O3 do cap. 21 do livro 4. **Complexidade:** média.
+
+### O5 — Usar o restante do livro como roteiro
+
+Mapear armadilhas da Tabela 1.2 a possíveis tarefas para a plataforma (regras, um ativo, somente comprado), por relevância: (1) estatísticas de backtest, Sharpe deflacionado e contagem de tentativas (caps. 14, 11); (2) validação purgada/com embargo e CV purgada combinatória (caps. 7, 12), se houver ML ou aprendizado de parâmetros; (3) rótulos de barreira tripla e meta-rotulagem (cap. 3) para acrescentar filtro ML **sobre** sinais atuais baseados em regras, sem substituí-los; (4) dimensionamento por probabilidades (cap. 10); (5) quebras estruturais e atributos de entropia (caps. 17–18) como diagnósticos; (6) barras de volume/dólar (cap. 2); (7) diferenciação fracionária (cap. 5) somente se forem criados atributos para modelos. Detalhes estão nos relatórios dos capítulos correspondentes.
+
+### Não aplicável
+
+Orientações organizacionais para equipes de PhDs, computação de alto desempenho e algoritmos quânticos (caps. 20–22; plataforma de usuário único), protocolos de dados de microestrutura de mercado (FIX) e curadoria de dados multiclasse de ativos.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O3 hypothesis + trial counter | high | – | – | low | – |
-| 2 | O2 forward embargo evaluation | high | medium | – | low–medium | candle import |
-| 3 | O4 research vs evaluation separation | high | – | – | medium | segments |
-| 4 | O1 lifecycle gates | medium | high | high | medium–high | metrics, alerts |
-| 5 | O5 roadmap | – | – | – | – | later chapters |
+| 1 | Hipótese e contador de tentativas O3 | alta | – | – | baixa | – |
+| 2 | Avaliação com embargo futuro O2 | alta | média | – | baixa–média | importação de candles |
+| 3 | Separar pesquisa e avaliação O4 | alta | – | – | média | segmentos |
+| 4 | Gates do ciclo de vida O1 | média | alta | alta | média–alta | métricas, alertas |
+| 5 | Roteiro O5 | – | – | – | – | capítulos seguintes |
 
-## 5. Affected files
-`backtesting` (stored validation date, evaluation runs), `trading`/bot models (state machine and evidence), `analytics` (comparison of embargo vs backtest), app bot detail page (gates view), docs.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Hypothesis and trial counter (metadata only).
-2. Forward embargo report.
-3. Locked evaluation run.
-4. Lifecycle gates with user approval of each rule.
+`backtesting` (data validada armazenada, execuções de avaliação), `trading`/modelos de bot (máquina de estados e evidências), `analytics` (comparação entre embargo e backtest), página de detalhes do bot no app (visão dos gates), documentação.
 
-## 7. Acceptance criteria and tests
-* Trial counter increments for every run and sweep member; embargo evaluation excludes data up to T; gates block transitions that lack evidence; defaults do not alter existing flows; ruff, mypy, existing tests green.
+## 6. Plano incremental
 
-## Caveats
-This chapter makes arguments by experience, with no data. The advice to separate research from backtesting and the meta-strategy paradigm is aimed at institutional teams; for a single user the equivalents are discipline and tooling that enforce it. The author's strong claims about the unethical nature of overfitting and about ML replacing discretionary investing are opinions, not results.
+1. Hipótese e contador de tentativas (somente metadados).
+2. Relatório de embargo futuro.
+3. Execução de avaliação bloqueada.
+4. Gates do ciclo de vida, com aprovação do usuário para cada regra.
+
+## 7. Critérios de aceitação e testes
+
+* Contador aumenta a cada execução e membro de varredura; avaliação de embargo exclui dados até T; gates bloqueiam transições sem evidência; padrões não alteram fluxos atuais; ruff, mypy e testes existentes aprovados.
+
+## Ressalvas
+
+Este capítulo argumenta com base na experiência, sem apresentar dados. Separar pesquisa de backtest e paradigma de metaestratégia são ideias para equipes institucionais; para uma pessoa, equivalem a disciplina e ferramentas que a imponham. Afirmações fortes do autor sobre a falta de ética do sobreajuste e sobre ML substituir investimento discricionário são opiniões, não resultados.

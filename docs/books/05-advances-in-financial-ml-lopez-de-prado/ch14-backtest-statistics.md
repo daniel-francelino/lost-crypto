@@ -1,93 +1,104 @@
-# Book 5 · Chapter 14 — Backtest Statistics
+# Livro 5 · Capítulo 14 — Estatísticas de backtest
 
-*Advances in Financial Machine Learning*, López de Prado (2018). Book pages (PDF = book + 27). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Advances in Financial Machine Learning*, López de Prado (2018). Páginas do livro (PDF = livro + 27). Referência-base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 195–207 and the start of attribution (p. 207) were read. Pages 208–210 (rest of attribution, exercises, references) were not read. Several formulas were garbled by text extraction (notably PSR/DSR); they are restated here from the visible fragments and from the standard published definitions (Bailey & López de Prado 2012, 2014) — the form below is **checked against the visible structure of the formulas on pp. 203–204** but should be re-verified against the book before implementation.
+**Profundidade da leitura:** pp. 195–207 e início da atribuição (p. 207) foram lidas. Pp. 208–210 (restante de atribuição, exercícios, referências) não foram lidas. Algumas fórmulas ficaram corrompidas na extração (notadamente PSR/DSR); são reapresentadas a partir de fragmentos visíveis e definições publicadas padrão (Bailey & López de Prado, 2012, 2014). A forma abaixo foi **conferida com a estrutura visível das fórmulas das pp. 203–204**, mas deve ser revisada no livro antes de implementação.
 
-**Relevance:** this is the central statistics chapter for the platform's metrics and evidence pipeline: the Probabilistic Sharpe Ratio, the Deflated Sharpe Ratio, bets vs trades, concentration of returns, drawdown/time under water, implementation-shortfall metrics and the "Third Law of Backtesting".
+**Relevância:** capítulo central para métricas e pipeline de evidências: Sharpe probabilístico, Sharpe deflacionado, apostas versus operações, concentração de retornos, drawdown/tempo submerso, métricas de shortfall de execução e “Terceira Lei do Backtesting”.
 
-## 1. Chapter summary
+## 1. Resumo do capítulo
 
-| ID | Concept | Pages |
+| ID | Conceito | Páginas |
 |---|---|---|
-| C1 | Seven families of backtest statistics: general characteristics, performance, runs/drawdowns, implementation shortfall, return/risk efficiency, classification scores, attribution. Report what investors use to compare; metrics should uncover asymmetric risk or low capacity. | 195 |
-| C2 | **General characteristics**: time range (the test should include enough regimes), average AUM, capacity (a minimum AUM for sizing/diversification; performance decays as AUM grows), leverage (with costs), **maximum dollar position size** (prefer strategies whose maximum position is close to average AUM, i.e. not relying on extreme events), ratio of longs (long-short ideally ≈ 0.5), **frequency of bets**: a **bet** = a sequence of positions on the same side (ends when flattened or flipped), so the number of bets is ≤ number of trades; "a trade count would overestimate the number of independent opportunities"; **average holding period** (weighted), **annualised turnover** (dollar traded per year ÷ average AUM; can be high with few bets if the position is constantly tuned), **correlation to the underlying universe** (significant correlation means the strategy is merely holding or shorting the universe). | 196–197 |
-| C3 | **Performance**: PnL, PnL from longs, annualised rate of return, hit ratio, average return from hits and from misses; **time-weighted rate of return (TWRR)** per GIPS, geometrically linked, adjusted for external cash flows. | 198–199 |
-| C4 | **Runs**: returns are rarely IID; runs (uninterrupted same-sign sequences) increase downside risk. **Returns concentration** via a Herfindahl-Hirschman–style index: `h⁺ = (Σ (w_t⁺)² − 1/n)/(1 − 1/n)` on positive-bet weights (0 = uniform, 1 = one return holds everything), same for negative returns `h⁻` and for bets per month; **drawdown (DD)** = loss between consecutive high-water marks and **time under water (TuW)** = time from a high-water mark until the PnL exceeds it; runs statistics: HHI of positive returns, of negative returns, of bets per month; 95th-percentile drawdown and time under water. | 199–202 |
-| C5 | **Implementation shortfall**: brokerage fees per turnover, **slippage per turnover**, dollar performance per turnover, return on execution costs (performance ÷ total costs — "should be a large multiple" so the strategy survives worse-than-expected execution; also the cost multiple at which the strategy breaks even). | 202–203 |
-| C6 | **Sharpe ratio** `SR = μ/σ` (IID Gaussian excess returns); estimation error is substantial. **Probabilistic Sharpe Ratio**: `PSR[SR*] = Z[ (SR̂ − SR*)·sqrt(T−1) / sqrt(1 − γ̂₃·SR̂ + ((γ̂₄ − 1)/4)·SR̂²) ]`, where `T` = number of returns, `γ̂₃` skewness, `γ̂₄` kurtosis (3 for Gaussian), `SR̂` the observed non-annualised Sharpe; PSR rises with SR̂, with longer track records and positive skew and falls with fat tails. **Deflated Sharpe Ratio**: `DSR = PSR[SR*]` where the benchmark `SR*` is the expected maximum Sharpe among `N` independent trials under the null: `SR* = sqrt(V[{SR̂_n}])·((1−γ)·Z⁻¹[1 − 1/N] + γ·Z⁻¹[1 − 1/(N e)])`, γ ≈ 0.5772 (Euler–Mascheroni), `V[{SR̂_n}]` the variance of the estimated Sharpe ratios across trials. The expected maximum is positive even if the true SR is zero and grows quickly with `N` and with the variance of trials. **Marcos' Third Law of Backtesting:** "Every backtest result must be reported in conjunction with all the trials involved in its production. Absent that information, it is impossible to assess the backtest's false-discovery probability." | 203–205 |
-| C7 | **Efficiency statistics**: annualised Sharpe `SR·sqrt(a)` (a = observations per year; assumes IID), information ratio (excess return over benchmark ÷ tracking error), PSR, DSR (should exceed 0.95 for 5% significance). | 205–206 |
-| C8 | **Classification scores** for the meta-labeling overlay: accuracy, precision, recall, F1 (harmonic mean), negative log-loss; Table 14.1 lists the four degenerate cases (observed all 1s, all 0s, predicted all 1s, all 0s) where precision/recall/F1 are undefined or equal to others — scikit-learn sets F1 to 0 with a warning. | 206–207 |
-| C9 | **Attribution**: decompose PnL by risk class (duration, credit, liquidity, sector, currency…); risks are not orthogonal (rest not read). | 207 |
+| C1 | Sete famílias de estatísticas de backtest: características gerais, desempenho, sequências/drawdowns, shortfall de execução, eficiência retorno/risco, pontuação de classificação e atribuição. Relatar métricas usadas por investidores para comparar; métricas devem revelar risco assimétrico ou capacidade baixa. | 195 |
+| C2 | **Características gerais**: intervalo temporal (teste precisa abranger regimes suficientes), AUM médio, capacidade (AUM mínimo para dimensionar/diversificar; desempenho cai conforme AUM aumenta), alavancagem (com custos), **tamanho máximo em dólares da posição** (preferir estratégia cujo máximo se aproxima do AUM médio, sem depender de eventos extremos), razão de posições compradas (long-short ideal ≈ 0,5), **frequência de apostas**: **aposta** = sequência de posições no mesmo lado (termina ao zerar ou inverter), então apostas ≤ operações; “contar operações superestima oportunidades independentes”; **permanência média** ponderada, **giro anualizado** (valor negociado por ano ÷ AUM médio; pode ser alto mesmo com poucas apostas se posição é ajustada constantemente), **correlação com universo subjacente** (correlação significativa pode indicar apenas manter/vender o universo). | 196–197 |
+| C3 | **Desempenho**: PnL, PnL comprado, taxa de retorno anualizada, taxa de acerto, retorno médio de ganhos/perdas; **retorno ponderado pelo tempo (TWRR)** segundo GIPS, encadeado geometricamente e ajustado a fluxos externos de caixa. | 198–199 |
+| C4 | **Sequências**: retornos raramente são IID; sequências contínuas de mesmo sinal elevam risco de queda. **Concentração de retornos** por índice tipo Herfindahl-Hirschman: `h⁺ = (Σ (w_t⁺)² − 1/n)/(1 − 1/n)` sobre pesos de apostas positivas (0 = uniforme, 1 = um retorno representa tudo); também `h⁻` para retornos negativos e concentração de apostas por mês. **Drawdown (DD)** = perda entre máximas sucessivas do patrimônio; **tempo submerso (TuW)** = tempo da máxima até PnL superá-la novamente. Estatísticas: HHI de retornos positivos, negativos e apostas mensais; percentis 95 de drawdown e TuW. | 199–202 |
+| C5 | **Shortfall de execução**: taxas de corretagem por giro, **slippage por giro**, desempenho monetário por giro, retorno sobre custos de execução (desempenho ÷ custos totais — “deve ser múltiplo grande” para sobreviver execução pior que esperada; também múltiplo de custo no qual estratégia empata). | 202–203 |
+| C6 | **Sharpe** `SR = μ/σ` (retornos excedentes gaussianos IID); erro de estimação substancial. **Sharpe probabilístico**: `PSR[SR*] = Z[ (SR̂ − SR*)·sqrt(T−1) / sqrt(1 − γ̂₃·SR̂ + ((γ̂₄ − 1)/4)·SR̂²) ]`, com `T` número de retornos, `γ̂₃` assimetria, `γ̂₄` curtose (3 para gaussiana), `SR̂` Sharpe observado não anualizado. PSR aumenta com SR̂, histórico mais longo e assimetria positiva; diminui com caudas pesadas. **Sharpe deflacionado**: `DSR = PSR[SR*]`, onde referência `SR*` é Sharpe máximo esperado entre N tentativas independentes sob nulo: `SR* = sqrt(V[{SR̂_n}])·((1−γ)·Z⁻¹[1 − 1/N] + γ·Z⁻¹[1 − 1/(N e)])`, γ ≈ 0,5772 (Euler–Mascheroni), V = variância dos Sharpes estimados entre tentativas. Máximo esperado é positivo mesmo se SR real = 0, cresce rápido com N e variância entre tentativas. **Terceira Lei do Backtesting de Marcos**: “todo resultado de backtest deve ser relatado junto com todas as tentativas envolvidas em sua produção. Sem isso, é impossível avaliar a probabilidade de falsa descoberta”. | 203–205 |
+| C7 | **Estatísticas de eficiência**: Sharpe anualizado `SR·sqrt(a)` (a = observações/ano; pressupõe IID), índice de informação (retorno excedente ao benchmark ÷ erro de aderência), PSR e DSR (deve superar 0,95 para significância de 5%). | 205–206 |
+| C8 | **Pontuação de classificação** para camada de meta-rotulagem: acurácia, precisão, recall, F1 (média harmônica), log-loss negativo. Tabela 14.1 lista quatro casos degenerados (observado sempre 1/0, previsto sempre 1/0) em que precisão/recall/F1 são indefinidos ou equivalem; scikit-learn define F1 = 0 com aviso. | 206–207 |
+| C9 | **Atribuição**: decompor PnL por classe de risco (duração, crédito, liquidez, setor, moeda…); riscos não são ortogonais (restante não lido). | 207 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Metric | Status | Evidence / notes |
+| Métrica | Status | Evidência/observações |
 |---|---|---|
-| Net PnL, return, buy&hold, max drawdown, fees, win rate, profit factor, avg trade | ✅ | `analytics/domain/metrics.py`. |
-| Sharpe/Sortino/Calmar, annualisation | ❌ | Not present (book 4 ch. 23 O1 plans these). |
-| PSR, DSR | ❌ | — |
-| Skewness/kurtosis of returns | ❌ | — |
-| Number of bets vs trades | ≈ | One position at a time, long-only: trades ≈ bets (each round trip = one bet). |
-| Average holding period, turnover | ⚠️ | Holding time can be derived from trades (verify it is reported); turnover not reported. |
-| Time under water, drawdown percentiles | ❌ | Only max drawdown. |
-| Concentration (HHI) of returns | ❌ | — |
-| Correlation with the underlying | ❌ | Buy&hold return reported, not correlation. |
-| Implementation shortfall metrics | ⚠️ | Total fees and slippage are accounted; ratios (performance ÷ costs, break-even cost multiple) not reported. |
-| Classification scores | ❌ | No classifiers. |
-| Attribution | ❌ | — |
-| Trial count for deflation | ❌ | See ch. 11 O1. |
+| PnL líquido, retorno, buy-and-hold, drawdown máximo, taxas, taxa de acerto, fator de lucro, operação média | ✅ | `analytics/domain/metrics.py`. |
+| Sharpe/Sortino/Calmar, anualização | ❌ | Não existem (planejados no livro 4, cap. 23 O1). |
+| PSR/DSR | ❌ | — |
+| Assimetria/curtose de retornos | ❌ | — |
+| Número de apostas versus operações | ≈ | Uma posição por vez e comprado: operações ≈ apostas (cada ida-e-volta é uma aposta). |
+| Permanência média/giro | ⚠️ | Duração pode ser derivada das operações (verificar se informada); giro não informado. |
+| Tempo submerso/percentis de drawdown | ❌ | Só drawdown máximo. |
+| Concentração HHI de retornos | ❌ | — |
+| Correlação com subjacente | ❌ | Informa retorno buy-and-hold, não correlação. |
+| Métricas de shortfall de execução | ⚠️ | Taxas/slippage totais contabilizados; razões (desempenho ÷ custos, múltiplo de equilíbrio) não. |
+| Pontuação de classificação | ❌ | Sem classificadores. |
+| Atribuição | ❌ | — |
+| Contagem de tentativas para deflação | ❌ | Ver cap. 11 O1. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Add PSR and DSR to the sweep/backtest results *(book: C6, C7, pp. 203–206)*
-* **Proposal:** compute per-period (e.g. daily) returns from the equity curve, then: observed non-annualised Sharpe `SR̂`, skewness, kurtosis, `T`, **PSR against a benchmark Sharpe (default 0)**, and, for sweeps and for any backtest with a ledger count `N` (ch. 11 O1), the **DSR** using `N` = the number of independent trials and `V` = the empirical variance of the trials' Sharpe ratios. Display "Probability the strategy's Sharpe is truly > 0: PSR 0.82; after deflation for 200 trials: DSR 0.31" with an explanation, thresholds (≥ 0.95) and warnings (small T, fat tails, non-IID).
-* **Why:** it converts "best of N" into a probability, the one statistic that directly counters the sweep's selection bias; needs only returns and the trial count. Together with PBO (ch. 11) it forms the minimal "credibility" panel.
-* **Subtleties to handle:** (a) choose the return frequency consistently (daily returns for 1h-bar strategies give fewer observations; the formula uses non-annualised SR at the sampling frequency); (b) "independent trials": parameter neighbours are highly correlated, so the effective number of independent trials is smaller than the count of runs (the book gives no estimator in the pages read; options: cluster trials by return correlation, use the number of distinct strategy families × parameter plateaus, or report DSR under several N and show sensitivity); (c) autocorrelation of returns violates IID: report a Newey–West or block-adjusted variance as a sensitivity; (d) equity curve of a position that is flat for long stretches has many zero returns, which lowers measured σ and inflates SR (book 4 ch. 24, same issue as the allocation) — also report SR computed on **bet returns** and on active periods.
-* **Complexity:** low–medium (formulas, inverse normal CDF, ledger integration). **Validation:** compare against reference implementations on fixtures (white noise → PSR ≈ 0.5 at SR* = 0; DSR decreases with N; as N → 1 DSR → PSR); symmetric properties.
+### O1 — Adicionar PSR e DSR aos resultados de backtest/varredura *(livro: C6, C7, pp. 203–206)*
 
-### O2 — Extended statistics bundle (general, runs, shortfall) *(book: C2, C4, C5, pp. 196–203)*
-Add to the metrics layer: **bets vs trades** (explicit definitions), **average holding period**, **annualised turnover**, **time in market**, **correlation to the underlying's returns**, **HHI concentration of positive/negative returns and of monthly returns**, **drawdown series, time under water, 95th-percentile drawdown and TuW**, and implementation-shortfall ratios (**performance ÷ total costs**, **break-even cost multiple**, **slippage per turnover**). Overlaps with book 4 ch. 21 O7 and ch. 23 O1: define each metric once with its book reference. **Complexity:** low–medium. **Validation:** closed-form fixtures; HHI bounds 0–1 (uniform = 0, single return = 1); TuW consistent with the equity curve; metrics invariant to constant scaling of equity.
+* **Proposta:** calcular retornos por período (ex.: diários) da curva de patrimônio e então Sharpe observado não anualizado `SR̂`, assimetria, curtose, `T`, **PSR contra Sharpe de referência (padrão 0)** e, para varreduras/backtest com N tentativas no registro (cap. 11 O1), **DSR** usando N = tentativas independentes e V = variância empírica dos Sharpes. Mostrar: “Probabilidade de Sharpe real > 0: PSR 0,82; após deflação por 200 tentativas: DSR 0,31”, com explicação, limiar (≥ 0,95) e alertas (T pequeno, caudas pesadas, não IID).
+* **Motivo:** converte “melhor de N” em probabilidade, contrapondo viés de seleção da varredura; precisa apenas retornos e contagem. Com PBO (cap. 11), forma painel mínimo de credibilidade.
+* **Nuances:** (a) frequência de retorno consistente (retornos diários em estratégia de barras 1h fornecem menos observações; fórmula usa Sharpe não anualizado na frequência amostral); (b) tentativas “independentes”: parâmetros vizinhos são correlacionados, então N efetivo menor que execuções (livro não fornece estimador; opções: agrupar por correlação de retorno, famílias × platôs distintos ou mostrar sensibilidade a vários N); (c) autocorrelação viola IID: mostrar sensibilidade Newey–West/blocos; (d) curva de patrimônio parada por longos períodos tem muitos retornos zero, reduz σ medida e infla SR (livro 4, cap. 24); informar também SR sobre **retornos por aposta** e períodos ativos.
+* **Complexidade:** baixa–média (fórmulas, CDF normal inversa, registro). **Validação:** referências em fixtures (ruído branco → PSR ≈ 0,5 com SR*=0; DSR cai com N; N→1 implica DSR→PSR); propriedades de simetria.
 
-### O3 — Report results together with the trials (Third Law) as a product rule *(book: C6, p. 205)*
-Every displayed performance number for a configuration chosen from a search must be shown with: number of trials (raw and effective), date range of data, the family of strategies tried, and whether the evaluation segment was locked. Absent that information the UI marks the result "unverified: selection bias unknown". **Complexity:** low–medium (depends on the ledger). **Validation:** results without a ledger entry show the warning.
+### O2 — Pacote ampliado de estatísticas (gerais, sequências e shortfall) *(livro: C2, C4, C5, pp. 196–203)*
 
-### O4 — Capacity and size sanity for a spot account *(book: C2, p. 196)*
-Report approximate **capacity** hints: average and maximum position notional vs average daily quote volume of the pair (participation rate), and warn when the configured capital would exceed a small share (e.g. 1% of per-candle volume, ch. 20 O5 of book 4). For retail sizes capacity is rarely binding but the check documents that. **Complexity:** low.
+Adicionar às métricas: **apostas versus operações** (definições explícitas), **permanência média**, **giro anualizado**, **tempo no mercado**, **correlação com retornos do subjacente**, **HHI de concentração de retornos positivos/negativos e mensais**, **série de drawdown, tempo submerso, percentis 95 de DD/TuW** e razões de shortfall (**desempenho ÷ custos totais**, **múltiplo de equilíbrio**, **slippage por giro**). Sobrepõe-se ao livro 4, cap. 21 O7 e cap. 23 O1: definir cada métrica uma única vez, com referência. **Complexidade:** baixa–média. **Validação:** fixtures fechadas; HHI entre 0–1 (uniforme=0, único retorno=1); TuW coerente com patrimônio; métricas invariantes à escala constante.
 
-### O5 — Classification scores for filters (and for any future meta-model), including degenerate-case handling *(book: C8, pp. 206–207)*
-Implement accuracy/precision/recall/F1/log-loss and the degenerate cases explicitly (return None/NaN with explanation, not 0) in the filter evaluation (ch. 3 O4). **Complexity:** low. **Validation:** Table 14.1 cases.
+### O3 — Relatar resultados junto com tentativas (Terceira Lei) como regra do produto *(livro: C6, p. 205)*
 
-### O6 — Time-weighted return handling for deposits/withdrawals (only if capital flows are ever modelled) *(book: C3, pp. 198–199)*
-Bots have fixed capital; no external flows. If withdrawals or top-ups are introduced, use TWRR (geometric linking of sub-period returns) rather than simple PnL ratios. **Complexity:** none now.
+Toda métrica de desempenho exibida para configuração escolhida em busca deve vir com: tentativas brutas/efetivas, intervalo de dados, famílias de estratégia avaliadas e se segmento de avaliação estava bloqueado. Sem esses dados, interface marca “não verificado: viés de seleção desconhecido”. **Complexidade:** baixa–média (depende do registro). **Validação:** resultado sem registro recebe aviso.
 
-### Not applicable
-GIPS compliance reporting, bond-specific dirty price/accrued interest terms in TWRR, long-short ratios, attribution by risk classes (single-asset long-only).
+### O4 — Plausibilidade de capacidade e tamanho para conta spot *(livro: C2, p. 196)*
 
-## 4. Priority
+Informar indícios de **capacidade**: notional médio/máximo versus volume médio diário cotado do par (taxa de participação) e alertar quando capital configurado ultrapassar pequena fração (ex.: 1% do volume por candle, livro 4 cap. 20 O5). Para varejo raramente limita, mas documenta. **Complexidade:** baixa.
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+### O5 — Pontuações de classificação para filtros/modelo meta, tratando casos degenerados *(livro: C8, pp. 206–207)*
+
+Implementar acurácia/precisão/recall/F1/log-loss e casos degenerados explicitamente (retornar None/NaN com explicação, não zero) na avaliação de filtros (cap. 3 O4). **Complexidade:** baixa. **Validação:** casos da Tabela 14.1.
+
+### O6 — Retorno ponderado pelo tempo com depósitos/saques (somente se houver fluxos de capital) *(livro: C3, pp. 198–199)*
+
+Bots usam capital fixo, sem fluxos externos. Se houver saques/aportes, usar TWRR (encadeamento geométrico de retornos subperíodo), não razão simples de PnL. **Complexidade:** nenhuma agora.
+
+### Não aplicável
+
+Relatórios de conformidade GIPS, preço sujo/accrued interest de títulos em TWRR, proporções long-short, atribuição por classe de risco (um ativo spot comprado).
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O1 PSR and DSR | very high | – | – | low–medium | ledger (ch. 11 O1) for DSR |
-| 2 | O2 extended statistics | high | high | – | low–medium | equity series |
-| 3 | O3 results with trials | very high | – | – | low–medium | ledger |
-| 4 | O5 classification scores | medium | – | – | low | ch. 3 O1/O4 |
-| 5 | O4 capacity hint | low | low | – | low | volume data |
-| 6 | O6 TWRR | – | – | – | – | not needed |
+| 1 | PSR/DSR O1 | muito alta | – | – | baixa–média | registro (cap. 11 O1) para DSR |
+| 2 | Estatísticas ampliadas O2 | alta | alta | – | baixa–média | série patrimonial |
+| 3 | Resultados acompanhados de tentativas O3 | muito alta | – | – | baixa–média | registro |
+| 4 | Pontuações de classificação O5 | média | – | – | baixa | cap. 3 O1/O4 |
+| 5 | Indício de capacidade O4 | baixa | baixa | – | baixa | dados de volume |
+| 6 | TWRR O6 | – | – | – | – | desnecessário |
 
-## 5. Affected files
-`analytics/domain/metrics.py` (new statistics: returns series, SR, skew, kurtosis, PSR, DSR, HHI, TuW), a normal CDF/inverse CDF helper (use `statistics.NormalDist` from the standard library if precision suffices), backtest result schema and `docs/openapi.json`, app result pages, tests with reference values.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Returns series and basic statistics (SR, skew, kurtosis) with unit tests.
-2. PSR; then DSR with the ledger count and sensitivity table.
-3. Extended statistics (runs, shortfall, turnover).
-4. UI "credibility panel" combining PSR, DSR, PBO, and the Third Law notice.
+`analytics/domain/metrics.py` (novas métricas: série de retornos, SR, assimetria, curtose, PSR, DSR, HHI, TuW), helper CDF/CDF inversa normal (usar `statistics.NormalDist` da biblioteca padrão se precisão bastar), esquema de resultado e `docs/openapi.json`, páginas de resultado do app, testes de referência.
 
-## 7. Acceptance criteria and tests
-* PSR: for `SR̂ = 0`, `SR* = 0` returns 0.5; monotone increasing in `SR̂` and `T`; decreasing in kurtosis; DSR ≤ PSR(0) for `N > 1` and decreasing in `N`; matches published example values (to be verified against the original papers before shipping).
-* Statistics are deterministic, scale-invariant where appropriate and documented with formulas and references.
-* ruff, mypy, existing tests green.
+## 6. Plano incremental
 
-## Caveats
-PSR/DSR assume IID returns with the estimated skew/kurtosis, independent trials, and a null of zero skill; crypto returns are heteroscedastic and autocorrelated at some horizons, and parameter trials are strongly dependent, so DSR with N = number of runs is conservative while DSR with N = 1 is optimistic. The book's DSR needs the variance of trial Sharpes, which must be computed on the same return frequency. The formulas should be validated against the primary papers (Bailey & López de Prado 2012, 2014) before implementation because the PDF extraction of this chapter is imperfect. Pages 208–210 (rest of attribution, exercises) were not read.
+1. Série de retornos e estatísticas básicas (SR, assimetria, curtose) com testes unitários.
+2. PSR; depois DSR com contagem do registro e tabela de sensibilidade.
+3. Estatísticas ampliadas (sequências, shortfall, giro).
+4. “Painel de credibilidade” na interface: aviso da Terceira Lei + PSR, DSR, PBO.
+
+## 7. Critérios de aceitação e testes
+
+* PSR: `SR̂ = 0`, `SR* = 0` → 0,5; cresce monotonicamente em `SR̂` e T; cai com curtose; DSR ≤ PSR(0) para N>1 e decresce com N; corresponde a exemplos publicados (verificar nos artigos originais antes de publicar).
+* Estatísticas determinísticas, invariantes à escala quando apropriado e documentadas com fórmulas/referências.
+* ruff, mypy e testes existentes aprovados.
+
+## Ressalvas
+
+PSR/DSR presumem retornos IID com assimetria/curtose estimadas, tentativas independentes e nulo de habilidade zero; retornos cripto são heterocedásticos e por vezes autocorrelacionados, enquanto tentativas são muito dependentes. Assim, DSR com N = execuções é conservador; com N=1, otimista. DSR exige variância dos Sharpes na mesma frequência de retorno. Antes de implementar, validar fórmulas com artigos primários (Bailey & López de Prado, 2012, 2014), pois extração PDF é imperfeita. Pp. 208–210 não foram lidas.

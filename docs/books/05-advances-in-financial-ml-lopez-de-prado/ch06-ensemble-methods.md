@@ -1,61 +1,69 @@
-# Book 5 · Chapter 6 — Ensemble Methods
+# Livro 5 · Capítulo 6 — Métodos de conjunto
 
-*Advances in Financial Machine Learning*, López de Prado (2018). Book pages (PDF = book + 27). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Advances in Financial Machine Learning*, López de Prado (2018). Páginas do livro (PDF = livro + 27). Referência-base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 93–102 were read in full (bias/variance/noise, bagging, random forest, boosting, bagging vs boosting in finance, bagging for scalability, exercises list). Code snippets were skimmed.
+**Profundidade da leitura:** pp. 93–102 foram lidas integralmente (viés/variância/ruído, bagging, floresta aleatória, boosting, comparação em finanças, bagging para escalabilidade e exercícios). Trechos de código foram consultados superficialmente.
 
-**Fit with the platform:** relevant only if an ML model is approved (ch. 3 O3). It supplies design rules for that model (bagging over boosting, how to avoid redundancy, why out-of-bag accuracy is misleading), not features for the current rule-based system. Nothing here should be built before the evaluation prerequisites (ch. 7, 12, 14).
+**Compatibilidade com a plataforma:** relevante somente se um modelo ML for aprovado (cap. 3 O3). Fornece regras de projeto (preferir bagging a boosting, evitar redundância, por que acurácia out-of-bag engana), não recursos para o sistema atual baseado em regras. Nada deve ser implementado antes dos pré-requisitos de avaliação (caps. 7, 12, 14).
 
-## 1. Chapter summary
+## 1. Resumo do capítulo
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que aborda | Páginas |
 |---|---|---|---|
-| C1 | **Three sources of error**: bias (unrealistic assumptions, underfitting), variance (sensitivity to small changes in the training set, overfitting; "mistaken noise with signal"), noise (irreducible). Mean-squared error = bias² + variance + noise. Ensembles of weak learners reduce bias and/or variance. | Diagnosing model error. | 93–94 |
-| C2 | **Bagging**: fit `N` estimators on bootstrap samples (independent, parallelisable), average the forecasts or majority-vote. Variance of the bagged forecast `= σ̄²(ρ̄ + (1 − ρ̄)/N)`; bagging helps **only if the average correlation `ρ̄ < 1`** among estimators. A sufficiently large number of estimators makes majority voting more accurate than the individual ones **only if each is better than chance** (`p > 1/k`); bagging cannot rescue poor classifiers and reduces variance more than bias. | Variance reduction. | 94–97 |
-| C3 | **Observation redundancy** (non-IID labels, ch. 4) has two detrimental effects: (1) bootstrap samples become near-identical, `ρ̄ ≈ 1`, so bagging does not reduce variance regardless of `N` (e.g. if labels span 100 bars, sample about 1% of observations per estimator); (2) **out-of-bag accuracy is inflated** because training and out-of-bag samples are almost identical; prefer a proper k-fold CV without shuffling (ch. 7) and a low k. | Misuse of bagging in finance. | 97–98 |
-| C4 | **Random forest**: bagging plus random feature subsets per split (further decorrelation); provides feature importance (ch. 8) and out-of-bag accuracy (inflated in finance). With redundant samples it still overfits (nearly identical trees). Fixes: lower `max_features`; early stopping with `min_weight_fraction_leaf` (e.g. 5%) so OOB accuracy approaches out-of-sample CV accuracy; bag decision trees (or one-tree forests) with `max_samples = average uniqueness`; or replace the bootstrap with the sequential bootstrap; fit on a PCA of features; use `class_weight='balanced_subsample'`. | Controlling RF overfitting. | 98–99 |
-| C5 | **Boosting** (AdaBoost): sequentially fit weak learners, up-weight misclassified observations, keep estimators better than chance; reduces both variance and bias. | Alternative ensemble. | 99–100 |
-| C6 | **Bagging vs boosting in finance**: boosting addresses underfitting at the cost of greater overfitting risk; since financial data have low signal-to-noise ratio, "overfitting is often a greater concern than underfitting", so **bagging is generally preferable**; bagging is parallelisable. | Choice of ensemble. | 100–101 |
-| C7 | **Bagging for scalability**: bag base learners that do not scale (SVM) with tight early stopping (`max_iter`, `tol`, `max_depth`); loss of individual quality is offset by variance reduction, yielding fast, robust estimates on huge datasets. | Compute. | 101 |
+| C1 | **Três fontes de erro**: viés (pressupostos irreais, subajuste), variância (sensibilidade a pequenas mudanças no treino, sobreajuste; “confundir ruído com sinal”) e ruído (irredutível). Erro quadrático médio = viés² + variância + ruído. Conjuntos de aprendizes fracos reduzem viés e/ou variância. | Diagnóstico de erro do modelo. | 93–94 |
+| C2 | **Bagging**: ajustar `N` estimadores em amostras bootstrap (independentes e paralelizáveis), calcular média ou voto majoritário. Variância da previsão agregada `= σ̄²(ρ̄ + (1 − ρ̄)/N)`; bagging ajuda **somente se a correlação média `ρ̄ < 1`**. Quantidade suficiente de estimadores torna voto majoritário mais preciso que estimadores individuais **somente se cada um for melhor que o acaso** (`p > 1/k`); bagging não recupera classificadores ruins e reduz variância mais que viés. | Reduzir variância. | 94–97 |
+| C3 | **Redundância das observações** (rótulos não IID, cap. 4) causa dois danos: (1) amostras bootstrap quase idênticas, `ρ̄ ≈ 1`, então bagging não reduz variância independentemente de `N` (por exemplo, rótulos que abrangem 100 barras: amostrar ~1% das observações por estimador); (2) **acurácia out-of-bag inflada**, pois amostras de treino e OOB são quase iguais. Preferir CV k-fold adequada, sem embaralhar (cap. 7), e k pequeno. | Uso incorreto de bagging em finanças. | 97–98 |
+| C4 | **Floresta aleatória**: bagging + subconjuntos aleatórios de atributos por divisão (reduz correlação); fornece importância dos atributos (cap. 8) e acurácia OOB (inflada em finanças). Com amostras redundantes, ainda sobreajusta (árvores quase idênticas). Correções: reduzir `max_features`; parada antecipada com `min_weight_fraction_leaf` (ex.: 5%) para aproximar acurácia OOB da CV fora da amostra; bagging de árvores de decisão (ou florestas de uma árvore) com `max_samples = unicidade média`; substituir bootstrap por bootstrap sequencial; ajustar sobre PCA dos atributos; usar `class_weight='balanced_subsample'`. | Controlar sobreajuste em RF. | 98–99 |
+| C5 | **Boosting** (AdaBoost): ajustar aprendizes fracos sequencialmente, aumentar peso das observações classificadas incorretamente e manter estimadores melhores que o acaso; reduz variância e viés. | Alternativa de conjunto. | 99–100 |
+| C6 | **Bagging versus boosting em finanças**: boosting combate subajuste, mas eleva risco de sobreajuste. Como dados financeiros têm baixa razão sinal/ruído, “sobreajuste costuma ser preocupação maior que subajuste”; por isso, **bagging tende a ser preferível** e pode ser paralelizado. | Escolha do conjunto. | 100–101 |
+| C7 | **Bagging para escalabilidade**: agrupar aprendizes-base que não escalam (SVM), com parada antecipada rigorosa (`max_iter`, `tol`, `max_depth`); perda de qualidade individual é compensada pela redução da variância, obtendo estimativas rápidas e robustas em conjuntos enormes. | Custo computacional. | 101 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| ML models, ensembles | ❌ | None in the code base. |
-| Overfit control for any learned component | ⚠️ | Parameter search is a grid sweep with a train/test split; no correlation-aware or variance-aware treatment. |
-| Parameter-ensemble ("bagging of rules") | ❌ | A single parameter set per bot. |
+| Modelos ML e conjuntos | ❌ | Não existem na base. |
+| Controle de sobreajuste em componentes aprendidos | ⚠️ | Busca de parâmetros em grade com divisão treino/teste; sem tratamento de correlação/variância. |
+| Conjunto de parâmetros (“bagging de regras”) | ❌ | Um conjunto de parâmetros por bot. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — If ML is added: choose bagging of shallow, early-stopped learners with `max_samples ≈ average uniqueness`; reject boosting by default *(book: C2–C6, pp. 94–101)*
-Record these design constraints in the ML track decision record (ch. 3 O3): bagged decision trees with low depth, early stopping, `max_samples` tied to average uniqueness (ch. 4 O1), balanced class weights, probability outputs; measure `ρ̄` among tree predictions as a diagnostic (if `ρ̄ ≈ 1`, the ensemble adds nothing); never use OOB accuracy as the performance estimate; evaluate with purged CV (ch. 7) and at the system level (ch. 14). Boosting is allowed only as a documented experiment with out-of-sample proof. **Complexity:** none now (guidance); high when ML arrives.
+### O1 — Se ML for adicionado: bagging de aprendizes rasos com parada antecipada e `max_samples ≈ unicidade média`; rejeitar boosting por padrão *(livro: C2–C6, pp. 94–101)*
 
-### O2 — "Ensemble of rules" experiment: bag over parameter sets rather than learn a model *(book: C2, pp. 94–96 · our adaptation)*
-The variance formula suggests an analogue for rule-based strategies: instead of picking one "best" parameter (selection bias), run an **ensemble of neighbouring parameter sets** (e.g. an EMA crossover for several fast/slow pairs on a log-spaced grid) and combine their signals by voting or averaging positions. If correlations among the members are below 1 the ensemble has lower variance of results than a single member; if the plateau is real (book 4 ch. 21) the ensemble reduces dependence on the exact choice. Evidence pipeline required; the platform currently has one parameter set per bot, so this would be a new "ensemble strategy" type. **H-PARAM-ENSEMBLE.** **Complexity:** medium. **Risks:** members are highly correlated (trend rules on the same prices), so benefits are small; execution is more complex (net position from votes); more trades if members disagree. **Validation:** compare with single best, with random member, and with the plateau centre on out-of-sample data; compute average member correlation.
+Registrar restrições de projeto na decisão de linha ML (cap. 3 O3): árvores em bagging com baixa profundidade, parada antecipada, `max_samples` ligado à unicidade média (cap. 4 O1), pesos de classe balanceados e saídas probabilísticas; medir `ρ̄` entre previsões das árvores (se `ρ̄ ≈ 1`, conjunto não agrega); nunca usar acurácia OOB como estimativa de desempenho; avaliar por CV purgada (cap. 7) e no nível do sistema (cap. 14). Boosting somente como experimento documentado com prova fora da amostra. **Complexidade:** nenhuma agora (diretriz); alta quando ML chegar.
 
-### O3 — Condorcet / majority-vote check for combined signals *(book: C2, p. 96 · idea only)*
-The accuracy gain from majority voting requires each voter to be better than chance and reasonably independent; before combining several signals (trend + breakout + mean reversion), measure each one's stand-alone hit rate and the correlation among them. Part of the portfolio/diversification view (book 4 ch. 24 O1/O5). **Complexity:** low.
+### O2 — Experimento de “conjunto de regras”: agrupar parâmetros, sem aprender modelo *(livro: C2, pp. 94–96 · adaptação nossa)*
 
-### Not applicable
-sklearn-specific bugs and class settings, SVM scalability, AdaBoost internals, PCA of features (until ML exists).
+A fórmula de variância sugere análogo para estratégias por regras: em vez de escolher um parâmetro “melhor” (viés de seleção), executar **conjunto de parâmetros vizinhos** (por exemplo, vários pares rápido/lento de EMA em grade logarítmica) e combinar sinais por voto ou posições médias. Se correlação entre membros for menor que 1, conjunto reduz variância dos resultados em relação a um membro; se platô for real (livro 4, cap. 21), reduz dependência da escolha exata. Exige pipeline de evidências; plataforma tem um conjunto de parâmetros por bot, então seria novo tipo “estratégia de conjunto”. **H-PARAM-ENSEMBLE.** **Complexidade:** média. **Riscos:** membros muito correlacionados (regras de tendência nos mesmos preços), portanto ganhos pequenos; execução mais complexa (posição líquida por votos); mais operações se membros discordarem. **Validação:** comparar ao melhor individual, membro aleatório e centro do platô fora da amostra; calcular correlação média dos membros.
 
-## 4. Priority
+### O3 — Verificação de Condorcet/voto majoritário para sinais combinados *(livro: C2, p. 96 · somente ideia)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+Ganho de acurácia por voto majoritário exige que cada votante supere o acaso e seja razoavelmente independente. Antes de combinar sinais (tendência + rompimento + reversão à média), medir taxa de acerto individual e correlação entre eles. Parte da visão de diversificação/carteira (livro 4, cap. 24 O1/O5). **Complexidade:** baixa.
+
+### Não aplicável
+
+Problemas e opções específicos do sklearn, escalabilidade de SVM, detalhes internos do AdaBoost, PCA de atributos (até existir ML).
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O1 design constraints (ML decision record) | high (future) | – | – | doc | – |
-| 2 | O3 voting check | low | – | – | low | diagnostics |
-| 3 | O2 parameter-ensemble experiment | medium | low | – | medium | sweep + pipeline |
+| 1 | Restrições de projeto O1 (registro de decisão ML) | alta (futuro) | – | – | doc. | – |
+| 2 | Verificação de votação O3 | baixa | – | – | baixa | diagnósticos |
+| 3 | Experimento conjunto de parâmetros O2 | média | baixa | – | média | varredura + pipeline |
 
-## 5. Affected files
-Documentation (`docs/books` decision record); for O2 `strategies/domain/` (ensemble strategy), registry, catalog; analytics for correlation of members.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-Keep O1 as guidance; evaluate O2 only after plateau analysis (book 4 ch. 21 O1) is available.
+Documentação (`docs/books`, registro de decisões); para O2, `strategies/domain/` (estratégia de conjunto), registro, catálogo; analytics para correlação entre membros.
 
-## 7. Acceptance criteria and tests
-For O2: deterministic combined signal from member signals; correlation reported; defaults unaffected; truncation test for each member; ruff, mypy, tests green.
+## 6. Plano incremental
 
-## Caveats
-The bagging variance and accuracy formulas assume independent estimators for the accuracy result and an average pairwise correlation for the variance one; the book gives no empirical comparison of bagging vs boosting on financial data in these pages (the preference for bagging is an argument, not a measured result).
+Manter O1 como diretriz; avaliar O2 somente após haver análise de platô (livro 4, cap. 21 O1).
+
+## 7. Critérios de aceitação e testes
+
+Para O2: sinal combinado determinístico a partir dos membros; correlação informada; padrões inalterados; teste de truncamento para cada membro; ruff, mypy e testes aprovados.
+
+## Ressalvas
+
+Fórmulas de variância e acurácia de bagging pressupõem estimadores independentes no cálculo de acurácia e correlação média entre pares na fórmula de variância. Nestas páginas não há comparação empírica de bagging versus boosting em finanças; preferência por bagging é argumento, não resultado medido.

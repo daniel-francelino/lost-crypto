@@ -1,69 +1,78 @@
-# Book 5 · Chapter 4 — Sample Weights
+# Livro 5 · Capítulo 4 — Pesos das amostras
 
-*Advances in Financial Machine Learning*, López de Prado (2018). Book pages (PDF = book + 27). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Advances in Financial Machine Learning*, López de Prado (2018). Páginas do livro (PDF = livro + 27). Referência-base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 59–70 were read (overlapping outcomes, concurrent labels, average uniqueness, bagging and sequential bootstrap incl. the Monte Carlo experiment, return attribution weights, start of time decay). The rest of time decay and "class weights" (pp. 70–73) and exercises were not read.
+**Profundidade da leitura:** pp. 59–70 foram lidas (resultados sobrepostos, rótulos concorrentes, unicidade média, bagging e bootstrap sequencial, incluindo experimento Monte Carlo, pesos por atribuição de retorno e início de decaimento temporal). Restante sobre decaimento temporal, “pesos de classe” (pp. 70–73) e exercícios não foram lidos.
 
-## 1. Chapter summary
+## 1. Resumo do capítulo
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que aborda | Páginas |
 |---|---|---|---|
-| C1 | **Overlapping outcomes**: with labels spanning `[t_{i,0}, t_{i,1}]` (e.g. triple-barrier), two labels depend on the same returns whenever `t_{i,1} > t_{i+1,0}`, so labels are **not IID**. Restricting the horizon to avoid overlap is "a terrible solution". Analogy: blood spilt from each tube into the nine next ones. Most ML theory assumes IID. | Dependence between labels. | 59–60 |
-| C2 | **Concurrency**: `c_t = Σ_i 1_{t,i}` is the number of labels that depend on the return `r_{t−1,t}`; **uniqueness** of label `i` at `t` is `u_{t,i} = 1_{t,i}/c_t`; **average uniqueness** `ū_i` = mean of `u_{t,i}` over its lifespan = reciprocal of the harmonic average of `c_t`; it uses future information (`t_{i,1}`) but only on the training set with labels, not as a predictive feature, "hence no information leakage". | Quantify overlap. | 60–62 |
-| C3 | **Bagging and uniqueness**: bootstrap draws about `1 − 1/e ≈ 2/3` unique items of `I`; if the maximum number of non-overlapping outcomes is `K << I`, the unique fraction expected is `1 − e^(−K/I)`, so assuming IID leads to **oversampling**: in-bag observations are redundant and similar to the out-of-bag ones, so (1) a random forest becomes copies of one overfit tree and (2) **out-of-bag accuracy is grossly inflated**. Remedies: don't drop overlapping observations (loses too much); set `max_samples` ≈ average uniqueness; or **sequential bootstrap**. | Why standard bagging fails. | 62–63 |
-| C4 | **Sequential bootstrap**: draw observations one by one with probability proportional to the average uniqueness each candidate would have if added to the already drawn set; redundancy is penalised but not forbidden; numerical example with three labels (`p = {5/14, 3/14, 6/14}` for the second draw). **Monte Carlo experiment** (random `t1`): median average uniqueness 0.6 for the standard bootstrap vs 0.7 for the sequential one (ANOVA p ≈ 0). | Samples closer to IID. | 63–68 |
-| C5 | **Return attribution weights**: `w̃_i = |Σ_{t=t_{i,0}}^{t_{i,1}} r_{t−1,t}/c_t|`, rescaled so `Σ w_i = I`; weight depends on both uniqueness and the absolute return attributable to the label; not appropriate with "neutral" labels — "I would generally advise you to drop neutral cases". | Weighting for training. | 68–69 |
-| C6 | **Time decay**: markets are adaptive systems (Lo), so older observations should weigh less; decay factor `d[x] ∈ [0, 1]` multiplies the sample weights by cumulative uniqueness; (detail beyond the first lines not read). | Non-stationarity. | 70 |
+| C1 | **Resultados sobrepostos**: rótulos que abrangem `[t_{i,0}, t_{i,1}]` (por exemplo, barreira tripla) dependem dos mesmos retornos sempre que `t_{i,1} > t_{i+1,0}`; portanto, não são **IID**. Limitar o horizonte para evitar sobreposição é “uma solução terrível”. Analogia: sangue de um tubo derramado nos nove seguintes. A maior parte da teoria de ML presume IID. | Dependência entre rótulos. | 59–60 |
+| C2 | **Concorrência**: `c_t = Σ_i 1_{t,i}` é a quantidade de rótulos que dependem do retorno `r_{t−1,t}`; **unicidade** do rótulo i em t é `u_{t,i} = 1_{t,i}/c_t`; **unicidade média** `ū_i` é a média de `u_{t,i}` durante sua duração, equivalente ao inverso da média harmônica de `c_t`. Usa informação futura (`t_{i,1}`), mas somente no conjunto de treino com rótulos, não como atributo preditivo; “portanto não há vazamento de informação”. | Quantificar sobreposição. | 60–62 |
+| C3 | **Bagging e unicidade**: amostragem bootstrap obtém cerca de `1 − 1/e ≈ 2/3` itens únicos de I. Se o máximo de resultados não sobrepostos é `K << I`, fração única esperada é `1 − e^(−K/I)`; presumir IID gera **sobreamostragem**: observações in-bag são redundantes e parecidas com as out-of-bag, então (1) floresta aleatória vira cópias de uma árvore sobreajustada e (2) **acurácia out-of-bag fica muito inflada**. Soluções: não descartar observações sobrepostas (perde muito); definir `max_samples` ≈ unicidade média; ou usar **bootstrap sequencial**. | Por que bagging padrão falha. | 62–63 |
+| C4 | **Bootstrap sequencial**: sortear observações uma a uma, com probabilidade proporcional à unicidade média que cada candidata teria se fosse adicionada ao conjunto já sorteado; redundância é penalizada, não proibida. Exemplo numérico com três rótulos (`p = {5/14, 3/14, 6/14}` no segundo sorteio). **Experimento Monte Carlo** (t1 aleatório): mediana da unicidade média 0,6 para bootstrap padrão versus 0,7 para sequencial (ANOVA p ≈ 0). | Amostras mais próximas de IID. | 63–68 |
+| C5 | **Pesos por atribuição de retorno**: `w̃_i = |Σ_{t=t_{i,0}}^{t_{i,1}} r_{t−1,t}/c_t|`, reescalado para `Σ w_i = I`; o peso depende da unicidade e do retorno absoluto atribuível ao rótulo. Inadequado com rótulos “neutros”: “em geral eu recomendaria descartar casos neutros”. | Ponderação de treino. | 68–69 |
+| C6 | **Decaimento temporal**: mercados são sistemas adaptativos (Lo), então observações antigas devem pesar menos; fator `d[x] ∈ [0, 1]` multiplica os pesos das amostras por unicidade acumulada (detalhes além das primeiras linhas não lidos). | Não estacionariedade. | 70 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| Overlap-aware evaluation | ❌ | The backtester evaluates trades individually without any adjustment; trades from one strategy are sequential and non-overlapping (one position at a time), so the P/L series itself has no overlapping outcomes. Overlap would appear in **signal-level outcomes** (ch. 3 O1) and in multi-bot/multi-asset analysis. |
-| Concurrent labels / uniqueness | ❌ | None. |
-| Bagging, forests | ❌ | No ML. |
-| Sample weighting, time decay | ❌ | None. |
-| Effective sample size reporting | ❌ | Reports count trades; for overlapping signal outcomes the effective count is smaller. |
+| Avaliação que considera sobreposição | ❌ | Backtester avalia operações individualmente sem ajuste; operações de uma estratégia são sequenciais e não sobrepostas (uma posição por vez), então série de P/L não tem resultados sobrepostos. Haveria sobreposição em **resultados no nível do sinal** (cap. 3, O1) e análise de vários bots/ativos. |
+| Rótulos concorrentes/unicidade | ❌ | Não há. |
+| Bagging/florestas | ❌ | Sem ML. |
+| Pesos de amostra/decaimento temporal | ❌ | Não existem. |
+| Tamanho efetivo da amostra | ❌ | Informa quantidade de operações; em sinais sobrepostos, número efetivo é menor. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Effective sample size for signal-level statistics *(book: C1, C2, pp. 59–62)*
-For the signal outcome table proposed in ch. 3 O1, compute **concurrency** `c_t` and **average uniqueness** per signal, and report **effective N = Σ ū_i** (or N × mean uniqueness) next to every statistic (win rate, mean return, hit-rate of barriers) so that confidence intervals use the effective, not nominal, count. For example, 300 daily-timeframe signals with 20-day outcomes overlap heavily; effective evidence may be a fraction. Also useful for the bot's own consecutive trades if exits are delayed and entries occur before earlier exits (not possible with one position at a time, but possible across bots on the same asset). **Complexity:** low. **Risks:** the uniqueness is defined on the label's lifespan only; it is a first-order correction, not a full dependence model. **Validation:** the book's numerical example (labels over `[0,3]`, `[2,4]`, `[4,6]`) reproduces `p = {5/14, 3/14, 6/14}` for the second draw and the indicator matrix; non-overlapping labels give `ū = 1`.
+### O1 — Tamanho efetivo da amostra para estatísticas de sinais *(livro: C1, C2, pp. 59–62)*
 
-### O2 — Use average uniqueness when calling a signal-level result "significant" *(book: C3, p. 62–63; links to book 3)*
-In the evidence pipeline (book 3, book 4 ch. 21), t-tests, bootstrap and permutation tests on signal outcomes must be run on independent units: block-bootstrap or tests on effective N. The book's finding that out-of-bag/in-bag similarity inflates accuracy is the same dependence problem seen from the validation side (chapter 7). **Complexity:** low–medium (a rule plus the effective N from O1). **Validation:** on synthetic overlapping outcomes with no edge, the false-positive rate of the test at 5% stays near 5% when effective N is used and exceeds it when nominal N is used.
+Na tabela de resultados de sinais proposta em O1 do cap. 3, calcular **concorrência** `c_t` e **unicidade média** por sinal, e informar **N efetivo = Σ ū_i** (ou N × unicidade média) junto a cada estatística (taxa de acerto, retorno médio, frequência de toque das barreiras), para intervalos de confiança usarem contagem efetiva, não nominal. Exemplo: 300 sinais diários com resultados de 20 dias se sobrepõem muito; evidência efetiva pode ser fração disso. Também é útil para operações consecutivas do próprio bot se saídas atrasarem e nova entrada ocorrer antes da saída anterior (impossível com uma posição por vez, possível em vários bots no mesmo ativo). **Complexidade:** baixa. **Riscos:** unicidade é definida somente na duração do rótulo; correção de primeira ordem, não modelo completo de dependência. **Validação:** exemplo do livro (rótulos `[0,3]`, `[2,4]`, `[4,6]`) reproduz `p = {5/14, 3/14, 6/14}` no segundo sorteio e a matriz indicadora; rótulos sem sobreposição dão `ū = 1`.
 
-### O3 — Sequential bootstrap and uniqueness weights (only if ML is introduced) *(book: C4, C5, pp. 63–69)*
-Implement indicator matrix, average uniqueness, sequential bootstrap and return-attribution weights as pure functions with the book's numerical example as a unit test. Do not build them until a model that needs them (meta-labeling, ch. 3 O3) is approved. Note the cost: the sequential bootstrap is `O(I²)` in naive form and the book needed multiprocessing for its Monte Carlo (6 hours on 24 cores for 10⁶ iterations of 10 observations) — prefer sampling subsets or the `max_samples ≈ ū` shortcut. **Complexity:** medium; defer.
+### O2 — Usar unicidade média ao chamar resultado de sinal de “significativo” *(livro: C3, pp. 62–63; conexão com livro 3)*
 
-### O4 — Time-decay as an option in rolling re-estimation / walk-forward *(book: C6, p. 70)*
-When walk-forward or periodic re-estimation of parameters exists (book 4 ch. 21 O4), allow an optional recency weighting (older windows count less) and report the sensitivity. The book argues markets adapt; the cost is fewer effective data points, which is already scarce in crypto. Part of the walk-forward design; **complexity:** low once available.
+No pipeline de evidências (livros 3 e 4, cap. 21), testes t, bootstrap e permutação em resultados de sinais devem usar unidades independentes: bootstrap em blocos ou testes com N efetivo. Constatação do livro: semelhança in-bag/out-of-bag infla acurácia; é o mesmo problema de dependência visto pelo lado da validação (cap. 7). **Complexidade:** baixa–média (regra e N efetivo de O1). **Validação:** em resultados sobrepostos sintéticos sem vantagem, taxa de falso positivo do teste a 5% fica perto de 5% com N efetivo e excede esse valor com N nominal.
 
-### Not applicable
-Random forest bagging internals, `BaggingClassifier` settings, multiprocessing engine details (ch. 20), class-weight balancing (not read).
+### O3 — Bootstrap sequencial e pesos de unicidade (somente se houver ML) *(livro: C4, C5, pp. 63–69)*
 
-## 4. Priority
+Implementar matriz indicadora, unicidade média, bootstrap sequencial e pesos por atribuição de retorno como funções puras, com exemplo numérico do livro em teste unitário. Não construir antes de haver modelo que os exija (meta-rotulagem, cap. 3 O3). Custo: bootstrap sequencial é `O(I²)` na forma ingênua; Monte Carlo do livro exigiu multiprocessamento (6 horas em 24 núcleos para 10⁶ iterações de 10 observações). Preferir subconjuntos ou atalho `max_samples ≈ ū`. **Complexidade:** média; adiar.
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+### O4 — Decaimento temporal como opção na reestimação móvel/walk-forward *(livro: C6, p. 70)*
+
+Quando houver walk-forward ou reestimação periódica de parâmetros (livro 4, cap. 21 O4), permitir ponderação opcional por recência (janelas antigas contam menos) e relatar sensibilidade. O livro argumenta que mercados se adaptam; custo é menor quantidade efetiva de dados, já escassa em cripto. Parte do projeto walk-forward. **Complexidade:** baixa depois de disponível.
+
+### Não aplicável
+
+Detalhes internos de bagging de floresta aleatória, opções de `BaggingClassifier`, detalhes de motor multiprocessado (cap. 20), balanceamento de pesos de classe (não lido).
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O1 effective N for signal outcomes | high | – | – | low | ch. 3 O1 |
-| 2 | O2 significance on effective N | high | – | – | low–medium | O1 |
-| 3 | O4 time decay option | low | – | – | low | walk-forward |
-| 4 | O3 sequential bootstrap + weights | medium (with ML) | – | – | medium | ML track approval |
+| 1 | N efetivo para resultados de sinais O1 | alta | – | – | baixa | cap. 3 O1 |
+| 2 | Significância com N efetivo O2 | alta | – | – | baixa–média | O1 |
+| 3 | Opção de decaimento temporal O4 | baixa | – | – | baixa | walk-forward |
+| 4 | Bootstrap sequencial + pesos O3 | média (com ML) | – | – | média | aprovação da linha ML |
 
-## 5. Affected files
-`analytics/domain/` (concurrency, uniqueness, effective N, optional bootstrap), tests with the book's numerical example; app views showing effective N.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Concurrency/uniqueness functions with the numerical example as a test.
-2. Show effective N beside every signal-level statistic.
-3. Use it in significance tests.
-4. Sequential bootstrap only with ML.
+`analytics/domain/` (concorrência, unicidade, N efetivo, bootstrap opcional), testes com exemplo numérico do livro; telas do app exibindo N efetivo.
 
-## 7. Acceptance criteria and tests
-* Indicator matrix and average uniqueness equal the values derived by hand for the three-label example; non-overlapping labels yield 1; effective N ≤ nominal N.
-* Sequential bootstrap (if built) has higher mean uniqueness than the standard bootstrap on random `t1` with fixed seeds; deterministic given a seed.
-* ruff, mypy and existing tests green.
+## 6. Plano incremental
 
-## Caveats
-The Monte Carlo evidence is a simulation on synthetic overlaps (median uniqueness 0.6 vs 0.7), not on market data. Weighting by absolute return attributes more importance to large moves, which may focus the model on rare crypto crashes; it is a design choice, not a result. Time decay details were not read.
+1. Funções de concorrência/unicidade com exemplo numérico em teste.
+2. Mostrar N efetivo junto a toda estatística no nível do sinal.
+3. Usá-lo em testes de significância.
+4. Bootstrap sequencial somente se houver ML.
+
+## 7. Critérios de aceitação e testes
+
+* Matriz indicadora e unicidade média correspondem a cálculos manuais do exemplo de três rótulos; rótulos sem sobreposição dão 1; N efetivo ≤ N nominal.
+* Se implementado, bootstrap sequencial tem maior unicidade média que o padrão em t1 aleatório com sementes fixas; determinístico dada uma semente.
+* ruff, mypy e testes existentes aprovados.
+
+## Ressalvas
+
+Evidência Monte Carlo é simulação de sobreposições sintéticas (unicidade mediana 0,6 versus 0,7), não dados de mercado. Peso por retorno absoluto dá mais importância a movimentos grandes, podendo concentrar o modelo em crashes cripto raros; é uma escolha de projeto, não um resultado comprovado. Detalhes de decaimento temporal não foram lidos.

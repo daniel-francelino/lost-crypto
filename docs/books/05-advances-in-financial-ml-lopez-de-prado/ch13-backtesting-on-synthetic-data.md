@@ -1,72 +1,81 @@
-# Book 5 · Chapter 13 — Backtesting on Synthetic Data
+# Livro 5 · Capítulo 13 — Backtesting com dados sintéticos
 
-*Advances in Financial Machine Learning*, López de Prado (2018). Book pages (PDF = book + 27). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Advances in Financial Machine Learning*, López de Prado (2018). Páginas do livro (PDF = livro + 27). Referência-base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 169–176 (motivation, trading rules, overfit definition, O-U framework, the five-step algorithm and code) and pp. 188–192 (conclusion and exercises) were read. The heat-map figures and their descriptions for each parameter combination (pp. 176–188) were skimmed: the text only narrates how the optimal region moves with half-life and equilibrium, no table of numbers.
+**Profundidade da leitura:** pp. 169–176 (motivação, regras de negociação, definição de sobreajuste, estrutura O-U, algoritmo de cinco etapas e código) e pp. 188–192 (conclusão/exercícios) foram lidas. Figuras de mapas de calor e descrições por combinação de parâmetros (176–188) foram vistas superficialmente: texto descreve movimento da região ótima com meia-vida/equilíbrio, sem tabela de números.
 
-**Scope note:** despite the title, the chapter is about **calibrating exit rules (profit-taking and stop-loss) from a fitted stochastic process by Monte Carlo instead of a historical backtest**. It does not provide a general synthetic-market generator for validating entry signals.
+**Escopo:** apesar do título, capítulo trata de **calibrar regras de saída (take-profit e stop-loss) a partir de processo estocástico ajustado, usando Monte Carlo em vez de backtest histórico**. Não fornece gerador geral de mercados sintéticos para validar sinais de entrada.
 
-## 1. Chapter summary
+## 1. Resumo do capítulo
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que aborda | Páginas |
 |---|---|---|---|
-| C1 | Use history to **estimate a stochastic process** and generate many synthetic datasets with the same statistical characteristics, so a strategy is not fit to one path. Focus: **trading rules** (entry/exit tactics): enter when the signal reaches a value; exit by thresholds for profit-taking and stop-loss. Parameters calibrated by historical simulation overfit the in-sample path ("the strategy becomes so attached to the past that it becomes unfit for the future"). | Exit-rule overfitting. | 169–170 |
-| C2 | **Formalisation**: opportunity `i` with position `m_i`, mark-to-market PnL `π_{i,t} = m_i(P_{i,t} − P_{i,0})`; a trading rule `R = {π̲, π̄}` exits on the first of profit-taking `π̄` or stop-loss `π̲` (plus a maximum holding period = the vertical barrier of ch. 3); brute-force calibration maximises `SR_R = E[π_{i,T_i}|R] / σ[π_{i,T_i}|R]` over a set of candidate rules `Ω`. With two free variables on a sample of size `I`, overfitting is trivial (a pair that targets a few outliers). **Overfit trading rule**: the in-sample optimal rule is expected to underperform the median of alternatives out-of-sample (same definition as PBO, ch. 11). | Define the problem. | 170–172 |
-| C3 | **Framework**: assume the position's price follows a discrete **Ornstein–Uhlenbeck (O-U)** process `P_t = (1−φ)·E₀[P_T] + φ·P_{t−1} + σ·ε_t`, `ε ~ N(0,1)`; stationary iff `φ ∈ (−1, 1)`; `φ = 2^(−1/τ)` where `τ` is the half-life. Question: can the optimal pair `(π̲, π̄)` be derived from `{φ, σ}` and the initial conditions **without a historical simulation**? | Model for mean-reverting positions. | 172 |
-| C4 | **Five-step algorithm**: (1) estimate `φ` and `σ` by OLS on the linearised equation (13.5); (2) build a mesh of `(π̲, π̄)` pairs (e.g. 20×20, multiples of σ from 0.5 to 10); (3) simulate many paths (e.g. 100,000) per opportunity with a maximum holding period (e.g. 100); (4) apply each rule to each path and compute the Sharpe ratio per node; (5) pick the optimal pair, or the optimal stop-loss given a profit target (5b), or the optimal profit-taking given a maximum stop-loss (5c). Code (Snippets 13.1–13.2) with `forecast ∈ {10, 5, 0, −5, −10}`, `half-life ∈ {5, 10, 25, 50, 100}`, `σ = 1`, `maxHP = 100`, `nIter = 1e5`. | Algorithm. | 173–176 |
-| C5 | **Experimental results** (heat maps of Sharpe ratio on the profit/stop mesh): zero long-run equilibrium (market-maker-like), positive equilibrium (position-taker; optimal profit-taking larger), negative equilibrium (mirror image). As the half-life grows the process approaches a random walk, the region of best performance spreads and the Sharpe falls (e.g. Sharpe ≈ 12 for forecast 5, half-life 5 in one figure); the optimal rule depends on `{E₀[P_T], τ, σ}`. | Behaviour of optimal rules. | 176–188 |
-| C6 | **Conclusion and conjecture**: for O-U prices there is a **unique optimal combination** of profit-taking and stop-loss that maximises the Sharpe; the author argues the probability that the conjecture is false is negligible compared with the probability you will overfit by ignoring it, so "assume it is right and determine the OTR through synthetic data; in the worst case it is suboptimal but will outperform an overfit trading rule". (No proof; the claim rests on the experiments shown.) | Takeaway. | 192 |
+| C1 | Usar história para **estimar processo estocástico** e gerar muitos conjuntos sintéticos com mesmas características estatísticas, evitando ajustar estratégia a um caminho só. Foco: **regras de negociação** (táticas de entrada/saída): entrar quando sinal alcança valor; sair por limites de lucro e stop. Parâmetros calibrados por simulação histórica sobreajustam caminho dentro da amostra (“estratégia fica tão presa ao passado que se torna inadequada ao futuro”). | Sobreajuste das regras de saída. | 169–170 |
+| C2 | **Formalização**: oportunidade i com posição `m_i`, PnL marcado a mercado `π_{i,t} = m_i(P_{i,t} − P_{i,0})`; regra `R = {π̲, π̄}` sai no primeiro entre take-profit `π̄` e stop `π̲` (mais permanência máxima = barreira vertical do cap. 3). Calibração força bruta maximiza `SR_R = E[π_{i,T_i}|R] / σ[π_{i,T_i}|R]` em regras candidatas `Ω`. Com duas variáveis livres numa amostra I, sobreajustar é trivial (par seleciona poucos outliers). **Regra sobreajustada**: regra ótima dentro da amostra deve ter desempenho abaixo da mediana das alternativas fora dela (mesma definição do PBO, cap. 11). | Definição do problema. | 170–172 |
+| C3 | **Estrutura**: presumir preço da posição segundo processo discreto **Ornstein–Uhlenbeck (O-U)** `P_t = (1−φ)·E₀[P_T] + φ·P_{t−1} + σ·ε_t`, `ε ~ N(0,1)`; estacionário se `φ ∈ (−1, 1)`; `φ = 2^(−1/τ)`, τ meia-vida. Pergunta: é possível derivar par ótimo `(π̲, π̄)` de `{φ, σ}` e condições iniciais **sem simulação histórica**? | Modelo para posições de reversão à média. | 172 |
+| C4 | **Algoritmo de cinco etapas**: (1) estimar `φ` e `σ` por OLS na equação linearizada (13.5); (2) montar grade de pares `(π̲, π̄)` (ex.: 20×20, múltiplos de σ de 0,5 a 10); (3) simular muitos caminhos (ex.: 100.000) por oportunidade com permanência máxima (ex.: 100); (4) aplicar cada regra a cada caminho e calcular Sharpe por ponto; (5) escolher par ótimo, stop ótimo dado alvo de lucro (5b) ou take-profit ótimo dado stop máximo (5c). Código (trechos 13.1–13.2) com `forecast ∈ {10, 5, 0, −5, −10}`, `half-life ∈ {5, 10, 25, 50, 100}`, `σ = 1`, `maxHP = 100`, `nIter = 1e5`. | Algoritmo. | 173–176 |
+| C5 | **Resultados experimentais** (mapas de calor de Sharpe na grade lucro/stop): equilíbrio de longo prazo zero (semelhante a formador de mercado), positivo (tomador de posição; take-profit ótimo maior) e negativo (imagem espelhada). Com meia-vida maior, processo se aproxima do passeio aleatório, região de melhor desempenho se amplia e Sharpe cai (ex.: Sharpe ≈ 12 em previsão 5, meia-vida 5, numa figura); regra ótima depende de `{E₀[P_T], τ, σ}`. | Comportamento das regras ótimas. | 176–188 |
+| C6 | **Conclusão/conjectura**: para preços O-U há **combinação única ótima** de take-profit e stop que maximiza Sharpe. Autor argumenta que probabilidade de conjectura ser falsa é insignificante frente à chance de sobreajuste por ignorá-la; “presuma que esteja correta e determine OTR com dados sintéticos; no pior caso será subótima, mas superará regra sobreajustada”. (Sem prova; argumento se apoia nos experimentos apresentados.) | Conclusão. | 192 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| Stop-loss and take-profit parameters calibrated by historical sweeps | ✅ | Stops/targets are strategy/risk parameters; sweeps can include them (subject to the book 4 caveat that the stop value matters less than the entry rule). |
-| Maximum holding period | ❌ | None (ch. 3 O2). |
-| Estimation of mean reversion parameters (half-life) | ❌ | None (book 2 ch. 2 covers half-life; not implemented). |
-| Synthetic path generator | ❌ | Seeds exist for deterministic backtests, but no synthetic price generator. |
-| Exit-rule evaluation independent of the historical path | ❌ | — |
+| Stops/take-profit calibrados por varreduras históricas | ✅ | Stops/alvos são parâmetros de estratégia/risco; varreduras podem incluí-los (ressalva livro 4: valor do stop importa menos que regra de entrada). |
+| Permanência máxima | ❌ | Não existe (cap. 3 O2). |
+| Estimativa de parâmetros de reversão à média (meia-vida) | ❌ | Não existe (livro 2, cap. 2 aborda meia-vida; não implementada). |
+| Gerador de caminhos sintéticos | ❌ | Há sementes para backtest determinístico, mas não gerador de preços sintéticos. |
+| Avaliação de saída independente do caminho histórico | ❌ | — |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Synthetic-path sanity test bed (null models) for the evidence pipeline *(book: C1, C4 · generalisation, ours)*
-* **Proposal:** a deterministic generator of synthetic price series with controlled properties: (a) driftless Gaussian random walk (null), (b) random walk with volatility clustering (GARCH-like or regime-switching volatility), (c) O-U with chosen half-life, (d) trending process with planted drift; parameters can be estimated from a real series (match mean, volatility, autocorrelation, kurtosis). Use them to (i) unit-test that strategies and the sweep/PBO machinery behave as expected (no edge → no significant results, planted edge → detected), and (ii) provide a **null distribution** of the best sweep result under "no edge but same volatility" (the permutation/bootstrap of book 3 done parametrically).
-* **Why:** answers directly the question "what would the best-of-N be if there were no edge?" and doubles as the validation of every proposed statistic (PBO, deflated Sharpe, CPCV). The book's algorithm is the template (simulate many paths from a fitted process, evaluate every rule on each).
-* **Complexity:** medium (generators + seeded runner + comparison); computational cost = number of paths × sweep size (reduce with vectorised evaluations). **Risks:** results depend on the process specification; a Gaussian null underestimates fat tails and volatility clustering; use bootstrap/regime nulls too. **Validation:** generators reproduce target moments; same seed same path; the null distribution of best-of-N Sharpe grows with N as predicted by the expected-maximum formula (ch. 14).
+### O1 — Ambiente de teste com caminhos sintéticos e modelos nulos para pipeline de evidências *(livro: C1, C4 · generalização, adaptação nossa)*
 
-### O2 — Mean-reversion diagnostics and half-life estimation (feeds exit design for mean-reversion strategies) *(book: C3, C4 steps 1, p. 173)*
-Estimate `φ` by OLS regression of `P_t − m` on `P_{t−1} − m` (equivalently the AR(1) coefficient on the deviation from the equilibrium or from a moving average), derive half-life `τ = −ln 2 / ln φ`, volatility `σ`, and show in the series diagnostics (with confidence intervals and a stationarity warning when `|φ| ≥ 1`). Overlaps with Chan (book 2 ch. 2: half-life of mean reversion via Ornstein-Uhlenbeck regression) — implement once. Required if a mean-reversion strategy is added. **Complexity:** low. **Validation:** simulated O-U with known `φ` is recovered.
+* **Proposta:** gerador determinístico de séries com propriedades controladas: (a) passeio aleatório gaussiano sem deriva (nulo); (b) passeio aleatório com agrupamento de volatilidade (GARCH/regimes); (c) processo O-U com meia-vida escolhida; (d) processo tendencial com deriva inserida. Parâmetros podem ser estimados de série real (média, volatilidade, autocorrelação, curtose). Usar para (i) testes unitários de estratégias e infraestrutura varredura/PBO (sem vantagem → sem significância; vantagem inserida → detectar) e (ii) **distribuição nula** do melhor resultado da varredura sem vantagem, mas com mesma volatilidade (permutação/bootstrap paramétrico do livro 3).
+* **Motivo:** responde “qual seria o melhor entre N sem vantagem?” e valida estatísticas propostas (PBO, Sharpe deflacionado, CPCV). Algoritmo do livro serve de modelo (simular muitos caminhos do processo ajustado e avaliar cada regra).
+* **Complexidade:** média (geradores, execução com semente, comparação); custo = caminhos × tamanho da varredura (reduzir com vetorização). **Riscos:** resultados dependem da especificação; nulo gaussiano subestima caudas pesadas/agrupamento, então usar também nulos de bootstrap/regime. **Validação:** geradores reproduzem momentos-alvo; mesma semente gera mesmo caminho; distribuição nula do Sharpe máximo cresce com N conforme fórmula do máximo esperado (cap. 14).
 
-### O3 — Profit-taking/stop-loss grid evaluated on simulated O-U paths for a mean-reversion strategy (only if such a strategy is built) *(book: C4, C5, pp. 173–188)*
-Reproduce the book's mesh: for a mean-reversion strategy with estimated `{φ, σ}`, compute the Sharpe heat map of `(stop, target)` (multiples of σ) on 10⁴–10⁵ simulated paths with a maximum holding period; compare to the heat map obtained by historical simulation and report the overlap. Use it as a prior, not as truth: crypto spot prices are not O-U in general (trending, jumps), so the estimated `φ` should be validated (ADF/half-life stable across subperiods) before using the result. For **trend-following** strategies (current ones) this procedure is inappropriate because the O-U assumption contradicts the premise. **Complexity:** medium; tied to a future mean-reversion strategy. **Risks:** model misspecification (jumps, fat tails, volatility clustering) makes the "optimal" corridor optimal for a world that does not exist; present as a regularising prior on exits. **Validation:** against analytic checks on degenerate cases (φ = 0: i.i.d. noise around equilibrium), symmetric forecasts mirror (the book notes mirror images for ±forecast).
+### O2 — Diagnósticos de reversão à média e meia-vida (informam saídas) *(livro: C3, C4 etapa 1, p. 173)*
 
-### O4 — Hold the book's conjecture lightly: do not rely on a single "optimal" exit pair *(book: C6, p. 192)*
-The unique-optimum conjecture is empirical and bounded to the O-U model. Our own plateau/neighbourhood approach (book 4 ch. 21) and PBO are consistent with it as a regulariser; but we should not hard-code "optimal" corridors. Record in the research docs: exits are chosen on a plateau of the simulated and historical heat maps, and the corridor must survive costs and gaps. **Complexity:** none.
+Estimar `φ` por regressão OLS de `P_t − m` sobre `P_{t−1} − m` (coeficiente AR(1) dos desvios do equilíbrio/média móvel), derivar meia-vida `τ = −ln 2 / ln φ`, volatilidade `σ` e exibir nos diagnósticos da série (com intervalos de confiança e aviso de não estacionariedade quando `|φ| ≥ 1`). Sobrepõe-se a Chan (livro 2, cap. 2: meia-vida via regressão O-U); implementar uma vez. Necessário se houver estratégia de reversão à média. **Complexidade:** baixa. **Validação:** recuperar `φ` conhecido em O-U simulado.
 
-### Not applicable
-Execution-trader exercises (covering a short with specified exits), the Python 2 style code, the multiprocessing exercise (ch. 20 of the book).
+### O3 — Grade de take-profit/stop avaliada em caminhos O-U simulados para reversão à média (somente se estratégia for criada) *(livro: C4, C5, pp. 173–188)*
 
-## 4. Priority
+Reproduzir grade do livro: para estratégia de reversão à média com `{φ, σ}` estimados, calcular mapa de Sharpe de `(stop, alvo)` (múltiplos de σ) em 10⁴–10⁵ caminhos simulados com permanência máxima; comparar mapa histórico e reportar sobreposição. Usar como prior, não verdade: preços spot cripto não são geralmente O-U (tendências, saltos); validar `φ` (ADF/meia-vida estáveis entre subperíodos) antes. Para estratégias **de tendência** atuais, procedimento inadequado, pois O-U contradiz a premissa. **Complexidade:** média, ligada a futura estratégia de reversão. **Riscos:** especificação errada (saltos, caudas pesadas, volatilidade agrupada) torna corredor ótimo apenas num mundo inexistente; apresentar como prior regularizador de saída. **Validação:** casos degenerados (φ=0: ruído IID ao redor do equilíbrio); previsões simétricas espelham-se (livro observa imagens espelhadas para ±forecast).
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+### O4 — Tratar conjectura do livro com cautela: não depender de um único par “ótimo” de saídas *(livro: C6, p. 192)*
+
+Conjectura de ótimo único é empírica e limitada ao modelo O-U. Abordagem própria de platô/vizinhança (livro 4, cap. 21) e PBO são compatíveis como regularizadores, mas não se deve codificar corredor “ótimo” como certeza. Registrar: escolher saídas em platô dos mapas históricos e simulados; corredor deve sobreviver a custos/gaps. **Complexidade:** nenhuma.
+
+### Não aplicável
+
+Exercícios de trader-executor (cobrir venda com saídas especificadas), código estilo Python 2, exercício de multiprocessamento (cap. 20 do livro).
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O1 synthetic null/test bed | very high | – | – | medium | ledger/PBO/DSR work |
-| 2 | O2 half-life/mean-reversion diagnostics | medium | – | – | low | diagnostics module |
-| 3 | O3 simulated exit corridor (mean-reversion only) | medium | medium | – | medium | a mean-reversion strategy |
-| 4 | O4 documentation | low | – | – | doc | – |
+| 1 | Ambiente de teste/nulo sintético O1 | muito alta | – | – | média | registro/PBO/DSR |
+| 2 | Diagnóstico de meia-vida/reversão O2 | média | – | – | baixa | módulo analytics |
+| 3 | Corredor de saídas simuladas O3 (somente reversão) | média | média | – | média | estratégia de reversão |
+| 4 | Documentação O4 | baixa | – | – | doc. | – |
 
-## 5. Affected files
-`analytics/domain/` (synthetic generators, null distribution runner, half-life estimator), `backtesting/application` (run a strategy on synthetic datasets with stored seeds), tests, docs; app diagnostics.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Random-walk and O-U generators with moment tests.
-2. Null distribution of best-of-N for a sweep (feeds PBO/DSR validation).
-3. Half-life diagnostics; later the exit-corridor heat map.
+`analytics/domain/` (geradores sintéticos, executor de distribuição nula, estimador de meia-vida), `backtesting/application` (executar estratégia em dados sintéticos com sementes armazenadas), testes, documentação; diagnósticos do app.
 
-## 7. Acceptance criteria and tests
-* Generators: sample moments within tolerance; reproducible by seed; O-U half-life recovered by OLS within confidence interval.
-* Null distribution: with no edge, the mean of the best Sharpe over N trials increases with N and the fraction of runs above a significance threshold matches the nominal rate after correction.
-* ruff, mypy, existing tests green.
+## 6. Plano incremental
 
-## Caveats
-The "optimal trading rule" results are for a *known* O-U process; real prices deviate, so the corridor is only as good as the model. The conjecture is unproven. The chapter's heat maps are illustrative (specific parameter combinations), the Sharpe values depend on `σ` and holding limit, and the chapter does not test any real strategy on real data. The title "Backtesting on Synthetic Data" promises more than what is delivered here (the general synthetic-data backtest of entry signals is not covered).
+1. Geradores de passeio aleatório e O-U com testes de momentos.
+2. Distribuição nula do melhor de N numa varredura (validação PBO/DSR).
+3. Diagnósticos de meia-vida; depois mapa de calor do corredor de saída.
+
+## 7. Critérios de aceitação e testes
+
+* Geradores: momentos amostrais dentro da tolerância; reproduzíveis por semente; meia-vida O-U recuperada por OLS dentro do intervalo de confiança.
+* Distribuição nula: sem vantagem, média do melhor Sharpe entre N tentativas cresce com N; fração de resultados acima do limite de significância corresponde à taxa nominal após correção.
+* ruff, mypy e testes existentes aprovados.
+
+## Ressalvas
+
+Resultados de “regra de negociação ótima” pressupõem processo O-U *conhecido*; preços reais divergem, portanto corredor depende do modelo. Conjectura não foi provada. Mapas são ilustrativos (combinações específicas), Sharpe depende de `σ` e limite de permanência; capítulo não testa estratégia real em dados reais. O título promete mais do que entrega: backtest geral com dados sintéticos para sinais de entrada não é tratado.

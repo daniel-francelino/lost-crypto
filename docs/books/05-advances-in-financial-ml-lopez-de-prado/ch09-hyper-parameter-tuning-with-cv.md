@@ -1,66 +1,74 @@
-# Book 5 · Chapter 9 — Hyper-Parameter Tuning with Cross-Validation
+# Livro 5 · Capítulo 9 — Ajuste de hiperparâmetros com validação cruzada
 
-*Advances in Financial Machine Learning*, López de Prado (2018). Book pages (PDF = book + 27). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Advances in Financial Machine Learning*, López de Prado (2018). Páginas do livro (PDF = livro + 27). Referência-base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 129–134 were read (grid search with purged CV, F1 scoring for meta-labeling, enhanced pipeline class, randomized search, log-uniform distribution, start of scoring discussion). Pages 135–137 (why `neg_log_loss` is preferred over accuracy for strategies, exercises) were **not** read.
+**Profundidade da leitura:** pp. 129–134 foram lidas (busca em grade com CV purgada, pontuação F1 para meta-rotulagem, classe de pipeline aprimorada, busca aleatória, distribuição log-uniforme e início da discussão de pontuação). Pp. 135–137 (por que `neg_log_loss` é preferível à acurácia em estratégias, exercícios) **não foram lidas**.
 
-**Fit with the platform:** the platform's sweeps are grid searches over strategy parameters. The chapter's two concrete ideas — **randomised search with a computational budget** and **log-uniform sampling** for scale parameters — transfer directly; the CV part applies once a learned component exists.
+**Compatibilidade com a plataforma:** varreduras atuais são grades sobre parâmetros de estratégia. Duas ideias concretas — **busca aleatória com orçamento computacional** e **amostragem log-uniforme** para parâmetros de escala — transferem-se diretamente; CV aplica-se quando existir componente aprendido.
 
-## 1. Chapter summary (pages read)
+## 1. Resumo do capítulo (páginas lidas)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que aborda | Páginas |
 |---|---|---|---|
-| C1 | Hyper-parameter tuning is essential and a common source of overfitting; CV in finance must be purged and embargoed (ch. 7). | Overfitting by tuning. | 129 |
-| C2 | **Grid search CV** exhaustively searches parameter combinations and scores them by CV; needs the purged k-fold generator, sample weights passed to the estimator, and optional bagging of the tuned estimator. | Baseline tuning. | 129–131 |
-| C3 | **Scoring**: use **F1** when meta-labeling (a model that predicts "never act" gets high accuracy/log-loss but zero recall); accuracy or negative log-loss is fine when all classes matter; relabeling has no effect on accuracy/log-loss but affects F1. | Pick the right score. | 130 |
-| C4 | **Randomised search CV**: for many parameters grids are intractable; sampling each parameter from a distribution (Bergstra et al.) (1) controls the **computational budget** regardless of dimensionality and (2) irrelevant parameters do not inflate search time as in a grid. | Budgeted search. | 131 |
-| C5 | **Log-uniform distribution**: for non-negative parameters that respond multiplicatively (SVC `C`, `gamma`), sample values so that `log x` is uniform on `[log a, log b]`; uniform sampling on `[0, 100]` puts 99% of draws above 1 and wastes effort. | Scale-appropriate sampling. | 132–133 |
-| C6 | Beginning of the argument for scoring investment strategies' hyper-parameters by negative log-loss rather than accuracy (rest not read). | Score choice. | 134 |
+| C1 | Ajuste de hiperparâmetros é essencial e fonte comum de sobreajuste; CV financeira deve usar purge e embargo (cap. 7). | Sobreajuste no ajuste. | 129 |
+| C2 | **CV por busca em grade** percorre combinações de parâmetros e calcula pontuação por CV; exige gerador k-fold purgado, pesos de amostra enviados ao estimador e, opcionalmente, bagging do estimador ajustado. | Ajuste de referência. | 129–131 |
+| C3 | **Pontuação**: usar **F1** em meta-rotulagem (modelo que prevê “nunca agir” pode ter alta acurácia/log-loss, mas recall zero); acurácia ou log-loss negativo servem quando todas as classes importam; reclassificar rótulos não afeta acurácia/log-loss, mas afeta F1. | Escolher a métrica correta. | 130 |
+| C4 | **CV por busca aleatória**: muitas grades são impraticáveis; amostrar cada parâmetro de uma distribuição (Bergstra et al.) (1) controla **orçamento computacional** independentemente da dimensionalidade; (2) parâmetros irrelevantes não ampliam tempo como na grade. | Busca com orçamento. | 131 |
+| C5 | **Distribuição log-uniforme**: para parâmetros não negativos com efeito multiplicativo (SVC `C`, `gamma`), amostrar valores de modo que `log x` seja uniforme em `[log a, log b]`; amostragem uniforme em `[0, 100]` põe 99% dos sorteios acima de 1 e desperdiça esforço. | Amostragem adequada à escala. | 132–133 |
+| C6 | Início do argumento para pontuar hiperparâmetros de estratégias de investimento por log-loss negativo, em vez de acurácia (restante não lido). | Escolha de pontuação. | 134 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| Grid sweeps | ✅ | Sweeps with `MAX_SWEEP_RUNS`; user supplies the values. |
-| Random search with budget and seed | ❌ | Grid only. |
-| Log-spaced sampling | ❌ | No helper (also book 4 ch. 7 O1, ch. 17 O3, ch. 21 O2). |
-| Purged/embargoed CV for tuning | ❌ | See ch. 7. |
-| Appropriate scoring for filters | ❌ | Ranking by single metrics (net PnL etc.); no precision/recall of a filter. |
+| Varredura em grade | ✅ | Varreduras com `MAX_SWEEP_RUNS`; usuário fornece valores. |
+| Busca aleatória com orçamento/semente | ❌ | Somente grade. |
+| Amostragem logarítmica | ❌ | Sem helper (também livro 4, cap. 7 O1, cap. 17 O3, cap. 21 O2). |
+| CV purgada/com embargo para ajuste | ❌ | Ver cap. 7. |
+| Pontuação adequada para filtros | ❌ | Classificação por métricas isoladas (PnL líquido etc.); sem precisão/recall de filtro. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Randomised sweeps with a budget, a seed and log-uniform integer/real distributions *(book: C4, C5, pp. 131–133)*
-* **Proposal:** a sweep mode `random` with `n_trials`, `seed` and per-parameter distributions (`uniform`, `int_uniform`, `log_uniform`, `choice`), recorded in the sweep specification and result so runs are reproducible; combined with the **ledger/pre-declared ranges** (book 4 ch. 21 O2) and with the neighbourhood analysis (ch. 21 O1 needs a neighbour definition for irregular points: use distance in normalised log-parameter space). Log-uniform fits period parameters (EMA fast/slow, Donchian windows) and stop/ATR multiples.
-* **Why:** budget independent of the number of parameters; irrelevant parameters (e.g. a filter threshold that does nothing) do not multiply the grid; consistent with the sampling advice of book 4 (geometric spacing, Monte Carlo sampling) with a published reference. 
-* **Complexity:** low–medium (sampling plus storage plus neighbourhood in log-space). **Risks:** randomness can miss narrow optima (fine for robustness-seeking), results depend on the seed (store it), reproducibility of results requires the sampling code to be stable across versions. **Validation:** seeds reproduce the same points; log-uniform samples are uniform in log-space (KS test as in the book's snippet); `n_trials` honoured; integer rounding handles duplicates by counting distinct configurations.
+### O1 — Varreduras aleatórias com orçamento, semente e distribuições log-uniformes para inteiros/reais *(livro: C4, C5, pp. 131–133)*
 
-### O2 — Score filters with F1/precision-recall in addition to P/L when tuning thresholds *(book: C3, p. 130)*
-Link to ch. 3 O4: when a threshold (volatility filter, trend-strength filter) is tuned, a degenerate setting that "never acts" can look good on accuracy-style or even Sharpe measures in short samples; report F1, recall and number of trades alongside, and require a minimum trade count. **Complexity:** low.
+* **Proposta:** modo de varredura `random` com `n_trials`, `seed` e distribuição por parâmetro (`uniform`, `int_uniform`, `log_uniform`, `choice`), registrada na especificação e resultado para reprodutibilidade; combinar com **registro/faixas predefinidas** (livro 4, cap. 21 O2) e análise de vizinhança (livro 4, cap. 21 O1 exige vizinhos para pontos irregulares: usar distância no espaço log-paramétrico normalizado). Log-uniforme combina com parâmetros de período (EMA rápida/lenta, janelas Donchian) e múltiplos de stop/ATR.
+* **Motivo:** orçamento independente da quantidade de parâmetros; parâmetros irrelevantes (ex.: limite de filtro sem efeito) não multiplicam a grade; compatível com orientação do livro 4 (espaçamento geométrico, Monte Carlo), com referência publicada.
+* **Complexidade:** baixa–média (amostragem, armazenamento, vizinhança logarítmica). **Riscos:** aleatoriedade pode perder ótimos estreitos (aceitável para buscar robustez); resultados dependem da semente (armazená-la); reprodutibilidade exige código de amostragem estável entre versões. **Validação:** sementes reproduzem mesmos pontos; amostras uniformes em espaço log (teste KS como no trecho do livro); `n_trials` respeitado; arredondamento inteiro identifica duplicatas e conta configurações distintas.
 
-### O3 — If ML tuning arises: purged k-fold + randomised search + bagged tuned estimator *(book: C1–C3)*
-Part of the ML decision record (ch. 3 O3, ch. 6 O1, ch. 7 O4): no unpurged `GridSearchCV`; sample weights passed through; scoring defined per use (F1 for meta-labeling). **Complexity:** part of the ML track.
+### O2 — Pontuar filtros por F1/precisão/recall além de P/L ao ajustar limites *(livro: C3, p. 130)*
 
-### Not applicable
-sklearn pipeline bugs and workaround (until a library is chosen), SVC/RBF-specific parameters.
+Conectar a O4 do cap. 3: ao ajustar limite de filtro (volatilidade, força de tendência), configuração degenerada que “nunca age” pode parecer boa em acurácia ou até Sharpe em amostra curta; informar F1, recall e número de operações junto e exigir mínimo de operações. **Complexidade:** baixa.
 
-## 4. Priority
+### O3 — Se houver ajuste de ML: k-fold purgado + busca aleatória + estimador ajustado em bagging *(livro: C1–C3)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+Parte do registro de decisão ML (cap. 3 O3, cap. 6 O1, cap. 7 O4): não usar `GridSearchCV` sem purge; passar pesos de amostra; pontuação definida por uso (F1 em meta-rotulagem). **Complexidade:** linha ML.
+
+### Não aplicável
+
+Falhas e soluções de pipeline do sklearn (até escolher biblioteca), parâmetros específicos de SVC/RBF.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O1 randomised sweeps (log-uniform) | medium–high | – | – | low–medium | sweep spec, ledger |
-| 2 | O2 filter scoring | medium | – | – | low | ch. 3 O4 |
-| 3 | O3 ML tuning rules | – | – | – | ML track | approval |
+| 1 | Varreduras aleatórias (log-uniforme) O1 | média–alta | – | – | baixa–média | especificação/registro de varredura |
+| 2 | Pontuação de filtros O2 | média | – | – | baixa | cap. 3 O4 |
+| 3 | Regras de ajuste ML O3 | – | – | – | linha ML | aprovação |
 
-## 5. Affected files
-Sweep specification and service in `backtesting/application`, a sampling module in `backtesting/domain` (pure, seeded), `docs/openapi.json`, app sweep form (distribution choices), tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Seeded samplers with unit tests; record specification.
-2. Random sweep mode.
-3. Neighbourhood analysis in log-space (with book 4 ch. 21 O1).
+Especificação/serviço de varredura em `backtesting/application`, módulo de amostragem em `backtesting/domain` (puro, com semente), `docs/openapi.json`, formulário de varredura do app (opções de distribuição), testes.
 
-## 7. Acceptance criteria and tests
-* Seeded sampling reproducible bit-for-bit; log-uniform passes a KS test on log-values; distinct configurations counted; sweeps without the new mode behave as today; ruff, mypy, tests green.
+## 6. Plano incremental
 
-## Caveats
-Randomised search has good properties for hyper-parameters in ML (Bergstra et al.), but for 2–3 trading-rule parameters a full grid with geometric spacing is feasible and easier to interpret; random search is mainly useful as the parameter count grows. The log-uniform distribution is described by the author as his own definition (it exists in scipy as `loguniform` today). Pages 134–137 were not read.
+1. Amostradores com semente e testes unitários; registrar especificação.
+2. Modo de varredura aleatória.
+3. Análise de vizinhança no espaço logarítmico (livro 4, cap. 21 O1).
+
+## 7. Critérios de aceitação e testes
+
+* Amostragem com semente reproduzível bit a bit; log-uniforme passa teste KS nos valores em log; configurações distintas contabilizadas; sem modo novo, varreduras funcionam como hoje; ruff, mypy e testes aprovados.
+
+## Ressalvas
+
+Busca aleatória tem boas propriedades para hiperparâmetros de ML (Bergstra et al.), mas grade completa com espaçamento geométrico é viável e mais interpretável para 2–3 parâmetros de regras de negociação; busca aleatória é mais útil quando aumenta a quantidade de parâmetros. Distribuição log-uniforme é apresentada pelo autor como definição própria (hoje existe em scipy como `loguniform`). Pp. 134–137 não foram lidas.

@@ -1,60 +1,68 @@
-# Book 5 · Chapter 18 — Entropy Features
+# Livro 5 · Capítulo 18 — Atributos de entropia
 
-*Advances in Financial Machine Learning*, López de Prado (2018). Book pages (PDF = book + 27). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Advances in Financial Machine Learning*, López de Prado (2018). Páginas do livro (PDF = livro + 27). Referência-base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 263–267 (Shannon entropy, plug-in estimator, Lempel–Ziv/Kontoyiannis estimators start) and 275–276 (financial applications: market efficiency, maximum entropy generation, portfolio concentration start) were read. Pages 268–274 (encoding schemes, estimators' details, generalised mean/diversity) and 277–280 (exercises, references) were **not** read.
+**Profundidade da leitura:** pp. 263–267 (entropia de Shannon, estimador plug-in, início dos estimadores Lempel–Ziv/Kontoyiannis) e 275–276 (aplicações financeiras: eficiência de mercado, geração de máxima entropia e início de concentração da carteira) foram lidas. Pp. 268–274 (esquemas de codificação, detalhes dos estimadores, média generalizada/diversidade) e 277–280 (exercícios e referências) **não foram lidas**.
 
-**Fit with the platform:** a *research feature* family. The book's claim that the information content (compressibility) of a price string indicates whether trend or mean-reversion bets pay off is a hypothesis, not a result in these pages.
+**Compatibilidade com a plataforma:** família de atributos de *pesquisa*. Alegação do livro de que conteúdo de informação (compressibilidade) de sequência de preços indica se apostas de tendência/reversão à média darão certo é hipótese, não resultado demonstrado nestas páginas.
 
-## 1. Chapter summary (pages read)
+## 1. Resumo do capítulo (páginas lidas)
 
-| ID | Concept | Pages |
+| ID | Conceito | Páginas |
 |---|---|---|
-| C1 | Price series reflect supply/demand with partial information; estimating the **informational content** of a series could give features: trend-following bets may be more profitable when prices carry *little* information and mean-reversion bets when prices carry *a lot* (the author's expectation). | 263 |
-| C2 | **Shannon entropy** `H[X] = −Σ p[x] log₂ p[x]` (0 ≤ H ≤ log₂|A|), **redundancy** `R = 1 − H/log₂|A|`, **mutual information** `MI[X,Y] = H[X] + H[Y] − H[X,Y]` (for a bivariate normal, `MI = −½ log(1 − ρ²)`), and the normalised variation of information as a metric. | 263–264 |
-| C3 | **Plug-in (maximum-likelihood) estimator** of the entropy rate on words of length `w` of a discretised sequence (e.g. return signs or quantile-encoded returns): `Ĥ_{n,w} = −(1/w) Σ p̂_w[y] log₂ p̂_w[y]`; needs `n ≫ w` for the empirical distribution to be close to the true one. | 264–265 |
-| C4 | **Lempel–Ziv** compression-based complexity: more non-redundant substrings per message length means higher entropy; **Kontoyiannis** estimator uses the longest-match length `L_i^n` in a past window: `lim L_i^n / log₂ n = 1/H`, estimate `Ĥ = [ (1/k) Σ L_i^n / log₂ n ]⁻¹`; high-entropy messages give shorter matches. | 265–267 |
-| C5 | **Applications**: **market efficiency** — a "decompressed" (high entropy, non-redundant) market is efficient; a "compressed" (low entropy) market is inefficient and bubbles form in compressed markets; **maximum entropy generation** (Fiedor) — the outcome maximising entropy is hardest for frequentist models to predict and may trigger stop-losses and runs; **portfolio concentration** — eigen-decomposition of the covariance matrix, factor loadings and the share of risk per principal component, to which an entropy-based concentration measure is applied (rest not read). | 275–276 |
+| C1 | Séries de preço refletem oferta/demanda com informação parcial; estimar **conteúdo informativo** pode gerar atributos: tendência talvez renda mais quando preço tem *pouca* informação e reversão à média, quando tem *muita* (expectativa do autor). | 263 |
+| C2 | **Entropia de Shannon** `H[X] = −Σ p[x] log₂ p[x]` (0 ≤ H ≤ log₂|A|), **redundância** `R = 1 − H/log₂|A|`, **informação mútua** `MI[X,Y] = H[X] + H[Y] − H[X,Y]` (normal bivariada: `MI = −½ log(1 − ρ²)`) e variação normalizada de informação como métrica. | 263–264 |
+| C3 | **Estimador plug-in (máxima verossimilhança)** da taxa de entropia em palavras de comprimento `w` de sequência discretizada (ex.: sinais de retornos ou retornos em quantis): `Ĥ_{n,w} = −(1/w) Σ p̂_w[y] log₂ p̂_w[y]`; exige `n ≫ w` para distribuição empírica aproximar a real. | 264–265 |
+| C4 | Complexidade baseada em compressão **Lempel–Ziv**: mais substrings não redundantes por comprimento da mensagem implicam entropia maior; estimador **Kontoyiannis** usa comprimento de maior correspondência `L_i^n` numa janela passada: `lim L_i^n / log₂ n = 1/H`, estima `Ĥ = [ (1/k) Σ L_i^n / log₂ n ]⁻¹`; mensagens de entropia alta têm correspondências menores. | 265–267 |
+| C5 | **Aplicações**: **eficiência de mercado** — mercado “descomprimido” (alta entropia, não redundante) é eficiente; mercado “comprimido” (baixa entropia) é ineficiente e bolhas se formam em mercados comprimidos. **Geração de máxima entropia** (Fiedor) — resultado que maximiza entropia é difícil para modelos frequentistas preverem e pode disparar stops/sequências. **Concentração de carteira** — decompor covariância em autovalores, cargas fatoriais e parcela de risco por componente principal, aplicando medida de concentração baseada em entropia (restante não lido). | 275–276 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| Entropy/compressibility features | ❌ | None. |
-| Predictability diagnostics (autocorrelation, runs) | ❌ | Planned in book 4 ch. 15 O1 (sequence tables) and ch. 1 O1 (ER/noise). |
+| Atributos de entropia/compressibilidade | ❌ | Nenhum. |
+| Diagnósticos de previsibilidade (autocorrelação, sequências) | ❌ | Planejados no livro 4, cap. 15 O1 (tabelas de sequências) e cap. 1 O1 (ER/ruído). |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Entropy and compressibility of candle-return sequences as a **diagnostic**, benchmarked against shuffled data *(book: C3, C4, pp. 264–267)*
-* **Proposal:** discretise returns (sign, or quantile bins, e.g. 3 or 10 symbols) per asset/timeframe and compute the plug-in entropy rate for words of length `w = 1…~4`, and the Lempel–Ziv/Kontoyiannis complexity, in rolling windows; report each against the distribution obtained from **shuffled** copies of the same window (shuffling destroys sequential structure but keeps the marginal), giving a p-value-like "excess redundancy". Display rolling redundancy next to the efficiency-ratio and sequence diagnostics (book 4 ch. 1 O1, ch. 15 O1).
-* **Why:** the same question as the sequence tables, with a different lens (information theory); shuffled baselines address the main weakness of raw entropy values, which depend on alphabet and window.
-* **Complexity:** low–medium. **Risks:** estimation bias for short windows (`n` must greatly exceed `|A|^w`); thresholds are arbitrary; volatility clustering lowers entropy of absolute-return encodings without implying exploitable direction. **Validation:** i.i.d. random symbols give entropy near `log₂|A|` and zero excess redundancy; a periodic or Markov sequence is flagged; deterministic with a seed.
+### O1 — Entropia/compressibilidade de sequências de retornos de candle como **diagnóstico**, comparado a dados embaralhados *(livro: C3, C4, pp. 264–267)*
 
-### O2 — Test the book's hypothesis (low entropy ↔ trend strategies work) with the existing strategies *(book: C1, C5, pp. 263, 275)*
-Use O1 as a regime variable and ask whether `ema_crossover`/`donchian_breakout` trade outcomes (signal outcome table, ch. 3 O1; effective N, ch. 4 O1) differ between low- and high-entropy windows, across several assets, with the pipeline's multiple-testing accounting. **H-ENTROPY-REGIME.** **Complexity:** medium. **Risks:** one more regime variable among many (ER, volatility, SADF); high chance of spurious findings; treat as exploratory with a pre-declared hypothesis and a locked check.
+* **Proposta:** discretizar retornos (sinal ou bins de quantil, ex.: 3 ou 10 símbolos) por ativo/timeframe; calcular taxa de entropia plug-in para palavras `w = 1…~4` e complexidade Lempel–Ziv/Kontoyiannis em janelas móveis; comparar cada uma com distribuição de cópias da janela **embaralhadas** (embaralhamento destrói sequência, preserva marginal), gerando valor tipo p de “redundância excedente”. Mostrar redundância móvel junto da razão de eficiência e diagnósticos de sequência (livro 4 caps. 1 O1 e 15 O1).
+* **Motivo:** mesma pergunta das tabelas de sequência, por outra lente (teoria da informação); referência embaralhada corrige fraqueza de valores brutos, dependentes de alfabeto/janela.
+* **Complexidade:** baixa–média. **Riscos:** viés de estimação em janelas curtas (`n` muito maior que `|A|^w`); limites arbitrários; agrupamento de volatilidade reduz entropia de codificação de retornos absolutos sem indicar direção explorável. **Validação:** símbolos aleatórios IID dão entropia próxima a `log₂|A|` e redundância excedente zero; sequência periódica/Markov é sinalizada; determinístico com semente.
 
-### O3 — Portfolio concentration via principal-component risk shares (future portfolio view) *(book: C5, pp. 275–276)*
-Compute eigenvalues of the correlation/covariance matrix of held assets and the share of risk per principal component; report an "effective number of independent bets" `exp(H)` of that distribution. A direct, interpretable replacement for naïve asset counts in the portfolio view (book 4 ch. 24 O1). **Complexity:** low–medium. **Validation:** identity covariance gives `N`; perfectly correlated assets give 1.
+### O2 — Testar hipótese do livro (baixa entropia ↔ estratégias de tendência funcionam) com estratégias atuais *(livro: C1, C5, pp. 263, 275)*
 
-### Not applicable
-Encoding schemes for quantile/sigma bars beyond a note (not read), maximum-entropy trading rules (speculative), microstructural entropy of order-flow signs (needs trade data).
+Usar O1 como variável de regime e perguntar se resultados das operações `ema_crossover`/`donchian_breakout` (tabela de sinais, cap. 3 O1; N efetivo, cap. 4 O1) diferem entre janelas de entropia baixa/alta, em vários ativos, com contagem de testes múltiplos do pipeline. **H-ENTROPY-REGIME.** **Complexidade:** média. **Riscos:** mais uma variável de regime entre ER, volatilidade e SADF; alta chance de achados espúrios; tratar como exploratória, com hipótese pré-declarada e verificação bloqueada.
 
-## 4. Priority
+### O3 — Concentração de carteira via parcelas de risco dos componentes principais (visão futura) *(livro: C5, pp. 275–276)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+Calcular autovalores da matriz de correlação/covariância dos ativos mantidos e parcela de risco por componente principal; informar “número efetivo de apostas independentes” `exp(H)` dessa distribuição. Substituto interpretável para contagem ingênua de ativos na visão de carteira (livro 4, cap. 24 O1). **Complexidade:** baixa–média. **Validação:** covariância identidade dá N; ativos perfeitamente correlacionados dão 1.
+
+### Não aplicável
+
+Esquemas de codificação para barras de quantis/sigma além de nota (não lidos), regras de negociação de máxima entropia (especulativas), entropia de microestrutura de sinais de fluxo (exige dados de negócios).
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O3 effective number of bets | – | medium | – | low–medium | portfolio view |
-| 2 | O1 entropy diagnostic with shuffled baseline | low | – | – | low–medium | diagnostics module |
-| 3 | O2 regime hypothesis test | medium | – | – | medium | O1, ch. 3/4 items |
+| 1 | Número efetivo de apostas O3 | – | média | – | baixa–média | visão de carteira |
+| 2 | Diagnóstico de entropia com referência embaralhada O1 | baixa | – | – | baixa–média | módulo de diagnósticos |
+| 3 | Teste da hipótese de regime O2 | média | – | – | média | O1, itens caps. 3/4 |
 
-## 5. Affected files
-`analytics/domain/` (entropy estimators, shuffle baselines, principal-component shares), diagnostics page, tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-O3 with the portfolio view; O1 only if a regime-research track is opened; O2 last.
+`analytics/domain/` (estimadores de entropia, referências embaralhadas, parcelas dos componentes principais), página de diagnósticos, testes.
 
-## 7. Acceptance criteria and tests
-Estimators match closed forms on known distributions (fair coin → 1 bit, deterministic → 0); shuffled baselines reproduce the null; deterministic; ruff, mypy, existing tests green.
+## 6. Plano incremental
 
-## Caveats
-No empirical result linking entropy to strategy profitability appears in the pages read; the "compressed market ⇒ bubble" and "maximum entropy ⇒ black swan" ideas are conjectures from cited work. Pages 268–274 and 277–280 were not read.
+O3 junto da visão de carteira; O1 somente se abrir linha de pesquisa de regimes; O2 por último.
+
+## 7. Critérios de aceitação e testes
+
+Estimadores coincidem com formas fechadas em distribuições conhecidas (moeda justa → 1 bit; determinística → 0); referências embaralhadas reproduzem nulo; determinístico; ruff, mypy e testes existentes aprovados.
+
+## Ressalvas
+
+As páginas lidas não contêm resultado empírico que conecte entropia à lucratividade; “mercado comprimido → bolha” e “entropia máxima → cisne negro” são conjecturas de trabalhos citados. Pp. 268–274 e 277–280 não foram lidas.

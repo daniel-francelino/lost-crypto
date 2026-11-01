@@ -1,61 +1,69 @@
-# Book 5 · Chapter 17 — Structural Breaks
+# Livro 5 · Capítulo 17 — Quebras estruturais
 
-*Advances in Financial Machine Learning*, López de Prado (2018). Book pages (PDF = book + 27). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Advances in Financial Machine Learning*, López de Prado (2018). Páginas do livro (PDF = livro + 27). Referência-base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 249–254 were read (motivation, test taxonomy, CUSUM tests, Chow-type Dickey–Fuller, SADF, log vs raw prices, computational cost). Pages 255–262 (sub/super-martingale tests, SADF variants such as QADF/CADF, exercises) were **not** read.
+**Profundidade da leitura:** pp. 249–254 foram lidas (motivação, taxonomia de testes, testes CUSUM, Dickey–Fuller tipo Chow, SADF, preços log versus brutos, custo computacional). Pp. 255–262 (testes sub/supermartingale, variantes SADF como QADF/CADF e exercícios) **não foram lidas**.
 
-**Fit with the platform:** regime/break detection as a *diagnostic* and as a *filter feature*. Computationally heavy (SADF is O(n²) regressions) and statistically delicate; useful mostly on daily data.
+**Compatibilidade com a plataforma:** detecção de regimes/quebras como *diagnóstico* e atributo de filtro. Computacionalmente caro (SADF exige O(n²) regressões) e estatisticamente delicado; útil sobretudo em dados diários.
 
-## 1. Chapter summary (pages read)
+## 1. Resumo do capítulo (páginas lidas)
 
-| ID | Concept | Pages |
+| ID | Conceito | Páginas |
 |---|---|---|
-| C1 | **Structural breaks** (e.g. a mean-reverting pattern giving way to momentum) catch most participants off guard; their losses (stop-outs after holding and hoping) are the source of some of the best risk/reward — so measure the *likelihood* of a break and build features on it. | 249 |
-| C2 | Two families of tests: **CUSUM tests** (do recursive forecast errors depart from white noise?) and **explosiveness tests** (does the process show exponential growth or collapse — inconsistent with a random walk or stationarity and unsustainable?): right-tail unit-root tests and sub/super-martingale tests. | 249–250 |
-| C3 | **Brown–Durbin–Evans CUSUM** on recursive least-squares residuals (needs features `x_t`; arbitrary starting point makes results inconsistent). **Chu–Stinchcombe–White CUSUM on levels** (Homm–Breitung): `S_{n,t} = (y_t − y_n)/(σ̂_t √(t − n))` with `σ̂²_t = (t−1)⁻¹ Σ (Δy_i)²`, under `H₀: β_t = 0` ~ N(0,1); time-dependent one-sided critical value with `b_{0.05} = 4.6` (by Monte Carlo); the reference level `y_n` is arbitrary, so take the supremum over backward windows `S_t = sup_{n∈[1,t]} S_{n,t}`. | 250–251 |
-| C4 | **Explosiveness**: multiple-bubble tests are more robust because a bubble–burst–bubble cycle looks stationary to single-bubble tests (bubbles include sell-offs). **Chow-type Dickey–Fuller** (random walk switching to explosive at an unknown break date; test all break dates within a trimmed interval — Andrews; assumes one break and a bubble lasting to the end of the sample). **Supremum Augmented Dickey–Fuller (SADF, Phillips–Wu–Yu)**: at each end point `t`, run ADF regressions on all start points `t₀ ∈ [1, t − τ]` and take the supremum of the ADF statistics; no assumption on number of regimes; the SADF series spikes in bubble-like behaviour and returns to low levels after the burst (Figure 17.1, E-mini S&P 500). | 251–253 |
-| C5 | **Use log prices** for SADF/ADF: on raw prices a rejected unit root implies finite price variance and therefore return volatility falling as prices rise (structural heteroscedasticity); with log prices, scaling `x = k·y` shifts the level by a constant, which matters across decades and bubbles. | 253–254 |
-| C6 | **Computational cost**: the nested loop is Θ(n²); for 356,631 dollar bars of E-mini S&P with 3 regressors one SADF update needs about 2.035 TFLOPs and a full SADF series about 242 PFLOPs; HPC parallelisation (ch. 20) is needed at that scale. | 254 |
+| C1 | **Quebras estruturais** (ex.: padrão de reversão à média dá lugar a momentum) surpreendem a maioria dos participantes; perdas (stops após manter posição esperando) são origem de algumas melhores relações risco/recompensa. Portanto, medir *probabilidade* de quebra e criar atributos sobre ela. | 249 |
+| C2 | Duas famílias de teste: **CUSUM** (erros recursivos de previsão desviam de ruído branco?) e **explosividade** (processo mostra crescimento/colapso exponencial, incompatível com passeio aleatório/estacionariedade e insustentável?): testes de raiz unitária pela cauda direita e testes sub/supermartingale. | 249–250 |
+| C3 | **CUSUM Brown–Durbin–Evans** em resíduos de mínimos quadrados recursivos (exige atributos `x_t`; início arbitrário produz resultados inconsistentes). **CUSUM de Chu–Stinchcombe–White sobre níveis** (Homm–Breitung): `S_{n,t} = (y_t − y_n)/(σ̂_t √(t − n))`, `σ̂²_t = (t−1)⁻¹ Σ (Δy_i)²`, sob `H₀: β_t = 0` ~ N(0,1); valor crítico unilateral dependente do tempo com `b_{0.05}=4.6` (via Monte Carlo). Nível de referência `y_n` arbitrário, então usar supremo sobre janelas retrospectivas `S_t = sup_{n∈[1,t]} S_{n,t}`. | 250–251 |
+| C4 | **Explosividade**: testes de múltiplas bolhas são mais robustos, pois ciclo bolha–estouro–bolha parece estacionário em teste de bolha única (bolhas incluem vendas em pânico). **Dickey–Fuller tipo Chow** (passeio aleatório muda para explosivo numa data desconhecida; testar datas dentro de intervalo aparado — Andrews; pressupõe uma quebra e bolha até fim da amostra). **ADF de supremo (SADF, Phillips–Wu–Yu)**: para cada extremo `t`, regressões ADF em todos os inícios `t₀ ∈ [1,t−τ]` e usar supremo das estatísticas; não pressupõe número de regimes; série SADF tem picos em comportamento de bolha e volta a níveis baixos após estouro (fig. 17.1, E-mini S&P 500). | 251–253 |
+| C5 | Usar **preços logarítmicos** em SADF/ADF: em preços brutos, rejeitar raiz unitária implica variância finita dos preços e, assim, volatilidade de retorno decrescente quando preços sobem (heterocedasticidade estrutural). Em log-preços, escala `x=k·y` desloca nível por constante, relevante entre décadas/bolhas. | 253–254 |
+| C6 | **Custo computacional**: laço aninhado é Θ(n²); para 356.631 barras de dólar do E-mini S&P com 3 regressores, uma atualização SADF exige ~2,035 TFLOPs e série completa ~242 PFLOPs; nessa escala precisa paralelização HPC (cap. 20). | 254 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| Regime/break detection | ❌ | None; strategies are always on. |
-| CUSUM filter (event) | ❌ | Proposed in ch. 2 O3. |
-| ADF/unit-root machinery | ❌ | Proposed in ch. 5 O1. |
-| Performance decay detection | ❌ | Book 4 ch. 21 O9, ch. 23 O8 propose monitors. |
+| Detecção de regime/quebra | ❌ | Nenhuma; estratégias operam continuamente. |
+| Filtro CUSUM (evento) | ❌ | Proposto no cap. 2 O3. |
+| ADF/raiz unitária | ❌ | Proposto no cap. 5 O1. |
+| Detecção de deterioração de desempenho | ❌ | Livro 4 cap. 21 O9 e cap. 23 O8 propõem monitores. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — CUSUM-on-levels break statistic as a cheap diagnostic *(book: C3, p. 251)*
-Implement the Chu–Stinchcombe–White statistic `S_t = sup_n S_{n,t}` on log prices (windows limited to a maximum lookback to keep it O(n·L)), plus the critical value `b = 4.6`-based bound as documented (verify the exact time-dependent boundary formula in the book/paper before use — it was not legible in the extraction); show on the chart as a "break likelihood" band. Use for research only: does a break signal precede changes in a trend strategy's hit rate? **Complexity:** low–medium. **Risks:** many false alarms in volatile crypto; arbitrary window. **Validation:** random walk rarely exceeds the boundary; a planted trend change triggers it; deterministic.
+### O1 — Estatística de quebra CUSUM em níveis como diagnóstico barato *(livro: C3, p. 251)*
 
-### O2 — SADF-style explosiveness indicator on daily log prices (research feature) *(book: C4, C5, pp. 252–254)*
-Compute SADF on daily log prices of imported assets with a limited set of start points (stride) and a maximum window to cap cost, requiring an ADF implementation (ch. 5 O1). Use as a **regime feature**: high values = bubble-like run-up (trend strategies thrive, then suffer on collapse); evaluate in backtests whether conditioning entries/sizing on it improves risk-adjusted results (**H-SADF-REGIME**). **Cost:** with daily data (thousands of points) a strided version is cheap; with intraday bars it is not (C6). **Complexity:** medium–high. **Risks:** low power, lookback sensitivity, look-ahead if the supremum is not strictly causal (compute only with data up to `t`); regressions with overlapping windows are dependent. **Validation:** simulated bubble series (explosive AR(1) segment) detected; random walk gives low values; truncation test.
+Implementar estatística Chu–Stinchcombe–White `S_t = sup_n S_{n,t}` sobre log-preços (limitar janelas a lookback máximo para ficar O(n·L)), mais limite baseado em `b=4.6` (confirmar fórmula exata do limite temporal no livro/artigo antes de uso — extração ilegível); mostrar no gráfico como faixa de “probabilidade de quebra”. Somente pesquisa: sinal de quebra precede mudança de taxa de acerto de estratégia de tendência? **Complexidade:** baixa–média. **Riscos:** muitos falsos alarmes em cripto volátil; janela arbitrária. **Validação:** passeio aleatório raramente ultrapassa limite; mudança de tendência inserida aciona; determinístico.
 
-### O3 — Break-aware retraining/re-validation trigger *(book: C1, p. 249 · links to book 4 ch. 21 O9, ch. 23 O8)*
-Treat a detected break in the traded asset's dynamics (e.g. realised volatility regime change, CUSUM exceedance) as a trigger to re-check a strategy's expectation sheet and, in the lifecycle (ch. 1 O1), to flag "validity of past evidence in doubt". **Complexity:** low–medium once O1 exists. Notify only (via the alerting module), never auto-stop.
+### O2 — Indicador explosivo tipo SADF em log-preços diários (atributo de pesquisa) *(livro: C4, C5, pp. 252–254)*
 
-### Not applicable
-Brown–Durbin–Evans test (needs a feature model), Chow-type test with an assumed single break, sub/super-martingale tests (not read), HPC strategies for full SADF over dollar bars.
+Calcular SADF em log-preços diários de ativos importados, com subconjunto espaçado de pontos iniciais e janela máxima para limitar custo, exigindo ADF (cap. 5 O1). Usar como **atributo de regime**: valores altos = alta semelhante a bolha (estratégias de tendência prosperam e sofrem no colapso); testar em backtest se condicionar entradas/tamanho melhora retorno ajustado (**H-SADF-REGIME**). **Custo:** com dados diários (milhares de pontos), versão espaçada é barata; intradiário, não (C6). **Complexidade:** média–alta. **Riscos:** baixo poder, sensibilidade ao lookback, look-ahead se supremo não for causal (calcular apenas com dados até `t`); regressões com janelas sobrepostas são dependentes. **Validação:** detectar segmento AR(1) explosivo em série sintética; passeio aleatório apresenta valores baixos; teste de truncamento.
 
-## 4. Priority
+### O3 — Gatilho de quebra para revalidar/treinar novamente *(livro: C1, p. 249 · conexão com livro 4 caps. 21 O9, 23 O8)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+Tratar quebra detectada na dinâmica do ativo (ex.: mudança de regime de volatilidade realizada, CUSUM excedido) como gatilho para rever ficha de expectativas da estratégia e, no ciclo de vida (cap. 1 O1), sinalizar “validade da evidência anterior em dúvida”. **Complexidade:** baixa–média após O1. Apenas notificar; nunca parar automaticamente.
+
+### Não aplicável
+
+Teste Brown–Durbin–Evans (exige modelo de atributos), teste tipo Chow com quebra única presumida, testes sub/supermartingale (não lidos), HPC para SADF completo em barras de dólar.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O1 CUSUM levels diagnostic | low–medium | low | – | low–medium | — |
-| 2 | O3 re-validation trigger | – | medium | medium | low–medium | alerts, O1 |
-| 3 | O2 SADF regime feature | medium | – | – | medium–high | ADF (ch. 5 O1) |
+| 1 | Diagnóstico CUSUM em níveis O1 | baixa–média | baixa | – | baixa–média | — |
+| 2 | Gatilho de revalidação O3 | – | média | média | baixa–média | alertas, O1 |
+| 3 | Atributo de regime SADF O2 | média | – | – | média–alta | ADF (cap. 5 O1) |
 
-## 5. Affected files
-`analytics/domain/` (break statistics, ADF), diagnostics endpoint/page, tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-O1 first; O2 only if O1 shows information value; link to lifecycle monitors later.
+`analytics/domain/` (estatísticas de quebra, ADF), endpoint/página de diagnósticos, testes.
 
-## 7. Acceptance criteria and tests
-Statistics reproduce known behaviour on simulated random walks, level shifts, explosive segments; strict causality (truncation test); runtime bounded by configured window/stride; ruff, mypy, existing tests green.
+## 6. Plano incremental
 
-## Caveats
-Break tests have low power and high false-alarm rates; thresholds come from simulation under idealised assumptions (Gaussian IID increments). The book offers no evidence that conditioning strategies on these statistics improves performance in the pages read ("some of the best risk/reward" is asserted). SADF's cost is prohibitive on high-frequency bars. Pages 255–262 were not read.
+O1 primeiro; O2 somente se O1 demonstrar valor informativo; integrar a monitores do ciclo de vida depois.
+
+## 7. Critérios de aceitação e testes
+
+Estatísticas reproduzem comportamento conhecido em passeios aleatórios, mudanças de nível e segmentos explosivos simulados; causalidade estrita (teste de truncamento); tempo de execução limitado por janela/passos configurados; ruff, mypy e testes existentes aprovados.
+
+## Ressalvas
+
+Testes de quebra têm baixo poder e muitos falsos alarmes; limites vêm de simulações com incrementos gaussianos IID ideais. Páginas lidas não demonstram que condicionar estratégias nessas estatísticas melhora resultados (“algumas melhores relações risco/recompensa” é afirmado). SADF tem custo proibitivo em barras de alta frequência. Pp. 255–262 não foram lidas.

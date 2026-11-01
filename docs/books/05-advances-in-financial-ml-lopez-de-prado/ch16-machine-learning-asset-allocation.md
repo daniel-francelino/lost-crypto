@@ -1,58 +1,66 @@
-# Book 5 · Chapter 16 — Machine Learning Asset Allocation (Hierarchical Risk Parity)
+# Livro 5 · Capítulo 16 — Alocação de ativos com aprendizado de máquina (paridade hierárquica de risco)
 
-*Advances in Financial Machine Learning*, López de Prado (2018). Book pages (PDF = book + 27). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Advances in Financial Machine Learning*, López de Prado (2018). Páginas do livro (PDF = livro + 27). Referência-base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 221–227 were read in full (motivation, Markowitz's curse, hierarchical relationships, tree clustering). Stages 2–3 and the numerical example / Monte Carlo (pp. 228–245) were read only through headings and key sentences; appendices (proofs, code) and exercises were not read.
+**Profundidade da leitura:** pp. 221–227 foram lidas integralmente (motivação, maldição de Markowitz, relações hierárquicas e agrupamento em árvore). Etapas 2–3 e exemplo numérico/Monte Carlo (pp. 228–245) foram vistos somente por títulos/frases-chave; apêndices (provas, código) e exercícios não foram lidos.
 
-**Fit with the platform:** allocation across multiple assets/strategies. The platform trades one asset per bot with independent capital, so this is **future-facing** (same status as book 4 ch. 24). It is recorded because it is the book's answer to robust allocation and its warning against optimising on covariances applies to any allocator.
+**Compatibilidade:** alocação entre múltiplos ativos/estratégias. Plataforma negocia um ativo por bot com capital independente; é assunto **futuro** (mesmo status do livro 4, cap. 24). Registrado por ser resposta do livro a alocação robusta e pelo alerta contra otimizar covariâncias, aplicável a qualquer alocador.
 
-## 1. Chapter summary
+## 1. Resumo do capítulo
 
-| ID | Concept | Pages |
+| ID | Conceito | Páginas |
 |---|---|---|
-| C1 | **Hierarchical Risk Parity (HRP)** addresses three problems of quadratic optimisers (Markowitz CLA): **instability, concentration, underperformance**; it needs no inversion of the covariance matrix and works with singular/ill-conditioned matrices. Claim: Monte Carlo shows lower out-of-sample variance than CLA (even though CLA minimises variance) and than traditional risk parity. Applicable to allocating across multiple ML strategies. | 221 |
-| C2 | **Markowitz's curse**: the more correlated the investments, the higher the condition number of the covariance matrix and the more unstable its inverse; estimation errors can offset diversification; at least `N(N+1)/2` IID observations are needed for a non-singular covariance (50 assets ≈ 5 years of daily IID data, an unrealistic stationarity assumption); even the naïve equal-weighted portfolio has beaten mean-variance and risk-based optimisation out-of-sample (De Miguel et al. 2009); CLA is very sensitive to small changes in expected returns (Michaud). | 222–223 |
-| C3 | **Hierarchy instead of a complete graph**: a correlation matrix treats every investment as a substitute for every other (1,225 edges for 50 assets); a tree has `N − 1` edges, so weights rebalance only among peers and flow top-down. HRP stages: **(1) tree clustering** (distance `d_{i,j} = sqrt((1 − ρ_{i,j})/2)`, a proper metric; distance of distances; agglomerative linkage, e.g. nearest point; worked 3-asset example), **(2) quasi-diagonalisation** (reorder rows/columns so similar items are adjacent), **(3) recursive bisection** (split weights top-down by inverse-variance of cluster variances; inverse-variance allocation is optimal for a diagonal covariance). | 223–229 |
-| C4 | **Numerical example** (10 assets, random data with some correlated columns): CLA concentrates 92.66% in the top-5 holdings and gives zero weight to 3 investments, HRP 62.57% in the top-5, inverse-variance (IVP) spreads ~10% each; in-sample std. dev. similar (HRP 0.4640 vs CLA slightly lower); **out-of-sample Monte Carlo** (with random shocks and jumps): portfolio variance CLA 0.1157, IVP 0.0928, **HRP 0.0671** — CLA's variance is 72.47% greater than HRP's. All mean returns ≈ 0. The author concludes HRP improves the out-of-sample Sharpe. (Simulation on synthetic data built by the author.) | 229–234 |
+| C1 | **Paridade Hierárquica de Risco (HRP)** aborda três problemas de otimizadores quadráticos (CLA de Markowitz): **instabilidade, concentração e desempenho inferior**; não precisa inverter matriz de covariância e funciona com matrizes singulares/mal condicionadas. Alegação: Monte Carlo mostra variância fora da amostra menor que CLA (embora CLA minimize variância) e paridade de risco tradicional. Aplicável à alocação entre estratégias ML. | 221 |
+| C2 | **Maldição de Markowitz**: maior correlação entre investimentos aumenta número de condição da covariância e instabilidade da inversa; erros de estimação podem anular diversificação. São necessárias pelo menos `N(N+1)/2` observações IID para covariância não singular (50 ativos ≈ 5 anos de dados diários IID, hipótese irrealista de estacionariedade). Até carteira ingênua com pesos iguais superou otimização média-variância e baseada em risco fora da amostra (De Miguel et al. 2009); CLA é muito sensível a pequenas mudanças nos retornos esperados (Michaud). | 222–223 |
+| C3 | **Hierarquia em vez de grafo completo**: matriz de correlação trata cada investimento como substituto de qualquer outro (1.225 arestas para 50 ativos); árvore tem `N−1` arestas, então pesos são rebalanceados entre pares, de cima para baixo. Etapas HRP: **(1) agrupamento em árvore** (distância `d_{i,j} = sqrt((1 − ρ_{i,j})/2)`, métrica válida; distância entre distâncias; ligação aglomerativa, ex. ponto mais próximo; exemplo com 3 ativos); **(2) quase-diagonalização** (reordenar linhas/colunas para itens semelhantes ficarem adjacentes); **(3) bisseção recursiva** (dividir pesos de cima para baixo usando variâncias inversas das variâncias dos grupos; alocação por variância inversa é ótima para covariância diagonal). | 223–229 |
+| C4 | **Exemplo numérico** (10 ativos, dados aleatórios com colunas correlacionadas): CLA concentra 92,66% nos 5 maiores e dá peso zero a 3 investimentos; HRP concentra 62,57% nos 5 maiores; variância inversa (IVP) distribui ~10% cada. Desvio-padrão dentro da amostra parecido (HRP 0,4640, CLA um pouco menor). **Monte Carlo fora da amostra** (choques e saltos aleatórios): variância carteira CLA 0,1157, IVP 0,0928, **HRP 0,0671** — variância CLA é 72,47% maior que HRP. Retornos médios ≈ 0. Autor conclui que HRP melhora Sharpe fora da amostra. (Simulação em dados sintéticos criados pelo autor.) | 229–234 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| Multi-asset allocation | ❌ | Independent bots; no allocator or portfolio module (book 4 ch. 24 diagnosis). |
-| Correlation/covariance estimation | ❌ | — |
-| Clustering of assets | ❌ | — |
+| Alocação multiativo | ❌ | Bots independentes; sem alocador/módulo de carteira (diagnóstico livro 4, cap. 24). |
+| Estimação correlação/covariância | ❌ | — |
+| Agrupamento de ativos | ❌ | — |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — If a multi-bot allocator is ever built, start with **equal-risk (inverse-volatility) weights**, then consider HRP only with ≥ ~8–10 sufficiently different assets/strategies *(book: C2–C4)*
-Given the book's own evidence (naïve and risk-parity portfolios are hard to beat out-of-sample; CLA is unstable), the simplest robust default is inverse-volatility allocation across bots (book 4 ch. 23/24); HRP is a second step if correlation structure matters. Crypto note (ours): with only a handful of liquid assets that are strongly correlated (one dominant factor), clustering adds little; strategies (trend vs mean reversion) may be the more meaningful leaves. **Complexity:** none now.
+### O1 — Se houver alocador para vários bots, começar por **pesos de risco igual (volatilidade inversa)** e considerar HRP somente com ≥ ~8–10 ativos/estratégias suficientemente diferentes *(livro: C2–C4)*
 
-### O2 — HRP as a pure function for research (optional) *(book: C3, pp. 224–229)*
-Implement correlation-distance, single-linkage clustering (scipy-free implementation possible), quasi-diagonalisation and recursive bisection on a covariance matrix; test with the book's 3-asset distance example (`D = [[0, .3873, .6325], [.3873, 0, .7746], [.6325, .7746, 0]]`, Euclidean distance of distances `[[0, .5659, .9747], [.5659, 0, 1.1225], [.9747, 1.1225, 0]]`, first cluster `(1, 2)`). Use inside the portfolio view (book 4 ch. 24 O1) as an *advisory* weight, never automatic. **Complexity:** medium. **Validation:** book examples; weights sum to 1; invariant to asset order; works on a singular covariance.
+Com base na própria evidência do livro (carteiras ingênuas e paridade de risco são difíceis de superar fora da amostra; CLA é instável), padrão robusto mais simples é alocação por volatilidade inversa entre bots (livro 4 caps. 23/24); HRP é etapa seguinte se correlação importar. Observação nossa para cripto: com poucos ativos líquidos muito correlacionados (um fator dominante), agrupamento acrescenta pouco; estratégias (tendência versus reversão) podem ser folhas mais significativas. **Complexidade:** nenhuma agora.
 
-### O3 — Monte Carlo comparison of allocators on synthetic and bootstrapped data before adopting any *(book: C4, pp. 233–234 · ties to ch. 13 O1)*
-Re-run the book's out-of-sample comparison (equal weight, IVP, HRP, minimum variance) on the platform's synthetic generator and on bootstrapped real returns of imported assets; adopt a method only if it wins consistently out-of-sample and survives costs/rebalancing. **Complexity:** medium. **Validation:** seeds reproducible.
+### O2 — HRP como função pura de pesquisa (opcional) *(livro: C3, pp. 224–229)*
 
-### Not applicable
-CLA internals and its Python implementation, the mathematical appendices (not read), large-universe applications.
+Implementar distância de correlação, agrupamento de ligação única (é possível sem scipy), quase-diagonalização e bisseção recursiva sobre matriz de covariância. Testar exemplo de 3 ativos do livro (`D = [[0, .3873, .6325], [.3873, 0, .7746], [.6325, .7746, 0]]`, distância euclidiana entre distâncias `[[0, .5659, .9747], [.5659, 0, 1.1225], [.9747, 1.1225, 0]]`, primeiro grupo `(1,2)`). Usar na visão de carteira (livro 4 cap. 24 O1) como peso **informativo**, nunca automático. **Complexidade:** média. **Validação:** exemplos do livro; pesos somam 1; invariância à ordem dos ativos; funciona com covariância singular.
 
-## 4. Priority
+### O3 — Comparar alocadores por Monte Carlo em dados sintéticos e bootstrap antes de adotar um *(livro: C4, pp. 233–234 · conexão com cap. 13 O1)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+Reexecutar comparação fora da amostra do livro (pesos iguais, IVP, HRP, variância mínima) no gerador sintético da plataforma e em retornos reais reamostrados por bootstrap; adotar método somente se vencer de forma consistente fora da amostra e sobreviver a custos/rebalanceamento. **Complexidade:** média. **Validação:** sementes reproduzíveis.
+
+### Não aplicável
+
+Detalhes internos/implementação Python da CLA, apêndices matemáticos (não lidos), aplicações a universos grandes.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O1 inverse-volatility default (decision record) | – | medium | – | doc | multi-bot portfolio view |
-| 2 | O3 allocator comparison on synthetic data | medium | medium | – | medium | ch. 13 O1 |
-| 3 | O2 HRP function | – | low | – | medium | — |
+| 1 | Peso padrão de volatilidade inversa O1 (registro de decisão) | – | média | – | doc. | visão de carteira multi-bot |
+| 2 | Comparação de alocadores em sintéticos O3 | média | média | – | média | cap. 13 O1 |
+| 3 | Função HRP O2 | – | baixa | – | média | — |
 
-## 5. Affected files
-Documentation; future `analytics/domain/portfolio` (HRP, IVP) and tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-Defer until the portfolio view and a second strategy family exist.
+Documentação; futuro `analytics/domain/portfolio` (HRP, IVP) e testes.
 
-## 7. Acceptance criteria and tests
-Book examples reproduce; weights nonnegative, sum to one, permutation-invariant; no automatic changes to bot capital.
+## 6. Plano incremental
 
-## Caveats
-All evidence in the pages read is simulation on data the author generated; the book claims historical confirmation by others (Kolanovic et al., Raffinot) without reproducing it here. The out-of-sample variance advantage concerns risk, not return, and ignores transaction costs of rebalancing. Pages 235–245 were not read in detail.
+Adiar até haver visão de carteira e segunda família de estratégia.
+
+## 7. Critérios de aceitação e testes
+
+Exemplos do livro reproduzidos; pesos não negativos, somam um e são invariantes à permutação; nenhuma alteração automática no capital dos bots.
+
+## Ressalvas
+
+Toda evidência lida é simulação em dados gerados pelo autor; o livro menciona confirmação histórica por outros (Kolanovic et al., Raffinot) sem reproduzi-la aqui. Vantagem de variância OOS é sobre risco, não retorno, e ignora custos de rebalanceamento. Pp. 235–245 não foram lidas em detalhe.

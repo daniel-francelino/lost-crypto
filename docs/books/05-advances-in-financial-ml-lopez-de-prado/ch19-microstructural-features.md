@@ -1,66 +1,75 @@
-# Book 5 · Chapter 19 — Microstructural Features
+# Livro 5 · Capítulo 19 — Atributos de microestrutura
 
-*Advances in Financial Machine Learning*, López de Prado (2018). Book pages (PDF = book + 27). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Advances in Financial Machine Learning*, López de Prado (2018). Páginas do livro (PDF = livro + 27). Referência-base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 281–286 were read (motivation, literature review, tick rule, Roll model, high-low volatility, Corwin–Schultz). The second generation (Kyle's, Amihud's, Hasbrouck's lambda, pp. 286–290), third generation (PIN/VPIN, pp. 290–293) and additional features (pp. 293–296) were seen by headings and first sentences only, and are **not** summarised in detail.
+**Profundidade da leitura:** pp. 281–286 foram lidas (motivação, revisão da literatura, regra do tick, modelo Roll, volatilidade máxima-mínima, Corwin–Schultz). Segunda geração (lambda de Kyle, Amihud, Hasbrouck, pp. 286–290), terceira geração (PIN/VPIN, pp. 290–293) e atributos adicionais (293–296) foram vistos somente pelos títulos/primeiras frases e **não são resumidos em detalhe**.
 
-**Fit with the platform:** the platform has candles (OHLCV), no trades, no order book. Only features computable from OHLCV are practical: the **Corwin–Schultz spread**, **Parkinson/Beckers high-low volatility** and (from the headings) an **Amihud-type illiquidity** ratio. Order-flow features (tick rule, VPIN, Kyle/Hasbrouck lambda, cancellation rates) need trade or book data.
+**Compatibilidade com a plataforma:** plataforma tem candles OHLCV, sem negócios nem livro de ordens. Só são práticos atributos calculáveis de OHLCV: **spread Corwin–Schultz**, **volatilidade máxima-mínima Parkinson/Beckers** e (pelos títulos) **iliquidez tipo Amihud**. Atributos de fluxo (regra do tick, VPIN, lambda Kyle/Hasbrouck, cancelamentos) exigem dados de negócios/livro.
 
-## 1. Chapter summary (pages read)
+## 1. Resumo do capítulo (páginas lidas)
 
-| ID | Concept | Pages |
+| ID | Conceito | Páginas |
 |---|---|---|
-| C1 | Microstructure data (FIX messages: cancellations, queues, partial fills, aggressor side) are among the most important ingredients for predictive ML features. Three generations: (1) price-sequence models (tick rule, Roll 1984), (2) volume/strategic-trade models (Kyle 1985, Amihud 2002), (3) sequential-trade models (PIN, Easley et al. 1996; VPIN under volume sampling) where the bid-ask spread is the premium market makers charge for being adversely selected. | 281–282 |
-| C2 | **Tick rule**: aggressor side `b_t = sign(Δp_t)`, or `b_{t−1}` if the price is unchanged; high accuracy despite simplicity; transformations of `{b_t}` give features (Kalman-filtered expectation, structural breaks, entropy, t-values of cumulative sums, fractional differentiation). | 282 |
-| C3 | **Roll model**: observed price = mid-price ± half-spread `c` with random aggressor side; implies `c = sqrt(max{0, −cov[Δp_t, Δp_{t−1}]})` and `σ²_u = σ²[Δp] + 2 cov[Δp_t, Δp_{t−1}]`; useful for thinly quoted instruments; assumptions (no drift, homoscedastic, serially independent signs) are contradicted empirically but plausible under proper sampling (ch. 2). | 282–283 |
-| C4 | **High-low volatility** (Parkinson 1980; Beckers 1983): `E[(1/T) Σ log²(H_t/L_t)] = k₁σ²_{HL}`, `k₁ = 4 log 2`; `E[(1/T) Σ log(H_t/L_t)] = k₂σ_{HL}`, `k₂ = sqrt(8/π)`; more accurate than close-to-close volatility. | 283–284 |
-| C5 | **Corwin–Schultz (2012) bid-ask spread estimator from high and low prices**: highs are mostly matched against the offer and lows against the bid; the volatility component of the high/low ratio grows proportionally with the time elapsed, the spread component does not; with `β_t = E[Σ_{j=0..1} log²(H_{t−j}/L_{t−j})]` (single-bar ranges over 2 bars), `γ_t = log²(H_{t−1,t}/L_{t−1,t})` (range over 2 bars), `α_t = (√(2β_t) − √β_t)/(3 − 2√2) − √(γ_t/(3 − 2√2))`, the spread is `S_t = 2(e^{α_t} − 1)/(1 + e^{α_t})`; set negative alphas to 0 (as the authors recommend); a rolling estimate over sample length `sl` can be smoothed with a Kalman filter; the volatility estimate is a by-product. | 284–286 |
-| C6 | Second generation focuses on **illiquidity** (a priced risk) via regressions on signed volume (Kyle's, Amihud's and Hasbrouck's lambda); third generation on informed-trading probability (PIN, VPIN) — headings only. | 286–293 |
+| C1 | Dados de microestrutura (mensagens FIX: cancelamentos, filas, execuções parciais, lado agressor) estão entre os ingredientes mais importantes para atributos preditivos de ML. Três gerações: (1) modelos de sequência de preços (regra do tick, Roll 1984), (2) modelos de volume/negociação estratégica (Kyle 1985, Amihud 2002), (3) modelos de sequência de negócios (PIN, Easley et al. 1996; VPIN com amostragem por volume), nos quais spread bid-ask é prêmio cobrado pelo formador de mercado por seleção adversa. | 281–282 |
+| C2 | **Regra do tick**: lado agressor `b_t = sign(Δp_t)`, ou `b_{t−1}` se preço não muda; alta precisão apesar da simplicidade; transformações de `{b_t}` geram atributos (expectativa filtrada por Kalman, quebras estruturais, entropia, t-values de somas acumuladas, diferenciação fracionária). | 282 |
+| C3 | **Modelo Roll**: preço observado = preço médio ± metade do spread `c` com lado agressor aleatório; implica `c = sqrt(max{0, −cov[Δp_t, Δp_{t−1}]})` e `σ²_u = σ²[Δp] + 2 cov[Δp_t, Δp_{t−1}]`; útil para instrumentos com poucas cotações. Pressupostos (sem deriva, homocedástico, sinais serialmente independentes) são contraditos empiricamente, mas plausíveis com amostragem adequada (cap. 2). | 282–283 |
+| C4 | **Volatilidade máxima-mínima** (Parkinson 1980; Beckers 1983): `E[(1/T) Σ log²(H_t/L_t)] = k₁σ²_{HL}`, `k₁ = 4 log 2`; `E[(1/T) Σ log(H_t/L_t)] = k₂σ_{HL}`, `k₂ = sqrt(8/π)`; mais precisa que volatilidade entre fechamentos. | 283–284 |
+| C5 | **Estimador de spread bid-ask de Corwin–Schultz (2012) via máxima e mínima**: máximas cruzam sobretudo oferta e mínimas demanda; componente de volatilidade da razão max/min cresce com tempo, componente spread não. Com `β_t = E[Σ_{j=0..1} log²(H_{t−j}/L_{t−j})]` (amplitudes de barras individuais em 2 barras), `γ_t = log²(H_{t−1,t}/L_{t−1,t})` (amplitude de 2 barras), `α_t = (√(2β_t) − √β_t)/(3 − 2√2) − √(γ_t/(3 − 2√2))`, spread `S_t = 2(e^{α_t} − 1)/(1 + e^{α_t})`; zerar α negativo (recomendação dos autores); estimativa móvel sobre comprimento `sl` pode ser suavizada por filtro Kalman; volatilidade estimada é subproduto. | 284–286 |
+| C6 | Segunda geração foca **iliquidez** (risco precificado) por regressões sobre volume com sinal (lambda Kyle, Amihud, Hasbrouck); terceira, probabilidade de negociação informada (PIN, VPIN) — somente títulos. | 286–293 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| OHLCV candles incl. volume | ✅ | `Candle` (volume unused by strategies). |
-| Trades / aggressor side / order book | ❌ | Not imported (Binance offers aggTrades with `isBuyerMaker`, and depth snapshots/streams). |
-| Spread estimate from candles | ❌ | Fixed `slippage_bps`. |
-| Illiquidity measures | ❌ | None. |
+| Candles OHLCV com volume | ✅ | `Candle` (volume não usado pelas estratégias). |
+| Negócios/lado agressor/livro de ordens | ❌ | Não importados (Binance oferece `aggTrades` com `isBuyerMaker` e snapshots/streams de profundidade). |
+| Estimativa de spread por candles | ❌ | `slippage_bps` fixo. |
+| Medidas de iliquidez | ❌ | Nenhuma. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — High-low volatility (Parkinson) and Corwin–Schultz spread as candle-based diagnostics *(book: C4, C5, pp. 283–286)*
-* **Proposal:** implement both estimators over candles; rolling spread (sample length 20–100), report mean spread in bps per asset/timeframe and its time-of-day profile; compare with the platform's assumed `slippage_bps` (a data-driven sanity check on the cost model: the estimate approximates the effective half-/full spread, not market impact for a given order size); Parkinson volatility becomes a second volatility option next to ATR and close-to-close (book 4 ch. 20 O1).
-* **Why:** a zero-new-data way to ground costs in data and to detect illiquid periods; for liquid Binance spot pairs the estimated spread will be tiny and probably dominated by the exchange's quoted spread (1–2 bps for majors), so the main use is for less liquid pairs and for stress periods. **Complexity:** low. **Risks:** the estimator assumes continuous trading and Brownian prices; 1-minute candles on thin pairs yield noisy/zero estimates (negative alphas truncated); it estimates spread, not slippage from size. **Validation:** closed-form checks on simulated prices with a known spread and volatility (Corwin–Schultz's own simulation approach); non-negativity; formulas re-checked against the paper before shipping (extraction garbled the constants).
+### O1 — Volatilidade máxima-mínima (Parkinson) e spread Corwin–Schultz como diagnósticos de candle *(livro: C4, C5, pp. 283–286)*
 
-### O2 — Amihud-type illiquidity ratio `|r| / quote volume` per candle/day *(book: C6 heading; formula not read — definition from the original paper)*
-Rolling average of absolute return divided by dollar volume as a coarse illiquidity feature (price impact per dollar). Use as a filter or a risk input (pause when illiquidity spikes), after validating on data. Must read p. 288 before implementing to follow the book's exact definition. **Complexity:** low. **H-ILLIQ-FILTER** only through the pipeline.
+* **Proposta:** implementar ambos estimadores sobre candles; spread móvel (janela 20–100), média em bps por ativo/timeframe e perfil por hora; comparar ao `slippage_bps` assumido (verificação baseada em dados do modelo de custos: spread estimado aproxima metade/total do spread efetivo, não impacto de mercado para tamanho de ordem); volatilidade Parkinson como alternativa a ATR/fechamento (livro 4 cap. 20 O1).
+* **Motivo:** ancora custos em dados sem fonte nova e identifica períodos ilíquidos. Para pares spot Binance líquidos, spread estimado será mínimo e provavelmente dominado pelo cotado da corretora (1–2 bps nos principais); uso principal em pares menos líquidos/períodos de estresse. **Complexidade:** baixa. **Riscos:** pressupõe negociação contínua e preço Browniano; candles 1m de pares pouco líquidos geram valores ruidosos/zero (alfa negativa truncada); estima spread, não slippage pelo tamanho. **Validação:** verificações fechadas em preços simulados com spread/volatilidade conhecidos (abordagem de simulação Corwin–Schultz); não negatividade; conferir fórmulas no artigo antes de publicar (extração corrompeu constantes).
 
-### O3 — Trade-level data (aggressor side, order flow imbalance, VPIN) — recorded, deferred *(book: C1, C2, C6; ch. 2 O2)*
-Needs trade or depth data and storage; many features (tick rule, signed volume imbalance, serial correlation of order flow, VPIN) depend on it. Binance aggTrades expose the aggressor flag so the tick rule is unnecessary. Decide together with the dollar-bar work (ch. 2 O2). The book itself says microstructural features are the "most important ingredients"; the evidence in the pages read is theoretical and from the author's experience. **Complexity:** high.
+### O2 — Razão de iliquidez tipo Amihud `|r| / volume cotado` por candle/dia *(livro: título C6; fórmula não lida — definição do artigo original)*
 
-### O4 — Use spread/illiquidity estimates to set the slippage model by timeframe and time of day *(book: C5; links to book 4 ch. 16 O2, ch. 20 O5)*
-Replace a constant `slippage_bps` by a table indexed by pair and hour, calibrated from O1 and, later, from the platform's own recorded fills. **Complexity:** medium.
+Média móvel do retorno absoluto dividido pelo volume em dólares, como iliquidez grosseira (impacto de preço por dólar). Usar como filtro ou entrada de risco (pausar quando disparar), após validação dos dados. Ler p. 288 antes de implementar para seguir definição exata do livro. **Complexidade:** baixa. **H-ILLIQ-FILTER** somente pelo pipeline.
 
-### Not applicable
-Bond-market BWIC applications, options markets, TWAP footprints, cancellation rates (no order data), PIN/VPIN estimation details.
+### O3 — Dados de negócios (lado agressor, desequilíbrio do fluxo, VPIN): registrar e adiar *(livro: C1, C2, C6; cap. 2 O2)*
 
-## 4. Priority
+Exige dados de negócios/profundidade e armazenamento; muitos atributos (regra do tick, desequilíbrio de volume assinado, autocorrelação do fluxo, VPIN) dependem disso. `aggTrades` Binance expõe flag agressora, então regra do tick é desnecessária. Decidir junto do trabalho com barras de dólar (cap. 2 O2). Livro diz que atributos microestruturais são “ingredientes mais importantes”; evidência nas páginas é teórica e da experiência do autor. **Complexidade:** alta.
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+### O4 — Usar spread/iliquidez para definir slippage por timeframe e horário *(livro: C5; conexão com livro 4 caps. 16 O2, 20 O5)*
+
+Substituir `slippage_bps` constante por tabela por par e hora, calibrada com O1 e, depois, execuções registradas pela plataforma. **Complexidade:** média.
+
+### Não aplicável
+
+Aplicações BWIC em títulos, mercados de opções, marcas TWAP, cancelamentos (sem dados de ordens), detalhes de estimação PIN/VPIN.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O1 Parkinson volatility + Corwin–Schultz | medium | medium | – | low | candles |
-| 2 | O4 spread-informed slippage table | high | medium | – | medium | O1; fills records |
-| 3 | O2 Amihud ratio | low | low | – | low | read p. 288 |
-| 4 | O3 trade-level data | medium–high | – | – | high | decision |
+| 1 | Volatilidade Parkinson + Corwin–Schultz O1 | média | média | – | baixa | candles |
+| 2 | Slippage por spread O4 | alta | média | – | média | O1; registros de execução |
+| 3 | Razão Amihud O2 | baixa | baixa | – | baixa | leitura p. 288 |
+| 4 | Dados no nível de negócio O3 | média–alta | – | – | alta | decisão |
 
-## 5. Affected files
-`analytics/domain/` (estimators), diagnostics page, `execution/domain/fills.py` (cost table, later), tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-Estimators + diagnostics; calibrate the cost model; postpone trade-level data.
+`analytics/domain/` (estimadores), página de diagnóstico, `execution/domain/fills.py` (tabela de custos, posteriormente), testes.
 
-## 7. Acceptance criteria and tests
-Estimators recover known spreads/volatilities in simulations; truncation/causality respected; deterministic; ruff, mypy, tests green.
+## 6. Plano incremental
 
-## Caveats
-The Corwin–Schultz constants and algebra above were reconstructed from a partly garbled extraction and must be verified against the paper. Both estimators are low-frequency proxies. The chapter provides no evidence of predictive value of these features for returns. Pages 286–296 were skimmed only.
+Estimadores e diagnósticos; calibrar modelo de custo; adiar dados no nível de negócio.
+
+## 7. Critérios de aceitação e testes
+
+Estimadores recuperam spreads/volatilidades conhecidos em simulações; respeitam causalidade/truncamento; determinísticos; ruff, mypy e testes existentes aprovados.
+
+## Ressalvas
+
+Constantes/álgebra Corwin–Schultz foram reconstruídas de extração parcialmente corrompida e devem ser verificadas no artigo. Ambos estimadores são aproximações de baixa frequência. O capítulo não demonstra valor preditivo desses atributos para retornos. Pp. 286–296 foram consultadas superficialmente.

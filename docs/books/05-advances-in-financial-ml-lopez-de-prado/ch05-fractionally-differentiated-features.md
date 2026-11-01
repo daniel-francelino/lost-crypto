@@ -1,60 +1,68 @@
-# Book 5 · Chapter 5 — Fractionally Differentiated Features
+# Livro 5 · Capítulo 5 — Atributos diferenciados fracionariamente
 
-*Advances in Financial Machine Learning*, López de Prado (2018). Book pages (PDF = book + 27). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Advances in Financial Machine Learning*, López de Prado (2018). Páginas do livro (PDF = livro + 27). Referência-base: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 75–86 were read (motivation, stationarity vs memory dilemma, literature, fractional differencing method, weights and convergence, expanding window and fixed-width window implementations, minimum d for stationarity, Table 5.1 start). Pages 87–90 (the rest of Table 5.1, conclusions, exercises) were not read.
+**Profundidade da leitura:** pp. 75–86 (motivação, dilema estacionariedade versus memória, literatura, método de diferenciação fracionária, pesos e convergência, implementações de janela expansiva e largura fixa, d mínimo para estacionariedade, início da Tabela 5.1) foram lidas. Pp. 87–90 (restante da tabela, conclusões e exercícios) não foram lidas.
 
-**Fit with the platform:** the platform has no ML features today. This chapter is only relevant if a model is trained on price-level information (meta-labeling, ch. 3 O3), or for a diagnostic of how much memory raw prices carry. It is a low-priority, future-facing chapter.
+**Compatibilidade com a plataforma:** hoje não há atributos de ML. Este capítulo só será relevante se um modelo for treinado com informação do nível de preço (meta-rotulagem, cap. 3 O3) ou como diagnóstico da memória dos preços brutos. É capítulo futuro, de baixa prioridade.
 
-## 1. Chapter summary
+## 1. Resumo do capítulo
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que aborda | Páginas |
 |---|---|---|---|
-| C1 | **Stationarity vs memory dilemma**: supervised models usually need stationary features, but the usual integer differencing (returns) removes **all memory**, while price levels keep memory but are non-stationary. Memory is the basis of predictive power (e.g. equilibrium models need to know how far price drifted from its mean). Stationarity is "necessary, non-sufficient". Question: what is the **minimum differencing that makes the series stationary while preserving as much memory as possible**? Returns are "one kind of (and in most cases suboptimal) transformation". | Over-differencing. | 75–76 |
-| C2 | **Fractional differencing**: generalise `(1 − B)^d` to real `d` via the binomial series; `X̃_t = Σ_k ω_k X_{t−k}`, `ω_k = −ω_{k−1}(d − k + 1)/k`, `ω_0 = 1`; `d = 0` returns the original series, `d = 1` the first difference `{1, −1, 0, …}`; for `0 < d < 1` weights are negative, decay and converge to zero (memory is kept with decaying weight). | The transformation. | 76–80 |
-| C3 | **Expanding window** applies all weights available and suffers uneven memory among points and a **negative drift** (Figure 5.3) unless weight loss is controlled; **fixed-width window (FFD)** drops weights with `|ω_k| < τ` (e.g. 1e-5), uses the same weight vector for every point, and yields a **driftless blend of level plus noise**; the output is stationary but no longer Gaussian (skew and kurtosis from the memory). | Practical implementation. | 80–84 |
-| C4 | **Minimum d**: for the E-mini S&P 500 log-prices (daily, from inception, rolled with the ETF trick) the ADF statistic crosses the 95% critical value (−2.8623) near **d ≈ 0.35**, where the correlation with the original series is still **0.995**; the returns series (d = 1) has ADF −46.9 and correlation 0.03 with the original. Table 5.1 shows **87 liquid futures** all reaching stationarity at **d < 0.6**, some (orange juice, live cattle) with no differencing; "most studies have over-differentiated the series". | Evidence that d = 1 is excessive. | 84–86 |
+| C1 | **Dilema entre estacionariedade e memória**: modelos supervisionados geralmente exigem atributos estacionários, mas diferenciação inteira usual (retornos) elimina **toda a memória**, enquanto níveis de preço preservam memória, mas não são estacionários. Memória é base do poder preditivo (por exemplo, modelos de equilíbrio precisam saber o quanto o preço se afastou da média). Estacionariedade é “necessária, mas não suficiente”. Pergunta: qual a **menor diferenciação que torna a série estacionária e preserva o máximo de memória**? Retornos são “um tipo de transformação (e, na maioria dos casos, subótima)”. | Diferenciação excessiva. | 75–76 |
+| C2 | **Diferenciação fracionária**: generalizar `(1 − B)^d` para d real pela série binomial; `X̃_t = Σ_k ω_k X_{t−k}`, `ω_k = −ω_{k−1}(d − k + 1)/k`, `ω_0 = 1`; `d = 0` retorna série original, `d = 1` primeira diferença `{1, −1, 0, …}`; para `0 < d < 1`, pesos são negativos, decaem e convergem a zero (memória preservada com peso decrescente). | A transformação. | 76–80 |
+| C3 | **Janela expansiva** aplica todos os pesos disponíveis e sofre memória desigual entre pontos e **deriva negativa** (fig. 5.3), a menos que a perda de peso seja controlada. **Janela de largura fixa (FFD)** descarta pesos com `|ω_k| < τ` (ex.: 1e-5), usa o mesmo vetor de pesos para cada ponto e gera **combinação sem deriva de nível + ruído**; saída é estacionária, mas não gaussiana (assimetria/curtose pela memória). | Implementação prática. | 80–84 |
+| C4 | **d mínimo**: para log-preços diários do E-mini S&P 500, desde início e rolados pelo truque ETF, estatística ADF cruza valor crítico de 95% (−2,8623) perto de **d ≈ 0,35**, quando correlação com série original ainda é **0,995**; retornos (d = 1) têm ADF −46,9 e correlação original 0,03. Tabela 5.1 mostra **87 futuros líquidos** alcançando estacionariedade em **d < 0,6**; alguns (suco de laranja, gado vivo), sem diferenciação. “A maioria dos estudos diferenciou em excesso.” | Evidência de que d = 1 é excessivo. | 84–86 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Status | Evidência |
 |---|---|---|
-| Feature engineering / models | ❌ | None; strategies use price/indicators directly (EMA, Donchian). |
-| Stationarity tests (ADF), fractional differencing | ❌ | None. |
-| Price-level memory used by strategies | ✅ (implicit) | EMA crossover and Donchian rely on price level history; they are not statistical models and do not need stationarity. |
+| Engenharia de atributos/modelos | ❌ | Não existe; estratégias usam preço/indicadores diretamente (EMA, Donchian). |
+| Testes de estacionariedade (ADF), diferenciação fracionária | ❌ | Nenhum. |
+| Memória do nível de preço usada por estratégias | ✅ (implícita) | EMA crossover e Donchian dependem do histórico de níveis; não são modelos estatísticos e não exigem estacionariedade. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Fractional differencing (FFD) as a pure function plus a minimum-d diagnostic *(book: C2–C4, pp. 76–86)*
-* **Proposal:** implement `ffd(series, d, threshold)` (fixed-width window) and `min_d(series)` (smallest `d` on a grid such that an Augmented Dickey–Fuller test on the FFD series rejects a unit root at 5%, reporting the correlation with the original at that `d`) in the analytics domain; expose in the series diagnostics for log-prices of each imported pair/timeframe. Use decimals or floats consistently with the analytics module conventions (float only inside the module; money values stay `Decimal` at the boundaries).
-* **Why:** if a model is ever built on price-based features, the diagnostics answer how much differencing is needed, giving features that are stationary yet retain memory; also a descriptive statistic of "how trending/persistent" an asset is. The evidence in the book is on futures (87 series), not crypto: a platform measurement would test whether the same holds for BTC/ETH/etc.
-* **Cost/risks:** needs an ADF implementation (statsmodels is not in the project; implementing ADF correctly is non-trivial; critical values and lag selection matter) → either add a dependency or implement a narrow, tested version; FFD output is not Gaussian; different `d` per asset makes features non-comparable; `τ` and window width are parameters. **Complexity:** medium. **Validation:** `d = 0` returns the series, `d = 1` equals first differences, weights match the recurrence; ADF statistic matches reference values on fixtures (e.g. a random walk fails to reject, white noise rejects); the result of `min_d` on a synthetic AR(1) near unit root is between 0 and 1.
+### O1 — Diferenciação fracionária (FFD) como função pura e diagnóstico de d mínimo *(livro: C2–C4, pp. 76–86)*
 
-### O2 — Document which indicators already preserve memory and which are stationary, before ML *(book: C1, pp. 75–76 · adaptation)*
-A short note in the research docs: raw returns (stationary, memoryless), price level (memory, non-stationary), EMA ratios, distance-to-channel and z-scores (stationary-ish but with partial memory) and fractional differences as a design choice for model inputs. When ML is considered, features should be defined in this vocabulary and tested with the diagnostic. **Complexity:** documentation.
+* **Proposta:** implementar `ffd(series, d, threshold)` (janela fixa) e `min_d(series)` (menor d numa grade para que teste Dickey–Fuller aumentado na série FFD rejeite raiz unitária a 5%, informando correlação com original nesse d) no domínio analytics; expor nos diagnósticos das séries de log-preços de cada par/timeframe importado. Usar decimais ou floats conforme convenção do módulo analytics (float somente dentro do módulo; valores monetários continuam `Decimal` nas fronteiras).
+* **Motivo:** se houver modelo com atributos de preço, o diagnóstico estima diferenciação necessária, oferecendo atributos estacionários com memória; também descreve persistência/tendência do ativo. Evidência do livro é sobre futuros (87 séries), não cripto: medição da plataforma verificaria BTC/ETH etc.
+* **Custos/riscos:** exige ADF (statsmodels não está no projeto; implementar corretamente não é trivial; valores críticos e seleção de defasagens importam) → dependência nova ou versão restrita e testada. Saída FFD não é gaussiana; d diferente por ativo reduz comparabilidade; τ e largura são parâmetros. **Complexidade:** média. **Validação:** `d = 0` retorna série; `d = 1` equivale a primeiras diferenças; pesos seguem recorrência; estatística ADF coincide com referências em fixtures (passeio aleatório não rejeita, ruído branco rejeita); `min_d` de AR(1) sintético próximo à raiz unitária entre 0 e 1.
 
-### O3 — Do not add fractional differencing to the rule-based strategies *(book: C1)*
-EMA/Donchian rules operate on levels by design; replacing prices with FFD series would change their meaning and add parameters with no evidence of benefit. Recorded to avoid scope creep. **Complexity:** none.
+### O2 — Documentar quais indicadores preservam memória e quais são estacionários antes de ML *(livro: C1, pp. 75–76 · adaptação)*
 
-### Not applicable
-ETF trick/futures rolls used to build the continuous series (spot only), the 87-futures table as evidence for crypto, Gaussianity restoration, cointegration methods (book 1/2 cover pairs).
+Nota breve nas diretrizes de pesquisa: retornos brutos (estacionários, sem memória), nível do preço (memória, não estacionário), razões EMA, distância ao canal e z-scores (aproximadamente estacionários, com memória parcial) e diferenças fracionárias como escolha de atributos de modelo. Ao considerar ML, definir atributos com essa terminologia e testá-los com diagnóstico. **Complexidade:** documentação.
 
-## 4. Priority
+### O3 — Não acrescentar diferenciação fracionária às estratégias baseadas em regras *(livro: C1)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+Regras EMA/Donchian usam níveis intencionalmente; substituir preços por série FFD muda seu significado e adiciona parâmetros sem evidência de benefício. Registrar para evitar expansão de escopo. **Complexidade:** nenhuma.
+
+### Não aplicável
+
+Truque ETF/rolagens de futuros para série contínua (somente spot); tabela de 87 futuros como evidência para cripto; restauração da gaussianidade; cointegração (livros 1/2 tratam pares).
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Depende de |
 |---|---|---|---|---|---|---|
-| 1 | O2 vocabulary note | low | – | – | doc | – |
-| 2 | O1 FFD + min-d diagnostic | low–medium | – | – | medium | decision on ADF dependency |
-| 3 | O3 (non-action) | – | – | – | – | – |
+| 1 | Nota de vocabulário O2 | baixa | – | – | doc. | – |
+| 2 | Diagnóstico FFD + d mínimo O1 | baixa–média | – | – | média | decisão sobre dependência ADF |
+| 3 | O3 (não agir) | – | – | – | – | – |
 
-## 5. Affected files
-`analytics/domain/` (new `frac_diff` module) and dependencies (ADF), tests with reference values; docs.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-Not before the ML track (ch. 3 O3) is approved. If done: FFD function with tests → ADF → diagnostic per pair → decide whether any model needs it.
+`analytics/domain/` (novo módulo `frac_diff`) e dependências (ADF), testes com valores de referência; documentação.
 
-## 7. Acceptance criteria and tests
-* Weight recurrence and special cases (`d = 0`, `d = 1`) verified; FFD length and warm-up as specified; ADF reference outputs match published tables on known series; diagnostics are read-only.
+## 6. Plano incremental
 
-## Caveats
-Evidence is on futures (ADF-based) and E-mini S&P daily data; stationarity by ADF is a statistical test with low power and sensitivity to specification; the preserved-correlation measure (0.995 at d = 0.35) says only that the series is close to the original, not that it is more predictive. The book itself notes stationarity does not ensure predictive power. No claim is made that fractional differencing improves trading results in these pages.
+Não implementar antes de aprovar linha de ML (cap. 3 O3). Se aprovado: função FFD e testes → ADF → diagnóstico por par → decidir se algum modelo precisa dela.
+
+## 7. Critérios de aceitação e testes
+
+* Recorrência dos pesos e casos especiais (`d = 0`, `d = 1`) verificados; comprimento e aquecimento FFD conforme especificação; saídas ADF coincidem com tabelas publicadas para séries conhecidas; diagnóstico somente de leitura.
+
+## Ressalvas
+
+Evidências usam futuros (baseadas em ADF) e dados diários do E-mini S&P; estacionariedade pelo ADF é teste estatístico com baixo poder e sensível à especificação. Correlação preservada (0,995 em d = 0,35) indica apenas proximidade da série original, não maior poder preditivo. O livro reconhece que estacionariedade não garante capacidade preditiva. Estas páginas não demonstram que diferenciação fracionária melhora resultados de negociação.
