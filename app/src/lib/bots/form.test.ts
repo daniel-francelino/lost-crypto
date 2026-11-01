@@ -40,7 +40,16 @@ describe("bot form", () => {
       max_drawdown_pct: null,
       max_consecutive_losses: null,
       max_candle_range_pct: "25",
+      max_close_jump_pct: null,
     });
+  });
+
+  it("sends the close-jump limit only when filled, and reads it back from a bot", () => {
+    const filled = { ...defaultFormValues(STRATEGY), maxCloseJumpPct: "7.5" };
+    expect(toBotInput(filled, STRATEGY).risk.max_close_jump_pct).toBe("7.5");
+    expect(
+      toBotInput({ ...filled, maxCloseJumpPct: "  " }, STRATEGY).risk.max_close_jump_pct,
+    ).toBeNull();
   });
 
   it("keeps the connection only for exchange modes", () => {

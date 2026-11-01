@@ -240,6 +240,11 @@ async def test_viewers_read_but_only_admins_change_things(auth_env: AuthEnv) -> 
         )
         assert kill.status_code == 403
         assert (await viewer_browser.get("/api/v1/auth/users", headers=viewer)).status_code == 403
+        note = {"text": "retired after the regime change"}
+        unknown = "00000000-0000-0000-0000-000000000000"
+        for path in (f"/api/v1/bots/{unknown}/notes", f"/api/v1/backtests/{unknown}/notes"):
+            assert (await viewer_browser.post(path, json=note, headers=viewer)).status_code == 403
+            assert (await admin_browser.post(path, json=note, headers=admin)).status_code == 404
 
         # An admin passes the role check (this request then fails on its own validation).
         allowed = await admin_browser.post(

@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { request } from "@/lib/shared/api/client";
+import { lenientEnum } from "@/lib/shared/api/schemas";
+import { StrategyStyle } from "@/lib/shared/enums";
 
 const parameterSchema = z.object({
   name: z.string(),
@@ -14,6 +16,7 @@ const strategySchema = z.object({
   type_key: z.string(),
   name: z.string(),
   description: z.string(),
+  style: lenientEnum(StrategyStyle).optional(),
   parameters: z.array(parameterSchema),
   parameter_count: z.number().optional(),
   too_many_parameters: z.boolean().optional(),

@@ -15,6 +15,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
+from enum import StrEnum
 from typing import Any, ClassVar, Self
 
 from core.errors import DomainError
@@ -23,6 +24,13 @@ from modules.strategies.domain.types import StrategyContext, StrategyResult
 
 class InvalidStrategyParams(DomainError):
     pass
+
+
+class StrategyStyle(StrEnum):
+    """The family a strategy belongs to: it decides which tests and warnings apply to it."""
+
+    TREND = "trend"
+    MEAN_REVERSION = "mean_reversion"
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +53,8 @@ class Strategy[StateT](ABC):
     DESCRIPTION: ClassVar[str]
     #: Every accepted parameter with its default. Required (may be empty).
     PARAMETERS: ClassVar[tuple[ParamSpec, ...]]
+    #: The strategy family. Required.
+    STYLE: ClassVar[StrategyStyle]
 
     @classmethod
     @abstractmethod

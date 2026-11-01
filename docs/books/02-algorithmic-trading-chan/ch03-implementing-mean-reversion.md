@@ -105,7 +105,7 @@ Escrito em 2026-11-01, com o código verificado nessa data. Convenções do proj
 | C3 estratégia de bandas/z-score | ❌ | ❌ continua; o desenho completo está no [livro 1, cap. 7, Fase 2](../01-quantitative-trading-chan/ch07-special-topics.md) com o nome `mean_reversion_zscore`. **O1 deste capítulo é essa mesma estratégia** (outro nome no relatório, mesmo conteúdo). |
 | C3 janela pela meia-vida | ❌ | ⚠️ a meia-vida existe (`GET /market-data/half-life`), mas nenhum formulário a usa ([cap. 2, Fase B](ch02-basics-of-mean-reversion.md)). |
 | C7 erro de dados no backtest | ❌ | ✅ `market_data/domain/quality.py` (`candle_problems`: OHLC inconsistente, preço ≤ 0, volume negativo, horário fora da grade) rejeita na importação; `find_outliers` (> 4σ) e a guarda de lacunas ficam em `data_quality` por execução. |
-| C7 erro de dados na operação real | ⚠️ | ⚠️ continua: o trader pula candles inválidos com evento `data.invalid_candle`, e o risco recusa entrada se a **amplitude** passa de `max_candle_range_pct` (25%). Não olha o salto contra o fechamento anterior. |
+| C7 erro de dados na operação real | ⚠️ | ✅ agora também o salto do fechamento (Fase B abaixo); antes:  o trader pula candles inválidos com evento `data.invalid_candle`, e o risco recusa entrada se a **amplitude** passa de `max_candle_range_pct` (25%). Não olha o salto contra o fechamento anterior. |
 | Portões de qualidade | parciais | ✅ truncamento em toda estratégia (`test_lookahead.py`), escada de custos, treino × teste, robustez de vizinhos nas varreduras, paridade bot × backtest. Estratégia nova ganha tudo isso. |
 | Catálogo | 2 de tendência | 2 de tendência. |
 
@@ -139,6 +139,13 @@ O capítulo conclui que, dentro da amostra, **uma entrada única** supera o pre�
 ### Fase D — Média e variância adaptativas (O4) · prioridade 4 · só desenho
 
 Só depois da Fase A mostrar utilidade. Desenho mínimo: função pura `analytics/domain/filters.py` com média e variância exponenciais (`ema_mean_variance(series, alpha)`) e, mais tarde, o estimador de Kalman unidimensional; entra na estratégia como **opção** (`mean_type`), o que **estoura o limite de 5 parâmetros** e exige decidir: aumentar o limite de `too_many_parameters`, tirar `stop_loss_pct` da estratégia ou criar a variante como estratégia separada. **Decisão pendente.** Teste: comparar janela fixa × EMA em série sintética e medir sensibilidade (um pico isolado sugere sobreajuste).
+
+### Estado da implementação (2026-11-01)
+
+* **Fase A implementada** (a estratégia é a `mean_reversion_zscore` do livro 1, cap. 7, Fase 2): `strategies/domain/mean_reversion_zscore.py`, 5 parâmetros (`lookback` 20, `entry_z` 2, `exit_z` 0, `max_holding_candles`, `stop_loss_pct`), desvio **populacional**, janela com a vela atual, sem sinal até a janela encher ou com desvio zero. Junto veio o `StrategyStyle` (`trend` / `mean_reversion`, obrigatório no registro, exposto em `GET /strategies`), o teste de contrato por estilo (série de tendência × série de quedas que voltam) e o de truncamento com as variantes `max_holding_candles` e `stop_loss_pct`. A dica de stop por estilo está em `lib/shared/strategies/stop-hint.ts` (só orientação). O botão "usar na varredura" da dica de meia-vida ([cap. 2, Fase B](ch02-basics-of-mean-reversion.md)) agora tem estratégia a que se aplicar. Testes: `test_mean_reversion.py`, `test_strategy_contract.py`, `test_lookahead.py` e um teste de integração ponta a ponta.
+* **Fase B implementada:** `RiskLimits.max_close_jump_pct` (desligado por padrão), migração `0016_max_close_jump`, regra em `assess_signal`, campo nos formulários de bot e backtest. O salto é o do fechamento da vela do sinal contra o fechamento anterior; no trader o último fechamento fica em memória por bot, então a primeira vela depois de um reinício do worker não é checada. **B.3 (segunda fonte de preço) não entra.** Testes: `test_close_jump.py` e integração (o trader recusa a entrada com salto de 10% e limite 5%, aceita com 15% ou desligado). Desvio do plano: o contexto da recusa usa o fechamento anterior guardado no `_RiskGuard` do motor (em `signal_close` a vela já foi observada antes do sinal).
+* **Fases C e D:** C é só registro (**B-SCALE-IN**); D (EMA/Kalman) continua só desenho e só faz sentido se a Fase A mostrar utilidade em pesquisa real.
+* **Decisões ainda abertas:** padrão de `max_close_jump_pct` (fica desligado), o limite de 5 parâmetros por estratégia (a nova já usa os 5).
 
 ### Ordem, dependências e estimativa
 

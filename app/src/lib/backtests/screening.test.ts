@@ -52,6 +52,19 @@ describe("screening flags (Chan's rules of thumb)", () => {
     expect(flagged(50, YEAR)).toEqual([]);
   });
 
+  it("flags a holding limit that is long against the sample", () => {
+    const withLimit = (limit: unknown, periods = 8760) =>
+      screeningFlags({
+        ...YEAR,
+        strategy_params: { max_holding_candles: limit },
+        metrics: { ...BASE, return_periods: periods },
+      }).map((flag) => flag.id);
+    expect(withLimit(500)).toEqual(["long-holding"]);
+    expect(withLimit(100)).toEqual([]);
+    expect(withLimit(null)).toEqual([]);
+    expect(withLimit(50, 0)).toEqual([]);
+  });
+
   it("flags each rule on its own", () => {
     expect(ids({ ...BASE, sharpe_ratio: "0.7" })).toEqual(["sharpe"]);
     expect(ids({ ...BASE, max_drawdown_pct: "12.5" })).toEqual(["drawdown-depth"]);

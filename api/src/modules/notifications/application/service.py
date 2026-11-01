@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Sequence
 from contextlib import AbstractAsyncContextManager, suppress
 from datetime import datetime, timedelta
 from typing import Protocol
@@ -9,6 +9,7 @@ from uuid import UUID
 from core.clock import Clock
 from core.errors import NotFoundError
 from modules.bots.application.ports import BotRepository
+from modules.bots.domain.models import Bot
 from modules.market_data.application.updater import UpdateReport
 from modules.notifications.application import conditions
 from modules.notifications.application.evaluator import AlertEvaluator
@@ -18,6 +19,7 @@ from modules.notifications.domain.models import (
     AlertKind,
     AlertSeverity,
     AlertSummary,
+    Condition,
 )
 from modules.trading.application.status import StatusService
 
@@ -32,6 +34,7 @@ WORKER_SCOPE = frozenset(
         AlertKind.KILL_SWITCH_ACTIVE,
         AlertKind.CANDLES_STALE,
         AlertKind.EXCHANGE_RATE_LIMITED,
+        AlertKind.PERFORMANCE_DEGRADED,
     }
 )
 
@@ -97,6 +100,8 @@ class AlertMonitor:
         interval: timedelta,
         retention: timedelta,
         update_report: Callable[[], UpdateReport] | None = None,
+        deterioration: Callable[[Sequence[Bot]], Awaitable[list[Condition]]] | None = None,
+        deterioration_interval: timedelta = timedelta(minutes=15),
     ) -> None:
         self._stores = stores
         self._status = status
@@ -106,6 +111,10 @@ class AlertMonitor:
         self._retention = retention
         self._update_report = update_report
         self._last_run: datetime | None = None
+        self._deterioration = deterioration
+        self._deterioration_interval = deterioration_interval
+        self._deterioration_at: datetime | None = None
+        self._deterioration_conditions: list[Condition] = []
 
     async def run_worker_if_due(self) -> None:
         now = self._clock.now()
@@ -120,10 +129,25 @@ class AlertMonitor:
                 *conditions.kill_switch(status),
                 *conditions.bots(status, active),
                 *(conditions.candles(self._update_report()) if self._update_report else []),
+                *await self._deterioration_firing(active, now),
             ]
             await self._evaluator.sync(WORKER_SCOPE, firing, actor="worker")
         except Exception:
             logger.exception("alert evaluation failed")
+
+    async def _deterioration_firing(self, active: Sequence[Bot], now: datetime) -> list[Condition]:
+        """Comparing every bot with its backtest is costly, so it runs on its own, slower
+        clock; in between, the last result keeps firing (an absent condition would resolve)."""
+        if self._deterioration is None:
+            return []
+        due = (
+            self._deterioration_at is None
+            or now - self._deterioration_at >= self._deterioration_interval
+        )
+        if due:
+            self._deterioration_at = now
+            self._deterioration_conditions = await self._deterioration(active)
+        return self._deterioration_conditions
 
     async def run_api_once(self) -> None:
         try:

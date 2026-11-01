@@ -79,9 +79,15 @@ class SqlAlchemyAuditRepository:
         return result.scalar_one_or_none()
 
     async def count_all(
-        self, bot_id: UUID | None, event_type: str | None = None, since: datetime | None = None
+        self,
+        bot_id: UUID | None,
+        event_type: str | None = None,
+        since: datetime | None = None,
+        entity_id: str | None = None,
     ) -> int:
         query = select(func.count()).select_from(AuditEventRow)
+        if entity_id is not None:
+            query = query.where(AuditEventRow.entity_id == entity_id)
         if bot_id is not None:
             query = query.where(AuditEventRow.bot_id == bot_id)
         if event_type is not None:
@@ -91,9 +97,16 @@ class SqlAlchemyAuditRepository:
         return int((await self._session.execute(query)).scalar_one())
 
     async def list_events(
-        self, bot_id: UUID | None, limit: int, offset: int = 0, event_type: str | None = None
+        self,
+        bot_id: UUID | None,
+        limit: int,
+        offset: int = 0,
+        event_type: str | None = None,
+        entity_id: str | None = None,
     ) -> list[AuditEvent]:
         query = select(AuditEventRow).order_by(AuditEventRow.id.desc()).limit(limit).offset(offset)
+        if entity_id is not None:
+            query = query.where(AuditEventRow.entity_id == entity_id)
         if bot_id is not None:
             query = query.where(AuditEventRow.bot_id == bot_id)
         if event_type is not None:

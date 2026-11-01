@@ -4,6 +4,7 @@ import math
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import replace
+from datetime import timedelta
 from decimal import Decimal
 from itertools import product
 from typing import Any
@@ -18,6 +19,7 @@ from modules.analytics.domain.regime import regime_report
 from modules.analytics.domain.tail_risk import tail_risk
 from modules.backtesting.application.ports import BacktestRun, BacktestStore, BacktestSweep
 from modules.backtesting.domain import cost_ladder
+from modules.backtesting.domain.break_segments import BreakRef, compute_break_segments
 from modules.backtesting.domain.data_quality import (
     candle_report,
     free_parameters,
@@ -42,6 +44,9 @@ BacktestStoreFactory = Callable[[], AbstractAsyncContextManager[BacktestStore]]
 
 MAX_CANDLES = 200_000
 MAX_SWEEP_RUNS = 200
+START_OFFSET_KEY = "start_offset_days"  # a grid key that shifts the start, not a parameter
+MAX_START_OFFSETS = 25  # the book spreads the capital over 25 overlapping tranches
+MAX_OFFSET_DAYS = 3650
 
 
 class NoCandlesError(DomainError):
@@ -106,20 +111,27 @@ class BacktestService:
         self._exchanges.require(base.exchange, base.timeframe)
         if base.cost_sensitivity:
             raise InvalidSweep("cost sensitivity is per backtest; open the chosen run instead")
-        names = sorted(grid)
-        if not names or any(not grid[n] for n in names):
+        offsets = self._start_offsets(grid)
+        grid_params = {name: values for name, values in grid.items() if name != START_OFFSET_KEY}
+        names = sorted(grid_params)
+        if (not names and offsets is None) or any(not grid_params[n] for n in names):
             raise InvalidSweep("every grid parameter needs at least one value")
-        if math.prod(len(grid[n]) for n in names) > MAX_SWEEP_RUNS:
+        shifts = [0] if offsets is None else offsets
+        total = math.prod(len(grid_params[n]) for n in names) * len(shifts)
+        if total > MAX_SWEEP_RUNS:
             raise InvalidSweep(f"a sweep may have at most {MAX_SWEEP_RUNS} combinations")
 
         now = self._clock.now()
         sweep_id = self._ids.new_id()
         runs: list[BacktestRun] = []
         skipped: list[dict[str, Any]] = []
-        for values in product(*(grid[n] for n in names)):
+        for shift, values in product(shifts, product(*(grid_params[n] for n in names))):
             params = {**base.strategy_params, **dict(zip(names, values, strict=True))}
             try:
                 self._registry.create(base.strategy_type, params)
+                config = replace(
+                    base, start=base.start + timedelta(days=shift), strategy_params=params
+                )
             except DomainError as exc:  # e.g. fast_period >= slow_period: skipped, not fatal
                 skipped.append({"params": params, "reason": str(exc)})
                 continue
@@ -127,7 +139,7 @@ class BacktestService:
                 BacktestRun(
                     id=self._ids.new_id(),
                     status=JobStatus.QUEUED,
-                    config=replace(base, strategy_params=params),
+                    config=config,
                     created_at=now,
                     sweep_id=sweep_id,
                 )
@@ -145,6 +157,26 @@ class BacktestService:
             prior = await store.count_prior_trials(sweep, base)
             await store.commit()
         return sweep, runs, prior
+
+    @staticmethod
+    def _start_offsets(grid: dict[str, list[Any]]) -> list[int] | None:
+        """The start shifts (in days) of a start-sensitivity sweep, or None without them."""
+        raw = grid.get(START_OFFSET_KEY)
+        if raw is None:
+            return None
+        valid = (
+            bool(raw)
+            and len(raw) <= MAX_START_OFFSETS
+            and all(isinstance(v, int) and not isinstance(v, bool) for v in raw)
+            and all(0 <= v <= MAX_OFFSET_DAYS for v in raw)
+            and len(set(raw)) == len(raw)
+        )
+        if not valid:
+            raise InvalidSweep(
+                f"{START_OFFSET_KEY} needs 1 to {MAX_START_OFFSETS} distinct whole days "
+                f"between 0 and {MAX_OFFSET_DAYS}"
+            )
+        return list(raw)
 
     async def get_sweep(self, sweep_id: UUID) -> tuple[BacktestSweep, list[BacktestRun], int]:
         """The sweep, its runs, and how many earlier runs tried the same strategy and data."""
@@ -264,6 +296,9 @@ class BacktestExecutor:
             candles = await store.candles.get_range(
                 config.exchange, config.symbol, config.timeframe, config.start, config.end
             )
+            breaks = await store.regime_breaks.inside(
+                config.exchange, config.symbol, config.start, config.end
+            )
         market = await self._exchanges.market_data(config.exchange).fetch_market_info(config.symbol)
         strategy = self._registry.create(config.strategy_type, config.strategy_params)
 
@@ -323,6 +358,12 @@ class BacktestExecutor:
                     fee_rate=config.fee_rate,
                     slippage_bps=config.slippage_bps,
                     seed=config.seed,
+                ),
+                break_metrics=compute_break_segments(
+                    config,
+                    candles,
+                    outcome,
+                    [BreakRef(str(b.id), b.name, b.occurred_at, b.created_at) for b in breaks],
                 ),
                 equity_curve=outcome.equity_curve,
                 fills=outcome.fills,

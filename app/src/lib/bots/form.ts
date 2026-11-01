@@ -30,6 +30,7 @@ export type BotFormValues = {
   requireStopLoss: boolean;
   maxCandleRangePct: string;
   maxOrderPctOfVolume: string;
+  maxCloseJumpPct: string;
   mode: string;
   connectionId: string;
 };
@@ -53,6 +54,7 @@ export const defaultFormValues = (strategy: Strategy | undefined): BotFormValues
   requireStopLoss: false,
   maxCandleRangePct: "25",
   maxOrderPctOfVolume: "",
+  maxCloseJumpPct: "",
   mode: ExecutionMode.Paper,
   connectionId: "",
 });
@@ -78,6 +80,7 @@ export const formFromBot = (bot: Bot, strategy: Strategy | undefined): BotFormVa
   requireStopLoss: bot.risk.require_stop_loss,
   maxCandleRangePct: text(bot.risk.max_candle_range_pct),
   maxOrderPctOfVolume: text(bot.risk.max_order_pct_of_volume ?? null),
+  maxCloseJumpPct: text(bot.risk.max_close_jump_pct ?? null),
   mode: bot.mode,
   connectionId: bot.connection_id ?? "",
 });
@@ -107,6 +110,7 @@ export const toBotInput = (values: BotFormValues, strategy: Strategy | undefined
     require_stop_loss: values.requireStopLoss,
     max_candle_range_pct: nullable(values.maxCandleRangePct),
     max_order_pct_of_volume: nullable(values.maxOrderPctOfVolume),
+    max_close_jump_pct: nullable(values.maxCloseJumpPct),
   },
   mode: values.mode,
   connection_id: values.mode === ExecutionMode.Paper ? null : nullable(values.connectionId),

@@ -6,7 +6,7 @@ from uuid import UUID
 from core.jobs import JobStatus
 from modules.backtesting.domain.models import BacktestConfig, EquityPoint
 from modules.execution.domain.orders import Fill
-from modules.market_data.application.ports import CandleRepository
+from modules.market_data.application.ports import CandleRepository, RegimeBreakRepository
 from modules.market_data.domain.models import MarketInfo, Timeframe
 
 
@@ -30,6 +30,7 @@ class BacktestRun:
     tail_risk: dict[str, Any] | None = None
     regime: dict[str, Any] | None = None
     significance: dict[str, Any] | None = None
+    break_metrics: dict[str, Any] | None = None
     sweep_id: UUID | None = None
     error: str | None = None
 
@@ -51,6 +52,9 @@ class BacktestStore(Protocol):
 
     @property
     def candles(self) -> CandleRepository: ...
+
+    @property
+    def regime_breaks(self) -> RegimeBreakRepository: ...
 
     async def add_run(self, run: BacktestRun) -> None: ...
     async def get_run(self, run_id: UUID) -> BacktestRun | None: ...
@@ -93,6 +97,7 @@ class BacktestStore(Protocol):
         tail_risk: dict[str, Any] | None,
         regime: dict[str, Any] | None,
         significance: dict[str, Any] | None,
+        break_metrics: dict[str, Any] | None,
         equity_curve: list[EquityPoint],
         fills: list[Fill],
     ) -> None: ...

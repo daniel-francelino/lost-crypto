@@ -1001,6 +1001,264 @@
         }
       }
     },
+    "/api/v1/market-data/regime-breaks": {
+      "get": {
+        "tags": [
+          "market-data"
+        ],
+        "summary": "List Regime Breaks",
+        "description": "Structural breaks the operator named (global ones included when a market is given).",
+        "operationId": "list_regime_breaks_api_v1_market_data_regime_breaks_get",
+        "parameters": [
+          {
+            "name": "exchange",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Exchange"
+            }
+          },
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+                  "examples": [
+                    "BTC/USDT"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Symbol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RegimeBreakOut"
+                  },
+                  "title": "Response List Regime Breaks Api V1 Market Data Regime Breaks Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "market-data"
+        ],
+        "summary": "Create Regime Break",
+        "description": "Name a break (a crash, a rule change). Register breaks BEFORE running experiments: each one\nkeeps when it was created, and a break chosen after seeing results is a research freedom.",
+        "operationId": "create_regime_break_api_v1_market_data_regime_breaks_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegimeBreakIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegimeBreakOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/market-data/regime-breaks/{break_id}": {
+      "delete": {
+        "tags": [
+          "market-data"
+        ],
+        "summary": "Delete Regime Break",
+        "description": "Breaks are never edited: delete and create again, which leaves a trail.",
+        "operationId": "delete_regime_break_api_v1_market_data_regime_breaks__break_id__delete",
+        "parameters": [
+          {
+            "name": "break_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Break Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/market-data/momentum-grid": {
+      "get": {
+        "tags": [
+          "market-data"
+        ],
+        "summary": "Get Momentum Grid",
+        "description": "Correlation between the return over ``lookback`` candles and the next ``holding`` candles,\nwith non-overlapping samples. Descriptive: a grid is many tests, so significance is against\nthe corrected level; correlation is not profit.",
+        "operationId": "get_momentum_grid_api_v1_market_data_momentum_grid_get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+              "examples": [
+                "BTC/USDT"
+              ],
+              "title": "Symbol"
+            }
+          },
+          {
+            "name": "timeframe",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Timeframe"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "End"
+            }
+          },
+          {
+            "name": "lookbacks",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "default": "1,5,10,25",
+              "title": "Lookbacks"
+            }
+          },
+          {
+            "name": "holdings",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "default": "1,5,10,25",
+              "title": "Holdings"
+            }
+          },
+          {
+            "name": "exchange",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "binance",
+              "title": "Exchange"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentumGridOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/backtests": {
       "post": {
         "tags": [
@@ -1286,6 +1544,60 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BacktestOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/backtests/{run_id}/notes": {
+      "post": {
+        "tags": [
+          "backtests"
+        ],
+        "summary": "Add Backtest Note",
+        "description": "Record what you concluded from this run. Stored in the audit trail (`note.added`); read it\nwith `GET /audit-events?event_type=note.added&entity_id={run_id}`.",
+        "operationId": "add_backtest_note_api_v1_backtests__run_id__notes_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteOut"
                 }
               }
             }
@@ -2586,6 +2898,60 @@
         }
       }
     },
+    "/api/v1/bots/{bot_id}/notes": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Add Bot Note",
+        "description": "Record why this bot was paused, changed or retired. Stored in the audit trail\n(`note.added`); read it with `GET /audit-events?event_type=note.added&entity_id={bot_id}`.",
+        "operationId": "add_bot_note_api_v1_bots__bot_id__notes_post",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/bots/{bot_id}/backtest-comparison": {
       "get": {
         "tags": [
@@ -2841,6 +3207,23 @@
                 }
               ],
               "title": "Event Type"
+            }
+          },
+          {
+            "name": "entity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entity Id"
             }
           },
           {
@@ -3288,7 +3671,8 @@
           "bot_error",
           "kill_switch_active",
           "candles_stale",
-          "exchange_rate_limited"
+          "exchange_rate_limited",
+          "performance_degraded"
         ],
         "title": "AlertKind"
       },
@@ -3923,6 +4307,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/SignificanceOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "break_metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BreakMetricsOut"
               },
               {
                 "type": "null"
@@ -4684,6 +5078,95 @@
         "type": "object",
         "title": "BotUpdate",
         "description": "Every field optional. Only allowed while the bot is stopped."
+      },
+      "BreakMetricsOut": {
+        "properties": {
+          "breaks": {
+            "items": {
+              "$ref": "#/components/schemas/BreakRefOut"
+            },
+            "type": "array",
+            "title": "Breaks"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/BreakSegmentOut"
+            },
+            "type": "array",
+            "title": "Segments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "breaks",
+          "segments"
+        ],
+        "title": "BreakMetricsOut"
+      },
+      "BreakRefOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "When the operator registered the break: after the run means it was chosen with the results in view."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "occurred_at",
+          "created_at"
+        ],
+        "title": "BreakRefOut"
+      },
+      "BreakSegmentOut": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "candles": {
+            "type": "integer",
+            "title": "Candles"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/MetricsOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "start",
+          "end",
+          "candles",
+          "metrics"
+        ],
+        "title": "BreakSegmentOut"
       },
       "CandleOut": {
         "properties": {
@@ -5500,6 +5983,79 @@
           "gaps"
         ],
         "title": "GapsSummaryOut"
+      },
+      "GridCellOut": {
+        "properties": {
+          "lookback": {
+            "type": "integer",
+            "title": "Lookback"
+          },
+          "holding": {
+            "type": "integer",
+            "title": "Holding"
+          },
+          "n": {
+            "type": "integer",
+            "title": "N",
+            "description": "Independent (non-overlapping) samples behind the correlation."
+          },
+          "correlation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correlation"
+          },
+          "z_stat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Z Stat"
+          },
+          "significant_corrected": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Significant Corrected",
+            "description": "|z| reaches the Bonferroni-corrected level of the whole grid."
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lookback",
+          "holding",
+          "n",
+          "correlation",
+          "z_stat",
+          "significant_corrected",
+          "reason"
+        ],
+        "title": "GridCellOut"
       },
       "HTTPValidationError": {
         "properties": {
@@ -6433,6 +6989,81 @@
         ],
         "title": "MetricsOut"
       },
+      "MomentumGridOut": {
+        "properties": {
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/GridCellOut"
+            },
+            "type": "array",
+            "title": "Cells"
+          },
+          "alpha_corrected": {
+            "type": "string",
+            "title": "Alpha Corrected",
+            "description": "0.05 divided by the number of cells."
+          },
+          "critical_z": {
+            "type": "string",
+            "title": "Critical Z"
+          },
+          "candles": {
+            "type": "integer",
+            "title": "Candles"
+          },
+          "gaps": {
+            "type": "integer",
+            "title": "Gaps"
+          },
+          "warning": {
+            "type": "string",
+            "title": "Warning"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cells",
+          "alpha_corrected",
+          "critical_z",
+          "candles",
+          "gaps",
+          "warning"
+        ],
+        "title": "MomentumGridOut"
+      },
+      "NoteIn": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "NoteIn"
+      },
+      "NoteOut": {
+        "properties": {
+          "actor": {
+            "type": "string",
+            "title": "Actor"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "actor",
+          "text"
+        ],
+        "title": "NoteOut"
+      },
       "OrderOut": {
         "properties": {
           "id": {
@@ -6697,7 +7328,7 @@
           "minimum": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -7446,6 +8077,139 @@
         ],
         "title": "RegimeBandOut"
       },
+      "RegimeBreakIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "exchange": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exchange",
+            "description": "Null: applies to every exchange."
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+                "examples": [
+                  "BTC/USDT"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol",
+            "description": "Null: applies to every symbol."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "occurred_at"
+        ],
+        "title": "RegimeBreakIn"
+      },
+      "RegimeBreakOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "exchange": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exchange"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "occurred_at",
+          "exchange",
+          "symbol",
+          "note",
+          "created_by",
+          "created_at"
+        ],
+        "title": "RegimeBreakOut"
+      },
       "RegimeDimensionOut": {
         "properties": {
           "cut_low": {
@@ -7641,6 +8405,22 @@
             ],
             "title": "Max Order Pct Of Volume",
             "description": "Cap an order at this % of the average traded value of the last 20 candles (Chan's rule of thumb: ~1% of daily volume, for stocks). Null = off."
+          },
+          "max_close_jump_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Close Jump Pct",
+            "description": "Refuse entries when the close moved more than this % from the previous close (a bad tick often looks like a jump). Exits are never refused. Null = off."
           }
         },
         "type": "object",
@@ -7739,6 +8519,18 @@
             ],
             "title": "Max Order Pct Of Volume",
             "description": "Cap an order at this % of the average traded value of the last 20 candles (Chan's rule of thumb: ~1% of daily volume, for stocks). Null = off."
+          },
+          "max_close_jump_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Close Jump Pct",
+            "description": "Refuse entries when the close moved more than this % from the previous close (a bad tick often looks like a jump). Exits are never refused. Null = off."
           }
         },
         "type": "object",
@@ -8303,6 +9095,9 @@
             "type": "string",
             "title": "Description"
           },
+          "style": {
+            "$ref": "#/components/schemas/StrategyStyle"
+          },
           "parameters": {
             "items": {
               "$ref": "#/components/schemas/ParamOut"
@@ -8325,11 +9120,21 @@
           "type_key",
           "name",
           "description",
+          "style",
           "parameters",
           "parameter_count",
           "too_many_parameters"
         ],
         "title": "StrategyOut"
+      },
+      "StrategyStyle": {
+        "type": "string",
+        "enum": [
+          "trend",
+          "mean_reversion"
+        ],
+        "title": "StrategyStyle",
+        "description": "The family a strategy belongs to: it decides which tests and warnings apply to it."
       },
       "SweepCreate": {
         "properties": {
@@ -8510,7 +9315,7 @@
             "type": "object",
             "minProperties": 1,
             "title": "Grid",
-            "description": "Parameter name -> values to try. One run per combination (max 200).",
+            "description": "Parameter name -> values to try. One run per combination (max 200). The special key `start_offset_days` (up to 25 distinct whole days) shifts the start of each run instead: how much does the result depend on the day it began?",
             "examples": [
               {
                 "fast_period": [
@@ -8660,6 +9465,12 @@
             "type": "object",
             "title": "Strategy Params"
           },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start",
+            "description": "The run's own start (shifted in a start-sensitivity sweep)."
+          },
           "total_return_pct": {
             "anyOf": [
               {
@@ -8777,6 +9588,7 @@
           "id",
           "status",
           "strategy_params",
+          "start",
           "total_return_pct",
           "train_return_pct",
           "test_return_pct",

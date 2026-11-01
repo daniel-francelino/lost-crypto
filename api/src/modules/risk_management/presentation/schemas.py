@@ -24,6 +24,13 @@ class RiskLimitsIn(BaseModel):
         "candles (Chan's rule of thumb: ~1% of daily volume, for stocks). Null = off.",
     )
 
+    max_close_jump_pct: Decimal | None = Field(
+        default=None,
+        gt=0,
+        description="Refuse entries when the close moved more than this % from the previous "
+        "close (a bad tick often looks like a jump). Exits are never refused. Null = off.",
+    )
+
     def to_domain(self) -> RiskLimits:
         return RiskLimits(**self.model_dump())
 
@@ -39,4 +46,5 @@ class RiskLimitsIn(BaseModel):
             require_stop_loss=limits.require_stop_loss,
             max_candle_range_pct=limits.max_candle_range_pct,
             max_order_pct_of_volume=limits.max_order_pct_of_volume,
+            max_close_jump_pct=limits.max_close_jump_pct,
         )

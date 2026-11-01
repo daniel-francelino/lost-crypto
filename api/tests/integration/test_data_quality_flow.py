@@ -398,3 +398,243 @@ async def test_half_life_endpoint_shape_and_validation(stack: Any) -> None:
         params={**params, "start": BODY["end"], "end": BODY["start"]},
     )
     assert bad.status_code == 422
+
+
+async def _signals_with_jump_limit(env: Env, limit: str | None) -> list[dict[str, Any]]:
+    runner = env.make_runner()
+    risk: dict[str, Any] = {"max_daily_loss_pct": None, "max_close_jump_pct": limit}
+    bot_id = await env.create_bot(risk=risk)
+    stored = (await env.bot(bot_id))["risk"]["max_close_jump_pct"]
+    assert (stored is None) == (limit is None)
+    assert (await env.command(bot_id, "start")).status_code == 202
+    await runner.run_once()
+    await env.run_until(runner, 40)
+    return await env.signals(bot_id)
+
+
+async def test_trader_refuses_an_entry_after_a_close_jump_above_the_limit(env: Env) -> None:
+    signals = await _signals_with_jump_limit(env, "5")  # the entry candle closes 100 -> 110
+    buys = [s for s in signals if s["side"] == "buy"]
+    assert buys and buys[0]["decision"] == "rejected"
+    assert "close moved 10.0%" in buys[0]["decision_reason"]
+
+
+@pytest.mark.parametrize("limit", ["15", None])
+async def test_trader_enters_when_the_jump_is_inside_the_limit_or_the_limit_is_off(
+    env: Env, limit: str | None
+) -> None:
+    signals = await _signals_with_jump_limit(env, limit)
+    assert [s["decision"] for s in signals if s["side"] == "buy"] == ["approved"]
+
+
+async def test_mean_reversion_runs_end_to_end_and_the_catalog_lists_its_style(stack: Any) -> None:
+    client, runner, _, _ = stack
+    catalog = {s["type_key"]: s for s in (await client.get("/api/v1/strategies")).json()}
+    zscore = catalog["mean_reversion_zscore"]
+    assert zscore["style"] == "mean_reversion" and catalog["ema_crossover"]["style"] == "trend"
+    assert zscore["parameter_count"] == 5 and zscore["too_many_parameters"] is False
+    entry = next(p for p in zscore["parameters"] if p["name"] == "entry_z")
+    assert entry["minimum"] == 0.1 and entry["default"] in (2, "2")
+
+    await _import(client, runner)
+    spec = {
+        **BODY,
+        "strategy_type": "mean_reversion_zscore",
+        "strategy_params": {"lookback": 20, "entry_z": 1.5},
+        "allow_gaps": True,
+    }
+    run_id = (await client.post("/api/v1/backtests", json=spec)).json()["id"]
+    await _drain(runner)
+    run = (await client.get(f"/api/v1/backtests/{run_id}")).json()
+    assert run["status"] == "completed", run["error"]
+    assert run["metrics"]["round_trips"] >= 1
+    bad = await client.post("/api/v1/backtests", json={**spec, "strategy_params": {"lookback": 3}})
+    assert bad.status_code == 422
+
+
+async def test_notes_are_audit_events_for_bots_and_backtests(stack: Any) -> None:
+    client, runner, _, container = stack
+    await _import(client, runner)
+    spec = {**BODY, "strategy_type": "ema_crossover", "allow_gaps": True}
+    run_id = (await client.post("/api/v1/backtests", json=spec)).json()["id"]
+    await _drain(runner)
+    bot = await client.post(
+        "/api/v1/bots",
+        json={
+            "name": "dq-notes",
+            "strategy_type": "ema_crossover",
+            "symbol": SYMBOL,
+            "timeframe": "1h",
+            "initial_capital": "1000",
+            "risk": {"max_daily_loss_pct": None},
+        },
+    )
+    bot_id = bot.json()["id"]
+    try:
+        script = "<script>alert(1)</script> pausado: o regime mudou"
+        for path in (f"/api/v1/bots/{bot_id}/notes", f"/api/v1/backtests/{run_id}/notes"):
+            created = await client.post(path, json={"text": f"  {script}  "})
+            assert created.status_code == 201 and created.json()["text"] == script
+            assert (await client.post(path, json={"text": "   "})).status_code == 422
+            assert (await client.post(path, json={"text": "x" * 2001})).status_code == 422
+        for entity in (bot_id, run_id):
+            listed = (
+                await client.get(
+                    "/api/v1/audit-events", params={"event_type": "note.added", "entity_id": entity}
+                )
+            ).json()
+            assert [e["payload"]["text"] for e in listed] == [script]
+            assert listed[0]["actor"] and listed[0]["entity_id"] == entity
+        assert listed[0]["entity_type"] == "backtest" and listed[0]["bot_id"] is None
+        total = await client.get(
+            "/api/v1/audit-events", params={"event_type": "note.added", "entity_id": bot_id}
+        )
+        assert total.headers["X-Total-Count"] == "1"
+        unknown = uuid4()
+        for path in (f"/api/v1/bots/{unknown}/notes", f"/api/v1/backtests/{unknown}/notes"):
+            assert (await client.post(path, json={"text": "x"})).status_code == 404
+    finally:
+        async with container.engine.begin() as conn:
+            await conn.execute(text("DELETE FROM audit_events WHERE event_type = 'note.added'"))
+            await conn.execute(text("DELETE FROM bots WHERE name = 'dq-notes'"))
+
+
+async def test_regime_breaks_are_named_deleted_audited_and_cut_the_backtest(stack: Any) -> None:
+    client, runner, _, container = stack
+    await _import(client, runner)
+    when = (START + timedelta(hours=150)).isoformat()
+    try:
+        created = await client.post(
+            "/api/v1/market-data/regime-breaks",
+            json={"name": "dq-crash", "occurred_at": when, "symbol": SYMBOL, "note": "spike"},
+        )
+        assert created.status_code == 201, created.text
+        brk = created.json()
+        assert brk["created_by"] and brk["exchange"] is None and brk["symbol"] == SYMBOL
+        again = await client.post(
+            "/api/v1/market-data/regime-breaks", json={"name": "dq-crash", "occurred_at": when}
+        )
+        assert again.status_code == 409
+        for bad in ({"name": "", "occurred_at": when}, {"name": "x", "occurred_at": "2024-01-01"}):
+            assert (
+                await client.post("/api/v1/market-data/regime-breaks", json=bad)
+            ).status_code == 422
+        listed = (
+            await client.get("/api/v1/market-data/regime-breaks", params={"symbol": SYMBOL})
+        ).json()
+        assert [b["name"] for b in listed if b["name"].startswith("dq-")] == ["dq-crash"]
+        other = (
+            await client.get("/api/v1/market-data/regime-breaks", params={"symbol": "ETH/USDT"})
+        ).json()
+        assert "dq-crash" not in [b["name"] for b in other]  # scoped to another symbol
+
+        spec = {**BODY, "strategy_type": "ema_crossover", "allow_gaps": True}
+        run_id = (await client.post("/api/v1/backtests", json=spec)).json()["id"]
+        await _drain(runner)
+        run = (await client.get(f"/api/v1/backtests/{run_id}")).json()
+        assert run["status"] == "completed", run["error"]
+        block = run["break_metrics"]
+        assert [b["name"] for b in block["breaks"]] == ["dq-crash"]
+        assert block["breaks"][0]["created_at"] <= run["created_at"]
+        assert len(block["segments"]) == 2
+        assert sum(s["candles"] for s in block["segments"]) == run["candles_count"]
+
+        events = (
+            await client.get("/api/v1/audit-events", params={"event_type": "regime_break.created"})
+        ).json()
+        assert any(e["entity_id"] == brk["id"] for e in events)
+
+        assert (
+            await client.delete(f"/api/v1/market-data/regime-breaks/{brk['id']}")
+        ).status_code == 204
+        assert (
+            await client.delete(f"/api/v1/market-data/regime-breaks/{brk['id']}")
+        ).status_code == 404
+        # the finished run keeps its snapshot even after the break is gone
+        again = (await client.get(f"/api/v1/backtests/{run_id}")).json()
+        assert again["break_metrics"]["breaks"][0]["name"] == "dq-crash"
+        none_run = (await client.post("/api/v1/backtests", json=spec)).json()["id"]
+        await _drain(runner)
+        assert (await client.get(f"/api/v1/backtests/{none_run}")).json()["break_metrics"] is None
+    finally:
+        async with container.engine.begin() as conn:
+            await conn.execute(text("DELETE FROM regime_breaks WHERE name LIKE 'dq-%'"))
+            await conn.execute(
+                text("DELETE FROM audit_events WHERE event_type LIKE 'regime_break.%'")
+            )
+
+
+async def test_momentum_grid_endpoint_shape_corrected_level_and_validation(stack: Any) -> None:
+    client, runner, _, _ = stack
+    await _import(client, runner)
+    params = {"symbol": SYMBOL, "timeframe": "1h", "start": BODY["start"], "end": BODY["end"]}
+    found = await client.get(
+        "/api/v1/market-data/momentum-grid",
+        params={**params, "lookbacks": "1,5", "holdings": "1,5,10"},
+    )
+    assert found.status_code == 200, found.text
+    body = found.json()
+    assert len(body["cells"]) == 6 and body["candles"] > 100 and body["gaps"] >= 1
+    assert abs(Decimal(body["alpha_corrected"]) - Decimal("0.05") / 6) < Decimal("1e-12")
+    assert Decimal(body["critical_z"]) > Decimal("1.96") and "Descritivo" in body["warning"]
+    first = body["cells"][0]
+    assert {"lookback", "holding", "n", "correlation", "z_stat", "significant_corrected"} <= set(
+        first
+    )
+    for bad in (
+        {"lookbacks": "a,b"},
+        {"lookbacks": ""},
+        {"lookbacks": "0"},
+        {
+            "lookbacks": ",".join(str(i) for i in range(1, 12)),
+            "holdings": ",".join(map(str, range(1, 12))),
+        },
+    ):
+        resp = await client.get("/api/v1/market-data/momentum-grid", params={**params, **bad})
+        assert resp.status_code == 422, bad
+    inverted = {**params, "start": BODY["end"], "end": BODY["start"]}
+    assert (
+        await client.get("/api/v1/market-data/momentum-grid", params=inverted)
+    ).status_code == 422
+
+
+async def test_start_offset_sweep_shifts_each_run_and_is_not_a_robustness_axis(stack: Any) -> None:
+    client, runner, _, _ = stack
+    await _import(client, runner)
+    spec = {**BODY, "strategy_type": "ema_crossover", "allow_gaps": True}
+    sweep = await client.post(
+        "/api/v1/backtests/sweeps", json={**spec, "grid": {"start_offset_days": [0, 3, 7]}}
+    )
+    assert sweep.status_code == 202, sweep.text
+    body = sweep.json()
+    assert body["run_count"] == 3 and body["robustness"] is None
+    starts = sorted(r["start"] for r in body["runs"])
+    first = datetime.fromisoformat(starts[0].replace("Z", "+00:00"))
+    assert [(datetime.fromisoformat(s.replace("Z", "+00:00")) - first).days for s in starts] == [
+        0,
+        3,
+        7,
+    ]
+    await _drain(runner)
+    done = (await client.get(f"/api/v1/backtests/sweeps/{body['id']}")).json()
+    assert done["completed"] == 3 and len(done["runs"]) == 3
+
+    mixed = await client.post(
+        "/api/v1/backtests/sweeps",
+        json={
+            **spec,
+            "grid": {"fast_period": [3, 5], "slow_period": [13], "start_offset_days": [0, 2, 4]},
+        },
+    )
+    assert mixed.status_code == 202 and mixed.json()["run_count"] == 6
+
+    for bad in ([-1], [0, 0], list(range(26)), ["3"], [True], [], [4000]):
+        resp = await client.post(
+            "/api/v1/backtests/sweeps", json={**spec, "grid": {"start_offset_days": bad}}
+        )
+        assert resp.status_code == 422, bad
+    plain = await client.post(
+        "/api/v1/backtests/sweeps",
+        json={**spec, "grid": {"fast_period": [3, 5], "slow_period": [13]}},
+    )
+    assert plain.status_code == 202 and len({r["start"] for r in plain.json()["runs"]}) == 1

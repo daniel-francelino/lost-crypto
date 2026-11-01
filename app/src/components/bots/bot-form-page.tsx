@@ -343,6 +343,14 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
               onValueChange={(value) => set("maxOrderPctOfVolume", value)}
               rules={[(value) => decimalError(value ?? "", false)]}
             />
+            <FormInput
+              label="Salto máximo do fechamento (%)"
+              inputMode="decimal"
+              description="Recusa entradas (nunca saídas) quando o fechamento se moveu mais que isso contra o fechamento anterior: um tick errado costuma aparecer como salto. Vazio desliga. Calibre com cuidado: quedas legítimas de cripto também são grandes."
+              value={values.maxCloseJumpPct}
+              onValueChange={(value) => set("maxCloseJumpPct", value)}
+              rules={[(value) => decimalError(value ?? "", false)]}
+            />
             <FormSwitch
               label="Exigir stop-loss"
               value={values.requireStopLoss}

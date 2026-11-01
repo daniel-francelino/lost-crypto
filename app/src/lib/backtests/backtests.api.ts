@@ -87,6 +87,22 @@ const regimeSchema = z.object({
 });
 export type Regime = z.infer<typeof regimeSchema>;
 
+const breakMetricsSchema = z.object({
+  breaks: z.array(
+    z.object({ id: z.string(), name: z.string(), occurred_at: z.string(), created_at: z.string() }),
+  ),
+  segments: z.array(
+    z.object({
+      label: z.string(),
+      start: z.string(),
+      end: z.string(),
+      candles: z.number(),
+      metrics: metricsSchema,
+    }),
+  ),
+});
+export type BreakMetrics = z.infer<typeof breakMetricsSchema>;
+
 const randomEntriesSchema = z.object({
   available: z.boolean(),
   reason: z.string().nullish(),
@@ -170,6 +186,7 @@ export const backtestSchema = z.object({
   tail_risk: z.record(z.string(), z.unknown()).nullish(),
   regime: regimeSchema.nullish(),
   significance: significanceSchema.nullish(),
+  break_metrics: breakMetricsSchema.nullish(),
   prior_runs: z.number().nullish(),
   sweep_id: z.string().nullable(),
   data_hash: z.string().nullable(),
@@ -191,6 +208,7 @@ const sweepRunSchema = z.object({
   id: z.string(),
   status: lenientEnum(JobStatus),
   strategy_params: z.record(z.string(), z.unknown()),
+  start: z.string().optional(),
   total_return_pct: nullableDecimalSchema,
   train_return_pct: nullableDecimalSchema.optional(),
   test_return_pct: nullableDecimalSchema,
@@ -267,6 +285,7 @@ export type RiskInput = {
   require_stop_loss: boolean;
   max_candle_range_pct: string | null;
   max_order_pct_of_volume: string | null;
+  max_close_jump_pct: string | null;
 };
 
 export const listBacktests = (limit: number, offset: number, signal?: AbortSignal) =>

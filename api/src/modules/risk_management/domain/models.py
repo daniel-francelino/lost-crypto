@@ -34,6 +34,9 @@ class RiskLimits:
     # An order may use at most this % of the average quote volume of the last candles
     # (book 1 ch. 5, O5: Chan's rule of thumb is ~1% of daily volume for stocks). None = off.
     max_order_pct_of_volume: Decimal | None = None
+    # Refuse entries when the candle's close moved more than this % from the previous close
+    # (book 2 ch. 3, O5: a bad tick often shows as a jump, not as a wide candle). None = off.
+    max_close_jump_pct: Decimal | None = None
 
     def __post_init__(self) -> None:
         if not (0 < self.max_position_fraction <= 1):
@@ -48,6 +51,8 @@ class RiskLimits:
             raise InvalidRiskLimits("max_consecutive_losses must be at least 1")
         if self.max_candle_range_pct is not None and self.max_candle_range_pct <= 0:
             raise InvalidRiskLimits("max_candle_range_pct must be positive")
+        if self.max_close_jump_pct is not None and self.max_close_jump_pct <= 0:
+            raise InvalidRiskLimits("max_close_jump_pct must be positive")
         volume = self.max_order_pct_of_volume
         if volume is not None and not (0 < volume <= 100):
             raise InvalidRiskLimits("max_order_pct_of_volume must be in (0, 100]")
@@ -114,6 +119,13 @@ def candle_range_pct(high: Decimal, low: Decimal) -> Decimal:
     return (high - low) / low * _PCT if low > 0 else Decimal(0)
 
 
+def close_jump_pct(close: Decimal, previous_close: Decimal | None) -> Decimal | None:
+    """Absolute % move of the close from the previous close; None without a previous close."""
+    if previous_close is None or previous_close <= 0:
+        return None
+    return abs(close - previous_close) / previous_close * _PCT
+
+
 def assess_signal(
     signal: Signal,
     portfolio: PortfolioState,
@@ -128,6 +140,7 @@ def assess_signal(
     global_limits: GlobalRiskLimits | None = None,
     exposure: GlobalExposure | None = None,
     avg_quote_volume: Decimal | None = None,
+    close_jump: Decimal | None = None,
 ) -> RiskDecision:
     """Approve and size a signal, or reject it with a reason.
 
@@ -147,6 +160,15 @@ def assess_signal(
         return RiskDecision.reject(
             f"candle range {candle_range:.1f}% exceeds "
             f"{limits.max_candle_range_pct}% (suspect data)"
+        )
+    if (
+        limits.max_close_jump_pct is not None
+        and close_jump is not None
+        and close_jump > limits.max_close_jump_pct
+    ):
+        return RiskDecision.reject(
+            f"close moved {close_jump:.1f}% from the previous close, above "
+            f"{limits.max_close_jump_pct}% (suspect data)"
         )
     if limits.require_stop_loss and signal.stop_loss is None:
         return RiskDecision.reject("a stop-loss is required but the signal has none")
@@ -242,6 +264,7 @@ _LIMIT_DECIMALS = (
     "max_risk_per_trade_pct",
     "max_candle_range_pct",
     "max_order_pct_of_volume",
+    "max_close_jump_pct",
 )
 
 

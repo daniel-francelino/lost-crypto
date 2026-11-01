@@ -45,6 +45,8 @@ class RealizedVsBacktest:
     comparison: SharpeComparison | None
     realized_days: Decimal | None
     reason: str | None  # why there is no backtest to compare with
+    realized_drawdown_pct: Decimal | None = None  # the bot's current drawdown
+    backtest_max_drawdown_pct: Decimal | None = None
 
 
 def _same_strategy(run_config: BacktestConfig, bot_config: BotConfig) -> bool:
@@ -60,9 +62,13 @@ def pick_equivalent(runs: Sequence[BacktestRun], bot_config: BotConfig) -> Backt
     return max(pool, key=lambda r: r.created_at) if pool else None
 
 
-def _sharpe_of(metrics: dict[str, Any] | None) -> Decimal | None:
-    value = None if metrics is None else metrics.get("sharpe_ratio")
+def _decimal_of(metrics: dict[str, Any] | None, key: str) -> Decimal | None:
+    value = None if metrics is None else metrics.get(key)
     return None if value is None else Decimal(str(value))
+
+
+def _sharpe_of(metrics: dict[str, Any] | None) -> Decimal | None:
+    return _decimal_of(metrics, "sharpe_ratio")
 
 
 class ComparisonService:
@@ -100,4 +106,6 @@ class ComparisonService:
             ),
             days,
             None,
+            None if realized is None else realized.current_drawdown_pct,
+            _decimal_of(run.metrics, "max_drawdown_pct"),
         )

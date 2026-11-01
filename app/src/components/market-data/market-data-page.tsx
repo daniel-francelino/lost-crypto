@@ -18,6 +18,9 @@ import { IconCardTitle } from "@/components/shared/metrics/icon-card-title";
 import { ListingStatusLine } from "@/components/market-data/listing-status";
 import { OutliersCard } from "@/components/market-data/outliers-card";
 import { HalfLifeCard } from "@/components/market-data/half-life-card";
+import { MomentumGridCard } from "@/components/market-data/momentum-grid-card";
+import { RegimeBreaksCard } from "@/components/market-data/regime-breaks-card";
+import { BreaksWarning } from "@/components/shared/market-data/breaks-warning";
 import { RejectedCell } from "@/components/market-data/rejected-cell";
 import { JobStatusBadge } from "@/components/shared/status/badges";
 import type { MarketDataSearch } from "@/lib/shared/market-data/search";
@@ -275,6 +278,18 @@ export function MarketDataPage({ initial = {} }: { initial?: MarketDataSearch })
         />
       ) : null}
       {validRange && symbol.trim() !== "" ? (
+        <BreaksWarning
+          exchange={exchange}
+          symbol={symbol.trim().toUpperCase()}
+          start={start}
+          end={end}
+          onRestrict={(from, to) => {
+            setStart(from);
+            setEnd(to);
+          }}
+        />
+      ) : null}
+      {validRange && symbol.trim() !== "" ? (
         <HalfLifeCard
           exchange={exchange}
           symbol={symbol.trim().toUpperCase()}
@@ -283,6 +298,17 @@ export function MarketDataPage({ initial = {} }: { initial?: MarketDataSearch })
           end={end}
         />
       ) : null}
+
+      {validRange && symbol.trim() !== "" ? (
+        <MomentumGridCard
+          exchange={exchange}
+          symbol={symbol.trim().toUpperCase()}
+          timeframe={timeframe}
+          start={start}
+          end={end}
+        />
+      ) : null}
+      <RegimeBreaksCard />
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold">Importações</h2>

@@ -16,6 +16,10 @@ import { CostLadderCard } from "@/components/backtests/cost-ladder-card";
 import { DataQualityCard } from "@/components/backtests/data-quality-card";
 import { RiskReportCard } from "@/components/backtests/risk-report-card";
 import { SignificanceCard } from "@/components/backtests/significance-card";
+import { NotesPanel } from "@/components/shared/notes/notes-panel";
+import { NoteTarget } from "@/lib/shared/audit/audit.api";
+import { BreaksCard } from "@/components/backtests/breaks-card";
+import { CompareTimeframesCard } from "@/components/backtests/compare-timeframes-card";
 import { SizingCard } from "@/components/backtests/sizing-card";
 import { RegimeCard } from "@/components/backtests/regime-card";
 import { PeriodsCard } from "@/components/backtests/periods-card";
@@ -149,7 +153,10 @@ export function BacktestDetailPage({ runId }: { runId: string }) {
       )}
       <RiskReportCard run={run} />
       <SignificanceCard significance={run.significance ?? null} />
+      <NotesPanel target={NoteTarget.Backtest} entityId={run.id} />
       {completed ? <SizingCard run={run} /> : null}
+      <BreaksCard run={run} />
+      {completed ? <CompareTimeframesCard run={run} /> : null}
       {run.metrics === null ? null : (
         <section className="space-y-3" aria-label="Métricas">
           <h2 className="text-base font-semibold">Resultado completo</h2>

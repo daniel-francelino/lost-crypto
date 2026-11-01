@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     # reopened instead of duplicated, and how long resolved and read alerts are kept.
     alert_evaluation_seconds: float = 15.0
     alert_cooldown_seconds: float = 300.0
+    alert_deterioration_seconds: float = 900.0  # how often bots are compared with their backtest
     alert_retention_days: float = 30.0
     alerts_api_evaluation_enabled: bool = True  # the API process watches the worker
     # Global risk limits across all bots (operator-controlled, not editable through the API).

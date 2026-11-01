@@ -33,6 +33,7 @@ const riskSchema = z.object({
   require_stop_loss: z.boolean(),
   max_candle_range_pct: nullableDecimalSchema,
   max_order_pct_of_volume: nullableDecimalSchema.optional(),
+  max_close_jump_pct: nullableDecimalSchema.optional(),
 });
 export type Risk = z.infer<typeof riskSchema>;
 
@@ -167,6 +168,7 @@ export type RiskInput = {
   require_stop_loss: boolean;
   max_candle_range_pct: string | null;
   max_order_pct_of_volume: string | null;
+  max_close_jump_pct: string | null;
 };
 
 export type BotInput = {

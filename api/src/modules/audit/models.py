@@ -21,10 +21,19 @@ class AuditRepository(Protocol):
 
     async def add(self, event: AuditEvent) -> None: ...
     async def list_events(
-        self, bot_id: UUID | None, limit: int, offset: int = 0, event_type: str | None = None
+        self,
+        bot_id: UUID | None,
+        limit: int,
+        offset: int = 0,
+        event_type: str | None = None,
+        entity_id: str | None = None,
     ) -> list[AuditEvent]: ...
     async def count_all(
-        self, bot_id: UUID | None, event_type: str | None = None, since: datetime | None = None
+        self,
+        bot_id: UUID | None,
+        event_type: str | None = None,
+        since: datetime | None = None,
+        entity_id: str | None = None,
     ) -> int: ...
     async def count_events(
         self,

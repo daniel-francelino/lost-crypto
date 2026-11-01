@@ -15,6 +15,8 @@ import { IconCardTitle } from "@/components/shared/metrics/icon-card-title";
 import { ErrorBlock, SkeletonBlock } from "@/components/shared/feedback/query-boundary";
 import { CoverageNotice } from "@/components/shared/market-data/coverage-notice";
 import { HalfLifeHint } from "@/components/backtests/half-life-hint";
+import { DEFAULT_OFFSETS, START_OFFSET_KEY } from "@/lib/backtests/start-sensitivity";
+import { BreaksWarning } from "@/components/shared/market-data/breaks-warning";
 import { StrategyFields } from "@/components/shared/strategy/strategy-fields";
 import { createBacktest, createSweep } from "@/lib/backtests/backtests.api";
 import { BotLikeCard } from "@/components/backtests/bot-like-card";
@@ -246,6 +248,26 @@ function BacktestForm({ strategies, exchanges, prefill }: BacktestFormProps) {
                   />
                 ))}
               </div>
+              <div className="flex flex-wrap items-end gap-3">
+                <FormInput
+                  label="Sensibilidade à data inicial (dias de deslocamento)"
+                  inputMode="numeric"
+                  description="Roda a mesma configuração começando em dias diferentes (até 25 valores) e mostra a dispersão."
+                  value={values.grid[START_OFFSET_KEY] ?? ""}
+                  onValueChange={(value) =>
+                    set("grid", { ...values.grid, [START_OFFSET_KEY]: value })
+                  }
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    set("grid", { ...values.grid, [START_OFFSET_KEY]: DEFAULT_OFFSETS })
+                  }
+                >
+                  Testar sensibilidade à data inicial
+                </Button>
+              </div>
               <p className="text-sm">
                 {typeof grid === "string" ? grid : `${combinationCount(grid)} combinações.`}
               </p>
@@ -257,6 +279,15 @@ function BacktestForm({ strategies, exchanges, prefill }: BacktestFormProps) {
               onChange={(name, value) => set("params", { ...values.params, [name]: value })}
             />
           )}
+          {validRange ? (
+            <BreaksWarning
+              exchange={values.exchange}
+              symbol={values.symbol}
+              start={values.start}
+              end={values.end}
+              onRestrict={(start, end) => setValues((current) => ({ ...current, start, end }))}
+            />
+          ) : null}
           {validRange ? (
             <HalfLifeHint
               exchange={values.exchange}

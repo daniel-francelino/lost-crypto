@@ -13,6 +13,8 @@ import {
   SummaryTab,
 } from "@/components/bots/bot-tabs";
 import { AuditTable } from "@/components/shared/audit/audit-table";
+import { NotesPanel } from "@/components/shared/notes/notes-panel";
+import { NoteTarget } from "@/lib/shared/audit/audit.api";
 import { ErrorBlock, SkeletonBlock } from "@/components/shared/feedback/query-boundary";
 import { UpdatedAt } from "@/components/shared/feedback/updated-at";
 import { BotStateBadge, ModeBadge } from "@/components/shared/status/badges";
@@ -126,7 +128,10 @@ export function BotDetailPage({ botId, tab, onTabChange }: BotDetailPageProps) {
           <ConfigTab bot={bot} />
         </TabsContent>
         <TabsContent value={BotTab.Audit} className="pt-4">
-          <AuditTable botId={bot.id} />
+          <div className="space-y-6">
+            <NotesPanel target={NoteTarget.Bot} entityId={bot.id} />
+            <AuditTable botId={bot.id} />
+          </div>
         </TabsContent>
       </Tabs>
     </div>

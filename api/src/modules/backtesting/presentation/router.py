@@ -4,13 +4,14 @@ from enum import StrEnum
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import AwareDatetime, BaseModel, Field
 
 from container import Container
 from core.errors import DomainError
 from core.jobs import JobStatus
 from core.pagination import Offset, set_total
+from core.security.auth import Principal, require_auth
 from modules.analytics.domain.sizing import (
     MIN_KELLY_RETURNS,
     growth_rate,
@@ -20,8 +21,9 @@ from modules.analytics.domain.sizing import (
     tail_cap,
 )
 from modules.analytics.presentation.schemas import MetricsOut
+from modules.audit.schemas import NoteIn, NoteOut
 from modules.backtesting.application.ports import BacktestRun
-from modules.backtesting.application.service import BacktestNotFound
+from modules.backtesting.application.service import START_OFFSET_KEY, BacktestNotFound
 from modules.backtesting.domain.models import BacktestConfig, FillTiming
 from modules.backtesting.domain.robustness import assess
 from modules.market_data.domain.models import Timeframe
@@ -108,7 +110,9 @@ class BacktestCreate(BaseModel):
 class SweepCreate(BacktestCreate):
     grid: dict[str, list[Any]] = Field(
         min_length=1,
-        description="Parameter name -> values to try. One run per combination (max 200).",
+        description="Parameter name -> values to try. One run per combination (max 200). The "
+        "special key `start_offset_days` (up to 25 distinct whole days) shifts the start of "
+        "each run instead: how much does the result depend on the day it began?",
         examples=[{"fast_period": [5, 9, 12], "slow_period": [21, 50]}],
     )
 
@@ -270,6 +274,29 @@ class SignificanceOut(BaseModel):
     random_entries: RandomEntriesOut | None = None
 
 
+class BreakRefOut(BaseModel):
+    id: str
+    name: str
+    occurred_at: datetime
+    created_at: datetime = Field(
+        description="When the operator registered the break: after the run means it was "
+        "chosen with the results in view."
+    )
+
+
+class BreakSegmentOut(BaseModel):
+    label: str
+    start: datetime
+    end: datetime
+    candles: int
+    metrics: MetricsOut
+
+
+class BreakMetricsOut(BaseModel):
+    breaks: list[BreakRefOut]
+    segments: list[BreakSegmentOut]
+
+
 class RegimeOut(BaseModel):
     window: int
     method: str
@@ -385,6 +412,7 @@ class BacktestOut(BaseModel):
     tail_risk: dict[str, Any] | None = None
     regime: RegimeOut | None = None
     significance: SignificanceOut | None = None
+    break_metrics: BreakMetricsOut | None = None
     prior_runs: int | None = Field(
         default=None,
         description=(
@@ -403,6 +431,9 @@ class SweepRunOut(BaseModel):
     id: UUID
     status: JobStatus
     strategy_params: dict[str, Any]
+    start: datetime = Field(
+        description="The run's own start (shifted in a start-sensitivity sweep)."
+    )
     total_return_pct: Decimal | None = Field(description="Whole period (train + test).")
     train_return_pct: Decimal | None
     test_return_pct: Decimal | None
@@ -489,6 +520,9 @@ def _out(run: BacktestRun) -> BacktestOut:
         significance=(
             SignificanceOut.model_validate(run.significance) if run.significance else None
         ),
+        break_metrics=(
+            BreakMetricsOut.model_validate(run.break_metrics) if run.break_metrics else None
+        ),
         error=run.error,
         created_at=run.created_at,
         started_at=run.started_at,
@@ -554,6 +588,7 @@ def _sweep_run(run: BacktestRun) -> SweepRunOut:
         id=run.id,
         status=run.status,
         strategy_params=dict(run.config.strategy_params),
+        start=run.config.start,
         total_return_pct=_decimal(metrics.get("total_return_pct")),
         train_return_pct=_decimal(train.get("total_return_pct")),
         test_return_pct=_decimal(test.get("total_return_pct")),
@@ -610,10 +645,15 @@ async def create_sweep(body: SweepCreate, request: Request) -> SweepOut:
     return _sweep_out(sweep, runs, prior, None)
 
 
+def _parameter_grid(grid: dict[str, list[Any]]) -> dict[str, list[Any]]:
+    """The grid without the start-offset key: that axis is not a strategy parameter."""
+    return {name: values for name, values in grid.items() if name != START_OFFSET_KEY}
+
+
 def _robustness(
     grid: dict[str, list[Any]], scored: list[tuple[dict[str, Any], Decimal]], metric: SweepRankBy
 ) -> RobustnessOut | None:
-    if not scored:
+    if not scored or not grid:
         return None
     r = assess(grid, scored)
     return RobustnessOut(
@@ -683,7 +723,7 @@ def _sweep_out(
         prior_trials=prior_trials,
         ranked_by=rank_by,
         note=_NOTES[rank_by],
-        robustness=_robustness(sweep.grid, scored, rank_by),
+        robustness=_robustness(_parameter_grid(sweep.grid), scored, rank_by),
         runs=rows,
     )
 
@@ -728,6 +768,24 @@ async def get_backtest(run_id: UUID, request: Request) -> BacktestOut:
     out = _out(run)
     out.prior_runs = await container.backtests.prior_runs(run)
     return out
+
+
+@router.post("/{run_id}/notes", response_model=NoteOut, status_code=status.HTTP_201_CREATED)
+async def add_backtest_note(
+    run_id: UUID,
+    body: NoteIn,
+    request: Request,
+    principal: Principal = Depends(require_auth),
+) -> NoteOut:
+    """Record what you concluded from this run. Stored in the audit trail (`note.added`); read it
+    with `GET /audit-events?event_type=note.added&entity_id={run_id}`."""
+    container: Container = request.app.state.container
+    try:
+        await container.backtests.get(run_id)
+    except BacktestNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "backtest not found") from exc
+    await container.audit.add_note("backtest", str(run_id), None, principal.username, body.text)
+    return NoteOut(actor=principal.username, text=body.text)
 
 
 @router.get("/{run_id}/sizing", response_model=SizingAdviceOut)

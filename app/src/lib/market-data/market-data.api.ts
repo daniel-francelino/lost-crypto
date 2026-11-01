@@ -115,3 +115,41 @@ export const listListings = (
     query: { exchange, symbol },
     signal,
   });
+
+const momentumGridSchema = z.object({
+  cells: z.array(
+    z.object({
+      lookback: z.number(),
+      holding: z.number(),
+      n: z.number(),
+      correlation: nullableDecimalSchema,
+      z_stat: nullableDecimalSchema,
+      significant_corrected: z.boolean().nullable(),
+      reason: z.string().nullable(),
+    }),
+  ),
+  alpha_corrected: nullableDecimalSchema,
+  critical_z: nullableDecimalSchema,
+  candles: z.number(),
+  gaps: z.number(),
+  warning: z.string(),
+});
+export type MomentumGrid = z.infer<typeof momentumGridSchema>;
+
+export type MomentumGridQuery = {
+  exchange: string;
+  symbol: string;
+  timeframe: string;
+  start: string;
+  end: string;
+  lookbacks: string;
+  holdings: string;
+};
+
+export const getMomentumGrid = (params: MomentumGridQuery, signal?: AbortSignal) =>
+  request({
+    path: "/market-data/momentum-grid",
+    schema: momentumGridSchema,
+    query: params,
+    signal,
+  });

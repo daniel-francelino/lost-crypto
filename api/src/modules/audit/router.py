@@ -27,13 +27,14 @@ async def list_audit_events(
     response: Response,
     bot_id: UUID | None = None,
     event_type: Annotated[str | None, Query(max_length=100)] = None,
+    entity_id: Annotated[str | None, Query(max_length=100)] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     offset: Offset = 0,
 ) -> list[AuditEventOut]:
     """Append-only trail of commands, state changes, orders and risk events (newest first).
     The size of the whole trail that matches is in ``X-Total-Count``."""
     container: Container = request.app.state.container
-    events, total = await container.audit.list_events(bot_id, limit, offset, event_type)
+    events, total = await container.audit.list_events(bot_id, limit, offset, event_type, entity_id)
     set_total(response, total)
     return [
         AuditEventOut(

@@ -388,6 +388,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/market-data/regime-breaks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Regime Breaks
+         * @description Structural breaks the operator named (global ones included when a market is given).
+         */
+        get: operations["list_regime_breaks_api_v1_market_data_regime_breaks_get"];
+        put?: never;
+        /**
+         * Create Regime Break
+         * @description Name a break (a crash, a rule change). Register breaks BEFORE running experiments: each one
+         *     keeps when it was created, and a break chosen after seeing results is a research freedom.
+         */
+        post: operations["create_regime_break_api_v1_market_data_regime_breaks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market-data/regime-breaks/{break_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Regime Break
+         * @description Breaks are never edited: delete and create again, which leaves a trail.
+         */
+        delete: operations["delete_regime_break_api_v1_market_data_regime_breaks__break_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market-data/momentum-grid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Momentum Grid
+         * @description Correlation between the return over ``lookback`` candles and the next ``holding`` candles,
+         *     with non-overlapping samples. Descriptive: a grid is many tests, so significance is against
+         *     the corrected level; correlation is not profit.
+         */
+        get: operations["get_momentum_grid_api_v1_market_data_momentum_grid_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/backtests": {
         parameters: {
             query?: never;
@@ -486,6 +553,27 @@ export interface paths {
         get: operations["get_backtest_api_v1_backtests__run_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backtests/{run_id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Backtest Note
+         * @description Record what you concluded from this run. Stored in the audit trail (`note.added`); read it
+         *     with `GET /audit-events?event_type=note.added&entity_id={run_id}`.
+         */
+        post: operations["add_backtest_note_api_v1_backtests__run_id__notes_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -925,6 +1013,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bots/{bot_id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Bot Note
+         * @description Record why this bot was paused, changed or retired. Stored in the audit trail
+         *     (`note.added`); read it with `GET /audit-events?event_type=note.added&entity_id={bot_id}`.
+         */
+        post: operations["add_bot_note_api_v1_bots__bot_id__notes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bots/{bot_id}/backtest-comparison": {
         parameters: {
             query?: never;
@@ -1216,7 +1325,7 @@ export interface components {
          * AlertKind
          * @enum {string}
          */
-        AlertKind: "worker_down" | "bot_stale" | "bot_error" | "kill_switch_active" | "candles_stale" | "exchange_rate_limited";
+        AlertKind: "worker_down" | "bot_stale" | "bot_error" | "kill_switch_active" | "candles_stale" | "exchange_rate_limited" | "performance_degraded";
         /** AlertOut */
         AlertOut: {
             /** Id */
@@ -1463,6 +1572,7 @@ export interface components {
             } | null;
             regime?: components["schemas"]["RegimeOut"] | null;
             significance?: components["schemas"]["SignificanceOut"] | null;
+            break_metrics?: components["schemas"]["BreakMetricsOut"] | null;
             /**
              * Prior Runs
              * @description Detail only: other completed runs of the same strategy on overlapping data (same exchange, symbol and timeframe). Each look at the same window makes its test part less out of sample.
@@ -1693,6 +1803,49 @@ export interface components {
             connection_id?: string | null;
             /** Change Reason */
             change_reason?: string | null;
+        };
+        /** BreakMetricsOut */
+        BreakMetricsOut: {
+            /** Breaks */
+            breaks: components["schemas"]["BreakRefOut"][];
+            /** Segments */
+            segments: components["schemas"]["BreakSegmentOut"][];
+        };
+        /** BreakRefOut */
+        BreakRefOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /**
+             * Created At
+             * Format: date-time
+             * @description When the operator registered the break: after the run means it was chosen with the results in view.
+             */
+            created_at: string;
+        };
+        /** BreakSegmentOut */
+        BreakSegmentOut: {
+            /** Label */
+            label: string;
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Candles */
+            candles: number;
+            metrics: components["schemas"]["MetricsOut"];
         };
         /** CandleOut */
         CandleOut: {
@@ -2041,6 +2194,29 @@ export interface components {
              * @description Up to 20 gaps.
              */
             gaps: components["schemas"]["GapItemOut"][];
+        };
+        /** GridCellOut */
+        GridCellOut: {
+            /** Lookback */
+            lookback: number;
+            /** Holding */
+            holding: number;
+            /**
+             * N
+             * @description Independent (non-overlapping) samples behind the correlation.
+             */
+            n: number;
+            /** Correlation */
+            correlation: string | null;
+            /** Z Stat */
+            z_stat: string | null;
+            /**
+             * Significant Corrected
+             * @description |z| reaches the Bonferroni-corrected level of the whole grid.
+             */
+            significant_corrected: boolean | null;
+            /** Reason */
+            reason: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -2391,6 +2567,36 @@ export interface components {
              * @description Strictest p-value of the Gaussian table (0.10, 0.05, 0.01, 0.001) that the statistic reaches; null when it does not reach 0.10. Not the chance that the strategy works.
              */
             significance_p?: string | null;
+        };
+        /** MomentumGridOut */
+        MomentumGridOut: {
+            /** Cells */
+            cells: components["schemas"]["GridCellOut"][];
+            /**
+             * Alpha Corrected
+             * @description 0.05 divided by the number of cells.
+             */
+            alpha_corrected: string;
+            /** Critical Z */
+            critical_z: string;
+            /** Candles */
+            candles: number;
+            /** Gaps */
+            gaps: number;
+            /** Warning */
+            warning: string;
+        };
+        /** NoteIn */
+        NoteIn: {
+            /** Text */
+            text: string;
+        };
+        /** NoteOut */
+        NoteOut: {
+            /** Actor */
+            actor: string;
+            /** Text */
+            text: string;
         };
         /** OrderOut */
         OrderOut: {
@@ -2766,6 +2972,56 @@ export interface components {
             /** In Market Pct */
             in_market_pct: string | null;
         };
+        /** RegimeBreakIn */
+        RegimeBreakIn: {
+            /** Name */
+            name: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /**
+             * Exchange
+             * @description Null: applies to every exchange.
+             */
+            exchange?: string | null;
+            /**
+             * Symbol
+             * @description Null: applies to every symbol.
+             */
+            symbol?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** RegimeBreakOut */
+        RegimeBreakOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Exchange */
+            exchange: string | null;
+            /** Symbol */
+            symbol: string | null;
+            /** Note */
+            note: string | null;
+            /** Created By */
+            created_by: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** RegimeDimensionOut */
         RegimeDimensionOut: {
             /** Cut Low */
@@ -2822,6 +3078,11 @@ export interface components {
              * @description Cap an order at this % of the average traded value of the last 20 candles (Chan's rule of thumb: ~1% of daily volume, for stocks). Null = off.
              */
             max_order_pct_of_volume?: number | string | null;
+            /**
+             * Max Close Jump Pct
+             * @description Refuse entries when the close moved more than this % from the previous close (a bad tick often looks like a jump). Exits are never refused. Null = off.
+             */
+            max_close_jump_pct?: number | string | null;
         };
         /**
          * RiskLimitsIn
@@ -2861,6 +3122,11 @@ export interface components {
              * @description Cap an order at this % of the average traded value of the last 20 candles (Chan's rule of thumb: ~1% of daily volume, for stocks). Null = off.
              */
             max_order_pct_of_volume?: string | null;
+            /**
+             * Max Close Jump Pct
+             * @description Refuse entries when the close moved more than this % from the previous close (a bad tick often looks like a jump). Exits are never refused. Null = off.
+             */
+            max_close_jump_pct?: string | null;
         };
         /** RiskReportOut */
         RiskReportOut: {
@@ -3077,6 +3343,7 @@ export interface components {
             name: string;
             /** Description */
             description: string;
+            style: components["schemas"]["StrategyStyle"];
             /** Parameters */
             parameters: components["schemas"]["ParamOut"][];
             /**
@@ -3087,6 +3354,12 @@ export interface components {
             /** Too Many Parameters */
             too_many_parameters: boolean;
         };
+        /**
+         * StrategyStyle
+         * @description The family a strategy belongs to: it decides which tests and warnings apply to it.
+         * @enum {string}
+         */
+        StrategyStyle: "trend" | "mean_reversion";
         /** SweepCreate */
         SweepCreate: {
             /**
@@ -3183,7 +3456,7 @@ export interface components {
             allow_gaps: boolean;
             /**
              * Grid
-             * @description Parameter name -> values to try. One run per combination (max 200).
+             * @description Parameter name -> values to try. One run per combination (max 200). The special key `start_offset_days` (up to 25 distinct whole days) shifts the start of each run instead: how much does the result depend on the day it began?
              * @example {
              *       "fast_period": [
              *         5,
@@ -3262,6 +3535,12 @@ export interface components {
             strategy_params: {
                 [key: string]: unknown;
             };
+            /**
+             * Start
+             * Format: date-time
+             * @description The run's own start (shifted in a start-sensitivity sweep).
+             */
+            start: string;
             /**
              * Total Return Pct
              * @description Whole period (train + test).
@@ -4072,6 +4351,137 @@ export interface operations {
             };
         };
     };
+    list_regime_breaks_api_v1_market_data_regime_breaks_get: {
+        parameters: {
+            query?: {
+                exchange?: string | null;
+                symbol?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegimeBreakOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_regime_break_api_v1_market_data_regime_breaks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegimeBreakIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegimeBreakOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_regime_break_api_v1_market_data_regime_breaks__break_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                break_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_momentum_grid_api_v1_market_data_momentum_grid_get: {
+        parameters: {
+            query: {
+                symbol: string;
+                timeframe: components["schemas"]["Timeframe"];
+                start: string;
+                end: string;
+                lookbacks?: string;
+                holdings?: string;
+                exchange?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MomentumGridOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_backtests_api_v1_backtests_get: {
         parameters: {
             query?: {
@@ -4254,6 +4664,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BacktestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_backtest_note_api_v1_backtests__run_id__notes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteOut"];
                 };
             };
             /** @description Validation Error */
@@ -5063,6 +5508,41 @@ export interface operations {
             };
         };
     };
+    add_bot_note_api_v1_bots__bot_id__notes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_backtest_comparison_api_v1_bots__bot_id__backtest_comparison_get: {
         parameters: {
             query?: {
@@ -5225,6 +5705,7 @@ export interface operations {
             query?: {
                 bot_id?: string | null;
                 event_type?: string | null;
+                entity_id?: string | null;
                 limit?: number;
                 /** @description Rows to skip (newest first). */
                 offset?: number;

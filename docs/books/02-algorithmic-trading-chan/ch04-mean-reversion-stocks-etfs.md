@@ -132,6 +132,14 @@ Depende de `mean_reversion_zscore` existir ([cap. 3, Fase A](ch03-implementing-m
 * **E.3 Front-end:** card "Ordenação transversal (pesquisa)" na página de dados de mercado, só leitura, com a faixa de data e a lista de pares já importados (`useCoverage`); tabela com os números **escritos**. Nunca oferece "criar bot"; **B-MULTI-ASSET** (negociar uma cesta) fica no backlog, sem motor de carteira.
 * **E.4 Testes:** série sintética de 6 pares em que o pior grupo realmente se recupera (grupo pior > melhor) e a mesma com passeio aleatório (diferença ≈ 0 na tolerância); formações não sobrepostas contadas certo; menos de 5 símbolos → 422.
 
+### Estado da implementação (2026-11-01)
+
+* **Fase A implementada:** `POST /bots/{id}/notes` e `POST /backtests/{id}/notes` (texto de 1 a 2.000 caracteres, só admin pelo gate de método do router), gravados como evento de auditoria `note.added` com o autor autenticado; sem tabela nem migração. `GET /audit-events` ganhou o filtro `entity_id` (`?event_type=note.added&entity_id=<id>`). App: `NotesPanel` na aba "Auditoria" do bot e no detalhe do backtest; o texto é sempre renderizado como texto. Testes de integração: criação, lista, 422, 404, `<script>` guardado como texto, 403 para o viewer.
+* **Fase B implementada:** `trading/domain/deterioration.py` (Sharpe real abaixo de metade do backtest **ou** drawdown atual acima do máximo do backtest, só com 30+ retornos reais), `trading/application/deterioration.py` (`DeteriorationWatch`), `AlertKind.PERFORMANCE_DEGRADED` (aviso, nunca pausa o bot) no escopo do worker. A comparação roda no relógio próprio `alert_deterioration_seconds` (900 s) e o último resultado continua "disparando" entre execuções, senão o avaliador resolveria o alerta. A mensagem não tem números que mudem a cada checagem. Testes: `test_deterioration.py`.
+* **Fase C (filtro de tendência) não feita:** seria o **sexto** parâmetro da estratégia (`too_many_parameters` marca acima de 5) e a decisão é sua: subir o limite, tirar `stop_loss_pct` da estratégia ou criar uma variante.
+* **Fase D** continua adiada (a Fase 5 do livro 1, cap. 7). **Fase E (pesquisa transversal) não feita:** só vale com vários pares importados.
+* **Desvio do plano:** o filtro por entidade foi acrescentado ao endpoint de auditoria em vez de um endpoint de leitura de notas.
+
 ### Ordem, dependências e estimativa
 
 A → (cap. 1 Fase D) → B; C espera a estratégia; D adiada; E é independente. Estimativa grosseira: A ≈ 1,5 dia (1 back, 0,5 front); B ≈ 2 (1 back, 1 de integração com alertas); E ≈ 2,5; C e D fora do corte. Nenhuma fase mexe no banco.

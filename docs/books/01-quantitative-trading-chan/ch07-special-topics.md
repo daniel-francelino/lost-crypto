@@ -163,6 +163,10 @@ Descritivo; **não** se opera com previsão de regime (o próprio livro é céti
 
 Só depois das fases 1 a 4 e de existir uma estratégia que justifique. Desenho mínimo para quando chegar a hora: função pura `analytics/domain/calendar.py` com retorno médio e `t` por hora UTC (24 grupos) e dia da semana (7), **correção por testes múltiplos** (31 testes: Bonferroni) e a contagem de tentativas, página de pesquisa somente leitura. Lição do livro (p. 143 em diante): lógica econômica antes do dado, variar as datas e esperar decaimento.
 
+### Estado da Fase 2 (2026-11-01)
+
+Implementada junto com o [livro 2, cap. 3](../02-algorithmic-trading-chan/ch03-implementing-mean-reversion.md), com o nome `mean_reversion_zscore` e `StrategyStyle` (cap. 6, Fase C, parte de metadados e dica de stop).
+
 ### Ordem, dependências e estimativa
 1 → 2 (precisa de 1 e do `STYLE` do Cap. 6 Fase C) → 3 e 4 (independentes entre si e de 1 e 2) → 5.
 Estimativa grosseira: Fase 1 ≈ 1 dia; Fase 2 ≈ 2 a 3 dias (a adaptação do teste de contrato pesa); Fase 3 ≈ 2 dias (1,5 back, 0,5 front); Fase 4 ≈ 2 dias. Só a Fase 4 mexe no banco.

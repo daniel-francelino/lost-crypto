@@ -1,7 +1,7 @@
 """Composition root: the only place that knows which concrete classes implement the ports."""
 
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import timedelta
@@ -22,7 +22,7 @@ from modules.backtesting.application.service import BacktestExecutor, BacktestSe
 from modules.backtesting.infrastructure.repository import SqlAlchemyBacktestStore
 from modules.bots.application.live import LiveService
 from modules.bots.application.service import BotService
-from modules.bots.domain.models import BotState
+from modules.bots.domain.models import Bot, BotState
 from modules.exchanges.application.connections import ConnectionResolver, ConnectionService
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.exchanges.infrastructure.catalog import build_exchange_registry
@@ -39,11 +39,13 @@ from modules.market_data.application.updater import (
 from modules.market_data.infrastructure.repository import SqlAlchemyImportStore
 from modules.notifications.application.evaluator import AlertEvaluator
 from modules.notifications.application.service import AlertMonitor, AlertService, MonitorStore
+from modules.notifications.domain.models import Condition
 from modules.risk_management.application.service import KillSwitchService
 from modules.risk_management.domain.models import GlobalRiskLimits, LiveLimits
 from modules.strategies.catalog import build_strategy_registry
 from modules.strategies.domain.registry import StrategyRegistry
 from modules.trading.application.comparison import ComparisonService
+from modules.trading.application.deterioration import DeteriorationWatch
 from modules.trading.application.operations import OperationsMonitor
 from modules.trading.application.orders import OrderExecutor
 from modules.trading.application.parity import ParityExecutor, ParityService
@@ -223,6 +225,7 @@ def build_alert_monitor(
     status: StatusService,
     clock: Clock,
     update_report: Callable[[], UpdateReport] | None = None,
+    deterioration: Callable[[Sequence[Bot]], Awaitable[list[Condition]]] | None = None,
 ) -> AlertMonitor:
     return AlertMonitor(
         stores,
@@ -232,6 +235,8 @@ def build_alert_monitor(
         timedelta(seconds=settings.alert_evaluation_seconds),
         timedelta(days=settings.alert_retention_days),
         update_report,
+        deterioration,
+        timedelta(seconds=settings.alert_deterioration_seconds),
     )
 
 
@@ -327,5 +332,6 @@ def build_job_runner(container: Container) -> JobRunner:
             container.status,
             container.clock,
             updater.report if updater is not None else None,
+            DeteriorationWatch(container.comparison).conditions,
         ),
     )

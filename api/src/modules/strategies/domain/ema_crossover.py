@@ -15,6 +15,7 @@ from modules.strategies.domain.base import (
     InvalidStrategyParams,
     ParamSpec,
     Strategy,
+    StrategyStyle,
     next_bars_held,
     parse_numeric_params,
     percent_below_above,
@@ -70,6 +71,7 @@ def _ema_series_end(closes: Sequence[Decimal], period: int) -> Decimal:
 
 class EmaCrossoverStrategy(Strategy[EmaCrossoverState]):
     TYPE_KEY = "ema_crossover"
+    STYLE = StrategyStyle.TREND
     NAME = "EMA Crossover (trend following)"
     DESCRIPTION = (
         "Long-only. Buys when the fast EMA crosses above the slow EMA and sells when it "

@@ -43,6 +43,7 @@ from modules.risk_management.domain.models import (
     assess_signal,
     average_quote_volume,
     candle_range_pct,
+    close_jump_pct,
     consecutive_losses_breached,
     daily_loss_breached,
     drawdown_breached,
@@ -107,6 +108,8 @@ class BotTrader:
         # Recent traded value (volume x close) per bot, for the volume cap (book 1 ch. 5, O5).
         self._volumes: dict[UUID, deque[Decimal]] = {}
         self._avg_volume: Decimal | None = None
+        self._close_jump: Decimal | None = None
+        self._last_closes: dict[UUID, Decimal] = {}
 
     async def market_info(self, exchange: str, symbol: str) -> MarketInfo:
         key = (exchange, symbol)
@@ -157,6 +160,8 @@ class BotTrader:
             if problems:
                 await self._skip_invalid_candle(bot, session, strategy, state, candle, problems)
                 continue
+            self._close_jump = close_jump_pct(candle.close, self._last_closes.get(bot.id))
+            self._last_closes[bot.id] = candle.close
             window.append(candle.volume * candle.close)
             self._avg_volume = average_quote_volume(list(window))
             state, paused = await self._process_candle(
@@ -357,6 +362,7 @@ class BotTrader:
                     global_limits=global_limits,
                     exposure=await self._exposure(store, signal, global_limits, is_live),
                     avg_quote_volume=self._avg_volume,
+                    close_jump=self._close_jump,
                 )
                 if not decision.approved or decision.quantity is None:
                     await self._record(

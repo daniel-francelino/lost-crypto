@@ -3,15 +3,16 @@ from decimal import Decimal
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import AwareDatetime, BaseModel, Field
 
 from container import Container
 from core.jobs import JobStatus
+from core.security.auth import Principal, require_auth
 from modules.analytics.domain.mean_reversion import suggested_windows
 from modules.market_data.application.ports import ImportJob
 from modules.market_data.application.service import REFERENCE_SYMBOL, InvalidImportRequest
-from modules.market_data.domain.models import Timeframe
+from modules.market_data.domain.models import RegimeBreak, Timeframe
 
 router = APIRouter(prefix="/market-data", tags=["market-data"])
 
@@ -364,3 +365,161 @@ async def get_listings(
         )
         for item in await container.market_data.listings(exchange, symbol)
     ]
+
+
+class RegimeBreakIn(BaseModel):
+    name: Annotated[str, Field(min_length=1, max_length=60)]
+    occurred_at: AwareDatetime
+    exchange: str | None = Field(default=None, description="Null: applies to every exchange.")
+    symbol: Symbol | None = Field(default=None, description="Null: applies to every symbol.")
+    note: Annotated[str, Field(max_length=500)] | None = None
+
+
+class RegimeBreakOut(BaseModel):
+    id: UUID
+    name: str
+    occurred_at: datetime
+    exchange: str | None
+    symbol: str | None
+    note: str | None
+    created_by: str
+    created_at: datetime
+
+
+def _break_out(b: RegimeBreak) -> RegimeBreakOut:
+    return RegimeBreakOut(
+        id=b.id,
+        name=b.name,
+        occurred_at=b.occurred_at,
+        exchange=b.exchange,
+        symbol=b.symbol,
+        note=b.note,
+        created_by=b.created_by,
+        created_at=b.created_at,
+    )
+
+
+@router.get("/regime-breaks", response_model=list[RegimeBreakOut])
+async def list_regime_breaks(
+    request: Request, exchange: str | None = None, symbol: Symbol | None = None
+) -> list[RegimeBreakOut]:
+    """Structural breaks the operator named (global ones included when a market is given)."""
+    container: Container = request.app.state.container
+    return [_break_out(b) for b in await container.market_data.list_breaks(exchange, symbol)]
+
+
+@router.post("/regime-breaks", response_model=RegimeBreakOut, status_code=status.HTTP_201_CREATED)
+async def create_regime_break(
+    body: RegimeBreakIn, request: Request, principal: Principal = Depends(require_auth)
+) -> RegimeBreakOut:
+    """Name a break (a crash, a rule change). Register breaks BEFORE running experiments: each one
+    keeps when it was created, and a break chosen after seeing results is a research freedom."""
+    container: Container = request.app.state.container
+    created = await container.market_data.create_break(
+        body.name, body.occurred_at, body.exchange, body.symbol, body.note, principal.username
+    )
+    await container.audit.record(
+        "regime_break.created",
+        "regime_break",
+        str(created.id),
+        principal.username,
+        {"name": created.name, "occurred_at": created.occurred_at.isoformat()},
+    )
+    return _break_out(created)
+
+
+@router.delete("/regime-breaks/{break_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_regime_break(
+    break_id: UUID, request: Request, principal: Principal = Depends(require_auth)
+) -> Response:
+    """Breaks are never edited: delete and create again, which leaves a trail."""
+    container: Container = request.app.state.container
+    await container.market_data.delete_break(break_id)
+    await container.audit.record(
+        "regime_break.deleted", "regime_break", str(break_id), principal.username, {}
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+class GridCellOut(BaseModel):
+    lookback: int
+    holding: int
+    n: int = Field(description="Independent (non-overlapping) samples behind the correlation.")
+    correlation: Decimal | None
+    z_stat: Decimal | None
+    significant_corrected: bool | None = Field(
+        description="|z| reaches the Bonferroni-corrected level of the whole grid."
+    )
+    reason: str | None
+
+
+class MomentumGridOut(BaseModel):
+    cells: list[GridCellOut]
+    alpha_corrected: Decimal = Field(description="0.05 divided by the number of cells.")
+    critical_z: Decimal
+    candles: int
+    gaps: int
+    warning: str
+
+
+def _parse_lags(text: str, name: str) -> list[int]:
+    try:
+        values = [int(part) for part in text.split(",") if part.strip() != ""]
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"{name}: use integers") from exc
+    if not values:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"{name}: give at least one")
+    return values
+
+
+@router.get("/momentum-grid", response_model=MomentumGridOut)
+async def get_momentum_grid(
+    request: Request,
+    symbol: Symbol,
+    timeframe: Timeframe,
+    start: AwareDatetime,
+    end: AwareDatetime,
+    lookbacks: Annotated[str, Query(max_length=100)] = "1,5,10,25",
+    holdings: Annotated[str, Query(max_length=100)] = "1,5,10,25",
+    exchange: str = "binance",
+) -> MomentumGridOut:
+    """Correlation between the return over ``lookback`` candles and the next ``holding`` candles,
+    with non-overlapping samples. Descriptive: a grid is many tests, so significance is against
+    the corrected level; correlation is not profit."""
+    if start >= end:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "start must be before end")
+    container: Container = request.app.state.container
+    try:
+        cells, alpha, critical, candles, gaps = await container.market_data.momentum_grid(
+            exchange,
+            symbol,
+            timeframe,
+            start,
+            end,
+            _parse_lags(lookbacks, "lookbacks"),
+            _parse_lags(holdings, "holdings"),
+        )
+    except InvalidImportRequest as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    return MomentumGridOut(
+        cells=[
+            GridCellOut(
+                lookback=c.lookback,
+                holding=c.holding,
+                n=c.n,
+                correlation=c.correlation,
+                z_stat=c.z_stat,
+                significant_corrected=c.significant_corrected,
+                reason=c.reason,
+            )
+            for c in cells
+        ],
+        alpha_corrected=alpha,
+        critical_z=critical,
+        candles=candles,
+        gaps=gaps,
+        warning=(
+            "Descritivo. Uma grade são muitos testes: use o nível corrigido, não escolha a "
+            "melhor célula. Correlação não paga custos e não é lucro negociável."
+        ),
+    )

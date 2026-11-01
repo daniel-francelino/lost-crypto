@@ -1,5 +1,6 @@
 import {
   AlertKind,
+  StrategyStyle,
   AlertSeverity,
   BotState,
   ConnectionStatus,
@@ -30,6 +31,15 @@ export const botStateLabel = (value: string): string =>
     value,
   );
 
+export const strategyStyleLabel = (value: string): string =>
+  pick(
+    {
+      [StrategyStyle.Trend]: "Tendência",
+      [StrategyStyle.MeanReversion]: "Reversão à média",
+    },
+    value,
+  );
+
 export const alertKindLabel = (value: string): string =>
   pick(
     {
@@ -39,6 +49,7 @@ export const alertKindLabel = (value: string): string =>
       [AlertKind.KillSwitchActive]: "Kill switch ativo",
       [AlertKind.CandlesStale]: "Candles atrasados",
       [AlertKind.ExchangeRateLimited]: "Exchange limitando requisições",
+      [AlertKind.PerformanceDegraded]: "Desempenho fora da faixa do backtest",
     },
     value,
   );

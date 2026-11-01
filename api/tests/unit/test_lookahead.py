@@ -20,7 +20,7 @@ from modules.backtesting.domain.engine import run_backtest
 from modules.backtesting.domain.models import BacktestOutcome
 from modules.market_data.domain.models import Candle
 from modules.strategies.catalog import AVAILABLE_STRATEGIES
-from modules.strategies.domain.base import Strategy
+from modules.strategies.domain.base import Strategy, StrategyStyle
 from modules.strategies.domain.types import (
     Side,
     Signal,
@@ -50,7 +50,15 @@ def _params_variants(strategy_cls: type[Strategy[Any]]) -> list[dict[str, Any]]:
     variants: list[dict[str, Any]] = [{}]
     if {"stop_loss_pct", "take_profit_pct"} <= names:
         variants.append({"stop_loss_pct": 3, "take_profit_pct": 6})
+    elif "stop_loss_pct" in names:
+        variants.append({"stop_loss_pct": 3})
+    if "max_holding_candles" in names:
+        variants.append({"max_holding_candles": 5})
     return variants
+
+
+def _variant_id(params: dict[str, Any]) -> str:
+    return "defaults" if not params else "-".join(sorted(params))
 
 
 def _prefix(outcome: BacktestOutcome, cut: datetime, bars: int) -> tuple[Any, ...]:
@@ -77,7 +85,7 @@ def _assert_no_lookahead(make_strategy: Any, candles: Sequence[Candle]) -> None:
 
 
 CASES = [
-    pytest.param(cls, params, id=f"{cls.TYPE_KEY}-{'defaults' if not params else 'stops'}")
+    pytest.param(cls, params, id=f"{cls.TYPE_KEY}-{_variant_id(params)}")
     for cls in AVAILABLE_STRATEGIES
     for params in _params_variants(cls)
 ]
@@ -103,6 +111,7 @@ class _FullSampleStrategy(Strategy[int]):
     NAME: ClassVar[str] = "Full-sample mean"
     DESCRIPTION: ClassVar[str] = "Leaks the future on purpose."
     PARAMETERS: ClassVar[tuple[Any, ...]] = ()
+    STYLE: ClassVar[StrategyStyle] = StrategyStyle.MEAN_REVERSION
 
     def __init__(self, data: Sequence[Candle] = ()) -> None:
         closes = [c.close for c in data]

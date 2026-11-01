@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
 from itertools import pairwise
+from uuid import UUID
 
 
 class Timeframe(StrEnum):
@@ -27,6 +28,21 @@ _DELTAS = {
     Timeframe.H4: timedelta(hours=4),
     Timeframe.D1: timedelta(days=1),
 }
+
+
+@dataclass(frozen=True, slots=True)
+class RegimeBreak:
+    """A date the operator named as a structural break (book 2 ch. 5). ``exchange`` and
+    ``symbol`` are None for a break that applies to every market."""
+
+    id: UUID
+    name: str
+    occurred_at: datetime
+    exchange: str | None
+    symbol: str | None
+    note: str | None
+    created_by: str
+    created_at: datetime
 
 
 @dataclass(frozen=True, slots=True)

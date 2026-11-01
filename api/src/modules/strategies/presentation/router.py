@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from container import Container
+from modules.strategies.domain.base import StrategyStyle
 
 router = APIRouter(prefix="/strategies", tags=["strategies"])
 
@@ -12,7 +13,7 @@ class ParamOut(BaseModel):
     name: str
     type: str
     default: Any
-    minimum: int | None
+    minimum: float | None
     description: str
 
 
@@ -20,6 +21,7 @@ class StrategyOut(BaseModel):
     type_key: str
     name: str
     description: str
+    style: StrategyStyle
     parameters: list[ParamOut]
     parameter_count: int = Field(
         description="Configurable parameters. Chan's rule of thumb: at most 5 (book 1 ch. 3)."
@@ -39,12 +41,13 @@ async def list_strategies(request: Request) -> list[StrategyOut]:
             type_key=d.TYPE_KEY,
             name=d.NAME,
             description=d.DESCRIPTION,
+            style=d.STYLE,
             parameters=[
                 ParamOut(
                     name=p.name,
                     type=p.type,
                     default=p.default,
-                    minimum=p.minimum,
+                    minimum=None if p.minimum is None else float(p.minimum),
                     description=p.description,
                 )
                 for p in d.PARAMETERS

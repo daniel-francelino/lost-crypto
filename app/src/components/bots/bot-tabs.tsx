@@ -340,6 +340,7 @@ export function ConfigTab({ bot }: { bot: Bot }) {
     ["Risco máximo por operação (%)", orDash(risk.max_risk_per_trade_pct)],
     ["Exigir stop-loss", risk.require_stop_loss ? "Sim" : "Não"],
     ["Amplitude máxima do candle (%)", orDash(risk.max_candle_range_pct)],
+    ["Salto máximo do fechamento (%)", orDash(risk.max_close_jump_pct ?? null)],
   ];
   return (
     <div className="grid gap-4 lg:grid-cols-2">

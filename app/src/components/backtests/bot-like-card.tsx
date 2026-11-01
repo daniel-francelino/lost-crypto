@@ -27,6 +27,11 @@ const FIELDS: Field[] = [
     label: "Máximo da ordem (% do volume médio)",
     hint: "Média do valor negociado nos últimos 20 candles.",
   },
+  {
+    key: "maxCloseJumpPct",
+    label: "Salto máximo do fechamento (%)",
+    hint: "Recusa entradas depois de um salto contra o fechamento anterior. Vazio desliga.",
+  },
 ];
 
 type BotLikeCardProps = {

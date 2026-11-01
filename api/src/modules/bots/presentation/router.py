@@ -10,6 +10,7 @@ from container import Container
 from core.pagination import Offset, set_total
 from core.security.auth import Principal, require_auth
 from modules.analytics.presentation.schemas import MetricsOut
+from modules.audit.schemas import NoteIn, NoteOut
 from modules.bots.domain.models import Bot, BotConfig, BotState, ExecutionMode
 from modules.execution.domain.orders import OrderStatus, latency_ms, realized_slippage_bps
 from modules.market_data.domain.models import Timeframe
@@ -624,6 +625,21 @@ async def request_parity(bot_id: UUID, request: Request) -> ParityOut:
 async def get_parity(bot_id: UUID, request: Request) -> ParityOut | None:
     run = await _container(request).parity.latest(bot_id)
     return None if run is None else _parity_out(run)
+
+
+@router.post("/{bot_id}/notes", response_model=NoteOut, status_code=status.HTTP_201_CREATED)
+async def add_bot_note(
+    bot_id: UUID,
+    body: NoteIn,
+    request: Request,
+    principal: Principal = Depends(require_auth),
+) -> NoteOut:
+    """Record why this bot was paused, changed or retired. Stored in the audit trail
+    (`note.added`); read it with `GET /audit-events?event_type=note.added&entity_id={bot_id}`."""
+    container = _container(request)
+    await container.bots.get(bot_id)
+    await container.audit.add_note("bot", str(bot_id), bot_id, principal.username, body.text)
+    return NoteOut(actor=principal.username, text=body.text)
 
 
 class RealizedSharpeOut(BaseModel):

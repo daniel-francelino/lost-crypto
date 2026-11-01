@@ -3,18 +3,26 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
 from core.jobs import JobStatus
 from modules.market_data.application.ports import NO_ISSUES, ImportJob, ImportQuality
-from modules.market_data.domain.models import Candle, ListedMarket, Listing, Timeframe
+from modules.market_data.domain.models import (
+    Candle,
+    ListedMarket,
+    Listing,
+    RegimeBreak,
+    Timeframe,
+)
 from modules.market_data.infrastructure.orm import (
     CandleImportJobRow,
     CandleRow,
     ExchangeListingRow,
+    RegimeBreakRow,
 )
 
 LISTING_ACTIVE = "active"
@@ -169,6 +177,7 @@ class SqlAlchemyImportStore:
         self._session = session
         self.candles = SqlAlchemyCandleRepository(session)
         self.listings = SqlAlchemyListingRepository(session)
+        self.regime_breaks = SqlAlchemyRegimeBreakRepository(session)
 
     async def add_job(self, job: ImportJob) -> None:
         self._session.add(
@@ -254,6 +263,75 @@ class SqlAlchemyImportStore:
 
     async def commit(self) -> None:
         await self._session.commit()
+
+
+def _to_break(row: RegimeBreakRow) -> RegimeBreak:
+    return RegimeBreak(
+        row.id,
+        row.name,
+        row.occurred_at,
+        row.exchange,
+        row.symbol,
+        row.note,
+        row.created_by,
+        row.created_at,
+    )
+
+
+class SqlAlchemyRegimeBreakRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, regime_break: RegimeBreak) -> bool:
+        row = RegimeBreakRow(
+            id=regime_break.id,
+            name=regime_break.name,
+            occurred_at=regime_break.occurred_at,
+            exchange=regime_break.exchange,
+            symbol=regime_break.symbol,
+            note=regime_break.note,
+            created_by=regime_break.created_by,
+            created_at=regime_break.created_at,
+        )
+        try:
+            async with self._session.begin_nested():
+                self._session.add(row)
+        except IntegrityError:
+            return False
+        return True
+
+    async def list_breaks(self, exchange: str | None, symbol: str | None) -> list[RegimeBreak]:
+        query = select(RegimeBreakRow).order_by(RegimeBreakRow.occurred_at)
+        if exchange is not None:
+            query = query.where(
+                or_(RegimeBreakRow.exchange.is_(None), RegimeBreakRow.exchange == exchange)
+            )
+        if symbol is not None:
+            query = query.where(
+                or_(RegimeBreakRow.symbol.is_(None), RegimeBreakRow.symbol == symbol)
+            )
+        return [_to_break(r) for r in (await self._session.execute(query)).scalars()]
+
+    async def delete(self, break_id: UUID) -> bool:
+        result = await self._session.execute(
+            delete(RegimeBreakRow).where(RegimeBreakRow.id == break_id)
+        )
+        return bool(result.rowcount)  # type: ignore[attr-defined]
+
+    async def inside(
+        self, exchange: str, symbol: str, start: datetime, end: datetime
+    ) -> list[RegimeBreak]:
+        query = (
+            select(RegimeBreakRow)
+            .where(
+                RegimeBreakRow.occurred_at > start,
+                RegimeBreakRow.occurred_at <= end,
+                or_(RegimeBreakRow.exchange.is_(None), RegimeBreakRow.exchange == exchange),
+                or_(RegimeBreakRow.symbol.is_(None), RegimeBreakRow.symbol == symbol),
+            )
+            .order_by(RegimeBreakRow.occurred_at)
+        )
+        return [_to_break(r) for r in (await self._session.execute(query)).scalars()]
 
 
 class SqlAlchemyListingRepository:

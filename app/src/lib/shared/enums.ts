@@ -175,6 +175,12 @@ export const SignalKind = {
 } as const;
 export type SignalKind = ValueOf<typeof SignalKind>;
 
+export const StrategyStyle = {
+  Trend: "trend",
+  MeanReversion: "mean_reversion",
+} as const;
+export type StrategyStyle = ValueOf<typeof StrategyStyle>;
+
 export const AlertKind = {
   WorkerDown: "worker_down",
   BotStale: "bot_stale",
@@ -182,6 +188,7 @@ export const AlertKind = {
   KillSwitchActive: "kill_switch_active",
   CandlesStale: "candles_stale",
   ExchangeRateLimited: "exchange_rate_limited",
+  PerformanceDegraded: "performance_degraded",
 } as const;
 export type AlertKind = ValueOf<typeof AlertKind>;
 

@@ -16,7 +16,10 @@ from modules.backtesting.infrastructure.orm import (
 )
 from modules.execution.domain.orders import Fill
 from modules.market_data.domain.models import MarketInfo, Timeframe
-from modules.market_data.infrastructure.repository import SqlAlchemyCandleRepository
+from modules.market_data.infrastructure.repository import (
+    SqlAlchemyCandleRepository,
+    SqlAlchemyRegimeBreakRepository,
+)
 from modules.risk_management.domain.models import limits_from_dict, limits_to_dict
 from modules.strategies.domain.types import Side
 
@@ -80,6 +83,7 @@ def _to_run(row: BacktestRunRow) -> BacktestRun:
         tail_risk=row.tail_risk,
         regime=row.regime,
         significance=row.significance,
+        break_metrics=row.break_metrics,
         sweep_id=row.sweep_id,
         error=row.error,
     )
@@ -89,6 +93,7 @@ class SqlAlchemyBacktestStore:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self.candles = SqlAlchemyCandleRepository(session)
+        self.regime_breaks = SqlAlchemyRegimeBreakRepository(session)
 
     async def add_run(self, run: BacktestRun) -> None:
         c = run.config
@@ -265,6 +270,7 @@ class SqlAlchemyBacktestStore:
         tail_risk: dict[str, Any] | None,
         regime: dict[str, Any] | None,
         significance: dict[str, Any] | None,
+        break_metrics: dict[str, Any] | None,
         equity_curve: list[EquityPoint],
         fills: list[Fill],
     ) -> None:
@@ -285,6 +291,7 @@ class SqlAlchemyBacktestStore:
                 tail_risk=tail_risk,
                 regime=regime,
                 significance=significance,
+                break_metrics=break_metrics,
                 equity_curve=[[p.time.isoformat(), str(p.equity)] for p in equity_curve],
                 finished_at=func.now(),
             )

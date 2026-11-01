@@ -6,7 +6,7 @@ Verified in the code on 2026-10-31. Every chapter report compares the book again
 
 * Spot only, **long-only**, one position per bot. No leverage, margin, futures or shorting.
 * Exchange: Binance (spot and testnet) behind a single `ExchangeRegistry`. Candle timeframes are time-based (no volume/tick bars).
-* Strategies: `ema_crossover` and `donchian_breakout` (`api/src/modules/strategies/domain/`). Strategies emit *intents*; sizing and risk are elsewhere.
+* Strategies: `ema_crossover`, `donchian_breakout` (trend) and `mean_reversion_zscore` (mean reversion, since book 2 ch. 3), each with a `StrategyStyle` (`api/src/modules/strategies/domain/`). Strategies emit *intents*; sizing and risk are elsewhere.
 
 ## Backtesting (`modules/backtesting`)
 
@@ -29,6 +29,10 @@ Verified in the code on 2026-10-31. Every chapter report compares the book again
 
 Net PnL, total return %, buy-and-hold return %, max drawdown %, fees paid, fills, round trips, win rate, profit factor, average trade PnL, open-position flag, rejected signals. Since book 1 ch. 2: Sharpe, Sortino, information ratio vs. holding the asset, annualised return and volatility (365-day year, risk-free 0, `None` below 30 returns or 30 days; `risk_ratios.py`), exposure, sample size and gaps, drawdown duration, peak/trough, current and open drawdown. Same functions for backtests and bots.
 
+Since book 2 ch. 6: a lagged-return correlation grid (`/market-data/momentum-grid`, non-overlapping samples, Bonferroni-corrected) and start-date sensitivity sweeps (`start_offset_days` in a sweep grid).
+
+Since book 2 ch. 5: named regime breaks (`regime_breaks`, operator-registered, never edited) and per-stretch metrics of each backtest between the breaks that fall inside it (`break_metrics`, with a snapshot of the breaks used).
+
 Since book 2 ch. 2: Hurst exponent, variance ratios (lags 2, 4, 8), optional sampling every N candles and suggested look-back windows around the half-life, all descriptive and served by `/market-data/half-life`.
 
 Since book 2 ch. 1: `sharpe_t_stat` and `significance_p` (Gaussian test, one-sided table 0.10 to 0.001, `analytics/domain/significance.py`); each backtest also stores a random-entries test (`significance` JSONB, migration `0015`, 1,000 seeded simulations, needs 10 trades) and the detail reports `prior_runs`. `GET /bots/{id}/backtest-comparison` compares a bot's realized Sharpe with its equivalent backtest.
@@ -37,7 +41,7 @@ Since book 2 ch. 1: `sharpe_t_stat` and `significance_p` (Gaussian test, one-sid
 
 ## Risk (`modules/risk_management`)
 
-Per bot: position fraction, max order notional, daily loss %, drawdown %, consecutive losses, risk-per-trade sizing from the stop, required stop, suspect-candle filter. Global: max open positions and max exposure. Live: hard caps from the environment, kill switch, typed-name single-use approval, minimum paper days. Exits are always allowed.
+Per bot (book 2 ch. 3 added `max_close_jump_pct`, off by default: refuses entries after a close-to-close jump, never exits): position fraction, max order notional, daily loss %, drawdown %, consecutive losses, risk-per-trade sizing from the stop, required stop, suspect-candle filter. Global: max open positions and max exposure. Live: hard caps from the environment, kill switch, typed-name single-use approval, minimum paper days. Exits are always allowed.
 
 ## Operations
 
@@ -46,7 +50,7 @@ Per bot: position fraction, max order notional, daily loss %, drawdown %, consec
 
 * The trader fetches recent candles itself each cycle. Since the Chapter 1 work, the worker also **extends stored candles** (closed candles only, series already stored and recent, or used by a bot) and **historical import stays manual**.
 
-* **Alerts are in-app only** (`notifications` module, `/alerts`, indicator in the top bar): worker down (raised by the API process), bot stale/error, kill switch, stale candles and exchange rate limiting. No external channel (webhook, email, chat) exists.
+* **Alerts are in-app only** (`notifications` module, `/alerts`, indicator in the top bar): worker down (raised by the API process), bot stale/error, kill switch, stale candles, exchange rate limiting and, since book 2 ch. 4, `performance_degraded` (a running bot whose realized Sharpe is below half of its backtest's, or whose current drawdown exceeds the backtest's maximum, after 30+ live returns; a warning that never pauses the bot). No external channel (webhook, email, chat) exists. Free-text analysis notes on bots and backtests are audit events (`note.added`).
 
 * Audit log for state changes, orders and approvals. Bot pause/stop/reset commands and config edits record the authenticated actor and optional reason; edits record safe before/after values. `GET /api/v1/bots/{id}/interventions?days=30` reports intervention counts, recent items and drawdown context (5% threshold); overview cards show the 30-day count. The UI confirms edits and requests a reason when the bot has orders.
 

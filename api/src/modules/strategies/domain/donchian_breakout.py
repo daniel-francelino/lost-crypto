@@ -15,6 +15,7 @@ from modules.strategies.domain.base import (
     InvalidStrategyParams,
     ParamSpec,
     Strategy,
+    StrategyStyle,
     next_bars_held,
     parse_numeric_params,
     percent_below_above,
@@ -57,6 +58,7 @@ class DonchianState:
 
 class DonchianBreakoutStrategy(Strategy[DonchianState]):
     TYPE_KEY = "donchian_breakout"
+    STYLE = StrategyStyle.TREND
     NAME = "Donchian Breakout (trend following)"
     DESCRIPTION = (
         "Long-only. Buys a close above the highest high of the last entry_period candles and "

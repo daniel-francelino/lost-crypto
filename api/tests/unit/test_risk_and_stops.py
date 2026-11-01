@@ -276,3 +276,62 @@ def test_segments_absent_without_a_split_and_guarded_for_tiny_series() -> None:
     with pytest.raises(InvalidBacktestConfig):
         replace(config, test_fraction=Decimal(1))
     assert timedelta(0) == T0 - T0
+
+
+def test_a_stop_exit_takes_slippage_but_a_take_profit_does_not() -> None:
+    closes = [10, 10, 10, 12, 12, 12, 12, 12]
+    opens = [10, 10, 10, 10, 12, 12, 12, 12]
+    candles = make_candles(closes, opens)
+    candles[5] = type(candles[5])(
+        "BTC/USDT",
+        candles[5].timeframe,
+        candles[5].open_time,
+        Decimal(12),
+        Decimal(12),
+        Decimal(9),
+        Decimal(12),
+        Decimal(1),
+    )
+    strategy = EmaCrossoverStrategy(EmaCrossoverParams(2, 3, stop_loss_pct=Decimal(10)))
+    config = replace(make_config(slippage_bps="50"), slippage_bps=Decimal(50))
+    outcome = run_backtest(config, candles, MARKET, strategy)
+    sell = outcome.fills[-1]
+    assert sell.side is Side.SELL
+    assert sell.price == Decimal("10.8") * (1 - Decimal(50) / 10_000)  # the trigger, then worse
+
+
+def test_a_gap_past_the_stop_fills_at_the_open_and_then_slips_further() -> None:
+    closes = [10, 10, 10, 12, 12, 12, 12, 12]
+    opens = [10, 10, 10, 10, 12, 12, 12, 12]
+    candles = make_candles(closes, opens)
+    candles[5] = type(candles[5])(
+        "BTC/USDT",
+        candles[5].timeframe,
+        candles[5].open_time,
+        Decimal(8),  # opens below the 10.8 stop
+        Decimal(12),
+        Decimal(7),
+        Decimal(12),
+        Decimal(1),
+    )
+    strategy = EmaCrossoverStrategy(EmaCrossoverParams(2, 3, stop_loss_pct=Decimal(10)))
+    config = replace(make_config(), slippage_bps=Decimal(50))
+    sell = run_backtest(config, candles, MARKET, strategy).fills[-1]
+    assert sell.price == Decimal(8) * (1 - Decimal(50) / 10_000)  # the open, not the stop level
+
+
+def test_the_volume_cap_never_refuses_an_exit() -> None:
+    held = PortfolioState(uuid4(), Decimal(0), quantity=Decimal(1))
+    sell = Signal(Side.SELL, "BTC/USDT", SignalKind.EXIT, "x")
+    decision = assess_signal(
+        sell,
+        held,
+        PRICE,
+        MARKET,
+        fee_rate=Decimal(0),
+        slippage_bps=Decimal(0),
+        limits=RiskLimits(max_order_pct_of_volume=Decimal("0.0001")),
+        kill_switch_active=False,
+        avg_quote_volume=Decimal(1),  # a cap that would refuse any entry
+    )
+    assert decision.approved and decision.quantity == Decimal(1)

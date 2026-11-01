@@ -28,6 +28,7 @@ export const CHAN_THRESHOLDS = {
   minTestFraction: "0.25",
   minTStat: "1.645",
   maxWindowReuse: 10,
+  maxHoldingSharePct: 5,
 } as const;
 
 const DAY_MS = 24 * 3600 * 1000;
@@ -206,6 +207,25 @@ const fractionFlags = (fraction: string | null | undefined): ScreeningFlag[] =>
       ]
     : [];
 
+const holdingFlags = (
+  params: Record<string, unknown> | undefined,
+  periods: number | null | undefined,
+): ScreeningFlag[] => {
+  const limit = params?.["max_holding_candles"];
+  if (typeof limit !== "number" || periods === null || periods === undefined || periods <= 0) {
+    return [];
+  }
+  return (limit * 100) / periods > CHAN_THRESHOLDS.maxHoldingSharePct
+    ? [
+        {
+          id: "long-holding",
+          level: ScreeningLevel.Info,
+          text: `Manter a posição por até ${limit} candles numa amostra de ${periods}: poucos sinais independentes para este horizonte, então o resultado pesa pouco.`,
+        },
+      ]
+    : [];
+};
+
 const reuseFlags = (
   priorRuns: number | null | undefined,
   segments: Backtest["segments"],
@@ -226,6 +246,7 @@ const reuseFlags = (
 export const screeningFlags = (
   run: Pick<Backtest, "start" | "end" | "segments"> & {
     prior_runs?: number | null | undefined;
+    strategy_params?: Record<string, unknown> | undefined;
     metrics: Metrics;
     data_quality?: DataQuality | null | undefined;
     test_fraction?: string | null | undefined;
@@ -241,6 +262,7 @@ export const screeningFlags = (
     ...dataFlags(run.data_quality),
     ...fractionFlags(run.test_fraction),
     ...reuseFlags(run.prior_runs, run.segments),
+    ...holdingFlags(run.strategy_params, run.metrics.return_periods),
   ];
   return [
     ...flags.filter((flag) => flag.level === ScreeningLevel.Warning),

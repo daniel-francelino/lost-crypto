@@ -9,11 +9,12 @@ from typing import Any
 from uuid import UUID
 
 from core.clock import Clock
-from core.errors import DomainError
+from core.errors import ConflictError, DomainError, NotFoundError
 from core.ids import IdGenerator
 from core.jobs import JobStatus
 from modules.analytics.domain import mean_reversion
 from modules.analytics.domain.mean_reversion import HalfLife, VarianceRatio
+from modules.analytics.domain.momentum import GridCell, lagged_return_grid
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.market_data.application.ports import ImportJob, ImportQuality, ImportStore
 from modules.market_data.domain.models import (
@@ -21,6 +22,7 @@ from modules.market_data.domain.models import (
     Gap,
     Listing,
     RangeCoverage,
+    RegimeBreak,
     Timeframe,
     find_gaps,
     floor_to_timeframe,
@@ -46,6 +48,10 @@ MAX_ANALYSIS_CANDLES = 200_000
 
 
 class InvalidImportRequest(DomainError):
+    pass
+
+
+class RegimeBreakNotFound(NotFoundError):
     pass
 
 
@@ -208,6 +214,67 @@ class MarketDataService:
         closes = mean_reversion.sample_every([c.close for c in candles], sample_every)
         diagnostics = await asyncio.to_thread(_diagnose, closes, log)
         return diagnostics, len(closes), len(find_gaps([c.open_time for c in candles], timeframe))
+
+    async def create_break(
+        self,
+        name: str,
+        occurred_at: datetime,
+        exchange: str | None,
+        symbol: str | None,
+        note: str | None,
+        actor: str,
+    ) -> RegimeBreak:
+        """Register a named break. It is never edited: to fix one, delete it and create again,
+        which leaves a trail (the point is to name breaks before looking at results)."""
+        if exchange is not None:
+            self._exchanges.profile(exchange)
+        regime_break = RegimeBreak(
+            self._ids.new_id(), name, occurred_at, exchange, symbol, note, actor, self._clock.now()
+        )
+        async with self._stores() as store:
+            if not await store.regime_breaks.add(regime_break):
+                raise ConflictError(f"a break named {name!r} on that date already exists")
+            await store.commit()
+        return regime_break
+
+    async def list_breaks(self, exchange: str | None, symbol: str | None) -> list[RegimeBreak]:
+        async with self._stores() as store:
+            return await store.regime_breaks.list_breaks(exchange, symbol)
+
+    async def delete_break(self, break_id: UUID) -> None:
+        async with self._stores() as store:
+            if not await store.regime_breaks.delete(break_id):
+                raise RegimeBreakNotFound(f"break {break_id} not found")
+            await store.commit()
+
+    async def momentum_grid(
+        self,
+        exchange: str,
+        symbol: str,
+        timeframe: Timeframe,
+        start: datetime,
+        end: datetime,
+        lookbacks: list[int],
+        holdings: list[int],
+    ) -> tuple[list[GridCell], Decimal, Decimal, int, int]:
+        """The lagged-return correlation grid over stored closes: the cells, the corrected level,
+        its critical z, the number of candles and the number of gaps."""
+        self._exchanges.profile(exchange)
+        async with self._stores() as store:
+            count = await store.candles.count_range(exchange, symbol, timeframe, start, end)
+            if count > MAX_ANALYSIS_CANDLES:
+                raise InvalidImportRequest(
+                    f"at most {MAX_ANALYSIS_CANDLES} candles per momentum-grid request"
+                )
+            candles = await store.candles.get_range(exchange, symbol, timeframe, start, end)
+        try:
+            cells, alpha, critical = await asyncio.to_thread(
+                lagged_return_grid, [c.close for c in candles], lookbacks, holdings
+            )
+        except ValueError as exc:
+            raise InvalidImportRequest(str(exc)) from exc
+        gaps = len(find_gaps([c.open_time for c in candles], timeframe))
+        return cells, alpha, critical, len(candles), gaps
 
 
 class CandleImporter:

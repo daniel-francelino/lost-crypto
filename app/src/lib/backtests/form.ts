@@ -49,6 +49,7 @@ export type RiskValues = {
   requireStopLoss: boolean;
   maxCandleRangePct: string;
   maxOrderPctOfVolume: string;
+  maxCloseJumpPct: string;
 };
 
 export const DEFAULT_RISK: RiskValues = {
@@ -61,6 +62,7 @@ export const DEFAULT_RISK: RiskValues = {
   requireStopLoss: false,
   maxCandleRangePct: "25",
   maxOrderPctOfVolume: "",
+  maxCloseJumpPct: "",
 };
 
 export const defaultBacktestValues = (
@@ -90,6 +92,15 @@ export const defaultBacktestValues = (
   risk: DEFAULT_RISK,
 });
 
+import { START_OFFSET_KEY } from "@/lib/backtests/start-sensitivity";
+
+const offsetsAxis = (grid: Record<string, string>): number[] | string | null => {
+  const text = (grid[START_OFFSET_KEY] ?? "").trim();
+  if (text === "") return null;
+  const parsed = parseGridList(text, true);
+  return typeof parsed === "string" ? `Dias de deslocamento: ${parsed}` : parsed;
+};
+
 export const buildGrid = (
   strategy: Strategy | undefined,
   grid: Record<string, string>,
@@ -102,6 +113,9 @@ export const buildGrid = (
     if (typeof parsed === "string") return `${param.name}: ${parsed}`;
     result[param.name] = parsed;
   }
+  const offsets = offsetsAxis(grid);
+  if (typeof offsets === "string") return offsets;
+  if (offsets !== null) result[START_OFFSET_KEY] = offsets;
   return result;
 };
 
@@ -185,6 +199,7 @@ export const riskInput = (risk: RiskValues): RiskInput => ({
   require_stop_loss: risk.requireStopLoss,
   max_candle_range_pct: blankToNull(risk.maxCandleRangePct),
   max_order_pct_of_volume: blankToNull(risk.maxOrderPctOfVolume),
+  max_close_jump_pct: blankToNull(risk.maxCloseJumpPct),
 });
 
 const textOf = (value: unknown): string =>
@@ -200,6 +215,7 @@ export const riskValuesFrom = (raw: Record<string, unknown>): RiskValues => ({
   requireStopLoss: raw["require_stop_loss"] === true,
   maxCandleRangePct: textOf(raw["max_candle_range_pct"]),
   maxOrderPctOfVolume: textOf(raw["max_order_pct_of_volume"]),
+  maxCloseJumpPct: textOf(raw["max_close_jump_pct"]),
 });
 
 export const applyBacktestPrefill = (

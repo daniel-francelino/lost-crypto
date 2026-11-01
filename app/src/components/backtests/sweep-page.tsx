@@ -4,6 +4,7 @@ import { DataTable, type DataTableColumn } from "lost-ui/data/data-table";
 import { Alert, AlertDescription, AlertTitle } from "lost-ui/ui/alert";
 import { ErrorBlock, SkeletonBlock } from "@/components/shared/feedback/query-boundary";
 import { RobustnessCard } from "@/components/backtests/robustness-card";
+import { StartSensitivityCard } from "@/components/backtests/start-sensitivity-card";
 import { JobStatusBadge } from "@/components/shared/status/badges";
 import { SignedValue } from "@/components/shared/status/signed-value";
 import { useSweep } from "@/hooks/backtests/use-backtests";
@@ -165,6 +166,7 @@ export function SweepPage({ sweepId }: { sweepId: string }) {
         </AlertDescription>
       </Alert>
       {running ? null : <WinnerCheck sweep={sweep} />}
+      {running ? null : <StartSensitivityCard sweep={sweep} />}
       {running ? null : <RobustnessCard sweep={sweep} />}
       {running ? (
         <p className="text-sm text-muted-foreground">Em andamento; a tela atualiza sozinha.</p>

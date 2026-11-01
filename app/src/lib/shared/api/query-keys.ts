@@ -41,6 +41,29 @@ export const QueryKey = {
       ["market-data", "coverage", exchange, symbol, timeframe, start, end] as const,
     outliers: (exchange: string, symbol: string, timeframe: string, start: string, end: string) =>
       ["market-data", "outliers", exchange, symbol, timeframe, start, end] as const,
+    momentumGrid: (
+      exchange: string,
+      symbol: string,
+      timeframe: string,
+      start: string,
+      end: string,
+      lookbacks: string,
+      holdings: string,
+    ) =>
+      [
+        "market-data",
+        "momentum-grid",
+        exchange,
+        symbol,
+        timeframe,
+        start,
+        end,
+        lookbacks,
+        holdings,
+      ] as const,
+    regimeBreaksAll: () => ["market-data", "regime-breaks"] as const,
+    regimeBreaks: (exchange: string, symbol: string) =>
+      ["market-data", "regime-breaks", exchange, symbol] as const,
     halfLife: (
       exchange: string,
       symbol: string,
@@ -71,6 +94,8 @@ export const QueryKey = {
       ["alerts", "list", unreadOnly, severity, limit, offset] as const,
   },
   Audit: {
+    all: () => ["audit"] as const,
+    notes: (entityId: string) => ["audit", "notes", entityId] as const,
     list: (botId: string | null, eventType: string | null, limit: number, offset: number) =>
       ["audit", botId, eventType, limit, offset] as const,
   },

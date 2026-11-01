@@ -112,6 +112,14 @@ Conferir em `execution/domain/fills.py` e `risk_management/domain/stops.py` se a
 
 Registrar **B-DERIVATIVES**. Qualquer suporte a perpétuos reabriria alavancagem, venda a descoberto, liquidação e financiamento no retorno, nada coberto pelas salvaguardas atuais.
 
+### Estado da implementação (2026-11-01)
+
+* **Fases A e B implementadas** com **uma só migração** (`0017_regime_breaks`: tabela `regime_breaks` e a coluna `backtest_runs.break_metrics`). `GET/POST/DELETE /market-data/regime-breaks` (POST e DELETE só admin; sem edição; nome + data únicos, 409 em duplicata; cada criação e remoção grava auditoria `regime_break.created/deleted`). `RegimeBreak` guarda `created_at`. O executor do backtest lê as quebras do mercado dentro do período e grava `break_metrics`: o **instantâneo** das quebras usadas e as métricas de cada trecho (`backtesting/domain/break_segments.py`, mesma construção de `periods.py`, trecho com menos de 2 candles é ignorado). Execuções antigas e execuções sem quebra ficam `null`.
+* **Aviso de travessia no front, não no servidor** (desvio do plano): `BreaksWarning` compara as datas do formulário com a lista de quebras, no formulário de backtest e na página de dados de mercado, e oferece "Limitar a este regime", que só ajusta as datas. Nunca bloqueia. O card "Resultado entre as quebras de regime" (`breaks-card.tsx`) marca quebras **registradas depois** da execução.
+* **Fase C implementada só com testes:** stop leva slippage no motor (o take-profit não), um gap além do stop preenche na abertura e depois escorrega, e o teto de volume nunca recusa uma saída. Os testes passaram sem mudar código de produção.
+* **Fase D (derivativos):** registro **B-DERIVATIVES**, sem trabalho.
+* **Decisões adotadas:** quebras globais ou por símbolo (`NULL` = todos); sem edição; só aviso. Testes: `test_break_segments.py`, integração (criar, duplicata, 422, filtro por símbolo, auditoria, execução com quebra, instantâneo preservado depois de apagar a quebra) e `test_risk_and_stops.py`.
+
 ### Ordem, dependências e estimativa
 
 A → B (B depende de A para ler as quebras); C é independente e barata. Estimativa grosseira: A ≈ 2 dias (1,5 back, 0,5 front); B ≈ 3 (2 back, 1 front); C ≈ 0,5. A e B somam duas migrações, ou uma só se feitas juntas.

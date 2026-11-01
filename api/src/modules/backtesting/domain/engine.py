@@ -47,6 +47,7 @@ from modules.risk_management.domain.models import (
     assess_signal,
     average_quote_volume,
     candle_range_pct,
+    close_jump_pct,
     consecutive_losses_breached,
     daily_loss_breached,
     drawdown_breached,
@@ -224,9 +225,22 @@ class _RiskGuard:
         self._last_mark: Decimal = config.initial_capital
         self._peak: Decimal = config.initial_capital
         self._volumes: deque[Decimal] = deque(maxlen=VOLUME_WINDOW)
+        self._last_close: Decimal | None = None
+        self._previous_close: Decimal | None = None
+        self._last_open_time: datetime | None = None
 
     def observe(self, candle: Candle) -> None:
         self._volumes.append(candle.volume * candle.close)
+        self._previous_close = self._last_close
+        self._last_close = candle.close
+        self._last_open_time = candle.open_time
+
+    def _close_before(self, candle: Candle) -> Decimal | None:
+        """The close that precedes ``candle``: with fills at the signal candle's close the candle
+        was already observed, with fills at the next open it was not."""
+        return (
+            self._previous_close if self._last_open_time == candle.open_time else self._last_close
+        )
 
     def size(
         self,
@@ -249,6 +263,7 @@ class _RiskGuard:
             kill_switch_active=False,
             candle_range=candle_range_pct(candle.high, candle.low),
             avg_quote_volume=average_quote_volume(list(self._volumes)),
+            close_jump=close_jump_pct(candle.close, self._close_before(candle)),
         )
         if not decision.approved or decision.quantity is None:
             raise OrderRejected(decision.reason or "rejected by risk")

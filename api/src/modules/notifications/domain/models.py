@@ -13,6 +13,7 @@ class AlertKind(StrEnum):
     KILL_SWITCH_ACTIVE = "kill_switch_active"
     CANDLES_STALE = "candles_stale"
     EXCHANGE_RATE_LIMITED = "exchange_rate_limited"
+    PERFORMANCE_DEGRADED = "performance_degraded"
 
 
 class AlertSeverity(StrEnum):

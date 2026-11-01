@@ -3,7 +3,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from core.errors import DomainError, LostCryptoError
-from modules.strategies.domain.base import ParamSpec, Strategy
+from modules.strategies.domain.base import ParamSpec, Strategy, StrategyStyle
 
 
 class UnknownStrategy(DomainError):
@@ -34,6 +34,8 @@ class StrategyRegistry:
             value = getattr(strategy_cls, attribute, None)
             if not isinstance(value, str) or not value.strip():
                 raise StrategyConfigurationError(f"{name}.{attribute} must be a non-empty string")
+        if not isinstance(getattr(strategy_cls, "STYLE", None), StrategyStyle):
+            raise StrategyConfigurationError(f"{name}.STYLE must be a StrategyStyle")
         parameters = getattr(strategy_cls, "PARAMETERS", None)
         if not isinstance(parameters, tuple) or not all(
             isinstance(p, ParamSpec) for p in parameters
