@@ -1,97 +1,109 @@
-# Book 4 · Chapter 2 — Basic Concepts and Calculations
+# Livro 4 · Capítulo 2 — Conceitos e cálculos básicos
 
-*Trading Systems and Methods*, 5th ed., Kaufman (2013). Book pages (PDF = book + 20; some symbols lost in the text). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Trading Systems and Methods*, 5.ª ed., Kaufman (2013). Páginas do livro (PDF = livro + 20; alguns símbolos se perderam no texto). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 25–55 and 58–61 were read. The index-construction detail (pp. 55–58), the remainder of the probability section (pp. 62–66: runs, expectation and so on) and "Supply and Demand" (pp. 66–78) were **not** read in detail and are not summarised.
+**Profundidade da leitura:** pp. 25–55 e 58–61 foram lidas. Detalhes da construção de índices (pp. 55–58), restante da seção de probabilidade (pp. 62–66: sequências, esperança etc.) e “Oferta e procura” (pp. 66–78) **não** foram lidos em detalhe nem são resumidos.
 
-## 1. Chapter summary
+## 1. Resumo do capítulo
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | **Law of averages** correctly understood: abnormal runs do not need to be "offset"; normal events overwhelm them. | Gambler's fallacy. | 26 |
-| C2 | **In-sample / out-of-sample**: all testing is overfitting; keep unseen data; **you get one chance**: if the out-of-sample run fails you are done; changing the rules after looking contaminates it. Alternating 2-year blocks may help markets that change; with half the data withheld you only get half the patterns. | Honest validation. | 27–28 |
-| C3 | **Sample error ≈ 1/√N**: 1 item → 100%; 4 → 50%; **400 trades → 5%**. A slow system with 2–3 trades a year needs the same method applied across many markets to reach a useful N. | How many trades are enough. | 28–29 |
-| C4 | **Representative data**: at least one bull, one bear and some sideways periods (10 years of a bull market make any long strategy look good); structural changes (a company, a currency) can make old data unrepresentative; longer samples help adaptivity checks; many daily trades do not cover varied conditions. | Data coverage. | 29 |
-| C5 | **Averages**: arithmetic, time-weighted, geometric (for ratios and percentage changes), quadratic (RMS), harmonic, median, mode; each fits different data. | Right average for the job. | 30–37 |
-| C6 | **Moments**: mean, variance/standard deviation, **skewness** (price data are positively skewed, trading profits of trend systems with fixed stops are skewed right), **kurtosis** (excess = K − 3). **Kurtosis of daily returns above 7–8 begins to look like overfitting**: "an overwhelming number of profitable trades of similar size, which is not likely to happen in real trading". Standard deviation misleads for skewed data; frequency distributions (percentiles) are better. No normal distribution in trading. | Shape of results. | 37–43 |
-| C7 | **Autocorrelation** (persistence) via lagged correlation or the Durbin–Watson d-statistic (2 = none). **Two-sample t-test** of consistency: compare the means of two *non-overlapping* periods of a system's **net trade returns** using Satterthwaite degrees of freedom. | Detecting persistence; checking stability of results. | 43–48 |
-| C8 | **Standardise risk and return**: annualise; compare at a common **target volatility** (the book uses 12%; scale exposure by actual/target volatility). Returns: standard `p₁/p₀ − 1` vs `ln` returns (small differences compound); NAV starts at 100; AROR simple `(E_n/E₀ −1)·252/n` and compounded `(E_n/E₀)^(252/n) − 1`; use 252 for trading days. Annualise standard deviation by multiplying by the **square root** of the number of observations per year (the text shows "multiply by 252" in one place, which contradicts this rule and the later paragraph). | Comparable numbers. | 48–53 |
-| C9 | **Monthly data always looks less volatile** than daily (S&P 1990–2010: 18.6% daily vs 15.3% monthly), hiding mid-month drawdowns; due diligence asks for daily returns. | Understated risk. | 53 |
-| C10 | **Downside risk**: semivariance / lower partial moments; drawdown-based risk (net loss on days below the equity peak). | Risk that matters. | 53–54 |
-| C11 | **Performance ratios**: information ratio (return/risk), Sharpe (excess over the risk-free rate), Treynor (beta), **maximum drawdown** (percentage from peak NAV to the lowest later NAV; keeps single large drawdowns visible), **Calmar** (return / max drawdown), **Sortino** (downside deviation); simplest measures are usually best and most rank candidates similarly. Beta/alpha from regression against an index; the index is the benchmark (60/40 stock-bond portfolio). | Ranking systems. | 52, 58–59 |
-| C12 | **Probability** basics: addition/multiplication rules, joint, marginal and contingent probability (example of two-day up/down sequences). | Conditional reasoning. | 59–61 |
+| C1 | **Lei das médias** corretamente entendida: sequências anormais não precisam ser “compensadas”; eventos normais acabam prevalecendo. | Falácia do jogador. | 26 |
+| C2 | **Dentro/fora da amostra**: todo teste sofre sobreajuste; reservar dados não vistos; **há uma única oportunidade**: se a avaliação fora da amostra falhar, encerra-se a tentativa. Alterar regras depois de consultar os dados contamina a amostra. Blocos alternados de dois anos podem ajudar em mercados mutáveis; reservar metade dos dados também reduz à metade os padrões disponíveis. | Validação honesta. | 27–28 |
+| C3 | **Erro amostral ≈ 1/√N**: 1 observação → 100%; 4 → 50%; **400 operações → 5%**. Sistema lento com 2–3 operações anuais precisa aplicar o mesmo método em muitos mercados para alcançar N útil. | Quantas operações bastam. | 28–29 |
+| C4 | **Dados representativos**: incluir pelo menos alta, baixa e lateralização (dez anos de alta fazem qualquer estratégia comprada parecer boa); mudanças estruturais (empresa/moeda) podem tornar o histórico antigo não representativo; amostras maiores ajudam a verificar adaptação; muitas operações diárias não cobrem condições variadas. | Cobertura dos dados. | 29 |
+| C5 | **Médias**: aritmética, ponderada pelo tempo, geométrica (razões e variações percentuais), quadrática/RMS, harmônica, mediana e moda; cada uma se adequa a dados diferentes. | Escolher a média apropriada. | 30–37 |
+| C6 | **Momentos**: média, variância/desvio-padrão, **assimetria** (preços tendem à assimetria positiva; lucros de sistemas de tendência com stops fixos têm assimetria à direita), **curtose** (excesso = K − 3). **Curtose de retornos diários acima de 7–8 pode indicar sobreajuste**: “quantidade excessiva de operações lucrativas de tamanho semelhante, algo improvável em negociação real”. Desvio-padrão pode enganar em dados assimétricos; distribuições de frequência/percentis são melhores. Retornos de negociação não são normalmente distribuídos. | Forma dos resultados. | 37–43 |
+| C7 | **Autocorrelação** (persistência), por correlação defasada ou estatística Durbin–Watson d (2 = nenhuma). **Teste t de duas amostras** para consistência: comparar médias dos retornos líquidos de operações de dois períodos **não sobrepostos**, usando graus de liberdade de Satterthwaite. | Detectar persistência e estabilidade. | 43–48 |
+| C8 | **Padronizar risco e retorno**: anualizar e comparar com **volatilidade-alvo** comum (livro usa 12%; escalar exposição pela razão volatilidade-alvo/realizada). Retorno simples `p₁/p₀ − 1` versus retorno `ln` (pequenas diferenças se acumulam); NAV começa em 100; retorno anual simples `AROR = (E_n/E₀−1)·252/n`, composto `(E_n/E₀)^(252/n)−1`; usar 252 dias de negociação. Anualizar desvio-padrão multiplicando pela **raiz quadrada** do número de observações por ano (em um trecho o texto diz “multiplicar por 252”, em contradição com a regra e parágrafo seguinte). | Comparar números. | 48–53 |
+| C9 | **Dados mensais sempre parecem menos voláteis** que diários (S&P 1990–2010: 18,6% diária contra 15,3% mensal), ocultando drawdowns dentro do mês; diligência exige retornos diários. | Risco subestimado. | 53 |
+| C10 | **Risco de queda**: semivariância/momentos parciais inferiores; risco por drawdown (perda líquida nos dias abaixo do pico patrimonial). | Risco relevante. | 53–54 |
+| C11 | **Índices de desempenho**: índice de informação (retorno/risco), Sharpe (excesso sobre taxa livre de risco), Treynor (beta), **drawdown máximo** (queda percentual do pico de NAV até o menor NAV posterior; destaca grandes perdas), **Calmar** (retorno/drawdown máximo), **Sortino** (desvio de queda). Medidas simples costumam bastar e classificar candidatos de modo semelhante. Beta/alfa vêm de regressão contra índice; índice é benchmark (carteira 60/40 ações/títulos). | Ordenar sistemas. | 52, 58–59 |
+| C12 | Noções de **probabilidade**: regras de adição e multiplicação, probabilidade conjunta, marginal e condicional (sequências de alta/baixa em dois dias). | Raciocínio condicional. | 59–61 |
 
-Examples are futures and equity indices. Crypto remarks are **our adaptation**.
+Exemplos referem-se a futuros e índices de ações. Aplicações em cripto são **adaptações nossas**.
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| One-chance out-of-sample discipline | ❌ | The test segment can be inspected for any number of runs (book 3 ch. 6, ch. 9 O2). |
-| Trade-count / sample-error awareness | ⚠️ | `round_trips` shown; no warning relative to 1/√N or to a target (book 1 ch. 3 O6, book 3 ch. 4 O5). |
-| Representative regime coverage | ❌ | No check that the window includes rising, falling and sideways phases; a long-only strategy tested on a bull run is not flagged. |
-| Skewness / kurtosis / percentiles of results | ❌ | `Metrics` has none; no distribution of trade or bar returns. |
-| Kurtosis red flag | ❌ | None. |
-| Autocorrelation, Durbin–Watson | ❌ | None (also book 2 ch. 6 O1). |
-| Two-sample t-test between periods (train vs test) | ❌ | Train and test metrics are shown side by side without any test of whether they differ. |
-| Target-volatility normalisation of results | ❌ | Results are in absolute return; comparing a volatile and a calm pair is not normalised. |
-| Return conventions | ⚠️ | Equity-based returns in `Decimal`; log vs simple not documented (book 3 ch. 1 O4). |
-| Daily vs monthly volatility | n/a | Metrics are not volatility-based yet. |
-| Downside risk / Sortino / Calmar / drawdown stats | ❌ | Only `max_drawdown_pct` (book 1 ch. 2). |
-| Max drawdown definition | ✅ | `max_drawdown_pct` = percentage from running peak, as defined. |
+| Uma única avaliação fora da amostra | ❌ | Segmento de teste pode ser consultado repetidamente (livro 3, caps. 6 e 9 O2). |
+| Tamanho da amostra/erro conforme operações | ⚠️ | Exibe `round_trips`, mas não alerta em relação a 1/√N ou meta (livro 1, cap. 3 O6; livro 3, cap. 4 O5). |
+| Cobertura representativa de regimes | ❌ | Não verifica se janela inclui alta, baixa e lateralização; estratégia comprada testada em alta não recebe aviso. |
+| Assimetria/curtose/percentis de resultados | ❌ | `Metrics` não tem essas métricas nem distribuição dos retornos por operação/barra. |
+| Alerta por curtose | ❌ | Não existe. |
+| Autocorrelação/Durbin–Watson | ❌ | Não existem (também livro 2, cap. 6 O1). |
+| Teste t entre períodos (treino/teste) | ❌ | Métricas aparecem lado a lado sem teste de diferença. |
+| Normalização por volatilidade-alvo | ❌ | Retornos absolutos; comparação entre par volátil e calmo não normalizada. |
+| Convenções de retorno | ⚠️ | Retorno baseado no patrimônio em `Decimal`; não documenta simples versus logarítmico (livro 3, cap. 1 O4). |
+| Volatilidade diária versus mensal | n/a | Métricas ainda não usam volatilidade. |
+| Risco de queda/Sortino/Calmar/estatísticas de drawdown | ❌ | Só `max_drawdown_pct` (livro 1, cap. 2). |
+| Definição de drawdown máximo | ✅ | `max_drawdown_pct` é a queda percentual desde o pico acumulado, como definido. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Richer metrics set aligned with the chapter *(book: C6, C8, C10, C11, pp. 38–59)*
-* **Proposal:** extend the metrics module with Sortino (downside deviation), **Calmar** (annualised return / max drawdown), skewness and excess kurtosis of per-bar and per-trade returns, percentiles of trade returns, and standard deviation computed **from bar returns at the strategy's bar frequency**, annualised with `√(bars per year)` (the convention book 1 ch. 3 O1 fixed for 24/7 markets). Include the sample size with each.
-* **Benefit:** completes the performance picture the books keep asking for (risk-adjusted, downside-aware). **Complexity:** low–medium (pure `Decimal` functions with a documented float boundary for `sqrt`).
-* **Risks:** each added ratio invites cherry-picking; show a fixed, small set. Sample moments of skewness and kurtosis are unstable with few trades. **Validation:** hand-computed fixtures (including Table 2.3 style data); property tests.
+### O1 — Ampliar conjunto de métricas conforme o capítulo *(livro: C6, C8, C10, C11, pp. 38–59)*
 
-### O2 — Overfitting heuristic: kurtosis and similar-sized profits *(book: C6, p. 43)*
-Flag runs whose per-bar (or per-trade) return distribution has excess kurtosis above a configurable threshold (the author cites about 7–8 as suspicious) and/or an unusually high share of near-identical profitable trades, as part of the red-flag block (book 2 ch. 1 O3). The author's threshold is a heuristic from experience, not a statistical test. **Complexity:** low. **Validation:** synthetic overfit-like series.
+Acrescentar ao módulo: Sortino (desvio de queda), **Calmar** (retorno anualizado/drawdown máximo), assimetria e curtose excedente dos retornos por barra e por operação, percentis dos retornos de operação e desvio-padrão calculado **com retornos na frequência da barra da estratégia**, anualizado por `√(barras por ano)` (convenção do livro 1, cap. 3 O1, ajustada a mercados 24/7). Informar tamanho da amostra em cada métrica.
 
-### O3 — Two-sample comparison of train vs test trade returns *(book: C7, p. 48)*
-* **Proposal:** a Welch/Satterthwaite two-sample t-test (and a bootstrap alternative) on the net returns of train-segment trades vs test-segment trades, reported with sample sizes, to answer "is the test period different from the train period?" in a statistical sense. **Benefit:** replaces eyeballing two columns. **Complexity:** low. **Risks:** few trades; fat tails; the test checks *difference*, not *skill*; combine with book 3 ch. 5 (permutation). **Validation:** synthetic samples with known mean difference.
+**Benefício:** completar visão de desempenho com risco ajustado e de queda. **Complexidade:** baixa a média (funções puras em `Decimal`, fronteira float documentada para `sqrt`). **Riscos:** cada índice adicional estimula seleção conveniente; mostrar conjunto pequeno e fixo. Momentos amostrais de assimetria/curtose são instáveis com poucas operações. **Validação:** casos calculados à mão (inclusive dados no estilo da Tabela 2.3) e testes de propriedades.
 
-### O4 — Target-volatility normalisation for comparisons *(book: C8, pp. 52–53)*
-Report each run also at a **target annualised volatility** (the book's 12%): `scale = target / realised volatility`, applied to the return series (exposure scaling, capped at 1 because spot long-only; therefore only meaningful for *deleveraging*, i.e. when realised volatility exceeds the target). Useful to compare a strategy on BTC with one on a smaller coin. **Complexity:** low. **Risk:** the cap at 1 means low-volatility results cannot be scaled up; label clearly.
+### O2 — Heurística de sobreajuste: curtose e lucros de tamanho semelhante *(livro: C6, p. 43)*
 
-### O5 — Regime-coverage check on the data window *(book: C4, p. 29)*
-For a backtest window, classify the buy-and-hold path into rising / falling / sideways thirds (for example by rolling return relative to a band), and warn when any class is under-represented; for long-only strategies, warn if the window is overwhelmingly a bull market. Heuristic classification is **our adaptation**; the book states the principle. **Complexity:** low–medium. Pairs with named regime breaks (book 2 ch. 5 O1).
+Sinalizar distribuição de retornos por barra/operação com curtose excedente acima de limite configurável (autor cita 7–8 como suspeito) e/ou fração excepcional de operações lucrativas quase idênticas, integrando o bloco de alertas (livro 2, cap. 1 O3). É heurística baseada em experiência, não teste estatístico. **Complexidade:** baixa. **Validação:** série sintética semelhante a sobreajuste.
 
-### O6 — Make the one-chance rule explicit *(book: C2, p. 27)*
-Already covered by the validation-lock proposal (book 3 ch. 9 O2). Add the book's rule to the runbook: a failed validation ends the idea; re-tuning after seeing it contaminates the data. **Complexity:** documentation.
+### O3 — Comparação de duas amostras de retornos de operação entre treino e teste *(livro: C7, p. 48)*
 
-### O7 — Document return and annualisation conventions *(book: C8, pp. 49–53)*
-Write down in `docs/` which returns (simple vs log), which day count (calendar 365 for crypto), and which volatility annualisation the system uses, resolving the conflict between the book's statements (the "multiply by 252" sentence vs the square-root rule). **Complexity:** very low.
+Teste t de duas amostras Welch/Satterthwaite (e alternativa bootstrap) sobre retornos líquidos de operações dos segmentos de treino e teste, exibindo tamanhos das amostras. Responde se período de teste difere estatisticamente do treino; evita comparação visual. **Complexidade:** baixa. **Riscos:** poucas operações e caudas pesadas; teste detecta *diferença*, não habilidade; combinar com permutação do livro 3, cap. 5. **Validação:** amostras sintéticas com diferença média conhecida.
 
-### Not applicable
-Construction of price indexes, averages for commodity prices, joint-probability exercises.
+### O4 — Normalizar comparação por volatilidade-alvo *(livro: C8, pp. 52–53)*
 
-## 4. Priority
+Apresentar cada execução também com **volatilidade anualizada-alvo** (12% no livro): `scale = alvo / volatilidade realizada`, aplicado à série de retornos (escala de exposição limitada a 1 por ser à vista e apenas comprada; portanto só reduz exposição quando volatilidade supera o alvo). Útil para comparar BTC com moeda menor. **Complexidade:** baixa. **Risco:** limite 1 impede ampliar resultado de baixa volatilidade; rotular claramente.
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+### O5 — Verificar cobertura de regimes da janela de dados *(livro: C4, p. 29)*
+
+Classificar trajetória de comprar e manter em alta/baixa/lateralização (por exemplo, retorno móvel em relação a uma faixa) e avisar se algum grupo estiver sub-representado; para estratégias compradas, alertar janelas dominadas por alta. A classificação heurística é **adaptação nossa**; o livro fornece o princípio. **Complexidade:** baixa a média. Relaciona-se a quebras de regime nomeadas (livro 2, cap. 5 O1).
+
+### O6 — Explicitar regra de uso único *(livro: C2, p. 27)*
+
+Já coberto pela proposta de validação bloqueada (livro 3, cap. 9 O2). Acrescentar ao runbook: validação que falha encerra a ideia; ajustar novamente depois de vê-la contamina os dados. **Complexidade:** documentação.
+
+### O7 — Documentar convenções de retorno e anualização *(livro: C8, pp. 49–53)*
+
+Registrar em `docs/` retornos usados (simples/log), base de dias (365 dias corridos para cripto) e anualização da volatilidade, resolvendo contradição do livro (“multiplicar por 252” versus raiz quadrada). **Complexidade:** muito baixa.
+
+### Não aplicável
+
+Construção de índices de preços, médias para preços de commodities e exercícios de probabilidade conjunta.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O7 conventions note | medium | – | – | very low | – |
-| 2 | O1 richer metrics | high | high | – | low–medium | book 1 ch. 2 O1 |
-| 3 | O2 kurtosis flag | medium | – | – | low | O1 |
-| 4 | O3 train vs test t-test | medium | – | – | low | O1 |
-| 5 | O5 regime coverage | medium | – | – | low–medium | – |
-| 6 | O4 target-volatility view | low | medium | – | low | O1 |
-| 7 | O6 runbook rule | – | – | – | none | – |
+| 1 | O7 nota sobre convenções | média | – | – | muito baixa | – |
+| 2 | O1 conjunto ampliado de métricas | alta | alta | – | baixa–média | livro 1, cap. 2 O1 |
+| 3 | O2 alerta de curtose | média | – | – | baixa | O1 |
+| 4 | O3 teste t treino versus teste | média | – | – | baixa | O1 |
+| 5 | O5 cobertura de regimes | média | – | – | baixa–média | – |
+| 6 | O4 visão por volatilidade-alvo | baixa | média | – | baixa | O1 |
+| 7 | O6 regra no runbook | – | – | – | nenhuma | – |
 
-## 5. Affected files
-`analytics/domain/metrics.py`, `analytics/domain/inference.py`, `backtesting/domain/segments.py`, `analytics/presentation/schemas.py`, `docs/openapi.json`, `docs/` conventions note, app metric cards, tests (`api/tests/unit`).
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Conventions note.
-2. Pure functions: Sortino, Calmar, skewness, kurtosis, percentiles.
-3. Train-vs-test comparison and kurtosis flag.
-4. Regime coverage warning and target-volatility view.
+`analytics/domain/metrics.py`, `analytics/domain/inference.py`, `backtesting/domain/segments.py`, `analytics/presentation/schemas.py`, `docs/openapi.json`, nota de convenções em `docs/`, cartões de métricas e testes (`api/tests/unit`).
 
-## 7. Acceptance criteria and tests
-* Hand-computed fixtures for every new metric; `None` with a reason for degenerate or short series.
-* All additions are optional/additive in the API; stored runs unaffected; ruff, mypy, existing tests green.
+## 6. Plano incremental
 
-## Caveats
-The book's thresholds (400 trades for 5% error, kurtosis above 7–8, 12% target volatility) are the author's conventions for futures. A 1/√N error is a rule of thumb that assumes independent trades.
+1. Nota de convenções.
+2. Funções puras: Sortino, Calmar, assimetria, curtose e percentis.
+3. Comparação treino/teste e alerta de curtose.
+4. Aviso de cobertura de regimes e visão de volatilidade-alvo.
+
+## 7. Critérios de aceitação e testes
+
+* Casos calculados manualmente para cada métrica nova; `None` com motivo para série degenerada/curta.
+* Adições opcionais à API; execuções armazenadas não mudam; Ruff, mypy e testes atuais passam.
+
+## Ressalvas
+
+Limites do livro (400 operações para erro de 5%, curtose acima de 7–8 e volatilidade-alvo de 12%) são convenções do autor para futuros. Regra 1/√N é aproximação que supõe operações independentes.

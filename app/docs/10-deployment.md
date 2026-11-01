@@ -14,6 +14,10 @@ Deploy `dist/client/` (assets + `_shell.html`). `dist/server/` is not deployed. 
 
 `VITE_*` values are baked into the bundle at build time and are public. A `prod` build pointing at a local API (or the reverse) shows a blocking banner in the shell (UX-14).
 
+## Docker
+
+`app/Dockerfile` builds the app and serves `dist/client/` with nginx (`app/nginx.conf`: SPA fallback to `_shell.html`, long cache for `assets/`, `no-cache` for the shell) on port 5173. `VITE_API_BASE_URL` and `VITE_APP_ENV` are build arguments. The root `docker-compose.yml` runs it together with the backend (`make up` at the repo root). Checked locally: the container answers 200 on `/` and on a deep link, and the API returns the CORS headers for `http://localhost:5173`. It sends only `Referrer-Policy`, `X-Content-Type-Options` and `X-Frame-Options`; the CSP below is not applied because it was not loaded against the app yet.
+
 ## Same-site requirement
 
 The refresh token is a `SameSite=Lax`, `HttpOnly`, `Secure` cookie on the **API** origin (`Path=/api/v1/auth`). The browser sends it on `fetch` calls from the app only when both are **same-site**:

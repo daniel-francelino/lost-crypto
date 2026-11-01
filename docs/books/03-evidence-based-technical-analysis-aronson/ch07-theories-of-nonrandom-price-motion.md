@@ -1,65 +1,73 @@
-# Book 3 · Chapter 7 — Theories of Nonrandom Price Motion
+# Livro 3 · Capítulo 7 — Teorias do movimento não aleatório dos preços
 
-*Evidence-Based Technical Analysis*, Aronson (2007). Book pages (PDF = book + 16; OCR scan). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Evidence-Based Technical Analysis*, Aronson (2007). Páginas do livro (PDF = livro + 16; digitalização com OCR). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 331–333, 342–343, 355–357 and 378–385 were read in full. The long middle sections (pp. 334–341 random walk and efficient-market evidence, 344–354 further critique, 359–377 specific behavioural biases and their predicted price patterns) were read by heading only and are **not summarised in detail**. This is a theory chapter with little operational content for the code.
+**Profundidade da leitura:** pp. 331–333, 342–343, 355–357 e 378–385 foram lidas na íntegra. As seções centrais extensas (pp. 334–341, passeio aleatório e evidência de mercados eficientes; 344–354, críticas adicionais; 359–377, vieses comportamentais e padrões de preços previstos) foram lidas apenas pelos títulos e **não são resumidas em detalhe**. É um capítulo teórico, com pouco conteúdo operacional para o código.
 
-## 1. Chapter summary
+## 1. Resumo do capítulo
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | TA is justified only if price movements are nonrandom to some degree some of the time; even then each *method* must prove itself with evidence. | Premise of the whole book. | 331 |
-| C2 | **Why theory matters**: a significant back test without theory is an isolated, possibly lucky result; a back test consistent with sound theory is "part of a larger cohesive picture". Example: trend-following in commodity futures as a **risk premium** for transferring risk from hedgers. A scientific theory explains many observations and makes **testable predictions**. | Distinguishing flukes from effects. | 332 |
-| C3 | **Critique of popular TA theory**: "price reflects everything" contradicts the idea that patterns predict (and is the premise of its enemy, EMH); vague, ad-hoc rationales give no testable predictions; "pop psychology" lacks scientific support. | Bad justifications. | 333 |
-| C4 | **Efficient-market hypothesis (EMH) is challenged by its own paradoxes**: *smart versus dumb* (arbitrage needs the smart to have more capital, yet efficiency says smart earn no more), *cost of information* (no one would pay to gather information that earns nothing: Grossman & Stiglitz). Costs of trading and short-sale limits keep markets from full efficiency. | Why inefficiencies are logically necessary. | 342–343 |
-| C5 | **Behavioural finance** as a theory of nonrandom price motion: two pillars, **limits of arbitrage** (risk, capital, limited patience) and **limits of rationality** (systematic cognitive errors); prices *under-react* (trends) or *over-react* (reversals) in predictable circumstances; EMH says departures are random and brief, behavioural finance says some are systematic and last long enough to exploit. The author notes it is not yet clear which specific hypotheses are correct. | Mechanisms behind trends and reversals. | 355–357, 378 |
-| C6 | **Nonrandom motion can coexist with efficiency**: investors differ in risk attitudes, so **risk premiums** exist: equity premium; **commodity/currency hedging premium** (profitable trends for trend followers); **liquidity premium** (short-term gains for buying recent weakness: countertrend strategies); **information/price-discovery premium**. Premiums "are more likely to endure" than true inefficiencies, which are ephemeral; a careless risk-taker does not collect. TA signals can be read as "want ads" for risk or liquidity. | What makes an edge durable. | 378–385 |
+| C1 | Análise técnica só se justifica se movimentos de preços forem não aleatórios em algum grau e período; ainda assim, cada *método* precisa comprovar seu mérito por evidências. | Premissa do livro. | 331 |
+| C2 | **Importância da teoria**: backtest significativo sem teoria é resultado isolado e possivelmente sortudo; resultado compatível com teoria sólida integra um “quadro mais coerente”. Exemplo: tendência em futuros de commodities como **prêmio de risco** por transferir risco dos hedgers. Teoria científica explica várias observações e gera **previsões testáveis**. | Distinguir acaso de efeitos reais. | 332 |
+| C3 | **Crítica a teorias populares de análise técnica**: “o preço reflete tudo” contradiz a ideia de que padrões preveem preços (e é premissa da hipótese de mercados eficientes); justificativas vagas e improvisadas não geram previsões testáveis; “psicologia popular” não tem suporte científico. | Justificativas frágeis. | 333 |
+| C4 | **Hipótese de mercados eficientes (HME) é questionada por seus paradoxos**: *inteligentes versus tolos* (arbitragem exige que os inteligentes tenham mais capital, mas eficiência diz que não ganham mais); *custo da informação* (ninguém pagaria para obter informação sem retorno: Grossman e Stiglitz). Custos de negociação e limites à venda a descoberto impedem eficiência plena. | Por que ineficiências são logicamente possíveis. | 342–343 |
+| C5 | **Finanças comportamentais** para explicar movimento não aleatório: dois pilares, **limites à arbitragem** (risco, capital, paciência limitada) e **limites à racionalidade** (erros cognitivos sistemáticos). Preços podem reagir menos (tendências) ou exageradamente (reversões) em circunstâncias previsíveis. HME atribui desvios ao acaso e à curta duração; finanças comportamentais sustenta desvios sistemáticos que duram o suficiente para serem explorados. O autor observa que ainda não se sabe quais hipóteses específicas estão corretas. | Mecanismos por trás de tendências e reversões. | 355–357, 378 |
+| C6 | **Movimento não aleatório pode coexistir com eficiência**: diferenças de aversão a risco criam **prêmios de risco** — prêmio de ações; **prêmio de hedge de commodities/moedas** (tendências lucrativas para seguidores de tendência); **prêmio de liquidez** (ganhos curtos ao comprar fraqueza recente: estratégias contrárias); **prêmio de informação/descoberta de preços**. Prêmios tendem a durar mais que ineficiências verdadeiras, que são efêmeras; assumir risco sem critério não gera prêmio. Sinais técnicos podem ser vistos como “anúncios de procura” por risco ou liquidez. | O que torna uma vantagem duradoura. | 378–385 |
 
-## 2. Diagnosis
+## 2. Diagnóstico
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| Rationale for each strategy | ⚠️ | Docstrings state the mechanical rule (`ema_crossover.py`, `donchian_breakout.py`) and the catalogue has `DESCRIPTION` strings, but there is no stated *economic or behavioural mechanism*, no falsifiable prediction, and no known failure regime. |
-| Testable predictions tied to a mechanism | ❌ | None recorded; diagnostics (book 2 ch. 2 and 6) would be the place. |
-| Premium vs inefficiency classification | ❌ | n/a. |
-| Awareness of crypto-specific structure | ❌ | Not in the system or docs. |
+| Justificativa de cada estratégia | ⚠️ | Docstrings descrevem regras mecânicas (`ema_crossover.py`, `donchian_breakout.py`) e catálogo tem textos `DESCRIPTION`, mas não mecanismo econômico/comportamental, previsão refutável ou regime de falha conhecido. |
+| Previsões testáveis ligadas a mecanismo | ❌ | Não registradas; diagnósticos (livro 2, caps. 2 e 6) seriam o local. |
+| Classificação como prêmio ou ineficiência | ❌ | Não há. |
+| Estrutura específica de cripto conhecida | ❌ | Ausente do sistema e da documentação. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — A "thesis" block for every strategy: mechanism, prediction, failure regime *(book: C2, C3, C6, pp. 332–333, 378–385)*
-* **Problem:** strategies are described by what they do, not by why they should work, so a good back test is an isolated result (the book's complaint) and there is no criterion for retiring a strategy when its mechanism changes.
-* **Proposal:** extend strategy metadata (`catalog.py` / `base.py`) with: (a) the hypothesised mechanism (for example "under-reaction and herding generate trends over N hours"; "liquidity provision after forced selling generates reversals"), (b) an *observable prediction* that would falsify it, tied to a diagnostic (autocorrelation of returns at the strategy's horizon, book 2 ch. 6 O1; half-life, book 2 ch. 2 O1), (c) whether it is a **risk/liquidity premium** (more durable) or an exploitable inefficiency (ephemeral), and (d) conditions under which it should fail. Show it in the app next to the parameters and next to results.
-* **Benefit:** ties research to testable claims, supports the post-mortem notes (book 2 ch. 4 O1) and hypothesis pre-registration (book 3 ch. 2 O3, ch. 3 O3). **Complexity:** low (metadata + UI). **Risk:** the text can become decoration; the benefit appears only if the prediction is actually checked by a diagnostic. **Validation:** every registered strategy must provide the block (a unit test over the registry).
-* The crypto content of mechanisms is **our proposal**; the book supplies the framework (risk premiums, under- and over-reaction, limits of arbitrage), not crypto evidence.
+### O1 — Bloco de tese por estratégia: mecanismo, previsão e regime de falha *(livro: C2, C3, C6, pp. 332–333, 378–385)*
 
-### O2 — Diagnostic that checks the strategy's own prediction *(book: C2, p. 332)*
-Implement the diagnostics that O1 references (autocorrelation/half-life at the strategy's timeframe, trend persistence after volume or volatility shocks as a candidate) and show a pass/fail/inconclusive status per pair and timeframe. This depends on book 2 ch. 2 O1 and ch. 6 O1; no separate work. **Complexity:** depends on those items.
+* **Problema:** estratégias descrevem o que fazem, não por que deveriam funcionar; um bom backtest fica isolado, sem critério para aposentá-las quando o mecanismo muda.
+* **Proposta:** ampliar metadados (`catalog.py`/`base.py`) com (a) mecanismo hipotético (por exemplo, “reação tardia e efeito manada geram tendência em N horas”; “oferta de liquidez após venda forçada gera reversões”); (b) *previsão observável* que a refutaria, ligada a diagnóstico (autocorrelação no horizonte, livro 2, cap. 6 O1; meia-vida, cap. 2 O1); (c) classificação como **prêmio de risco/liquidez** (mais duradouro) ou ineficiência explorável (efêmera); (d) condições de falha. Exibir no app junto aos parâmetros e resultados.
+* **Benefício:** vincula pesquisa a afirmações testáveis, notas pós-morte (livro 2, cap. 4 O1) e pré-registro (livro 3, cap. 2 O3 e cap. 3 O3). **Complexidade:** baixa (metadados e interface). **Risco:** texto pode virar decoração; só ajuda se a previsão for verificada por diagnóstico. **Validação:** todas as estratégias registradas precisam preencher o bloco (teste do catálogo).
+* Mecanismos específicos de cripto são **propostas nossas**; o livro oferece estrutura teórica (prêmios de risco, reação insuficiente/exagerada e limites à arbitragem), não evidência sobre cripto.
 
-### O3 — Plan for edge durability *(book: C6, p. 380 · adaptation)*
-Record, for each deployed bot, whether its thesis is a premium or an inefficiency and set review intervals: ephemeral ones need shorter monitoring windows (decay monitor, book 2 ch. 4 O1). **Complexity:** low. **Risk:** subjective classification.
+### O2 — Diagnóstico que verifica a previsão da própria estratégia *(livro: C2, p. 332)*
 
-### Not applicable
-EMH debate, random-walk evidence, particular behavioural biases (not read in detail), equity-factor models.
+Implementar diagnósticos citados em O1 (autocorrelação/meia-vida no intervalo da estratégia; persistência de tendência após choques de volume/volatilidade, como possibilidade) e apresentar estado confirmado/refutado/inconclusivo por par e intervalo. Depende do livro 2, cap. 2 O1 e cap. 6 O1; não é trabalho separado. **Complexidade:** conforme dependências.
 
-## 4. Priority
+### O3 — Plano para durabilidade da vantagem *(livro: C6, p. 380 · adaptação)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+Registrar em cada bot implantado se a tese é prêmio ou ineficiência e definir frequência de revisão: teses efêmeras exigem monitoramento mais frequente (monitor de deterioração, livro 2, cap. 4 O1). **Complexidade:** baixa. **Risco:** classificação subjetiva.
+
+### Não aplicável
+
+Debate sobre HME, evidências de passeio aleatório, vieses comportamentais específicos (não lidos em detalhe) e modelos de fatores de ações.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O1 thesis metadata | medium | medium | – | low | – |
-| 2 | O2 prediction check | high | – | – | per dependency | book 2 ch. 2/6 |
-| 3 | O3 durability review | – | medium | – | low | decay monitor |
+| 1 | O1 metadados da tese | média | média | – | baixa | – |
+| 2 | O2 verificar previsão | alta | – | – | conforme dependências | livro 2, caps. 2/6 |
+| 3 | O3 revisão de durabilidade | – | média | – | baixa | monitor de deterioração |
 
-## 5. Affected files
-`strategies/domain/base.py`, `strategies/catalog.py`, `strategies/presentation/` (schema), `docs/openapi.json`, app strategy pages and `lib/shared/strategies`, `check:consistency`, tests over the registry.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Add the metadata fields and fill them for the two existing strategies.
-2. Display in the app.
-3. Link O2 diagnostics as they appear.
+`strategies/domain/base.py`, `strategies/catalog.py`, `strategies/presentation/` (schema), `docs/openapi.json`, páginas de estratégias no app e `lib/shared/strategies`, `check:consistency` e testes do catálogo.
 
-## 7. Acceptance criteria and tests
-* Every registered strategy exposes mechanism, prediction and failure-regime text; a test fails if one is missing.
-* No change to strategy behaviour; ruff, mypy and tests green.
+## 6. Plano incremental
 
-## Caveats
-Theories explain and constrain; they do not guarantee. The book itself says it is unclear which behavioural hypotheses are right (p. 378). Much of the chapter (the detailed behavioural and EMH material) was not read in detail.
+1. Adicionar metadados e preenchê-los para as duas estratégias existentes.
+2. Exibi-los no app.
+3. Vincular aos diagnósticos O2 à medida que forem criados.
+
+## 7. Critérios de aceitação e testes
+
+* Toda estratégia registrada informa mecanismo, previsão e regime de falha; teste falha se faltar algum.
+* Comportamento das estratégias não muda; Ruff, mypy e testes passam.
+
+## Ressalvas
+
+Teorias explicam e limitam hipóteses, não garantem resultados. O próprio livro afirma que não está claro quais hipóteses comportamentais são corretas (p. 378). Grande parte do capítulo (detalhes de comportamento e HME) não foi lida em profundidade.

@@ -1,77 +1,87 @@
-# Book 3 · Chapter 8 — Case Study of Rule Data Mining for the S&P 500
+# Livro 3 · Capítulo 8 — Estudo de caso: mineração de regras no S&P 500
 
-*Evidence-Based Technical Analysis*, Aronson (2007). Book pages (PDF = book + 16; OCR scan). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Evidence-Based Technical Analysis*, Aronson (2007). Páginas do livro (PDF = livro + 16; digitalização com OCR). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 389–402 and 419–422, 437–439 were read in full. The long catalogue of 40 input series, indicator formulas (on-balance volume, money flow, negative volume, advance/decline ratios…, pp. 403–418) and the threshold-crossing rule types (pp. 422–436) were read by heading only. Those parts concern US equity breadth and intermarket data and are not summarised.
+**Profundidade da leitura:** pp. 389–402, 419–422 e 437–439 foram lidas na íntegra. O catálogo extenso de 40 séries de entrada, fórmulas de indicadores (volume em saldo, fluxo monetário, volume negativo, razões de alta/baixa etc., pp. 403–418) e tipos de regras de cruzamento de limites (pp. 422–436) foram percorridos pelos títulos. Tratam de amplitude do mercado de ações dos EUA e dados intermercado, por isso não são resumidos.
 
-## 1. Chapter summary
+## 1. Resumo do capítulo
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | **Design of the study**: 6,402 individual rules on the S&P 500, Nov 1980–Jul 2005, to demonstrate significance tests that handle data-mining bias (enhanced White Reality Check and Masters' Monte Carlo permutation, both with the Romano–Wolf power improvement). | A worked example. | 389–390 |
-| C2 | **Avoiding data-snooping bias**: rules published by others were deliberately excluded because the amount of data mining behind them is unknown; an example (Zweig's double 9:1 volume rule with three free parameters 9, 2 and 3 months) is significant only if its author did not search for those values; the author concedes that earlier reading may still have influenced his choices. | Counting the true universe. | 390–391 |
-| C3 | **Statistical definition**: population = the rule's daily returns over the immediate practical future; parameter = expected annualised return; statistic = mean annualised return on **detrended** data; `H₀`: all rules lack predictive power (two formulations: all expected returns ≤ 0 for the bootstrap; random pairing for the permutation); significance level 0.05. **Practical significance differs from statistical**: with 6,000+ observations a negligible edge can be significant; the economic threshold depends on the trader (5% vs 20% expected return). | Pre-specified inference plan. | 391–394 |
-| C4 | **Rule themes**: (1) trends via the n-period **channel breakout operator** (CBO: long above the n-day maximum, short below the minimum, current bar excluded); (2) **extremes and transitions** using channel normalisation (stochastic) of a 4-day linearly weighted moving average, with threshold-crossing events; (3) **divergence** between a companion series and the S&P 500 using a doubly channel-normalised indicator. All rules binary ±1; **inverse rules** included. Complex rules (combinations) were not tested, although the author notes complex rules can add value even when components are individually unprofitable. | Rule families. | 391–392, 419–439 |
-| C5 | **Operators**: moving average = low-pass filter with lag of `(n−1)/2` days (SMA) versus `(n−1)/3` for a linearly weighted MA; **channel normalisation** `CN = (S_t − min_n)/(max_n − min_n) × 100` removes the trend (a high-pass view); trade-off between lag and false signals; adaptive look-back spans were not used. | Indicator mechanics. | 396–402, 419 |
-| C6 | **Parameter grid design**: 11 look-back spans in an approximately **geometric progression with ratio ≈ 1.5** (3, 5, 8, 12, 18, 27, 41, 61, 91, 137, 205 days); naming convention such as `TT-15-137` (type–input–span) because of the number of rules; 858 trend rules = 39 inputs × 11 spans × (traditional + inverse). | Systematic, non-redundant grid. | 419–420 |
+| C1 | **Projeto do estudo**: 6.402 regras individuais para o S&P 500, nov. 1980–jul. 2005, para demonstrar testes de significância que corrigem seleção de dados (Reality Check de White aprimorado e permutação Monte Carlo de Masters, ambos com ganho de poder Romano–Wolf). | Exemplo aplicado. | 389–390 |
+| C2 | **Evitar seleção de dados**: regras publicadas por terceiros foram excluídas deliberadamente, pois não se sabe quanto foram pesquisadas. Exemplo: regra de volume 9:1 dupla de Zweig, com parâmetros livres 9, 2 e 3 meses, só é significativa se o autor não pesquisou esses valores; o autor admite que leituras anteriores podem ter influenciado suas escolhas. | Contar o universo verdadeiro. | 390–391 |
+| C3 | **Definição estatística**: população = retornos diários da regra no futuro prático imediato; parâmetro = retorno anual esperado; estatística = retorno médio anualizado em dados **sem tendência**; `H₀`: todas as regras não têm poder preditivo (bootstrap: todos os retornos esperados ≤0; permutação: pareamento aleatório); nível 0,05. **Significância prática difere da estatística**: com mais de 6.000 observações, vantagem irrelevante pode ser significativa; limite econômico depende do operador (retorno esperado de 5% ou 20%). | Plano de inferência pré-definido. | 391–394 |
+| C4 | **Famílias de regras**: (1) tendência por operador de **rompimento de canal** de n períodos (CBO: comprado acima da máxima de n dias, vendido abaixo da mínima, excluindo barra atual); (2) **extremos e transições** por normalização de canal (estocástico) de média móvel ponderada linear de 4 dias, com cruzamento de limites; (3) **divergência** entre série auxiliar e S&P 500 por indicador duplamente normalizado. Todas binárias ±1; incluem-se **regras inversas**. Regras complexas combinadas não foram testadas, embora o autor observe que combinações podem agregar valor quando componentes isolados não lucram. | Famílias de regras. | 391–392, 419–439 |
+| C5 | **Operadores**: média móvel é filtro passa-baixas, com atraso `(n−1)/2` dias para SMA versus `(n−1)/3` para média ponderada linear; **normalização de canal** `CN = (S_t − min_n)/(max_n − min_n) × 100` remove tendência (visão passa-altas); há concessão entre atraso e falsos sinais; não foram usadas janelas retrospectivas adaptativas. | Mecânica dos indicadores. | 396–402, 419 |
+| C6 | **Projeto da grade de parâmetros**: 11 janelas em progressão aproximadamente **geométrica com razão ≈1,5** (3, 5, 8, 12, 18, 27, 41, 61, 91, 137, 205 dias); convenção de nomes como `TT-15-137` (tipo–entrada–janela) por causa da quantidade de regras; 858 regras de tendência = 39 entradas × 11 janelas × (tradicional + inversa). | Grade sistemática sem redundância excessiva. | 419–420 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| Channel breakout trend rule | ✅ | `donchian_breakout` (entry channel of previous `entry_period` highs; exit channel of previous `exit_period` lows; current bar excluded) is the book's CBO in long/flat form with a separate exit channel. |
-| Moving-average cross | ✅ | `ema_crossover` (exponential; the book uses simple/linearly weighted). |
-| Look-back grid design | ⚠️ | Sweeps accept arbitrary lists of values (`create_sweep` over a `grid` dict); no guidance on spacing, so users may pick dense linear grids (many correlated rules, inflating N without adding information). |
-| Detrended returns / practical significance | ❌ | Not applied. No notion of a minimum economically meaningful edge. |
-| Counting externally sourced rules | ❌ | Not recorded (book 3 ch. 6 O2). |
-| Channel normalisation / oscillator rules | ❌ | Not in the catalogue. |
-| Intermarket/companion series | ❌ | A bot sees one symbol's candles. |
-| Complex/combined rules | ❌ | No framework (also see ch. 9). |
+| Regra de rompimento de canal | ✅ | `donchian_breakout` (canal de entrada das máximas anteriores em `entry_period`; saída pelas mínimas de `exit_period`; barra atual excluída) corresponde a CBO long/flat com canal de saída separado. |
+| Cruzamento de médias | ✅ | `ema_crossover` (exponencial; o livro usa simples/ponderada linear). |
+| Projeto da grade retrospectiva | ⚠️ | Varreduras aceitam listas arbitrárias (`create_sweep` com dicionário `grid`); sem orientação, usuário pode criar grades lineares densas, muitas regras correlacionadas e N inflado sem informação nova. |
+| Retornos sem tendência/significância prática | ❌ | Não aplicado; não há limite mínimo de vantagem econômica significativa. |
+| Contagem de regras de fontes externas | ❌ | Não registrada (livro 3, cap. 6 O2). |
+| Normalização de canal/regras osciladoras | ❌ | Não consta no catálogo. |
+| Série intermercado/auxiliar | ❌ | Bot vê candles de um símbolo. |
+| Regras complexas/combinadas | ❌ | Não há estrutura (ver também cap. 9). |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Log-spaced look-back presets for sweeps *(book: C6, pp. 419–420)*
-* **Problem:** a linear grid (for example 5, 6, 7, … 50) creates many near-duplicate rules: it inflates N for the multiplicity correction (book 3 ch. 6) while adding no independent information, and costs compute.
-* **Proposal:** in the sweep form (app) and the sweep API helper, offer a "geometric grid" generator (`start`, `end`, `ratio ≈ 1.5`) with the book's sequence as a preset and a note that the book chose a ratio of about 1.5 so adjacent spans differ materially. Keep free-form grids available.
-* **Benefit:** fewer, more informative runs and a smaller correction. **Complexity:** very low (UI/helper). **Risk:** a coarse grid can miss a narrow optimum, which is acceptable (a narrow optimum is a fragility signal, book 1 ch. 3 C10). **Validation:** unit test of the generator; sweep with the preset produces ≤ 11 values per dimension.
+### O1 — Predefinições de janelas geométricas para varreduras *(livro: C6, pp. 419–420)*
 
-### O2 — Pre-declare the practical-significance threshold *(book: C3, p. 394)*
-Let the operator state, before running, the minimum net annual return (after costs) and maximum drawdown that would make a result worth using, and show **statistical and practical significance side by side** (a significant but tiny edge is flagged "not worth trading"). Extends the tolerance idea of book 1 ch. 2 O3. **Complexity:** low.
+* **Problema:** grade linear (ex.: 5, 6, 7,…, 50) gera muitas regras quase duplicadas, aumentando N para correção de multiplicidade (livro 3, cap. 6) sem informação independente e consumindo processamento.
+* **Proposta:** no formulário e auxiliar da API, oferecer gerador de “grade geométrica” (`start`, `end`, razão ≈1,5), com sequência do livro como predefinição e nota de que razão ~1,5 diferencia janelas adjacentes de forma relevante. Manter grades livres.
+* **Benefício:** menos execuções e mais informativas, correção menor. **Complexidade:** muito baixa (interface/auxiliar). **Risco:** grade grosseira pode perder ótimo estreito, aceitável porque ótimo estreito indica fragilidade (livro 1, cap. 3 C10). **Validação:** teste do gerador; predefinição gera ≤11 valores por dimensão.
 
-### O3 — Record the provenance of every parameter set *(book: C2, pp. 390–391)*
-Add a `source` to backtest configurations (own idea, published paper/blog, previous sweep winner, default) and include published or inherited parameter choices in the universe count, because their search history is unknown (the Zweig example). **Complexity:** low. **Validation:** API test of the field and of the universe count including externally sourced entries.
+### O2 — Definir previamente limite de significância prática *(livro: C3, p. 394)*
 
-### O4 — Oscillator/channel-normalisation indicator as a reusable building block *(book: C4, C5, pp. 401–402, 421)*
-A pure function `channel_normalize(series, n)` (stochastic-style), plus WMA, in `strategies/domain` as shared helpers would make a mean-reversion strategy (book 2 ch. 3 O1) and a regime-neutral oscillator simple to express with a *fixed* threshold, as the book prefers for detrended series. **Complexity:** low. **Risk:** adds helper surface; keep with unit tests. Not a strategy by itself.
+Permitir que operador declare, antes da execução, retorno anual líquido mínimo (após custos) e drawdown máximo para considerar útil um resultado; mostrar **significância estatística e prática lado a lado** (vantagem pequena, embora significativa, é marcada “não vale negociar”). Amplia tolerância do livro 1, cap. 2 O3. **Complexidade:** baixa.
 
-### O5 — Companion-series (intermarket) input for a bot *(book: C4, pp. 391, 437–439 · crypto application is our proposal)*
-The divergence family compares a companion series with the traded one. In crypto, BTC is the natural companion for altcoin pairs, and quote-currency pairs (ETH/BTC) are available as spot markets. A strategy parameter `companion_symbol` would need multi-series candles in the strategy context (currently `StrategyContext` carries one candle). Hypothesis **H-COMPANION**, large change; record only.
+### O3 — Registrar origem de cada conjunto de parâmetros *(livro: C2, pp. 390–391)*
 
-### Not applicable
-US breadth/volume/bond series, long/short reversal rules, S&P 500 specifics.
+Adicionar `source` às configurações de backtest (ideia própria, artigo/post publicado, vencedor de varredura anterior, padrão) e contar escolhas de parâmetros publicadas ou herdadas no universo, pois o histórico de busca é desconhecido (exemplo Zweig). **Complexidade:** baixa. **Validação:** teste da API para o campo e contagem do universo com entradas externas.
 
-## 4. Priority
+### O4 — Indicador reutilizável de oscilador/normalização de canal *(livro: C4, C5, pp. 401–402, 421)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+Criar função pura `channel_normalize(series, n)` (estilo estocástico) e WMA em `strategies/domain`, como auxiliares compartilhados para facilitar estratégia de reversão (livro 2, cap. 3 O1) e oscilador neutro à tendência com limite fixo, preferido pelo livro para séries sem tendência. **Complexidade:** baixa. **Risco:** ampliar conjunto de auxiliares; manter testes unitários. Não constitui estratégia por si só.
+
+### O5 — Entrada de série auxiliar/intermercado no bot *(livro: C4, pp. 391, 437–439 · aplicação cripto proposta por nós)*
+
+A família de divergência compara série auxiliar com a negociada. Em cripto, BTC é referência natural para altcoins; pares de cotação como ETH/BTC já são mercados à vista. Parâmetro `companion_symbol` exige candles de várias séries no contexto (`StrategyContext` hoje recebe um candle). Hipótese **H-COMPANION**, mudança grande; apenas registrar.
+
+### Não aplicável
+
+Indicadores de amplitude/volume de ações dos EUA e de títulos, regras inversas long/short e especificidades do S&P 500.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O1 geometric grid presets | medium | – | – | very low | – |
-| 2 | O3 provenance of parameters | medium | – | – | low | book 3 ch. 6 O2 |
-| 3 | O2 practical significance | medium | medium | – | low | metrics |
-| 4 | O4 indicator helpers | low | – | – | low | book 2 ch. 3 O1 |
-| 5 | O5 companion series | – | – | – | high | H-COMPANION |
+| 1 | O1 predefinições de grade geométrica | média | – | – | muito baixa | – |
+| 2 | O3 origem dos parâmetros | média | – | – | baixa | livro 3, cap. 6 O2 |
+| 3 | O2 significância prática | média | média | – | baixa | métricas |
+| 4 | O4 auxiliares de indicadores | baixa | – | – | baixa | livro 2, cap. 3 O1 |
+| 5 | O5 série auxiliar | – | – | – | alta | H-COMPANION |
 
-## 5. Affected files
-App sweep form (`routes/backtests/new`, `components/backtests`), `backtesting/application/service.py` (optional helper and `source` field), `analytics/domain`, `strategies/domain/` helpers, `docs/openapi.json`, tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Geometric grid generator and preset.
-2. `source` field and universe count.
-3. Practical-significance thresholds with display.
-4. Indicator helpers when the mean-reversion strategy is built.
+Formulário de varredura (`routes/backtests/new`, `components/backtests`), `backtesting/application/service.py` (auxiliar opcional e `source`), `analytics/domain`, auxiliares em `strategies/domain`, `docs/openapi.json` e testes.
 
-## 7. Acceptance criteria and tests
-* The generator reproduces 3, 5, 8, 12, 18, 27, 41, 61, 91, 137, 205 (± rounding) from the stated ratio.
-* No change to existing sweeps' behaviour unless the new options are used; ruff, mypy, tests green.
+## 6. Plano incremental
 
-## Caveats
-Everything above depends on a single study on one index; the book states that none of the 6,402 rules was significant after correction (see ch. 9). The grid ratio of 1.5 is the author's design choice.
+1. Gerador e predefinição de grade geométrica.
+2. Campo `source` e contagem de universo.
+3. Limites de significância prática e exibição.
+4. Auxiliares de indicadores quando a estratégia de reversão for criada.
+
+## 7. Critérios de aceitação e testes
+
+* Gerador reproduz 3, 5, 8, 12, 18, 27, 41, 61, 91, 137, 205 (considerado arredondamento) com a razão indicada.
+* Varreduras atuais não mudam sem opção nova; Ruff, mypy e testes passam.
+
+## Ressalvas
+
+Tudo depende de um único estudo num índice; o livro informa que nenhuma das 6.402 regras foi significativa após correção (ver cap. 9). A razão de grade 1,5 é escolha do autor.

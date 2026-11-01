@@ -1,70 +1,79 @@
-# Book 4 · Chapter 7 — Time-Based Trend Calculations
+# Livro 4 · Capítulo 7 — Cálculos tendenciais baseados no tempo
 
-*Trading Systems and Methods*, 5th ed., Kaufman (2013). Book pages (PDF = book + 20). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Trading Systems and Methods*, 5.ª ed., Kaufman (2013). Páginas do livro (PDF = livro + 20). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 279–281 and 293–304 were read. The sections on the simple moving average and its variants (pp. 281–292: weighted, triangular, geometric average) and the end of the chapter on plotting lags and leads (pp. 305–308) were **not** read in detail. EMA, the construct used by the project's `ema_crossover`, is covered in the read part.
+**Profundidade da leitura:** pp. 279–281 e 293–304 foram lidas. Média móvel simples e variantes (pp. 281–292: ponderada, triangular e geométrica) e fim do capítulo sobre representação de atrasos/avanços (pp. 305–308) **não** foram lidos em detalhe. EMA, usada por `ema_crossover`, aparece na parte lida.
 
-## 1. Chapter summary (pages read)
+## 1. Resumo (páginas lidas)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | All trend methods remove noise to find direction; there may be several trends at once; **there is no "right" trend, only benefits and compromises**; predictive models degrade when **extrapolating outside the historic range** of values. Distinguish **forecasting** (price with confidence) from **following** (autoregressive evaluation of current direction: up, down or sideways). Trend followers assume past data predicts the future direction. | What a trend filter promises. | 279–280 |
-| C2 | **Lag is the zone of uncertainty** that lets the method ignore market noise; effort to reduce lag increases false signals. The best historic results often come from **overfitting**. | Lag vs noise trade-off. | 280 |
-| C3 | **Drop-off effect** (abrupt change when an old value leaves a fixed window: `(p_t − p_{t−n})/n`): simple averages, regressions and weighted averages have it; front-weighted and **exponential smoothing** reduce it. Accumulative averages depend on the start date. | Behaviour of window-based filters. | 293 |
-| C3b | **Exponential smoothing**: `E_t = E_{t−1} + a·(p_t − E_{t−1})`, started with `E₁ = p₁`; developed in WWII for tracking; the conversion from days is `a = 2/(n+1)` (Hutson), which ignores the lag; a general residual-impact formula `c = 1 − RI^{1/n}`; with `2/(n+1)` the residual impact of old data is a **consistent 13–14%**. | EMA definition and equivalence. | 293–298 |
-| C4 | **EMA vs simple moving average**: not equivalent: the exponential never discards old data, so a "10%" smoothing is slower than a 10-day MA; in a steady ramp the 5-day MA settles at a constant lag of 1 while the 20% EMA only approaches it, and **changes direction one period later** after a peak. | Why EMA and SMA signals differ. | 298–299 |
-| C5 | **Test distribution**: if smoothing constants are spaced equally, half the tests are averages of three days or less; **equally spaced smoothing constants are a better test distribution than equally spaced days**; the relation constant ↔ days is close to logarithmic. | Parameter grids for optimisation. | 299–301 |
-| C6 | **Reducing lag / smoothing**: error-corrected smoothing (smooth the lag `e_t = p_t − E_t`, add it back; the corrected line sits mid-move, "a good candidate for mean reversion"); **double smoothing** slows the line and gives triangular-like weights; Blau's **double smoothing of price changes (momentum)** restores speed, with long first smoothing and short second (e.g. 250/5), but the result is not on the price scale. | Lag reduction techniques. | 301–304 |
+| C1 | Métodos tendenciais removem ruído para revelar direção; podem coexistir várias tendências; **não há tendência “correta”, apenas benefícios e concessões**. Modelos preditivos degradam ao **extrapolar fora da faixa histórica**. Distinguir **previsão** (preço com confiança) de **acompanhamento** (avaliação autorregressiva da direção atual: alta/baixa/lateral). Seguidores presumem que passado indica direção futura. | O que um filtro tendencial oferece. | 279–280 |
+| C2 | **Atraso é zona de incerteza** que permite ignorar ruído; reduzi-lo aumenta falsos sinais. Melhores resultados históricos muitas vezes decorrem de **sobreajuste**. | Concessão entre atraso e ruído. | 280 |
+| C3 | **Efeito de descarte** (mudança abrupta quando dado antigo sai da janela, `(p_t − p_{t−n})/n`): médias simples, regressões e ponderadas sofrem; ponderação frontal e **suavização exponencial** reduzem efeito. Médias acumuladas dependem da data inicial. | Comportamento de filtros por janela. | 293 |
+| C3b | **Suavização exponencial**: `E_t = E_{t−1} + a·(p_t − E_{t−1})`, inicializada em `E₁ = p₁`; desenvolvida na Segunda Guerra para rastreamento. Conversão de dias `a = 2/(n+1)` (Hutson) ignora atraso; fórmula geral de impacto residual `c = 1 − RI^{1/n}`. Com `2/(n+1)`, impacto residual dos dados antigos é constante, **13–14%**. | Definição e equivalência da EMA. | 293–298 |
+| C4 | **EMA versus média simples**: não são equivalentes; exponencial nunca descarta dados antigos, então suavização “10%” é mais lenta que MA de 10 dias. Em rampa estável, MA de cinco dias estabiliza com atraso 1; EMA de 20% apenas se aproxima e **muda de direção um período após o pico**. | Por que sinais EMA/SMA diferem. | 298–299 |
+| C5 | **Distribuição de testes**: constantes de suavização igualmente espaçadas fazem metade dos testes corresponder a médias de três dias ou menos; **espaçar constantes igualmente é melhor distribuição de testes que espaçar dias igualmente**; relação constante/dias é quase logarítmica. | Grades de parâmetros para otimização. | 299–301 |
+| C6 | **Reduzir atraso/suavizar**: suavização com correção de erro (suavizar atraso `e_t = p_t − E_t` e somá-lo; linha corrigida fica no meio do movimento, “boa candidata” à reversão à média); **suavização dupla** torna linha mais lenta, com pesos triangulares; **suavização dupla das variações de preço** de Blau (momentum) recupera velocidade, com primeira suavização longa e segunda curta (ex.: 250/5), mas resultado deixa de estar na escala de preço. | Técnicas de redução de atraso. | 301–304 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| EMA definition | ✅ | `ema_crossover.py`: `alpha = 2/(period+1)`, seeded with the **SMA of the first `period` closes**, then updated incrementally. (The book seeds `E₁ = p₁`; both are standard, seeding differs only for the early warm-up.) |
-| Warm-up handling | ✅ | No signal during warm-up and on the candle where it completes (documented in the module). |
-| Fixed-window drop-off | n/a | EMA only. |
-| Smoothing constant grids | ⚠️ | The strategy takes integer periods; sweeps with linear integer grids are dense at slow periods and sparse at fast ones. |
-| Lag as a reported characteristic | ❌ | Not reported anywhere. |
-| Error-corrected / double smoothing / Blau momentum | ❌ | None. |
-| Out-of-range extrapolation caution | n/a | No forecasts. |
+| Definição de EMA | ✅ | `ema_crossover.py`: `alpha = 2/(period+1)`, inicializada com **SMA dos primeiros `period` fechamentos** e atualizada incrementalmente. Livro inicializa `E₁=p₁`; ambas são válidas, diferem apenas no aquecimento inicial. |
+| Tratamento do aquecimento | ✅ | Sem sinal durante aquecimento e no candle em que termina (documentado no módulo). |
+| Efeito de descarte de janela fixa | n/a | Só há EMA. |
+| Grades da constante de suavização | ⚠️ | Estratégia recebe períodos inteiros; grades lineares são densas em períodos longos e esparsas nos curtos. |
+| Atraso como característica apresentada | ❌ | Não é mostrado. |
+| EMA com correção de erro/suavização dupla/momentum Blau | ❌ | Não existe. |
+| Cuidado com extrapolação fora da faixa | n/a | Não há previsões. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Log-spaced grids for periods (confirms Aronson's ×1.5 spacing) *(book: C5, pp. 299–301)*
-Kaufman's argument (equal steps in smoothing constants beat equal steps in days; the relation is near logarithmic) supports the geometric grid already proposed (book 3 ch. 8 O1). Add that justification to the sweep helper's documentation, and make the generator offer both views (periods or smoothing constants). **Complexity:** very low.
+### O1 — Grades logarítmicas para períodos (confirma espaçamento ×1,5 de Aronson) *(livro: C5, pp. 299–301)*
 
-### O2 — Report the expected lag of each trend filter *(book: C2, C4, pp. 280, 298–299)*
-Show an approximate lag for the configured fast and slow EMAs and the effective residual impact, so users understand the speed/noise trade-off when choosing periods. For a steady ramp of one price unit per bar, an EMA with constant `a` trails the price by `(1−a)/a` price units in steady state, i.e. 4 for `a = 0.2` (a standard result derived from the definition, not stated in this form in the book). It is consistent with Table 7.7: with prices rising by 1 per bar the 20% EMA is 3.83 below the price at the 15th point and approaches 4. Treat the closed form as ours and unit-test it against that table. **Complexity:** very low (display).
+Argumento de Kaufman (passos iguais na constante superam passos iguais em dias; relação quase logarítmica) reforça a grade geométrica proposta no livro 3, cap. 8 O1. Acrescentar justificativa à documentação do auxiliar de varredura e oferecer gerador em períodos ou constantes de suavização. **Complexidade:** muito baixa.
 
-### O3 — Allow the smoothing constant directly for sweeps *(book: C3b, C5, pp. 295–301)*
-Optional: express the EMA speed as `n` (days) but sweep over `n` produced by a log-spaced generator (O1), instead of adding a new parameter. Low priority; mostly O1.
+### O2 — Mostrar atraso esperado de cada filtro tendencial *(livro: C2, C4, pp. 280, 298–299)*
 
-### O4 — Lag-reduction variants as experiments *(book: C6, pp. 301–304)*
-Double smoothing of momentum (Blau) and error-corrected EMA are objective, parameterised indicators. They add parameters (two smoothing spans) and complexity; the author warns that the best historic results often come from overfitting. Record as **H-LAG-REDUCTION**; test only after the evidence pipeline and with their parameters counted in N. **Complexity:** medium.
+Exibir atraso aproximado das EMAs rápida/lenta e impacto residual efetivo, explicando compromisso velocidade/ruído. Para rampa estável de uma unidade por barra, EMA com constante `a` fica `(1−a)/a` unidades atrás em regime estacionário; por exemplo, 4 para `a=0,2` (resultado padrão derivado da definição, não apresentado assim pelo livro). Compatível com Tabela 7.7: subida de uma unidade por barra, EMA 20% fica 3,83 abaixo no ponto 15 e se aproxima de 4. Fórmula fechada é nossa; testar contra a tabela. **Complexidade:** muito baixa (exibição).
 
-### Not applicable
-Accumulative averages, geometric averages, plotting lags and leads (not read).
+### O3 — Permitir constante de suavização diretamente nas varreduras *(livro: C3b, C5, pp. 295–301)*
 
-## 4. Priority
+Opcional: velocidade EMA ainda expressa em `n` dias, mas gerar `n` por gerador logarítmico (O1), sem novo parâmetro. Baixa prioridade; em grande parte coberto por O1.
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+### O4 — Variantes de redução de atraso como experimentos *(livro: C6, pp. 301–304)*
+
+Suavização dupla de momentum (Blau) e EMA corrigida por erro são indicadores objetivos com parâmetros. Acrescentam parâmetros (duas janelas); autor alerta que melhores resultados históricos muitas vezes vêm de sobreajuste. Registrar **H-LAG-REDUCTION**; testar apenas com fluxo de evidências e contando parâmetros em N. **Complexidade:** média.
+
+### Não aplicável
+
+Médias acumuladas/geométricas e gráficos de atrasos/avanços (não lidos).
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O1 log-spaced grids | medium | – | – | very low | book 3 ch. 8 O1 |
-| 2 | O2 lag display | low | – | – | very low | – |
-| 3 | O3 constant-based sweeps | low | – | – | low | O1 |
-| 4 | O4 lag-reduction variants | low | – | – | medium | pipeline |
+| 1 | O1 grades logarítmicas | média | – | – | muito baixa | livro 3, cap. 8 O1 |
+| 2 | O2 exibir atraso | baixa | – | – | muito baixa | – |
+| 3 | O3 varredura por constante | baixa | – | – | baixa | O1 |
+| 4 | O4 variantes de redução de atraso | baixa | – | – | média | fluxo de validação |
 
-## 5. Affected files
-App sweep form and helper; `strategies/domain/ema_crossover.py` only for displays; docs; tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Document the grid rationale; ship the generator.
-2. Add the lag/residual-impact hint to the strategy form.
-3. Experiments only through the pipeline.
+Formulário/auxiliar de varredura, `strategies/domain/ema_crossover.py` apenas para exibição, documentação e testes.
 
-## 7. Acceptance criteria and tests
-* Tests for the grid generator and, for O2, a unit test comparing computed lag against Table 7.7's 20% EMA values.
-* No change to existing strategies; ruff, mypy, tests green.
+## 6. Plano incremental
 
-## Caveats
-The numbers (13–14% residual impact, smoothing equivalents) are mathematical properties of the EMA definition and hold generally; statements about test distributions are the author's practical advice. In O2 the closed-form lag expression is ours (checked only against Table 7.7).
+1. Documentar justificativa da grade e publicar gerador.
+2. Adicionar indicação de atraso/impacto residual ao formulário.
+3. Testar variantes somente pelo fluxo.
+
+## 7. Critérios de aceitação e testes
+
+* Testes do gerador e, em O2, do atraso calculado comparado à EMA de 20% da Tabela 7.7.
+* Estratégias atuais não mudam; Ruff, mypy e testes passam.
+
+## Ressalvas
+
+Impacto residual de 13–14% e equivalências de suavização são propriedades matemáticas gerais da EMA; distribuição de testes é recomendação prática do autor. Fórmula fechada de atraso de O2 é nossa, verificada apenas contra Tabela 7.7.

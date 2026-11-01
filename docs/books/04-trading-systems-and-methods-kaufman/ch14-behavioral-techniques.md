@@ -1,72 +1,82 @@
-# Book 4 · Chapter 14 — Behavioral Techniques
+# Livro 4 · Capítulo 14 — Técnicas comportamentais
 
-*Trading Systems and Methods*, 5th ed., Kaufman (2013). Book pages (PDF = book + 20). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Trading Systems and Methods*, 5.ª ed., Kaufman (2013). Páginas do livro (PDF = livro + 20). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 617–620 (news), 623–628 (**event trading**) and 648–649 (Fibonacci) were read. The rest — news scoring continuation (620–622), the Commitment of Traders report, opinion and contrary opinion (635–647), Elliott waves, Fibonacci price targets, Fischer's compass, Gann and financial astrology (649–684) — was **not** read in detail. Elliott, Fibonacci, Gann and astrology are subjective or non-testable methods that the project excludes (see [book 3 ch. 1](../03-evidence-based-technical-analysis-aronson/ch01-objective-rules-and-their-evaluation.md)).
+**Profundidade da leitura:** lidas pp. 617–620 (notícias), 623–628 (**negociação de eventos**) e 648–649 (Fibonacci). Restante de pontuação de notícias (620–622), relatório Commitment of Traders, opinião/opinião contrária (635–647), ondas de Elliott, alvos Fibonacci, bússola de Fischer, Gann e astrologia financeira (649–684) **não** foram lidos em detalhe. Elliott/Fibonacci/Gann/astrologia são métodos subjetivos ou não testáveis, excluídos pelo projeto (ver [livro 3, cap. 1](../03-evidence-based-technical-analysis-aronson/ch01-objective-rules-and-their-evaluation.md)).
 
-## 1. Chapter summary (pages read)
+## 1. Resumo (páginas lidas)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | Short-term systems target **investor behaviour** more than macro factors. News is "the greatest single element affecting pricing"; quantifying it (scoring items +/−, e.g. scheduled reports) is hard; a study scoring Wall Street Journal items found the news favoured the current market direction about 70% of the time around turning points, concluding that the market mostly reflects the news. Markets react to anticipation, and to reports from any major economy during stress. | News as input. | 617–619 |
-| C2 | **Media coverage is a lagging, consensus indicator** (headlines about a drought or a bull market appear at the extremes). | Contrary signals. | 623 |
-| C3 | **Event trading**: two situations — scheduled reports (modest moves, usually faded) and **price shocks** from unexpected news (largest volatility, "out of proportion with normal trading risk"; many traders never plan for them). The profit is not in positioning ahead of the report (50% chance, high risk) but in **studying the pattern after the initial reaction**. After a shock there is continuation (underreaction/structural change) or reversal (overreaction) over the next ~3 days; the relationship between the size of the reaction and the later pattern must be measured (small shock → continuation, very large → possible overreaction). Candidate events need enough volatility, a favourable likelihood and/or a hedging role. | Trading the aftermath, not the event. | 623–625 |
-| C4 | **Expectations are in the price just before a report**; surprise = actual versus expected. **Measuring an event**: `volatility ratio = true range_t / average true range over the previous n days, lagged m days`, typically `n = 60`, `m = 30`; **ratio > 3.0 flags a likely news shock**; use true range because shocks can open as gaps. | Detecting shocks objectively. | 625–626 |
-| C5 | **Rules (Warwick)**: buy at the close if the market closes in the **upper 20% of the day's range** on an event day and history shows continuation; hold a predetermined number of days based on the lag pattern; use a stop. An old corn study: 81% of the change on the event day, a typical 8% reversal over four days, and a net 27% in the original direction over 45 days. Typical sequence: price shocks hit interest rates first, then currencies, then equities, with unstable lags. | Concrete rule and its limits. | 627–628 |
-| C6 | **Fibonacci** series and ratios have become part of price analysis; the book presents coincidences ("interesting to some, significant to others"); statements are not testable as given. | Context only. | 648–649 |
+| C1 | Sistemas de curto prazo miram **comportamento do investidor** mais que fatores macro. Notícias são “o maior elemento individual na formação de preços”; quantificá-las por pontuação (+/−; ex. dados programados) é difícil. Estudo que pontuou artigos do Wall Street Journal achou notícias alinhadas à direção atual do mercado ~70% das vezes perto de viradas e concluiu que mercado reflete em grande parte as notícias. Mercados reagem à antecipação e relatórios de economias importantes em períodos de estresse. | Notícias como entrada. | 617–619 |
+| C2 | **Cobertura da mídia é indicador atrasado e consensual** (manchetes de seca ou alta aparecem em extremos). | Sinais contrários. | 623 |
+| C3 | **Negociação de eventos**: dois casos — relatórios programados (movimentos moderados, geralmente revertidos) e **choques de preço** por notícias inesperadas (maior volatilidade, “desproporcional ao risco normal”; muitos não planejam para eles). Lucro não vem de posicionar-se antes do relatório (50% de chance, alto risco), mas de **estudar padrão após reação inicial**. Depois de choque pode haver continuação (reação insuficiente/mudança estrutural) ou reversão (reação excessiva) nos ~3 dias seguintes; relação entre tamanho inicial e padrão posterior deve ser medida (choque pequeno → continuação; grande → possível excesso). Eventos candidatos precisam de volatilidade suficiente, probabilidade favorável e/ou utilidade de hedge. | Negociar consequência, não evento. | 623–625 |
+| C4 | **Expectativas já estão no preço antes do relatório**; surpresa = resultado real menos esperado. **Medida de evento**: `razão de volatilidade = true range_t / ATR médio dos n dias anteriores, defasado m dias`, em geral `n=60`, `m=30`; **razão >3,0 indica possível choque noticioso**; usar amplitude verdadeira porque choque pode abrir com lacuna. | Detectar choques objetivamente. | 625–626 |
+| C5 | **Regras (Warwick)**: comprar no fecho se mercado fechar no **terço superior da amplitude diária** em dia de evento e histórico mostrar continuação; manter número de dias pré-definido conforme defasagem; usar stop. Estudo antigo de milho: 81% da variação no dia do evento, reversão típica de 8% em quatro dias e saldo de 27% na direção original em 45 dias. Sequência típica: choque afeta juros, depois câmbio e ações, com defasagens instáveis. | Regra concreta e limites. | 627–628 |
+| C6 | **Sequência e razões Fibonacci** aparecem na análise de preços; livro apresenta coincidências (“interessantes para uns, significativas para outros”), mas afirmações não são testáveis como formuladas. | Apenas contexto. | 648–649 |
 
-Crypto remarks are **our adaptation**.
+Referências a cripto são **adaptações nossas**.
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| Shock detection (volatility ratio) | ❌ | Only the suspect-candle filter (`max_candle_range_pct`, default 25%) in `risk_management/domain/models.py`, which blocks entries on very large ranges, a crude shock guard; no ratio against recent volatility. |
-| Post-shock behaviour studied | ❌ | None. |
-| Plan for price shocks | ⚠️ | Native exchange stops, kill switch, daily-loss/drawdown pauses, global exposure caps; no analysis of how the strategies behave across historical crypto shocks. |
-| News/events | ❌ | None (B-EVENTS). |
-| Subjective methods | n/a | Excluded. |
+| Detecção de choque (razão de volatilidade) | ❌ | Só existe filtro de candle suspeito (`max_candle_range_pct`, 25% padrão) em `risk_management/domain/models.py`, proteção grosseira contra amplitude muito grande; sem razão versus volatilidade recente. |
+| Estudo do comportamento pós-choque | ❌ | Nenhum. |
+| Plano para choques de preço | ⚠️ | Stops nativos, kill switch, pausas por perda/drawdown e limites globais; sem análise de estratégias em choques cripto históricos. |
+| Notícias/eventos | ❌ | Nenhum (B-EVENTS). |
+| Métodos subjetivos | n/a | Excluídos. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Volatility-ratio shock detector and post-shock study (research tool) *(book: C3, C4, C5, pp. 624–627)*
-* **Proposal:** the book's `volatility ratio` (true range today divided by the lagged average true range; defaults 60/30; threshold 3.0) as a pure function; a diagnostics report over a pair/timeframe that finds shock candles and reports, for horizons of 1–5 candles, the forward return **conditioned on the direction of the shock and on where the close sits in the range (upper/lower 20%)**, with sample sizes, eras and the unconditional benchmark. This replicates the book's event study using only candles, with no news feed (shock = abnormal candle regardless of cause).
-* **Benefit:** tells the operator whether crypto shocks tend to continue or revert at the timeframe they trade, informs stop/size rules and whether a "pause after a shock" or "trade the aftermath" idea has any basis. **Complexity:** low–medium.
-* **Risks:** the pages describe event days for scheduled reports; crypto shocks have mixed causes (liquidations, hacks, listings); small sample; multiple testing across horizons, thresholds and close-location classes. **Validation:** synthetic series with injected shocks followed by planted continuation/reversal.
+### O1 — Detector de choque por razão de volatilidade e estudo posterior *(livro: C3–C5, pp. 624–627)*
 
-### O2 — Shock-aware risk behaviour (pause or reduce after a shock) *(book: C3, C4, pp. 623, 626)*
-* **Proposal:** an optional risk limit: after a candle with volatility ratio above a threshold, block new entries for `k` candles (an extension of `max_candle_range_pct`, which only looks at the current candle), or reduce size. The book states that price shocks are the main survival risk and that most traders do not plan for them; this is a cheap guard consistent with the existing risk module. Default off; evaluate through O1 and the backtester's risk-aware mode (book 1 ch. 5 O2).
-* **Risks:** may block the best entries (breakouts often happen on shocks); unknown net effect. **Complexity:** low. **Validation:** unit tests; backtest comparison with and without the guard.
+Implementar razão de volatilidade do livro (amplitude verdadeira atual dividida pelo ATR médio defasado; padrões 60/30 e limite 3,0) como função pura. Relatório de diagnóstico por par/intervalo identifica candles de choque e mede, em horizontes de 1–5 candles, retorno futuro **condicionado à direção do choque e à posição do fecho na faixa (20% superior/inferior)**, com amostra, eras e benchmark incondicional. Replica estudo sem feed de notícias (choque = candle anormal, qualquer causa).
 
-### O3 — Stress scenarios: replay historical shocks against live-risk settings *(book: C3, p. 623; links to ch. 21–22)*
-Build a small library of historical crypto shock windows from the stored candles (found by O1) and run each bot configuration through them as a stress test (loss and slippage under the worst candles), reporting the worst single-candle and 3-candle drawdowns versus the configured caps. **Complexity:** medium. Cross-reference to price-shock testing in Kaufman ch. 21 ("Price Shocks").
+**Benefício:** verifica se choques cripto tendem a continuar ou reverter no horizonte operado; informa stops/dimensionamento e validade de pausar ou negociar após choque. **Complexidade:** baixa a média. **Riscos:** páginas tratam de datas de relatórios; choques cripto têm causas mistas (liquidação, invasão, listagem); amostras pequenas; testes múltiplos entre horizontes, limites e posições do fecho. **Validação:** série sintética com choques e continuação/reversão inseridas.
 
-### O4 — Do not use media-based signals; no news pipeline now *(book: C2, p. 623)*
-The book itself notes that media coverage is a lagging indicator. No work proposed beyond recording B-EVENTS for scheduled events.
+### O2 — Gestão de risco após choque: pausar/reduzir *(livro: C3, C4, pp. 623, 626)*
 
-### Not applicable
-CFTC Commitment of Traders, contrary-opinion polls, Fibonacci retracements and targets, Elliott waves, Gann, astrology.
+Limite opcional: após candle com razão de volatilidade acima do limite, bloquear entradas por `k` candles (amplia `max_candle_range_pct`, que só observa candle atual) ou reduzir tamanho. Livro trata choques como principal risco de sobrevivência e observa que muitos não se preparam; proteção barata e compatível com módulo atual. Desligada por padrão; avaliar via O1 e modo do backtester atento a risco (livro 1, cap. 5 O2).
 
-## 4. Priority
+**Riscos:** pode bloquear melhores entradas (rompimentos ocorrem durante choques); efeito líquido desconhecido. **Complexidade:** baixa. **Validação:** testes unitários e comparação de backtest com/sem proteção.
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+### O3 — Cenários de estresse: repetir choques históricos com limites de risco atuais *(livro: C3, p. 623; relacionado aos caps. 21–22)*
+
+Criar biblioteca pequena de janelas históricas de choque cripto a partir de candles armazenados (identificados em O1) e testar cada configuração de bot sob essas janelas, reportando drawdown máximo de 1 e 3 candles e slippage nos piores candles versus limites configurados. **Complexidade:** média. Relaciona-se ao teste de choques do cap. 21 de Kaufman.
+
+### O4 — Não usar sinais de mídia; sem pipeline de notícias por enquanto *(livro: C2, p. 623)*
+
+O próprio livro observa que cobertura é atrasada. Nenhum trabalho além de manter B-EVENTS para eventos programados.
+
+### Não aplicável
+
+Relatório CFTC Commitment of Traders, pesquisas de opinião contrária, retrações/alvos Fibonacci, ondas de Elliott, Gann e astrologia.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O1 shock detector and study | medium | medium | – | low–medium | diagnostics module |
-| 2 | O3 stress scenarios | – | **high** | medium | medium | O1 |
-| 3 | O2 shock-aware guard | – | medium | – | low | O1 |
-| 4 | O4 no media signals | – | – | – | none | – |
+| 1 | O1 detector/estudo de choques | média | média | – | baixa–média | módulo de diagnóstico |
+| 2 | O3 cenários de estresse | – | **alta** | média | média | O1 |
+| 3 | O2 proteção após choque | – | média | – | baixa | O1 |
+| 4 | O4 não usar mídia | – | – | – | nenhuma | – |
 
-## 5. Affected files
-`analytics/domain/` (true range, volatility ratio, event study), diagnostics endpoint, `risk_management/domain/models.py` (optional guard), `backtesting` (stress runner), app diagnostics page, tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. True-range and ratio functions; event study report.
-2. Stress scenarios from the detected windows.
-3. Optional guard evaluated through the pipeline.
+`analytics/domain/` (amplitude verdadeira, razão de volatilidade, estudo de eventos), endpoint de diagnósticos, `risk_management/domain/models.py` (proteção opcional), `backtesting` (executor de estresse), página de diagnósticos e testes.
 
-## 7. Acceptance criteria and tests
-* Ratio matches hand computation; injected shocks are detected at threshold 3; event study counts per class sum correctly.
-* Guard off by default; risk behaviour unchanged unless enabled; ruff, mypy, tests green.
+## 6. Plano incremental
 
-## Caveats
-The corn and bond study numbers date from 1960–1990s and the author notes the lags vary with the state of the economy. Nothing in the read pages shows an exploitable post-shock pattern in crypto.
+1. Funções de amplitude verdadeira/razão e relatório de estudo de eventos.
+2. Cenários de estresse das janelas detectadas.
+3. Proteção opcional avaliada pelo fluxo de validação.
+
+## 7. Critérios de aceitação e testes
+
+* Razão confere com cálculo manual; choques inseridos são detectados no limite 3; contagens do estudo por classe fecham corretamente.
+* Proteção desligada por padrão; risco não muda sem habilitação; Ruff, mypy e testes passam.
+
+## Ressalvas
+
+Números de milho/títulos vêm de 1960–1990 e o autor diz que defasagens variam conforme estado econômico. Páginas lidas não demonstram padrão cripto pós-choque explorável.

@@ -1,79 +1,89 @@
-# Book 3 · Chapter 9 — Case Study Results and the Future of TA (and Appendix)
+# Livro 3 · Capítulo 9 — Resultados do estudo de caso e futuro da análise técnica (e apêndice)
 
-*Evidence-Based Technical Analysis*, Aronson (2007). Book pages (PDF = book + 16; OCR scan). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Evidence-Based Technical Analysis*, Aronson (2007). Páginas do livro (PDF = livro + 16; digitalização com OCR). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 441–448, 455–465 and the heading structure of 449–454 and 466–474 were read. The table of the top 100 rules (pp. 445–446) was only glanced at. The remaining critique-of-case-study text (449–454), the end of the discussion of machine-learning combinations (465–474), the **Appendix** (the proof that detrending equals benchmarking on position bias, pp. 475–476) and the notes were **not** read in detail.
+**Profundidade da leitura:** pp. 441–448, 455–465 e a estrutura dos títulos em 449–454 e 466–474 foram lidas. A tabela das 100 melhores regras (pp. 445–446) foi apenas observada rapidamente. O restante da crítica ao estudo de caso (449–454), fim da discussão sobre combinações de aprendizado de máquina (465–474), **Apêndice** (prova de que remover tendência equivale a benchmark com o mesmo viés de posição, pp. 475–476) e notas **não** foram lidos em detalhe.
 
-## 1. Chapter summary
+## 1. Resumo do capítulo
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | **Result:** none of the 6,402 rules had a mean return high enough to reject the null at 0.05 after adjusting for data mining. The best rule earned **10.25%/yr on detrended data**; its data-mining-adjusted p-value was **0.8164** (bootstrap) and **0.8194** (permutation), and it fell *below* the centre of the sampling distribution. | The honest outcome of a big search. | 441–442 |
-| C2 | **The best-of-N null is centred away from zero:** for these 6,402 rules the expected return of the best of N useless rules is about **11%/yr**, not 0; returns above ~15% would have been significant at 0.05 and above ~17% highly significant (p < 0.001). The number depends on N, observation count, rule correlation and data. | Calibration of "how good must it be". | 442–443 |
-| C3 | **Naive testing would have misled:** with an ordinary single-rule test the best rule had p = 0.0005, and about **320 of 6,402 rules (≈5%)** would have looked significant at 0.05, exactly what chance predicts. | The scale of fool's gold. | 443–444 |
-| C4 | Confidence intervals that account for data mining are *joint* intervals (80%) for all rules (e.g. best rule: −2.9% to +23.5%); three tests were reported (enhanced bootstrap, original Reality Check, Monte Carlo with enhancement). The 5% level carries a 1-in-20 chance of a false rejection even in this design. | Reporting uncertainty. | 444–448 |
-| C5 | **Critique (positives):** used a no-skill benchmark; controlled market trend (detrending); controlled look-ahead (next-day open execution); controlled data-mining bias; avoided data snooping. | Design checklist. | 448–449 |
-| C6 | **Extensions of the study:** combine rules **linearly** (voting: majority position; **fractional position**: size proportional to net long/short share of rules in a theme, Hsu & Kuan); learning rules (pick the recently best rule); diffusion indicators (share of rules long); inverse rules must be removed or the sum is zero. **Machine-induced nonlinear rules** (neural nets, trees, SVMs, genetic programming) need the search for parameters *and* complexity, and a robust significance test for that did not exist (author's statement, 2007). | Where to go next. | 455–457 |
-| C7 | **Three-segment scheme for complexity search**: training, test, **validation**. Inner loop: optimise parameters at a given complexity on training; outer loop: raise complexity while **test** performance improves, stop when it peaks and degrades (the over/underfitting boundary); then the **validation set**, untouched until then, gives the only unbiased estimate (the test set's result is biased by repeated visits). Can be done walk-forward by sliding the tri-part window. Example: 2-parameter MA cross 30% train/15% test; adding an RSI filter (4 parameters) 50%/20%; continue until the test result declines. | Controlling overfit when adding rules. | 457–461 |
-| C8 | **Future of TA:** the author argues TA must become evidence-based or be marginalised; experts' forecasts are barely better than non-experts' (Armstrong, Cowles, Hulbert newsletters: fewer than 10% beat a broad index over ten years); EBTA's limit is that controlled experiments are impossible and **the same history is reused**, which feeds the data-mining bias; regression can partly control confounders (Fosback; Jacobs & Levy found one-month reversal of weak stocks to be a strong, consistent TA effect); **human–computer partnership**: humans propose hypotheses and are poor at discarding them; computers can combine many variables but face the **curse of dimensionality** (data density falls exponentially with indicators). | Direction of the field. | 461–465 |
+| C1 | **Resultado:** nenhuma das 6.402 regras teve retorno médio suficiente para rejeitar a hipótese nula ao nível 0,05 após corrigir seleção de dados. Melhor regra: **10,25% ao ano em dados sem tendência**; valor-p corrigido por seleção: **0,8164** (bootstrap) e **0,8194** (permutação), abaixo do centro da distribuição amostral. | Resultado honesto de uma grande busca. | 441–442 |
+| C2 | **Hipótese nula do melhor de N não é centrada em zero**: para as 6.402 regras, retorno esperado da melhor entre N regras inúteis é cerca de **11% ao ano**, não zero; acima de ~15% seria significativo a 0,05 e acima de ~17% altamente significativo (p < 0,001). Depende de N, quantidade de observações, correlação entre regras e dados. | Calibrar “quão bom precisa ser”. | 442–443 |
+| C3 | **Teste ingênuo teria induzido ao erro**: teste comum de regra isolada daria p=0,0005 para a melhor; cerca de **320 das 6.402 regras (~5%)** pareceriam significativas a 0,05, exatamente o esperado pelo acaso. | Escala do ouro de tolo. | 443–444 |
+| C4 | Intervalos de confiança que consideram seleção de dados são intervalos **conjuntos** (80%) para todas as regras (ex.: melhor regra: −2,9% a +23,5%); relatam-se três testes (bootstrap aprimorado, Reality Check original e Monte Carlo aprimorado). Nível de 5% mantém chance de 1 em 20 de falsa rejeição mesmo neste desenho. | Relatar incerteza. | 444–448 |
+| C5 | **Crítica positiva ao estudo**: usou benchmark sem habilidade; controlou tendência do mercado (remoção da tendência); controlou antecipação (execução na abertura do dia seguinte); controlou viés de seleção de dados e evitou espiar os dados. | Lista de verificação do desenho. | 448–449 |
+| C6 | **Extensões do estudo**: combinar regras **linearmente** (votação por maioria; **posição fracionária** proporcional à diferença líquida entre regras compradas/vendidas num tema, Hsu e Kuan); aprender regras (escolher a melhor recentemente); indicadores de difusão (fração de regras compradas); remover regras inversas para evitar soma zero. **Regras não lineares induzidas por máquina** (redes neurais, árvores, SVM, programação genética) exigem busca de parâmetros *e* complexidade; em 2007, segundo o autor, não existia teste de significância robusto para isso. | Próximos caminhos. | 455–457 |
+| C7 | **Esquema de três segmentos para busca de complexidade**: treino, teste e **validação**. Ciclo interno: otimizar parâmetros numa complexidade dada sobre treino; externo: aumentar complexidade enquanto o desempenho no **teste** melhora; parar quando atingir pico e piorar (fronteira entre sobreajuste/subajuste); então o **segmento de validação**, intocado até esse momento, fornece a única estimativa não enviesada (resultado de teste sofre viés por consultas repetidas). Também pode ser walk-forward, deslizando janela tripartida. Exemplo: cruzamento de médias com 2 parâmetros, 30% treino/15% teste; adicionar filtro RSI (4 parâmetros), 50%/20%; continuar até resultado de teste cair. | Controlar sobreajuste ao adicionar regras. | 457–461 |
+| C8 | **Futuro da análise técnica**: deve tornar-se baseada em evidências ou será marginalizada; previsões de especialistas mal superam não especialistas (boletins de Armstrong, Cowles e Hulbert: menos de 10% superaram índice amplo em dez anos). Limite da EBTA: experimentos controlados são impossíveis e **o mesmo histórico é reutilizado**, alimentando viés de seleção; regressão pode controlar parcialmente fatores de confusão (Fosback; Jacobs e Levy encontraram reversão mensal de ações fracas como efeito forte e consistente). **Parceria humano–computador**: pessoas propõem hipóteses e são ruins em descartá-las; computadores combinam muitas variáveis, mas sofrem com a **maldição da dimensionalidade** (densidade de dados cai exponencialmente com indicadores). | Direção do campo. | 461–465 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| Honest reporting of a large search | ❌ | A sweep lists results without the best-of-N reference (see ch. 6). |
-| Calibrated threshold for "good enough" | ❌ | No notion of how large a return must be to be unusual for the grid size. |
-| Naive vs corrected significance side by side | ❌ | None. |
-| Three-segment (train/test/validation) discipline | ⚠️ | Train/test split exists; no validation segment; the test segment is reused by every selection. |
-| Linear combination of rules (voting / fractional position) | ❌ | One strategy per bot; position is all-in or flat (the engine/signal contract has no target size). |
-| Learning rules (select best recent rule) | ❌ | None. |
-| Curse of dimensionality / controlling the number of indicators | ✅ by construction | Strategies are low dimensional. |
-| Reuse of one history | ⚠️ | Same candle history for all experiments; count not tracked. |
+| Relato honesto de busca ampla | ❌ | Varredura lista resultados sem referência do melhor entre N (ver cap. 6). |
+| Limite calibrado de resultado “suficientemente bom” | ❌ | Não se estima que retorno seria incomum para o tamanho da grade. |
+| Significância ingênua e corrigida lado a lado | ❌ | Nenhuma. |
+| Disciplina dos três segmentos (treino/teste/validação) | ⚠️ | Há treino/teste, sem validação; segmento de teste é reutilizado em cada seleção. |
+| Combinação linear (votação/posição fracionária) | ❌ | Um bot por estratégia; posição investida por inteiro ou neutra (contrato não tem tamanho-alvo). |
+| Aprender/reselecionar regras recentes | ❌ | Não existe. |
+| Maldição da dimensionalidade/controle de indicadores | ✅ por construção | Estratégias têm baixa dimensionalidade. |
+| Reutilização do histórico | ⚠️ | Mesmos candles em experimentos; contagem não registrada. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Show the "required to be unusual" return for the sweep *(book: C2, C3, pp. 442–444)*
-* **Problem:** a user sees a +40% result and cannot tell if it is exceptional *for a grid of this size*.
-* **Proposal:** from the best-of-N permutation distribution (book 3 ch. 6 O1) show, next to the best result: the median and 95th percentile of the null "best of N", the return needed for p = 0.05 and p = 0.001, and the number of grid cells that would be expected to look significant by chance (≈ 5% × N under independent rules). **Complexity:** low once ch. 6 O1 exists. **Validation:** with a random sweep about 5% of cells exceed the single-rule threshold.
+### O1 — Exibir retorno “necessário para ser incomum” na varredura *(livro: C2, C3, pp. 442–444)*
 
-### O2 — Three-segment protocol (train / test / validation) with a locked validation set *(book: C7, pp. 457–461)*
-* **Proposal:** extend the backtest configuration from `test_fraction` to an optional `validation_fraction`; the validation segment is **hidden from sweeps and ranking**, evaluated only when the operator *commits* a chosen configuration, and the commit is recorded (audit) so the segment is known to be consumed. After consumption, the system warns that the segment can no longer give an unbiased estimate (book 3 ch. 6 C7). **Complexity:** medium (segments, locking state, UI). **Risk:** operator can create new "validation" data by changing dates; the audit and the universe count (ch. 6 O2) limit that. **Validation:** API tests: ranking ignores the validation segment; second evaluation of the same segment is flagged.
+* **Problema:** resultado de +40% não mostra se é excepcional *para uma grade desse tamanho*.
+* **Proposta:** a partir da distribuição de permutação do melhor entre N (livro 3, cap. 6 O1), mostrar junto ao melhor resultado mediana e percentil 95 do nulo “melhor de N”, retornos necessários para p=0,05 e p=0,001 e quantidade de células que pareceriam significativas por acaso (≈5% × N com regras independentes). **Complexidade:** baixa após cap. 6 O1. **Validação:** numa varredura aleatória, ~5% das células excedem o limite de regra única.
 
-### O3 — Complexity-stopping rule *(book: C7, pp. 459–461)*
-When a user adds conditions or parameters, report train and test performance by complexity level and flag the first level at which test performance stops improving (the over/underfitting boundary). Practical form: record the sequence of strategy variants (by number of parameters) in a study and chart train vs test. **Complexity:** low–medium (studies from book 3 ch. 2 O3 and ch. 6 O2). Only meaningful after more than one family of strategy exists.
+### O2 — Protocolo de três segmentos (treino/teste/validação) com validação bloqueada *(livro: C7, pp. 457–461)*
 
-### O4 — Linear rule combination as a research idea *(book: C6, pp. 455–456)*
-Voting or fractional-position combination of several simple rules in one theme is the book's suggested next step. It requires (a) multiple strategies inside one bot or a combined-signal strategy and (b) a target-position signal (partial sizes) in the signal contract (the same prerequisite as B-SCALE-IN and B-TRANCHES). Record as **H-VOTE**; do not build before significance tooling exists and before those backlog items are decided. Inverse rules are not applicable (long-only).
+Ampliar configuração de `test_fraction` para `validation_fraction` opcional; ocultar validação de varreduras e classificações; avaliar apenas quando operador **confirma** uma configuração escolhida e registrar confirmação na auditoria para marcar o segmento como consumido. Depois, avisar que já não fornece estimativa sem viés (livro 3, cap. 6 C7). **Complexidade:** média (segmentos, estado de bloqueio e interface). **Risco:** operador pode criar novos dados “de validação” mudando datas; auditoria e contagem de universo (cap. 6 O2) limitam o problema. **Validação:** API confirma que classificação ignora validação e sinaliza segunda avaliação do mesmo segmento.
 
-### O5 — Regression to control confounders in diagnostics *(book: C8, p. 464 · pointer only)*
-The book cites regression-based "purified" indicators; a crypto analogue would regress a strategy's per-bar returns on market-wide factors such as BTC returns to isolate non-market performance. This is our adaptation; it needs a multi-asset context (B-MULTI-ASSET) and should wait.
+### O3 — Regra de parada por complexidade *(livro: C7, pp. 459–461)*
 
-### Not applicable
-Rankings of newsletters and experts; the Appendix proof was not read but its result (detrending is equivalent to a same-bias benchmark) is applied in book 3 ch. 1 O1.
+Ao adicionar condições/parâmetros, informar desempenho de treino e teste por nível de complexidade e marcar o primeiro nível em que o teste deixa de melhorar (fronteira de sobreajuste/subajuste). Na prática: registrar sequência de variantes de estratégia (número de parâmetros) num estudo e representar treino versus teste. **Complexidade:** baixa a média (estudos do livro 3, cap. 2 O3 e cap. 6 O2). Só faz sentido com mais de uma família.
 
-## 4. Priority
+### O4 — Combinação linear de regras como pesquisa *(livro: C6, pp. 455–456)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+Combinar várias regras simples do mesmo tema por votação ou posição fracionária é o próximo passo sugerido pelo livro. Exige (a) múltiplas estratégias num bot ou estratégia de sinal combinado e (b) sinal de posição-alvo/tamanhos parciais no contrato (mesmos pré-requisitos B-SCALE-IN e B-TRANCHES). Registrar **H-VOTE**; não desenvolver antes da ferramenta de significância e da decisão sobre esses itens. Regras inversas não se aplicam (apenas comprado).
+
+### O5 — Regressão para controlar fatores de confusão em diagnósticos *(livro: C8, p. 464 · apenas referência)*
+
+O livro cita indicadores “purificados” por regressão. Analogia cripto seria regredir retornos por barra da estratégia em fatores gerais, como retornos de BTC, para isolar desempenho não explicado pelo mercado. É adaptação nossa; requer contexto multiativo (B-MULTI-ASSET) e deve esperar.
+
+### Não aplicável
+
+Classificação de boletins e especialistas. O apêndice não foi lido, mas seu resultado (remoção da tendência equivale a benchmark com mesmo viés) é aplicado no livro 3, cap. 1 O1.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O1 required-return display | high | – | – | low | book 3 ch. 6 O1 |
-| 2 | O2 locked validation set | **high** | – | – | medium | book 3 ch. 6 O2 |
-| 3 | O3 complexity stop | medium | – | – | low–medium | studies |
-| 4 | O4 voting | medium | – | – | high | signal contract |
-| 5 | O5 regression | low | – | – | high | multi-asset |
+| 1 | O1 exibir retorno necessário | alta | – | – | baixa | livro 3, cap. 6 O1 |
+| 2 | O2 validação bloqueada | **alta** | – | – | média | livro 3, cap. 6 O2 |
+| 3 | O3 parada por complexidade | média | – | – | baixa–média | estudos |
+| 4 | O4 votação | média | – | – | alta | contrato de sinais |
+| 5 | O5 regressão | baixa | – | – | alta | multiativo |
 
-## 5. Affected files
-`backtesting/domain/models.py` (`validation_fraction`), `backtesting/domain/segments.py`, `backtesting/application/service.py` (commit/lock flow), audit events, `docs/openapi.json`, app backtest and sweep pages, tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Required-return display after the best-of-N machinery.
-2. Validation segment with commit/lock and audit.
-3. Study-level train/test-by-complexity chart.
-4. Voting/fractional position as a separate design (needs the signal contract decision).
+`backtesting/domain/models.py` (`validation_fraction`), `backtesting/domain/segments.py`, `backtesting/application/service.py` (confirmação/bloqueio), eventos de auditoria, `docs/openapi.json`, páginas de backtest/varredura e testes.
 
-## 7. Acceptance criteria and tests
-* Rankings and sweeps never read the validation segment before commit.
-* The second evaluation of a consumed validation set raises a visible warning and an audit record.
-* Existing runs and APIs remain compatible; ruff, mypy, tests green.
+## 6. Plano incremental
 
-## Caveats
-The outcome that **no rule was significant** is a result for S&P 500 data from 1980–2005 and these rules; it is neither proof that technical rules never work nor that crypto rules do not. The author expects effects to be weak and rare, which is why the interesting question is how to evaluate a search, not which rule won.
+1. Exibição do retorno necessário após a implementação do melhor entre N.
+2. Segmento de validação com confirmação/bloqueio e auditoria.
+3. Gráfico de treino/teste por complexidade no estudo.
+4. Votação/posição fracionária como projeto separado (depende de decisão sobre contrato de sinais).
+
+## 7. Critérios de aceitação e testes
+
+* Classificações e varreduras nunca consultam validação antes da confirmação.
+* Segunda avaliação de segmento consumido gera aviso visível e registro de auditoria.
+* Execuções e APIs existentes continuam compatíveis; Ruff, mypy e testes passam.
+
+## Ressalvas
+
+O resultado de que **nenhuma regra foi significativa** refere-se a dados do S&P 500 de 1980–2005 e às regras testadas; não prova que regras técnicas nunca funcionem ou que regras cripto não funcionem. O autor espera efeitos fracos e raros; a questão interessante é como avaliar uma busca, não qual regra venceu.

@@ -1,66 +1,75 @@
-# Book 4 · Chapter 6 — Regression Analysis
+# Livro 4 · Capítulo 6 — Análise de regressão
 
-*Trading Systems and Methods*, 5th ed., Kaufman (2013). Book pages (PDF = book + 20). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Trading Systems and Methods*, 5.ª ed., Kaufman (2013). Páginas do livro (PDF = livro + 20). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 235–237, 257–259 and 273–276 were read. The mathematics of simple and multiple regression, nonlinear fits, ARIMA and Kalman filtering (pp. 238–256, 259–272), and "Measuring Market Strength" (pp. 276–278) were **not** read and are not summarised.
+**Profundidade da leitura:** pp. 235–237, 257–259 e 273–276 foram lidas. Matemática de regressão simples/múltipla, ajustes não lineares, ARIMA e filtro de Kalman (pp. 238–256, 259–272), e “Medir a força do mercado” (pp. 276–278) **não** foram lidos nem resumidos.
 
-## 1. Chapter summary (pages read)
+## 1. Resumo (páginas lidas)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | A price series has a **trend**, a **seasonal/cyclic** component and an unexplained **random** remainder; regression isolates the trend; short trends (days/weeks) cannot be explained by macro factors and are mostly investor reaction to news flow. Avoid erroneous relationships: "a sound premise is the basis for success". | What regression is for. | 235–236 |
-| C2 | Lower-frequency data smooths the series (extremes rarely fall on the last day of the month); the **calculation period** should not equal a cycle length that would average itself out (a 12-month window around a seasonal cycle neutralises it). | Window choice. | 236–237 |
-| C3 | Log and exponential fits turn nonlinear relationships into linear least squares by transforming variables; the best statistical fit (smallest error standard deviation) is **not necessarily the best forecast**: the worst-fitting logarithmic model gave the most realistic soybean forecast; show system performance with fixed investment on a **log scale**; re-estimate models on a rolling window. | Fit vs forecast. | 257–258 |
-| C4 | **Regression trading rule (similar to a moving average)**: an n-day linear regression of closes gives a forecast `F_{t+1}`; buy when tomorrow's close exceeds the forecast, sell short when below; to avoid whipsaws add **confidence bands** around the line: 90% = 1.65 and 95% = 1.96 (usually 2.0) times the standard deviation of the residuals; the regression signals a change of direction **sooner than a moving average**, which has a lag acting as a safety zone; performance tends to improve with longer periods. | Objective trend rule with a band. | 273–274 |
-| C5 | **Slope rule**: buy when the regression slope is positive, sell when negative; the slope is on a different scale from price (separate panel); competitive with other trend methods (Chapter 8). The slope can be misleading: the same slope arises from smooth or very noisy moves, so add the **correlation R between price and a sequence of integers** (not R², so the sign shows direction); slope is faster than a moving average but less stable; adding R gives complementary information. | Trend direction and consistency. | 275–276 |
+| C1 | Série de preços tem **tendência**, componente **sazonal/cíclico** e resíduo **aleatório** inexplicado; regressão isola tendência. Tendências curtas (dias/semanas) não se explicam por fatores macro e refletem sobretudo reação de investidores a notícias. Evitar relações espúrias: “premissa sólida é base do sucesso”. | Para que serve regressão. | 235–236 |
+| C2 | Dados de frequência menor suavizam a série (extremos raramente coincidem com último dia do mês); período de cálculo não deve coincidir com ciclo que se anularia na média (janela de 12 meses neutraliza sazonalidade anual). | Escolher janela. | 236–237 |
+| C3 | Ajustes logarítmicos/exponenciais tornam relações não lineares em mínimos quadrados lineares, transformando variáveis. Melhor ajuste estatístico (menor desvio dos erros) **não é necessariamente melhor previsão**: modelo logarítmico de pior ajuste deu previsão de soja mais realista; exibir desempenho de sistema com investimento fixo em **escala logarítmica**; reajustar modelos em janela móvel. | Ajuste versus previsão. | 257–258 |
+| C4 | **Regra de negociação por regressão (semelhante à média móvel)**: regressão linear de n dias dos fechamentos gera previsão `F_{t+1}`; comprar quando fecho de amanhã superar previsão, vender a descoberto se ficar abaixo. Para evitar oscilações falsas, adicionar **bandas de confiança**: 90% = 1,65 e 95% = 1,96 (normalmente 2,0) vezes desvio-padrão dos resíduos. Regressão sinaliza mudança de direção **antes da média móvel**, cujo atraso é zona de segurança; desempenho tende a melhorar com períodos longos. | Regra tendencial objetiva com banda. | 273–274 |
+| C5 | **Regra de inclinação**: comprar com inclinação positiva, vender com negativa; inclinação tem escala diferente do preço (painel separado); compete com outros métodos de tendência (cap. 8). Inclinação pode enganar: igual valor pode resultar de movimento suave ou ruidoso. Acrescentar **correlação R entre preço e sequência de inteiros** (não R², para preservar sinal/direção); inclinação é mais rápida que média móvel, mas menos estável; R oferece informação complementar. | Direção e consistência da tendência. | 275–276 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| Regression-based trend rules | ❌ | Not in the catalogue; no regression helper. |
-| Trend-quality measure (R) as filter | ❌ | None (also the efficiency ratio, book 4 ch. 1 O1). |
-| Confidence band from residual deviation | ❌ | None. |
-| Rolling re-estimation | ✅ | Strategies compute indicators only on past candles. |
-| Log-scale display of fixed-size equity | ⚠️ | The app's equity chart scale not verified here. |
+| Regras tendenciais por regressão | ❌ | Não constam no catálogo; sem auxiliar de regressão. |
+| Medida R da qualidade da tendência como filtro | ❌ | Não existe (nem ER; ver livro 4, cap. 1 O1). |
+| Banda de confiança baseada em resíduo | ❌ | Não há. |
+| Reajuste móvel | ✅ | Estratégias calculam indicadores apenas com candles passados. |
+| Exibição logarítmica de patrimônio com tamanho fixo | ⚠️ | Escala do gráfico patrimonial não foi verificada. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Trend-quality filters as optional entry conditions *(book: C5, p. 275–276; combined with ER from book 4 ch. 1)*
-* **Problem:** trend strategies (EMA cross, Donchian) trade the sideways noise that the book describes; a measure of how consistent the trend is could skip low-quality entries.
-* **Proposal:** two candidate quality measures computed over a window: the correlation `R` of closes against a time index (sign = direction, magnitude = consistency) and the efficiency ratio (book 4 ch. 1). Add an optional parameter such as `min_trend_quality` to the trend strategies: enter only if the measure exceeds the threshold. Default off.
-* **Benefit:** a hypothesis about reducing whipsaw trades without adding a new strategy. **Complexity:** low–medium (helpers, one parameter, tests).
-* **Risks:** more parameters and filters → overfitting (the author warns that too many filters lead to overfitting or no trades, ch. 1); the filter delays entries (lag); no performance numbers are given in the pages read. Treat as **H-TREND-QUALITY** and test only through the sweep → best-of-N → validation pipeline with the extra parameter counted in N. **Validation:** truncation test; effect on trade count and drawdown; sensitivity.
+### O1 — Filtros opcionais de qualidade da tendência *(livro: C5, pp. 275–276; junto à ER do cap. 1)*
 
-### O2 — Regression slope strategy (with R) as a new trend family *(book: C4, C5, pp. 273–276)*
-* **Proposal:** buy when the n-bar regression slope of closes is positive (optionally with a residual-based band, 1.65/1.96/2.0 multipliers, or with R above a threshold), sell when it turns negative or falls below the band. It is related to book 4 ch. 4 O1 (regression channel) and should be implemented as one strategy covering both ideas with explicit modes, not two near-duplicates (the duplicates would inflate N without information, book 3 ch. 6 O4).
-* **Benefit:** faster response than a moving average (the author's point) with a quality gauge. **Complexity:** medium. **Risks:** the faster response means more false signals and higher costs; the book says performance "tends to improve as the calculation period increases", i.e. long windows are preferred, which for crypto must be tested. **Validation:** as above.
+* **Problema:** EMA/Donchian negociam ruído lateral; medida de consistência poderia ignorar entradas de baixa qualidade.
+* **Proposta:** duas medidas candidatas numa janela: correlação `R` entre fechamentos e índice temporal (sinal = direção; magnitude = consistência) e razão de eficiência do livro 4, cap. 1. Parâmetro opcional como `min_trend_quality`; entrar apenas acima do limite. Desligado por padrão.
+* **Benefício:** hipótese para reduzir *whipsaws* sem nova estratégia. **Complexidade:** baixa a média (auxiliares, parâmetro e testes).
+* **Riscos:** filtros/parâmetros extras causam sobreajuste (alerta do autor, cap. 1); filtro atrasa entradas; não há métricas de desempenho nas páginas lidas. Registrar **H-TREND-QUALITY** e testar somente no fluxo varredura → melhor de N → validação, contando parâmetro adicional em N. **Validação:** truncamento, efeito em contagem/drawdown e sensibilidade.
 
-### O3 — Verify the equity chart's scale handling *(book: C3, p. 257)*
-Check the app's equity/underwater charts: for fixed-fraction systems the log scale is the honest view; if the chart is linear, offer a log-scale toggle (lost-ui chart request L-n). **Complexity:** low (frontend), subject to the chart library's capabilities (the earlier project notes mention the equity chart's y-axis starting at 0 as a lost-ui limitation).
+### O2 — Nova família tendencial por inclinação de regressão (com R) *(livro: C4, C5, pp. 273–276)*
 
-### Not applicable
-Nonlinear least squares, multivariate regression, ARIMA, Kalman filter (see book 2 ch. 3 for the filter in the context of mean reversion), market strength rankings.
+Comprar com inclinação positiva da regressão de n barras dos fechamentos (opcionalmente usar banda residual, multiplicadores 1,65/1,96/2,0 ou R acima de limite); vender quando inclinação inverter ou cair abaixo da banda. Relaciona-se ao canal de regressão do livro 4, cap. 4 O1; implementar como uma estratégia com modos explícitos, não duas quase duplicadas (duplicatas inflam N sem informação nova, livro 3, cap. 6 O4).
 
-## 4. Priority
+**Benefício:** resposta mais rápida que média móvel com medida de qualidade. **Complexidade:** média. **Riscos:** resposta rápida gera mais falsos sinais/custos; livro diz que desempenho “tende a melhorar com período maior”, o que deve ser testado em cripto. **Validação:** como O1.
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+### O3 — Verificar escala do gráfico patrimonial *(livro: C3, p. 257)*
+
+Conferir gráficos de patrimônio e drawdown no app: sistemas com fração fixa são representados honestamente em escala logarítmica; se atual for linear, oferecer alternância (pedido de gráfico lost-ui L-n). **Complexidade:** baixa, conforme biblioteca de gráficos (notas anteriores citam eixo y iniciado em zero como limitação).
+
+### Não aplicável
+
+Mínimos quadrados não lineares, regressão multivariada, ARIMA e filtro de Kalman (ver livro 2, cap. 3 para reversão à média), classificações de força do mercado.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O3 chart scale check | – | – | low | low | lost-ui capabilities |
-| 2 | O1 trend-quality filter | medium | – | – | low–medium | helpers; pipeline |
-| 3 | O2 regression slope strategy | medium | – | – | medium | helpers; pipeline |
+| 1 | O3 verificar escala do gráfico | – | – | baixa | baixa | capacidades lost-ui |
+| 2 | O1 filtro de qualidade | média | – | – | baixa–média | auxiliares e fluxo de validação |
+| 3 | O2 estratégia de inclinação | média | – | – | média | auxiliares e fluxo |
 
-## 5. Affected files
-`strategies/domain/` (helpers, optional parameter, new strategy), catalogue and forms, app chart components (`equity-chart-rows.ts`), tests including the truncation test.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Helpers (linear regression slope, R, residual deviation, ER) with unit tests.
-2. Filter option on the existing trend strategies.
-3. Regression strategy after the pipeline is in place.
+`strategies/domain/` (auxiliares, parâmetro opcional, estratégia), catálogo e formulários, gráficos do app (`equity-chart-rows.ts`) e testes, incluindo truncamento.
 
-## 7. Acceptance criteria and tests
-* Regression helpers reproduce hand-computed slopes, correlations and residual deviations; degenerate windows return `None` or no signal.
-* New parameters are optional; defaults leave current strategies unchanged; ruff, mypy, tests green.
+## 6. Plano incremental
 
-## Caveats
-Most of the chapter (statistical derivations and examples with commodities and stocks) was not read. The statements about performance improving with longer windows come from futures tests in the book and may not hold for crypto.
+1. Auxiliares (inclinação linear, R, desvio residual, ER) com testes unitários.
+2. Opção de filtro nas estratégias tendenciais existentes.
+3. Estratégia de regressão após implantação do fluxo.
+
+## 7. Critérios de aceitação e testes
+
+* Auxiliares reproduzem inclinações, correlações e desvios residuais calculados à mão; janelas degeneradas retornam `None` ou nenhum sinal.
+* Novos parâmetros opcionais não alteram padrões das estratégias atuais; Ruff, mypy e testes passam.
+
+## Ressalvas
+
+A maior parte do capítulo (derivações estatísticas e exemplos de commodities/ações) não foi lida. Melhor desempenho com janelas longas refere-se a testes de futuros do livro e pode não valer para cripto.

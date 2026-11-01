@@ -1,73 +1,83 @@
-# Book 4 · Chapter 12 — Volume, Open Interest, and Breadth
+# Livro 4 · Capítulo 12 — Volume, posições em aberto e amplitude
 
-*Trading Systems and Methods*, 5th ed., Kaufman (2013). Book pages (PDF = book + 20). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Trading Systems and Methods*, 5.ª ed., Kaufman (2013). Páginas do livro (PDF = livro + 20). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 527–530 and 554–558 were read; the headings of 536–553 and 559–564 were scanned. The volume-indicator catalogue (on-balance volume, accumulation indexes, breadth indicators, pp. 535–553), the intraday-volume and filtering sections (559–564) were **not** read in detail and are not summarised.
+**Profundidade da leitura:** pp. 527–530 e 554–558 foram lidas; títulos de pp. 536–553 e 559–564 foram percorridos. Catálogo de indicadores de volume (volume em saldo, índices de acumulação/amplitude, pp. 535–553), volume intradiário e filtros (559–564) **não** foram lidos em detalhe nem resumidos.
 
-## 1. Chapter summary (pages read)
+## 1. Resumo (páginas lidas)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | Volume is one of the few data items besides price traditionally valid for technicians; little research exists for futures. **Breadth** (advancing vs declining stocks, new highs/lows) and **open interest** are related participation measures; futures have contract-specific volume that rises as a contract nears the front month; use **total volume** across contracts for analysis; **tick volume** (number of price changes) approximates volume when real volume is not available. | Volume data and its quirks. | 527–529 |
-| C2 | **The W intraday pattern**: volume is high at the open, drops, rises modestly midday, falls, and rises into the close; so **intraday volume confirmation must be compared with the normal volume for that time of day**. Open interest and breadth have seasonal patterns too (no special meaning in themselves). | Misreading volume intraday. | 529 |
-| C3 | **Variance in volume**: volume is far more variable than price (Microsoft: standard deviation of daily volume ≈ 38% of the average vs 2.9% for price); analysis uses smoothed or averaged volume. | Noise in volume. | 529–530 |
-| C4 | **Volume spikes**: a day with volume at least 2× (perhaps 3–4×) the recent norm; read as crowd behaviour (everyone jumped in) and traditionally as **exhaustion** of the move; examples (AOL, Microsoft bubble end) show spikes at turning points, "though the reversal is not always large". "No comprehensive tests available". Spike detection: `V_t > T × AV_{t−1}`, improved by **lagging the average five days** so that a spike built over 2–3 days is not masked by its own rise: `V_t > T × mean(V_{t−n−5} … V_{t−5})`. | Volume as an extreme-event detector. | 530, 554–555 |
-| C5 | **Volume confirms vs signals reversal**: most oscillator approaches say high volume confirms a new direction while *extreme* volume signals reversal; a drop in volume suggests equilibrium and needs further confirmation. | Two uses of volume. | 554 |
-| C6 | **Volume confirmation of a trend entry**: require current volume above its 10-day average for a 20-day trend position (Saitta); Waxenberg: confirm a trend change with a 20% volume increase over the 10-day mean and treat about 40% as an extreme, optionally replacing fixed percentages with Bollinger bands (2σ). The filter "eliminates a substantial number of trades"; **if net returns are equal, the volume-filtered version is far better** (less time in the market, less reversing, more liquidity). | Filtering trades with volume. | 556–557 |
-| C7 | Breadth systems (Connors–Hayward advance-decline pattern and breadth as a counter-trend indicator) with thresholds that must be rescaled as volatility changes (a 10 bp trigger developed in 1995 now trades daily). | Thresholds drift. | 557–558 |
+| C1 | Volume é um dos poucos dados além do preço tradicionalmente aceitos por analistas técnicos; há pouca pesquisa em futuros. **Amplitude** (ações em alta/baixa e novas máximas/mínimas) e **posições em aberto** medem participação relacionada. Volume de futuros é específico ao contrato e aumenta quando ele se aproxima do vencimento; analisar **volume total** entre contratos. **Volume de ticks** (número de variações de preço) aproxima volume quando não há volume real. | Dados de volume e suas particularidades. | 527–529 |
+| C2 | **Padrão intradiário em W**: volume alto na abertura, cai, sobe modestamente ao meio-dia, cai e aumenta até o fecho. Portanto, confirmação intradiária deve comparar volume com o **normal naquele horário**. Posições em aberto e amplitude também têm sazonalidade sem significado especial por si só. | Evitar leitura errada de volume intradiário. | 529 |
+| C3 | **Variância do volume**: muito maior que a do preço (Microsoft: desvio-padrão do volume diário ~38% da média, versus 2,9% do preço); análise usa volume suavizado ou médio. | Ruído do volume. | 529–530 |
+| C4 | **Picos de volume**: dia com volume ≥2× (talvez 3–4×) norma recente; interpretado como comportamento de multidão e, tradicionalmente, **exaustão** do movimento. Exemplos AOL/Microsoft mostram picos em viradas, “embora reversão nem sempre seja grande”. “Não há testes abrangentes disponíveis”. Detectar por `V_t > T × AV_{t−1}`; melhora **atrasando a média cinco dias**, para pico de 2–3 dias não se diluir na própria alta: `V_t > T × mean(V_{t−n−5} … V_{t−5})`. | Volume como detector de extremos. | 530, 554–555 |
+| C5 | **Volume confirma ou sinaliza reversão**: muitos osciladores tratam volume alto como confirmação de nova direção e volume *extremo* como reversão; queda do volume sugere equilíbrio e exige confirmação adicional. | Dois usos do volume. | 554 |
+| C6 | **Confirmação de volume para entrada tendencial**: exigir volume atual acima da média de dez dias para posição tendencial de 20 dias (Saitta); Waxenberg confirma mudança com aumento de 20% sobre média de dez dias e considera ~40% extremo; opcionalmente trocar percentuais por bandas Bollinger (2σ). Filtro “elimina quantidade substancial de operações”; **se retornos líquidos iguais, versão filtrada é muito melhor** (menos exposição, reversões e maior liquidez). | Filtrar operações por volume. | 556–557 |
+| C7 | Sistemas de amplitude (padrão avanço/declínio Connors–Hayward e amplitude como indicador contrário) usam limites que devem ser reajustados com volatilidade (gatilho de 10 pb criado em 1995 agora negocia diariamente). | Limites que derivam. | 557–558 |
 
-Futures- and equity-breadth specifics are not applicable. Crypto remarks are **our adaptation**.
+Detalhes de amplitude de ações/futuros não se aplicam. Adaptações cripto são **nossas**.
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| Volume stored | ✅ | `Candle.volume` is persisted (`market_data/domain/models.py`). |
-| Volume used in strategies/risk | ❌ | `StrategyContext` exposes the candle (so volume is accessible) but neither strategy uses it; `RiskLimits` has no volume-based limit (also noted in book 1 ch. 5). |
-| Intraday volume pattern normalisation | ❌ | None. |
-| Volume spike detection | ❌ | None. |
-| Volume confirmation filter | ❌ | None. |
-| Which volume | ⚠️ | Candle volume is **per exchange and per symbol**; in crypto, volume can be inflated by wash trading on some venues, and exchange volume is a share of the market (not mentioned in the book). |
-| Breadth / open interest | n/a | Spot, single symbol. |
+| Volume armazenado | ✅ | `Candle.volume` persiste (`market_data/domain/models.py`). |
+| Volume em estratégias/risco | ❌ | `StrategyContext` expõe candle, logo volume acessível, mas nenhuma estratégia o usa; `RiskLimits` não tem limite por volume (também livro 1, cap. 5). |
+| Normalização intradiária | ❌ | Não há. |
+| Detecção de picos | ❌ | Não há. |
+| Filtro de confirmação por volume | ❌ | Não há. |
+| Qual volume | ⚠️ | Volume é **por corretora e símbolo**; em cripto algumas bolsas podem inflá-lo por wash trading; cada corretora representa parcela do mercado (ponto ausente no livro). |
+| Amplitude/posições em aberto | n/a | À vista, símbolo único. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Time-of-day-normalised volume feature (relative volume) *(book: C2, C3, p. 529)*
-* **Proposal:** a helper `relative_volume = volume / mean(volume at the same hour-of-day over the last N days)` (and the variant against the previous `n` bars), the basis for all volume rules, so that regular intraday and weekday volume cycles are not mistaken for signals (the W pattern in the book; crypto has its own regional cycles that I have not verified).
-* **Benefit:** a correct basis for any volume-based filter or risk rule. **Complexity:** low. **Validation:** synthetic series with a planted intraday cycle must give relative volume ≈ 1 throughout.
+### O1 — Volume relativo normalizado pelo horário *(livro: C2, C3, p. 529)*
 
-### O2 — Volume spike detector and "exhaustion" diagnostics *(book: C4, pp. 530, 554–555)*
-* Implement the lagged-average spike test (`V_t > T × mean(V_{t−n−5…t−5})`, `T` = 2 default, `n` configurable) and report, for a symbol/timeframe, the **forward return after spikes** against the unconditional forward return, with sample sizes and eras (book 4 ch. 10 O1 style). This tests the traditional "spike = exhaustion" claim, which the book says has no comprehensive tests. **Complexity:** low–medium. **Risks:** multiple testing (threshold T and horizon); volume in crypto is venue-specific. **Validation:** synthetic series with planted post-spike reversals.
+Criar auxiliar `relative_volume = volume / média(volume no mesmo horário do dia nos últimos N dias)` (e variante sobre n candles anteriores), fundamento para regras de volume e controle de ciclos intradiários/semanais regulares como sinais (padrão W). Ciclos regionais de cripto ainda não foram verificados.
 
-### O3 — Volume-confirmation filter for trend entries (experiment) *(book: C6, pp. 556–557)*
-* Optional parameter on the trend strategies: enter only if `relative_volume ≥ x` (or volume above its n-bar average by ≥ 20%, or above a 2σ band). The book's claim is that the filter lowers the trade count and, if returns are equal, reduces risk; test whether it helps in crypto. **H-VOLUME-FILTER**; counted in N; default off. **Complexity:** low–medium. **Validation:** effect on trade count and drawdown through the pipeline; truncation test.
+**Benefício:** referência correta para filtros/regras de risco com volume. **Complexidade:** baixa. **Validação:** série sintética com ciclo intradiário inserido deve ter volume relativo ≈1 ao longo do tempo.
 
-### O4 — Use volume for position-size and liquidity limits *(book: C1, C2; links to book 1 ch. 5 O3)*
-The same relative-volume measure can drive the volume-cap limit proposed earlier (order size ≤ a fraction of recent traded volume) and the risk module's suspect-candle logic (an abnormal range on abnormally low volume may be a bad print). **Complexity:** low–medium; part of the risk work.
+### O2 — Detector de picos e diagnóstico de “exaustão” *(livro: C4, pp. 530, 554–555)*
 
-### Not applicable
-Open interest, breadth indicators, delivery-month volume, tick-volume substitutes, equity advance–decline systems.
+Implementar teste de média defasada (`V_t > T × média(V_{t−n−5…t−5})`, `T=2` padrão, `n` configurável) e reportar retorno futuro após picos versus retorno futuro incondicional, por símbolo/intervalo, com tamanho de amostra e eras (estilo livro 4, cap. 10 O1). Testa afirmação tradicional “pico = exaustão”, sem testes abrangentes segundo o livro. **Complexidade:** baixa a média. **Riscos:** testes múltiplos (limite e horizonte); volume cripto depende da bolsa. **Validação:** série sintética com reversões pós-pico inseridas.
 
-## 4. Priority
+### O3 — Filtro de confirmação por volume nas entradas de tendência *(livro: C6, pp. 556–557)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+Parâmetro opcional nas tendências: entrar apenas se `relative_volume ≥ x` (ou volume exceder média n barras em ≥20%, ou banda 2σ). Livro afirma que filtro reduz operações e, se retorno não cair, reduz risco; testar em cripto. **H-VOLUME-FILTER**, contar em N, desligado por padrão. **Complexidade:** baixa a média. **Validação:** efeito sobre operações/drawdown pelo fluxo de validação; teste de truncamento.
+
+### O4 — Usar volume para dimensionar posição e limitar liquidez *(livro: C1, C2; relacionado ao livro 1, cap. 5 O3)*
+
+Mesmo volume relativo pode orientar limite (tamanho da ordem ≤ fração do volume recente) e filtro de candle suspeito (amplitude anormal com volume excepcionalmente baixo pode indicar preço incorreto). **Complexidade:** baixa a média; parte do trabalho de risco.
+
+### Não aplicável
+
+Posições em aberto, indicadores de amplitude, volume de mês de entrega, substituto volume de ticks e sistemas de avanço/declínio de ações.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O1 relative volume | medium | medium | – | low | – |
-| 2 | O4 volume in risk | – | medium | medium | low–medium | O1; book 1 ch. 5 O3 |
-| 3 | O2 spike diagnostics | medium | – | – | low–medium | O1; diagnostics module |
-| 4 | O3 volume filter experiment | low | – | – | low–medium | O1; pipeline |
+| 1 | O1 volume relativo | média | média | – | baixa | – |
+| 2 | O4 volume no risco | – | média | média | baixa–média | O1; livro 1, cap. 5 O3 |
+| 3 | O2 diagnóstico de picos | média | – | – | baixa–média | O1; módulo diagnóstico |
+| 4 | O3 experimento de filtro | baixa | – | – | baixa–média | O1; fluxo de validação |
 
-## 5. Affected files
-`strategies/domain/` (helper), `risk_management/domain/models.py` (optional volume limit), `analytics/domain/`, diagnostics endpoint, app forms, tests including the truncation test.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Relative-volume helper with tests.
-2. Spike diagnostics (read-only).
-3. Volume-aware risk limit (optional).
-4. Filter experiment through the pipeline.
+`strategies/domain/` (auxiliar), `risk_management/domain/models.py` (limite opcional), `analytics/domain/`, endpoint de diagnósticos, formulários do app e testes, incluindo truncamento.
 
-## 7. Acceptance criteria and tests
-* Relative volume is ≈ 1 on a pure intraday-cycle series; spike detector flags planted spikes only; new options default off; ruff, mypy, tests green.
+## 6. Plano incremental
 
-## Caveats
-The text itself notes the lack of comprehensive tests for the volume-spike rule and gives no performance numbers for the filters in the pages read. Candle volume from a single exchange may not represent total market activity.
+1. Auxiliar de volume relativo com testes.
+2. Diagnóstico de picos (somente leitura).
+3. Limite de risco por volume (opcional).
+4. Teste do filtro de volume pelo fluxo.
+
+## 7. Critérios de aceitação e testes
+
+* Volume relativo ≈1 em série com ciclo intradiário puro; detector sinaliza apenas picos inseridos; opções novas desligadas por padrão; Ruff, mypy e testes passam.
+
+## Ressalvas
+
+O próprio texto observa que não há testes abrangentes da regra de pico e as páginas lidas não dão números de desempenho dos filtros. Volume de uma única corretora talvez não represente atividade total do mercado.

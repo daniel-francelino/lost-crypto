@@ -1,0 +1,14 @@
+node_modules
+dist
+.output
+.vinxi
+.tanstack
+.claude
+.husky
+test-results
+playwright-report
+e2e
+docs
+.env
+.env.*
+!.env.example

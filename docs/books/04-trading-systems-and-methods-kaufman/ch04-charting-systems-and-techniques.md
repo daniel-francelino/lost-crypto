@@ -1,77 +1,87 @@
-# Book 4 · Chapter 4 — Charting Systems and Techniques
+# Livro 4 · Capítulo 4 — Sistemas e técnicas gráficas
 
-*Trading Systems and Methods*, 5th ed., Kaufman (2013). Book pages (PDF = book + 20). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Trading Systems and Methods*, 5.ª ed., Kaufman (2013). Páginas do livro (PDF = livro + 20). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 151–153 and 167–180 were read. The section from Dunnigan's thrust method to the action-and-reaction system (pp. 152–166: Nofri congestion, outside/inside days, pivot points) was only skimmed at its start and **not** summarised. Several pages were cut by pdftotext (formulas partly lost; the text of p. 178 prints "13 the number" where a fraction was probably intended).
+**Profundidade da leitura:** pp. 151–153 e 167–180 foram lidas. A parte do método de impulso de Dunnigan até o sistema de ação/reação (pp. 152–166: congestionamento de Nofri, dias externos/internos e pivôs) foi percorrida por alto no início e **não foi resumida**. O pdftotext cortou várias páginas (fórmulas parcialmente perdidas; na p. 178 aparece “13 the number”, provavelmente onde deveria haver uma fração).
 
-## 1. Chapter summary (pages read)
+## 1. Resumo (páginas lidas)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | Charting methods that can be **automated** are collected; time is unimportant in many of them, only the level. The first systematic traders (Dunnigan's thrust: a swing of a set percentage within a time window, with different swing sizes per market) hold lessons: "what appears unsophisticated may be the key". | Origins of systematic rules. | 151–152 |
-| C2 | **Trading at even numbers**: orders cluster at round prices (a New York Fed study is cited for more trading activity around even numbers); moves through round numbers are "minor breakouts"; a trader can place orders just beyond the round number (a short breakout at $60 placed at $60.25) to be ahead of the crowd. | Order clustering. | 167 |
-| C3 | **Channel breakout** by two automatable routes: (a) from swing highs/lows and a regression line through recent swing points; (b) a **least-squares straight line on closes** against sequential integers (not dates, because of weekend gaps), parallel lines at the largest deviations `B_U` and `B_L`, **projected one period ahead** by the slope; a close beyond the projected band reverses the trend; near-boundary countertrend entries and scaling-in are possible; exits on a break of the opposite line; using closes is more conservative than highs/lows. | Objective trend channel. | 167–170 |
-| C4 | **Moving channel**: centre `M = (H+L+C)/3` averaged over `n` days, range `R` = average range; bands `M_t + (M_t − M_{t−1}) ± f·R/2` projected one day ahead; a close beyond a band triggers entry; profit objective one channel width beyond the breakout, recomputed daily as volatility changes. | Volatility-scaled channel. | 170–171 |
-| C5 | **Commodity Channel Index**: `CCI = (typical price − its n-day average) / (0.015 × average deviation)`; best for mean reversion; **simple overbought/oversold rules give frequent small profits and an occasional very large loss** when prices stay overbought for weeks. | Mean-reversion oscillator and its tail risk. | 171–172 |
-| C6 | **Wyckoff** (price, volume, point-and-figure and wave charts) and **DeMark's Sequential** (setup of nine closes below the close four days earlier, intersection test, countdown of 13 closes below the close two days earlier, entry options, exits, true-range stops; a pattern that is too specific can only be validated across unrelated markets). | Complex counting patterns. | 172–176 |
-| C7 | **Lo, Mamaysky and Wang** (2000): ten formations defined on a kernel-smoothed series (e.g. head-and-shoulders: E3 above E1 and E5; E1/E5 within 1.5% of their average; rolling 38-day window; double top: extrema more than 22 days apart); several hundred US stocks 1962–1996; formations appear far less in synthetic random series; **returns over the next three days were positive for all but one formation and statistically significant for five**; rising volume generally improved results. | Objective pattern detection. | 176–178 |
-| C8 | **Bulkowski's rankings** of pattern success (e.g. best bullish: rectangular-top upward breakout, falling-wedge upward breakout…); the author comments that a symmetric-triangle upward breakout in a downtrend behaves opposite to textbook expectations. | Pattern statistics. | 178–179 |
+| C1 | Coletânea de métodos gráficos que podem ser **automatizados**; em muitos, tempo não importa, apenas nível. Primeiros operadores sistemáticos (impulso de Dunnigan: oscilação percentual definida numa janela temporal, com tamanho diferente por mercado) ensinam que “o que parece pouco sofisticado pode ser essencial”. | Origem de regras sistemáticas. | 151–152 |
+| C2 | **Negociação em números inteiros**: ordens se agrupam em preços redondos (estudo do Fed de Nova York citado, com maior atividade em números inteiros); passagem por esses níveis é “rompimento menor”. É possível pôr ordem logo além do nível (venda de rompimento em US$ 60 colocada a US$ 60,25) para se antecipar à multidão. | Agrupamento de ordens. | 167 |
+| C3 | **Rompimento de canal** por duas formas automatizáveis: (a) máximas/mínimas de oscilações e reta de regressão entre pontos recentes; (b) **reta de mínimos quadrados dos fechamentos** em relação a inteiros sequenciais (não datas, por causa das lacunas de fim de semana), linhas paralelas nas maiores excursões `B_U`/`B_L`, **projetadas um período à frente** pela inclinação. Fecho além da faixa projetada inverte tendência; entradas contra tendência perto da borda e aumento gradual são possíveis; sair quando romper linha oposta; fechos são mais conservadores que máximas/mínimas. | Canal tendencial objetivo. | 167–170 |
+| C4 | **Canal móvel**: centro `M = (H+L+C)/3` médio em `n` dias; faixa `R` = amplitude média; bandas `M_t + (M_t − M_{t−1}) ± f·R/2` projetadas um dia; fecho além da banda aciona entrada; alvo de lucro a uma largura de canal do rompimento, recalculado diariamente conforme volatilidade. | Canal ajustado à volatilidade. | 170–171 |
+| C5 | **Índice do Canal de Commodities (CCI)**: `CCI = (preço típico − média de n dias) / (0,015 × desvio médio)`. Melhor para reversão à média; regras simples de sobrecompra/sobrevenda dão ganhos pequenos frequentes e uma perda ocasional muito grande quando o preço permanece sobrecomprado por semanas. | Oscilador de reversão e risco de cauda. | 171–172 |
+| C6 | **Wyckoff** (preço, volume, ponto-e-figura e ondas) e **Sequential de DeMark** (configuração de nove fechos abaixo do fecho de quatro dias antes, teste de interseção, contagem regressiva de 13 fechos abaixo do fecho de dois dias antes, opções de entrada/saída e stops de amplitude verdadeira). Padrão excessivamente específico só pode ser validado em mercados não relacionados. | Padrões de contagem complexa. | 172–176 |
+| C7 | **Lo, Mamaysky e Wang (2000)**: dez formações definidas numa série suavizada por kernel (ex.: cabeça-e-ombros, E3 acima de E1/E5, E1/E5 dentro de 1,5% da média, janela móvel de 38 dias; topo duplo com extremos separados por mais de 22 dias). Centenas de ações dos EUA, 1962–1996; formações muito menos frequentes em séries aleatórias sintéticas; **retornos dos três dias seguintes foram positivos para todas menos uma e estatisticamente significativos para cinco**; volume crescente geralmente melhorou resultados. | Detecção objetiva de padrões. | 176–178 |
+| C8 | **Classificações de padrões de Bulkowski** (ex.: melhor padrão de alta, topo retangular com rompimento para cima, cunha descendente com rompimento para cima). O autor observa que rompimento ascendente de triângulo simétrico em tendência de baixa se comporta ao contrário do esperado nos manuais. | Estatísticas de padrões. | 178–179 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| Channel breakout (price extremes) | ✅ | `donchian_breakout` implements the n-bar breakout (entry highest-high of the previous `entry_period`, exit lowest-low of `exit_period`). |
-| Regression (straight-line) channel with projected bands | ❌ | Not in the catalogue; no regression helper in `strategies/domain`. |
-| Volatility-scaled moving channel (range-based) | ❌ | Donchian uses price extremes, not average range; no ATR/range helper. |
-| CCI / mean-reversion oscillators | ❌ | No mean-reversion strategy at all. |
-| Round-number awareness | ❌ | See book 4 ch. 3 O3 (H-ROUND). |
-| Swing high/low detection | ❌ | None. |
-| Pattern detection (head-and-shoulders…) | n/a | Subjective-pattern family excluded. |
+| Rompimento de canal por extremos de preço | ✅ | `donchian_breakout` implementa rompimento de n barras (máxima anterior em `entry_period`, mínima anterior em `exit_period`). |
+| Canal de regressão linear projetado | ❌ | Não consta no catálogo; sem auxiliar de regressão em `strategies/domain`. |
+| Canal móvel ajustado à volatilidade/amplitude | ❌ | Donchian usa extremos, não amplitude média; não há auxiliar ATR/amplitude. |
+| CCI/osciladores de reversão | ❌ | Não existe estratégia de reversão à média. |
+| Consideração de números redondos | ❌ | Ver livro 4, cap. 3 O3 (H-ROUND). |
+| Detecção de máximas/mínimas de oscilação | ❌ | Não existe. |
+| Detecção de padrões (cabeça-e-ombros etc.) | n/a | Família subjetiva excluída. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Regression-channel trend strategy (objective) *(book: C3, pp. 167–170)*
-* **Proposal:** a long-only strategy that fits a least-squares line to the closes since a reference point (or over a fixed window), measures the maximum residual excursions `B_U`, `B_L`, projects the channel one bar ahead and enters on a close above the projected upper band while the slope is positive, exiting on a close below the projected lower band. Closes, not highs and lows, as the book recommends for conservativeness.
-* **Benefit:** a trend family distinct from moving-average and extreme-breakout rules, with a built-in scaling of the band by the data's own dispersion. **Complexity:** medium (numerical regression in `Decimal`, windowing, new strategy file, app form).
-* **Risks:** residual extremes are outlier-sensitive; the line is re-fit each bar, which interacts with look-ahead (must use only data up to the current closed bar: covered by the truncation test); another parameter set to over-fit; the book gives no performance figures for the channel system. **Validation:** truncation test, sensitivity, best-of-N with other trend rules, cost sweep.
+### O1 — Estratégia tendencial de canal de regressão *(livro: C3, pp. 167–170)*
 
-### O2 — Volatility-scaled channel (range-based) *(book: C4, pp. 170–171)*
-* A simpler alternative: centre = typical price average, bands = ± `f ×` average range, projected one bar ahead with the centre's slope. This adapts to volatility better than raw extremes and is easier than O1. Also gives a **profit objective one channel width away** that updates with volatility. **Complexity:** low–medium. **Risk:** conceptually close to existing trend rules → high correlation among candidates (effective N, book 3 ch. 6 O4). **Validation:** correlation with Donchian runs; truncation test.
+Estratégia comprada que ajusta reta de mínimos quadrados aos fechamentos desde referência (ou janela fixa), mede excursões residuais máximas `B_U`/`B_L`, projeta canal uma barra à frente, entra no fecho acima da banda superior projetada com inclinação positiva e sai no fecho abaixo da inferior. Usar fechos, não máximas/mínimas, conforme recomendação conservadora do livro.
 
-### O3 — Shared indicator helpers: average true range, typical price, linear regression *(book: C3–C5)*
-Pure functions in `strategies/domain` (with unit tests) reused by O1/O2, by the stop/position-sizing work (volatility-based stops, book 4 ch. 20 and 23) and by diagnostics. **Complexity:** low. **Risk:** more surface; keep one implementation per indicator.
+**Benefício:** família tendencial diferente de médias móveis e rompimentos de extremos, com faixa escalada pela dispersão dos dados. **Complexidade:** média (regressão numérica em `Decimal`, janela, arquivo de estratégia e formulário). **Riscos:** extremos residuais são sensíveis a outliers; reajuste por barra exige usar apenas dados até o candle fechado atual (coberto pelo teste de truncamento); mais parâmetros e seleção; livro não apresenta desempenho do sistema de canal. **Validação:** truncamento, sensibilidade, melhor entre N comparado a tendências e varredura de custos.
 
-### O4 — Oscillator tail-risk warning *(book: C5, p. 172)*
-When a mean-reversion strategy is added, display the author's warning that oscillator rules "give frequent small profits and an occasional very large loss" and require the risk controls described in book 2 ch. 8 (stop beyond the worst backtest excursion, risk budget). Documentation and UI text only for now.
+### O2 — Canal móvel ajustado à amplitude *(livro: C4, pp. 170–171)*
 
-### O5 — Use Lo–Mamaysky–Wang as an example of **objective, falsifiable pattern testing** *(book: C7, pp. 176–178)*
-The study defines patterns objectively and tests them against random series, the approach of book 3. If subjective-style patterns are ever added, require this standard (objective definition, synthetic-random control, out-of-sample horizon). No work now. Note the reported effects are for three-day horizons in US stocks, before costs.
+Alternativa mais simples: centro = média do preço típico; bandas = ±`f ×` amplitude média, projetadas uma barra com a inclinação do centro. Adapta-se à volatilidade melhor que extremos brutos e é mais simples que O1. Também produz **alvo de lucro a uma largura do canal**, atualizado com volatilidade. **Complexidade:** baixa a média. **Risco:** conceitualmente próximo das regras atuais → alta correlação entre candidatas (N efetivo, livro 3, cap. 6 O4). **Validação:** correlação com Donchian e teste de truncamento.
 
-### Not applicable
-Dunnigan, Nofri, DeMark's Sequential (single-market counting patterns the author himself says can only be validated across unrelated markets), Wyckoff, Bulkowski rankings.
+### O3 — Auxiliares compartilhados: ATR, preço típico e regressão linear *(livro: C3–C5)*
 
-## 4. Priority
+Funções puras em `strategies/domain`, com testes unitários e reutilizadas por O1/O2, stops/dimensionamento por volatilidade (livro 4, caps. 20 e 23) e diagnósticos. **Complexidade:** baixa. **Risco:** ampliar superfície de código; manter uma implementação por indicador.
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+### O4 — Aviso sobre risco de cauda dos osciladores *(livro: C5, p. 172)*
+
+Ao criar estratégia de reversão à média, mostrar ressalva de que regras osciladoras “dão ganhos pequenos frequentes e perda ocasional muito grande” e exigir controles do livro 2, cap. 8 (stop além da pior excursão do backtest e orçamento de risco). Por ora, apenas documentação e interface.
+
+### O5 — Usar Lo–Mamaysky–Wang como exemplo de teste **objetivo e refutável** de padrões *(livro: C7, pp. 176–178)*
+
+O estudo define padrões objetivamente e os compara com séries aleatórias, conforme o método do livro 3. Se padrões subjetivos forem adicionados, exigir esse padrão (definição objetiva, controle aleatório sintético, horizonte fora da amostra). Nenhum trabalho agora. Efeitos relatados são para três dias em ações dos EUA, antes dos custos.
+
+### Não aplicável
+
+Dunnigan, Nofri, Sequential de DeMark (contagens de um único mercado, que o próprio autor diz exigirem validação em mercados não relacionados), Wyckoff e classificações de Bulkowski.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O3 indicator helpers | – | – | – | low | – |
-| 2 | O2 range channel | medium | – | – | low–medium | O3 |
-| 3 | O1 regression channel | medium | – | – | medium | O3 |
-| 4 | O4 oscillator warning | – | medium | – | very low | – |
-| 5 | O5 standard for patterns | – | – | – | none | – |
+| 1 | O3 auxiliares de indicadores | – | – | – | baixa | – |
+| 2 | O2 canal de amplitude | média | – | – | baixa–média | O3 |
+| 3 | O1 canal de regressão | média | – | – | média | O3 |
+| 4 | O4 aviso de oscilador | – | média | – | muito baixa | – |
+| 5 | O5 padrão para padrões | – | – | – | nenhuma | – |
 
-## 5. Affected files
-`strategies/domain/` (new files and helpers), `strategies/catalog.py`, registry, app strategy parameter forms and labels, tests (truncation, parameter validation), `check:consistency`.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Helpers with unit tests.
-2. One new trend channel at a time, each passing the truncation test and cost sensitivity before being exposed.
-3. Evaluate through the sweep → best-of-N → validation pipeline (book 3).
+`strategies/domain/` (novos arquivos e auxiliares), `strategies/catalog.py`, registro, formulários/rótulos de estratégia no app, testes (truncamento e validação de parâmetros), `check:consistency`.
 
-## 7. Acceptance criteria and tests
-* New strategies are deterministic, parameter-validated, pass the truncation (no look-ahead) test and do not alter existing strategies.
-* ruff, mypy and all existing tests green.
+## 6. Plano incremental
 
-## Caveats
-Pattern-study returns are 3-day, pre-cost, US-equity figures from 1962–1996. The book itself says the channel techniques are standard but gives no crypto evidence, and a new strategy adds one more entry to the rule universe that the multiple-testing correction must count.
+1. Auxiliares com testes unitários.
+2. Adicionar um canal tendencial por vez; cada um passa teste de truncamento e sensibilidade a custos antes de ser disponibilizado.
+3. Avaliar pelo fluxo varredura → melhor entre N → validação (livro 3).
+
+## 7. Critérios de aceitação e testes
+
+* Estratégias novas são determinísticas, validam parâmetros, passam teste de truncamento (sem antecipação) e não alteram as existentes.
+* Ruff, mypy e testes existentes passam.
+
+## Ressalvas
+
+Retornos dos estudos de padrões são de três dias, antes de custos, em ações dos EUA de 1962–1996. O livro diz que técnicas de canal são convencionais, mas não apresenta evidência cripto; estratégia nova acrescenta regra ao universo e precisa entrar na correção de testes múltiplos.

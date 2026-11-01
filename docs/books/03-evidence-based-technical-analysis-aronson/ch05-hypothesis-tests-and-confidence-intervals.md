@@ -1,84 +1,95 @@
-# Book 3 · Chapter 5 — Hypothesis Tests and Confidence Intervals
+# Livro 3 · Capítulo 5 — Testes de hipóteses e intervalos de confiança
 
-*Evidence-Based Technical Analysis*, Aronson (2007). Book pages (PDF = book + 16; OCR scan). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only. All of pp. 217–253 was read.
+*Evidence-Based Technical Analysis*, Aronson (2007). Páginas do livro (PDF = livro + 16; digitalização com OCR). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise. Todo o conteúdo das pp. 217–253 foi lido.
 
-## 1. Chapter summary (pp. 217–253)
+## 1. Resumo do capítulo (pp. 217–253)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | Two inference procedures: **hypothesis tests** (is an effect present?) and **estimation** (how large? point estimate and **interval estimate**). Informal inference is biased toward confirmatory evidence; confirmatory evidence is *necessary but not sufficient* (affirming the consequent); the hypothesis test is built on **denial of the consequent**. | Why "it worked in the backtest" is not enough. | 217–219 |
-| C2 | **Hypotheses**: `H_A` the rule's expected return > 0 (on detrended data); `H₀` it is ≤ 0. Mutually exclusive and exhaustive; the test targets `H₀` because it reduces to one claim (return = 0; a rejection of 0 contradicts all lower values). `H₀` is assumed true for **skepticism** (burden of proof on the claimant, like presumption of innocence) and **simplicity** (Occam: fewer parameters fit by chance less; a 10-coefficient polynomial fits any 10 points). **Rejecting `H₀` is a strong decision; retaining it is weak** (absence of evidence ≠ rule is useless). | Logic of the test. | 220–227 |
-| C3 | **Mechanics**: hypothesis, test statistic (the rule's mean return), sampling distribution under `H₀` (centred at zero). **p-value** = conditional probability, under `H₀`, of a statistic at least as large as observed = share of the sampling distribution's area at or beyond it; threshold chosen **before** the test. Scale: 0.10 possibly significant, **0.05** statistically significant, 0.01 very, 0.001 highly. The p-value is *not* the probability that `H₀` is true. | Quantifying "surprising". | 227–233 |
-| C4 | **Errors**: type I (reject a true `H₀`: trade a worthless rule) vs type II (miss a good rule). For a trader **type I is worse** (lost capital vs lost opportunity). | Cost of being wrong. | 233–234 |
-| C5 | **Computer-intensive sampling distributions**. *Bootstrap*: tests `H₀: expected return ≤ 0`; steps: compute the rule's mean daily return on detrended data; **zero-centre** the rule's daily returns (subtract their mean); resample **with replacement exactly N times** (N = original sample size) 5,000 times; the share of resampled means ≥ the observed mean is the p-value. *Monte Carlo permutation (MCP, Masters)*: tests `H₀: the rule's outputs are randomly paired with market changes`; keeps the rule's output sequence in order and pairs it, **without replacement**, with randomly permuted detrended one-day-forward market changes; average the products; repeat 5,000 times; p-value = share ≥ observed. They test slightly different nulls; agree generally on detrended data. The **MCP is public domain; the bootstrap variant suitable for data-mined rules (White's Reality Check) is patented** according to the author (pp. 235–236). | How to get the null distribution. | 234–243 |
-| C6 | **Worked example** (rule TT-4-91, 91-day channel breakout on the Dow Jones Transportation Index, trading the S&P 500, Nov 1980–Jun 2005, 6,800 observations): +4.84%/yr on detrended data; bootstrap p = 0.0692 ("possibly significant"); MCP gave almost the same. The p-value assumes this was the *only* rule tried. | Application. | 240–243 |
-| C7 | **Estimation**: the sample mean is an unbiased, consistent, efficient and sufficient estimator of the population mean (for symmetric populations; its standard error is smaller than the median's). **Confidence interval**: derived from the same sampling distribution, centred at the sample mean; a 90% interval covers the true value in about 90% of independent samples; higher confidence = wider interval. **Bootstrap percentile method**: sort the resampled means and trim `(100 − level)/2 %` from each end. **MCP cannot produce confidence intervals** (it tests information content, not a parameter). Example: 80% CI for TT-4-91 = +0.62% to +9.06%. | Size of the effect. | 243–253 |
-| C8 | Test and interval may disagree when the sampling distribution is skewed; the Central Limit Theorem makes the **mean** a good statistic with large samples; other statistics (ratios) may need pivoted bootstrap methods. | Choice of statistic. | 250–252 |
+| C1 | Dois procedimentos de inferência: **testes de hipóteses** (existe efeito?) e **estimação** (qual sua magnitude? estimativa pontual e **intervalar**). Inferência informal favorece evidências confirmatórias, que são *necessárias, mas insuficientes* (afirmar o consequente); o teste se apoia em **negar o consequente**. | Por que “funcionou no backtest” não basta. | 217–219 |
+| C2 | **Hipóteses**: `H_A`, retorno esperado da regra > 0 (em dados sem tendência); `H₀`, retorno esperado ≤ 0. São mutuamente exclusivas e exaustivas; testa-se `H₀`, reduzida à afirmação retorno = 0 (rejeitar zero contradiz todos os valores inferiores). Pressupõe-se `H₀` verdadeira por **ceticismo** (ônus da prova do proponente, como presunção de inocência) e **simplicidade** (Occam: menos parâmetros ajustam-se ao acaso com menor facilidade; polinômio de dez coeficientes ajusta dez pontos quaisquer). **Rejeitar `H₀` é decisão forte; mantê-la é fraco** (ausência de evidência não prova inutilidade). | Lógica do teste. | 220–227 |
+| C3 | **Mecânica**: hipótese, estatística de teste (retorno médio da regra), distribuição amostral sob `H₀` (centrada em zero). **Valor-p** = probabilidade condicional sob `H₀` de observar estatística igual ou maior que a observada; fração da distribuição amostral nessa região. Escolher limite **antes** do teste. Escala: 0,10 possivelmente significativo; **0,05** significativo; 0,01 muito significativo; 0,001 altamente significativo. Valor-p **não** é a probabilidade de `H₀` ser verdadeira. | Quantificar o quanto o resultado é surpreendente. | 227–233 |
+| C4 | **Erros**: tipo I (rejeitar `H₀` verdadeira e negociar regra inútil) versus tipo II (não detectar regra boa). Para um operador, **tipo I é pior** (perda de capital versus oportunidade perdida). | Custo de errar. | 233–234 |
+| C5 | **Distribuições amostrais computacionais**. *Bootstrap*: testa `H₀: retorno esperado ≤ 0`; calcula retorno diário médio em dados sem tendência; **centraliza em zero** (subtrai a média); reamostra **com reposição N vezes** (N = tamanho original), em 5.000 repetições; valor-p é a fração das médias reamostradas ≥ média observada. *Permutação Monte Carlo (MCP, Masters)*: testa `H₀` de que resultados da regra estão pareados aleatoriamente às variações de mercado; mantém sequência de sinais e pareia, **sem reposição**, com variações diárias futuras sem tendência reordenadas; calcula médias dos produtos e repete 5.000 vezes. Valor-p é a fração ≥ observado. Testam hipóteses nulas ligeiramente diferentes e geralmente concordam em dados sem tendência. Segundo o autor (pp. 235–236), **MCP é de domínio público; variante bootstrap para regras mineradas (Reality Check de White) é patenteada**. | Construir distribuição nula. | 234–243 |
+| C6 | **Exemplo** (regra TT-4-91, rompimento de canal de 91 dias no Dow Jones Transportation, negociação do S&P 500, nov. 1980–jun. 2005, 6.800 observações): +4,84% ao ano em dados sem tendência; bootstrap p = 0,0692 (“possivelmente significativo”); MCP quase igual. Valor-p pressupõe que foi a *única* regra testada. | Aplicação. | 240–243 |
+| C7 | **Estimação**: média amostral é estimador não enviesado, consistente, eficiente e suficiente da média populacional (para populações simétricas; erro-padrão menor que o da mediana). **Intervalo de confiança** deriva da mesma distribuição amostral, centrado na média amostral; IC de 90% cobre o valor verdadeiro em cerca de 90% das amostras independentes; maior confiança → intervalo mais largo. **Percentis bootstrap**: ordenar médias reamostradas e remover `(100 − nível)/2 %` de cada extremidade. **MCP não gera IC**, pois testa conteúdo informativo, não um parâmetro. Exemplo: IC de 80% de TT-4-91 = +0,62% a +9,06%. | Magnitude do efeito. | 243–253 |
+| C8 | Teste e intervalo podem discordar quando a distribuição amostral é assimétrica; o TCL torna a **média** uma boa estatística para amostras grandes; outras estatísticas (razões) podem precisar de métodos bootstrap pivotados. | Escolha da estatística. | 250–252 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| `H₀`, p-value, significance labels | ❌ | None in `analytics` or the backtest API. |
-| Bootstrap / permutation machinery | ❌ | No resampling code anywhere in `api/src`. |
-| Confidence intervals of mean return | ❌ | Not computed. |
-| Preconditions available | ⚠️ | The engine yields an equity curve (per-candle) and fills; a per-candle **position state** (flat/long) exists inside the loop (`quantity`) but is not returned in `BacktestOutcome` (`models.py`). Per-bar returns can be derived from the equity curve. The `seed` field on `BacktestConfig` already exists for reproducibility. |
-| Error costs asymmetry | ✅ conceptually | Live promotion requires paper days, caps and approvals, i.e. the system is already biased against type I errors; nothing ties it to evidence. |
-| Licensing of methods | n/a | No code yet. |
+| `H₀`, valor-p, rótulos de significância | ❌ | Nada em `analytics` ou na API de backtest. |
+| Bootstrap/permutação | ❌ | Não há reamostragem em `api/src`. |
+| Intervalos de confiança do retorno médio | ❌ | Não calculados. |
+| Pré-requisitos disponíveis | ⚠️ | O motor retorna curva patrimonial e operações; estado comprado/neutro por barra existe (`quantity`), mas não é retornado em `BacktestOutcome` (`models.py`). Retornos por barra podem ser derivados da curva. `BacktestConfig` já tem `seed`. |
+| Assimetria no custo dos erros | ✅ conceitualmente | Promoção exige dias em paper, limites e aprovações, favorecendo evitar erro tipo I; nada disso está ligado à evidência. |
+| Licenciamento dos métodos | n/a | Ainda não há código. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Monte Carlo permutation test on a backtest's position series *(book: C5, pp. 238–243 · long/flat form is our adaptation)*
-* **Problem:** no probabilistic statement can be attached to a result.
-* **Proposal:** a pure function `permutation_test(position, bar_returns, n=5000, seed)` that keeps the strategy's per-bar position series (1 when in the market, 0 otherwise; the book's ±1 generalises) in its original order, pairs it without replacement with random permutations of the (detrended) bar returns, averages the position-weighted returns, and returns the p-value. Position series is exactly what the book calls the rule's output. Return the full null distribution summary (mean, quantiles) so the UI can draw it.
-* **Key advantage for us:** it needs **no re-run of the strategy**: only arrays, so it is cheap and deterministic with `seed`. It also encodes the exposure-adjusted benchmark of book 3 ch. 1 (the null automatically has the same time in the market).
-* **Benefit:** a defensible p-value per backtest and per train/test segment; the sweep can show a p-value per cell (but see book 3 ch. 6 for the multiplicity correction).
-* **Complexity:** low–medium: `BacktestOutcome` must carry the per-bar position (additive); detrending uses the sample mean of bar returns (book 3 ch. 1); sorting for percentile; runtime O(5,000 × bars) is fine.
-* **Risks:** (a) the permutation destroys autocorrelation in market returns, which is the null the book intends but which can make breakout strategies look better than under a volatility-clustered null; (b) with costs, the permuted null should include the trading costs implied by the *original* trade pattern (the position series is unchanged, so costs are the same) and the p-value should be on net returns; (c) the book's examples use ±1 positions and daily data; flat periods and 24/7 intraday bars change the distribution of the statistic; (d) dependence of position on past returns (a trend rule is always long after rises) is exactly what is being tested, so the test is valid, but a few long position runs mean few effective degrees of freedom: report the number of position runs next to the p-value.
-* **Validation:** a position series built from the *future* returns (cheating) must give p≈0; a random series gives uniform p; the book's expected-return formula check (book 3 ch. 1 O1); same seed → same result.
+### O1 — Teste de permutação Monte Carlo sobre posições por barra *(livro: C5, pp. 238–243 · comprado/neutro é adaptação nossa)*
 
-### O2 — Zero-centred bootstrap p-value and percentile confidence interval for mean return *(book: C5, C7, pp. 235–238, 248–250)*
-* **Proposal:** resample the strategy's per-bar (or, better for dependence, per-trade or **block**) returns with replacement, N draws per resample, 5,000 resamples: (a) zero-centre for the p-value; (b) do not centre for the percentile confidence interval; present both with the sample size. Block resampling is our adaptation for serially dependent returns; the book's version resamples individual daily returns.
-* **Benefit:** a confidence interval that does not assume normality; complements O1 (test of information content vs estimate of size). **Complexity:** low–medium. **Risks:** the book's iid resampling underestimates uncertainty when returns are autocorrelated; zero-centering keeps skew and kurtosis (good) but assumes the sample is representative; the distribution of a strategy's per-bar returns is spiky (mostly zeros). **Validation:** known-mean synthetic data; coverage simulation: about 90% of 90% intervals cover the true mean.
+* **Problema:** não é possível associar afirmação probabilística ao resultado.
+* **Proposta:** função pura `permutation_test(position, bar_returns, n=5000, seed)`, mantendo a sequência original de posições por barra (1 no mercado, 0 fora; generalização nossa do ±1 do livro), pareando-a sem reposição com permutações dos retornos por barra sem tendência, calculando a média ponderada pela posição e retornando valor-p. Essa sequência é a saída da regra no vocabulário do livro. Retornar resumo da distribuição nula (média, quantis) para o gráfico.
+* **Vantagem:** **não exige executar a estratégia novamente**; trabalha sobre vetores, com baixo custo e determinismo por semente. A hipótese nula mantém a mesma exposição, refletindo o benchmark ajustado à exposição do livro 3, cap. 1.
+* **Benefício:** valor-p justificável por backtest e segmentos treino/teste; varreduras podem mostrar valor-p por célula (ver correção por multiplicidade no cap. 6).
+* **Complexidade:** baixa a média: `BacktestOutcome` precisa carregar posição por barra; remover tendência subtraindo retorno médio amostral (livro 3, cap. 1); ordenar percentis; O(5.000 × barras) é aceitável.
+* **Riscos:** (a) permutação destrói autocorrelação dos retornos, como pretende o livro, mas pode favorecer rompimentos em relação a uma hipótese nula com agrupamento de volatilidade; (b) hipótese nula com custos deve incluir custos do padrão de operações original (posições não mudam, portanto custos são iguais) e valor-p deve usar retorno líquido; (c) exemplos do livro usam posições ±1 e dados diários; períodos neutros e candles intradiários 24/7 mudam a estatística; (d) a dependência da posição em retornos passados é justamente o que se testa, mas longos períodos na mesma posição reduzem graus de liberdade efetivos; exibir número de sequências de posição junto ao valor-p.
+* **Validação:** posições construídas com retornos futuros (trapaça) devem dar p≈0; série aleatória produz valores-p uniformes; conferir a fórmula de retorno esperado do livro 3, cap. 1 O1; mesma semente deve repetir o resultado.
 
-### O3 — Present results with the book's significance vocabulary and with caveats *(book: C3, C4, pp. 231–234)*
-Show p-value, level label (possibly/statistically/very/highly significant) and a fixed sentence that the p-value is the probability of this result **if the strategy had no skill**, not the probability that it has skill; show whether the number of tests that led to this result is 1 or N (book 3 ch. 6). **Complexity:** very low.
+### O2 — Valor-p bootstrap centralizado em zero e intervalo percentil da média *(livro: C5, C7, pp. 235–238, 248–250)*
 
-### O4 — Evidence gate for live promotion (type I is worse) *(book: C4, p. 234 · adaptation)*
-* Extend the live readiness checks (`bots/application/live.py`) with an optional, explicit criterion that the backtest of the bot's configuration has a permutation p-value below a threshold set by the operator **and** that the correction for the number of configurations tried (book 3 ch. 6) is applied. Off by default. Rationale: the book argues that wrongly adopting a useless rule is costlier than missing a good one. **Complexity:** low once O1 and ch. 6 exist. **Risk:** false confidence from a passed test; keep paper-days, caps and approvals unchanged.
+Reamostrar com reposição N retornos por barra (ou, melhor para dependência, retornos por operação ou **blocos**) em 5.000 repetições: (a) centralizar em zero para valor-p; (b) não centralizar para intervalo percentil. Exibir ambos e tamanho da amostra. Reamostragem em blocos é adaptação nossa à dependência serial; o método do livro reamostra retornos diários individuais.
 
-### O5 — Licensing and method choice *(book: C5, pp. 235–236)*
-The author states that the bootstrap form that handles data-mined rules (White's Reality Check) is **patented** (Halbert White; software by Quantmetrics) and that the Monte Carlo permutation method is public domain. Before implementing a data-mining correction (ch. 6), verify the legal status of whatever algorithm is chosen (this is a verification task for the owner, not legal advice from this analysis), and prefer methods whose status is clear. Plain bootstrap and permutation tests are standard statistics. **Complexity:** none for code; a decision.
+**Benefício:** intervalo sem pressupor normalidade, complementar a O1 (teste de conteúdo informativo versus estimação do tamanho). **Complexidade:** baixa a média. **Riscos:** bootstrap iid do livro subestima incerteza com autocorrelação; centralizar preserva assimetria/curtose, mas supõe amostra representativa; retornos por barra são esparsos (muitos zeros). **Validação:** dados sintéticos com média conhecida; cobertura simulada: cerca de 90% dos IC de 90% contêm a média verdadeira.
 
-### Not applicable
-Textbook estimator properties, tennis analogy, bead experiments.
+### O3 — Apresentar vocabulário de significância e ressalvas *(livro: C3, C4, pp. 231–234)*
 
-## 4. Priority
+Exibir valor-p, rótulo (possivelmente/significativo/muito/altamente significativo) e frase fixa: valor-p é probabilidade deste resultado **se a estratégia não tiver habilidade**, não probabilidade de ela ter habilidade. Indicar se houve 1 ou N testes (livro 3, cap. 6). **Complexidade:** muito baixa.
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+### O4 — Critério de evidência para promoção à operação real (erro tipo I é pior) *(livro: C4, p. 234 · adaptação)*
+
+Ampliar verificações de prontidão (`bots/application/live.py`) com critério opcional explícito: valor-p de permutação do backtest abaixo de limite escolhido pelo operador **e** correção para número de configurações testadas (livro 3, cap. 6). Desligado por padrão. Motivação: o livro considera mais custoso adotar regra inútil do que perder uma boa oportunidade. **Complexidade:** baixa após O1 e cap. 6. **Risco:** falso sentimento de segurança após aprovação; manter dias em paper, limites e aprovações atuais.
+
+### O5 — Licenciamento e escolha do método *(livro: C5, pp. 235–236)*
+
+O autor afirma que a variante bootstrap para regras mineradas (Reality Check de White) é **patenteada** (Halbert White; software Quantmetrics) e que permutação Monte Carlo é de domínio público. Antes de implementar correção de seleção de dados (cap. 6), verificar status legal do algoritmo escolhido (tarefa de verificação do proprietário, não aconselhamento jurídico deste relatório) e preferir métodos com status claro. Bootstrap simples e testes de permutação são estatística padrão. **Complexidade:** nenhuma no código; requer decisão.
+
+### Não aplicável
+
+Propriedades didáticas de estimadores, analogia do tênis e experimentos com contas.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O1 permutation test | **high** | – | – | low–medium | per-bar position in `BacktestOutcome` |
-| 2 | O3 vocabulary and caveats | medium | – | – | very low | O1 |
-| 3 | O2 bootstrap p and CI | high | – | – | low–medium | – |
-| 4 | O5 licensing check | – | – | – | none | before ch. 6 work |
-| 5 | O4 evidence gate | – | medium | medium | low | O1, ch. 6 |
+| 1 | O1 teste de permutação | **alta** | – | – | baixa–média | posição por barra em `BacktestOutcome` |
+| 2 | O3 vocabulário e ressalvas | média | – | – | muito baixa | O1 |
+| 3 | O2 valor-p e IC bootstrap | alta | – | – | baixa–média | – |
+| 4 | O5 verificação de licença | – | – | – | nenhuma | antes do cap. 6 |
+| 5 | O4 critério de promoção | – | média | média | baixa | O1, cap. 6 |
 
-## 5. Affected files
-`backtesting/domain/models.py` (position series in `BacktestOutcome`), `backtesting/domain/engine.py` (emit it), new `analytics/domain/inference.py` (permutation, bootstrap), `backtesting/application/service.py` and `router.py` (result fields), `docs/openapi.json`, `bots/application/live.py` (O4), app backtest detail and sweep pages, tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Carry per-bar position in the outcome (additive; hash and stored runs unaffected).
-2. Pure permutation and bootstrap functions with synthetic tests.
-3. Expose p-value and interval as optional result fields for the whole run and each segment.
-4. UI: distribution plot and labelled p-value; wording per O3.
-5. Later: the multiplicity correction (ch. 6) and optional promotion gate.
+`backtesting/domain/models.py` (posições em `BacktestOutcome`), `backtesting/domain/engine.py` (produzi-las), novo `analytics/domain/inference.py` (permutação/bootstrap), `backtesting/application/service.py` e `router.py` (campos de resultado), `docs/openapi.json`, `bots/application/live.py` (O4), páginas de backtest/varredura e testes do app.
 
-## 7. Acceptance criteria and tests
-* A strategy with deliberate look-ahead (positions from future returns) gets p near 0; an alternating random position gets p roughly uniform over many seeds.
-* The bootstrap interval covers the true mean about the nominal fraction in simulation.
-* Determinism: same seed and inputs → identical p-value.
-* Runtime for 5,000 permutations on typical runs stays within an agreed budget; computation can be asynchronous like other jobs.
-* No change to trading or to stored results unless the optional fields are requested; ruff, mypy, existing tests green.
+## 6. Plano incremental
 
-## Caveats
-All p-values are conditional on `H₀`, on the chosen statistic and on a single test (p. 242). The case-study rule was "possibly significant" at p = 0.069, i.e. not significant at 0.05, and that was before accounting for the thousands of rules tried (next chapter). Significance on past data does not imply future profit.
+1. Incluir posições por barra no resultado (aditivo; hashes e execuções armazenadas não mudam).
+2. Funções puras de permutação/bootstrap com testes sintéticos.
+3. Expor valor-p/intervalo como campos opcionais do resultado geral e de cada segmento.
+4. Interface com distribuição, valor-p rotulado e texto O3.
+5. Mais tarde, correção de multiplicidade (cap. 6) e critério opcional de promoção.
+
+## 7. Critérios de aceitação e testes
+
+* Estratégia com antecipação deliberada (posições derivadas de retornos futuros) obtém p próximo de 0; posição alternada aleatória produz p aproximadamente uniforme em várias sementes.
+* Em simulação, o intervalo bootstrap cobre a média verdadeira aproximadamente na proporção nominal.
+* Determinismo: mesma semente e entradas → valor-p idêntico.
+* Execução de 5.000 permutações em casos típicos cabe no orçamento acordado; pode rodar assincronamente como outras tarefas.
+* Nenhuma mudança na negociação ou resultados armazenados sem solicitação dos campos opcionais; Ruff, mypy e testes existentes passam.
+
+## Ressalvas
+
+Valores-p são condicionais a `H₀`, à estatística escolhida e a um único teste (p. 242). A regra do estudo foi “possivelmente significativa” com p = 0,069, portanto não significativa a 0,05, antes de considerar milhares de regras testadas (próximo capítulo). Significância em dados passados não implica lucro futuro.

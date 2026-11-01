@@ -1,25 +1,27 @@
-# Book 2 · Conclusion
+# Livro 2 · Conclusão
 
-*Algorithmic Trading*, Chan (2013), pp. 187–189. Book pages (PDF = book + 18). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only. The bibliography, author and website pages were not analysed.
+*Algorithmic Trading*, Chan (2013), pp. 187–189. Páginas do livro (PDF = livro + 18). Referência de implementação: [00-system-baseline](../00-system-baseline.md). Status: apenas análise. A bibliografia e as páginas sobre o autor e o site não foram analisadas.
 
-## 1. Summary
+## 1. Resumo
 
-| ID | Concept | Pages |
+| ID | Conceito | Páginas |
 |---|---|---|
-| C1 | The book illustrates concepts, not recipes: its strategies may still contain the pitfalls of Chapter 1 and can fall victim to regime change; readers should test them out of sample. | 187 |
-| C2 | Understand the **inefficiency first**, then build a simple (linear) model; avoid arbitrary rules. | 187 |
-| C3 | Treat trading **scientifically**: hypothesis → model → test on unseen data → if it fails, find the reason (GLD/GDX and oil) rather than adding rules. | 187–188 |
-| C4 | **Judgment calls remain**: lowering leverage before a major event (author: if the model survived prior stress, don't; start conservative), pooled versus per-strategy Kelly (author: per strategy lets underperformers die quickly). | 188 |
-| C5 | Live divergence often comes from **regime shifts**, not backtest errors; the manager's role is to judge whether the models are still valid; algorithms beat expert judgment where uncertainty is high (Kahneman). | 188–189 |
+| C1 | O livro ilustra conceitos, não oferece receitas: as estratégias podem conter as armadilhas do Capítulo 1 e falhar quando o regime de mercado muda. O leitor deve testá-las fora da amostra. | 187 |
+| C2 | Primeiro, compreenda a **ineficiência**; depois, construa um modelo simples (linear) e evite regras arbitrárias. | 187 |
+| C3 | Trate o trading de forma **científica**: hipótese → modelo → teste em dados não vistos → se falhar, investigue o motivo (GLD/GDX e petróleo), em vez de apenas acrescentar regras. | 187–188 |
+| C4 | **Ainda é preciso exercer julgamento**: reduzir a alavancagem antes de um evento importante (o autor recomenda não fazê-lo se o modelo já resistiu a situações de estresse anteriores; a postura inicial deve ser conservadora); usar Kelly agregado ou por estratégia (segundo o autor, o cálculo por estratégia permite que as estratégias com pior desempenho sejam eliminadas rapidamente). | 188 |
+| C5 | Divergências na operação real muitas vezes decorrem de **mudanças de regime**, não de erros no backtest. Cabe ao gestor avaliar se os modelos continuam válidos; segundo Kahneman, algoritmos superam o julgamento de especialistas quando há muita incerteza. | 188–189 |
 
-## 2. Diagnosis and opportunities
-All points are already covered by earlier items:
+## 2. Diagnóstico e oportunidades
 
-* C2/C3 → the post-mortem and hypothesis records ([ch. 4 O1](ch04-mean-reversion-stocks-etfs.md)), diagnostics before strategies ([ch. 2 O1](ch02-basics-of-mean-reversion.md)), and the hypothesis IDs `H-MOM-REV` and `H-RISK-INDICATOR`.
-* C4 → document policies ([ch. 8 O7](ch08-risk-management.md)); per-strategy sizing is already how bots work ([ch. 8 O5](ch08-risk-management.md)).
-* C5 → named regime breaks and live-vs-backtest monitoring ([ch. 5 O1](ch05-mean-reversion-currencies-futures.md), [ch. 1 O4](ch01-backtesting-and-automated-execution.md)).
+Os pontos já estão cobertos por recomendações anteriores:
 
-No new opportunities.
+* C2/C3 → registros de hipóteses e análises pós-incidente ([cap. 4 O1](ch04-mean-reversion-stocks-etfs.md)), diagnósticos antes de criar estratégias ([cap. 2 O1](ch02-basics-of-mean-reversion.md)) e os IDs de hipótese `H-MOM-REV` e `H-RISK-INDICATOR`.
+* C4 → políticas documentadas ([cap. 8 O7](ch08-risk-management.md)); o dimensionamento por estratégia já corresponde ao funcionamento dos bots ([cap. 8 O5](ch08-risk-management.md)).
+* C5 → identificação de mudanças de regime e monitoramento da divergência entre operação real e backtest ([cap. 5 O1](ch05-mean-reversion-currencies-futures.md), [cap. 1 O4](ch01-backtesting-and-automated-execution.md)).
 
-## Caveat
-The author states the book's strategies are not guaranteed pitfall-free and may fail under regime change (p. 187). Nothing here is a statement about expected returns.
+Não há novas oportunidades identificadas.
+
+## Ressalva
+
+O autor afirma que as estratégias do livro não estão livres de armadilhas e podem falhar quando o regime de mercado muda (p. 187). Este relatório não faz afirmações sobre retornos esperados.

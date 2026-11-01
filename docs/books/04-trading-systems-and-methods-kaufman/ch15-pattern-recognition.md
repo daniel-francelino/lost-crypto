@@ -1,69 +1,79 @@
-# Book 4 · Chapter 15 — Pattern Recognition
+# Livro 4 · Capítulo 15 — Reconhecimento de padrões
 
-*Trading Systems and Methods*, 5th ed., Kaufman (2013). Book pages (PDF = book + 20). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Trading Systems and Methods*, 5.ª ed., Kaufman (2013). Páginas do livro (PDF = livro + 20). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 685–692 and 732–734 were read, plus the first lines of p. 732. The pivot-point/DeMark projections (688), intraday timing detail (692–698), opening gaps (699–710), weekday/weekend/reversal tables (711–731; large tables of sequence frequencies) and the AI methods (735–736) were **not** read in detail and are not summarised.
+**Profundidade da leitura:** pp. 685–692 e 732–734 foram lidas, além das primeiras linhas da p. 732. Projeções de pivôs/DeMark (688), detalhes de timing intradiário (692–698), lacunas de abertura (699–710), tabelas de dias da semana/fins de semana/reversão (711–731) e métodos de IA (735–736) **não** foram lidos nem resumidos em detalhe.
 
-## 1. Chapter summary (pages read)
+## 1. Resumo (páginas lidas)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | Pattern recognition underlies most systems; much early pattern knowledge is **lore** ("up Monday, down Tuesday", "locals even-up on Fridays", "watch for key reversals") worth testing by computer. **Sequence tally method**: record all 2-day (4), 3-day (8), 4-day (16)… up/down patterns and measure the frequency of the next move to see whether a pattern predicts; "a source of many valuable ideas as well as false paths". | Testing folklore objectively. | 685–686 |
-| C2 | Statisticians say the best forecast of tomorrow is today's price (long-term: the mean); yet traders project daily ranges: **pivot points** `P = (H+L+C)/3`, `R1 = 2P − L`, `S1 = 2P − H`, `R2`, `S2`; DeMark's projected ranges condition on the open relative to the previous close. | Level projections. | 687–688 |
-| C3 | **Time of day**: the classic intraday volume shape (highest near the open, next near the close, lowest midday); habits (evening analysis → morning orders; closing prices for settlement; institutions trade when volume is heavy or use VWAP orders; lunch-time liquidity lull may cause a temporary reversal). Market structure has not altered the time patterns despite high-frequency trading. | Intraday seasonality. | 689–690 |
-| C4 | **Tubbs' six intraday patterns** (e.g. a rally returning to the opening price by 1 pm implies a weaker close); anecdotal rules from tape reading. | Lore. | 690 |
-| C5 | **Reversal-day statistics** (S&P): after a higher-high/lower-close day, the next open continues lower 52% of the time but the next close only 43% lower (opening reversal not sustained; rally open-to-close); after a lower-low/higher-close day only 40% higher open but 53% higher close; the author notes these exceed the general upward bias of equity indices; markets differ (wheat, crude oil show other patterns). | Conditional next-day behaviour. | 731–732 |
-| C6 | **Computer-based pattern recognition via trade profiles** (Aronson's earlier method): define the *outcome* you want (price moves ≥3% within 20 days without a loss over 0.5%); mark the 5 days before each such move as "buy days" (and the symmetric "sell days"); then search indicators (moving-average direction, RSI or sentiment, volume direction, 10-day momentum) for **combinations that occur mostly on those days**; the ideal signal has no losing signals in the zone, which does not exist in practice, so signals must still be judged by net return and risk. Analogous to the multiple regression approach. | Labelling outcomes and discovering predictors. | 732–734 |
+| C1 | Reconhecimento de padrões sustenta a maioria dos sistemas; parte do conhecimento inicial é **folclore** (“alta segunda, baixa terça”, “operadores locais zeram na sexta”, “atenção às reversões-chave”), que vale testar por computador. **Contagem de sequências**: registrar todos padrões de alta/baixa de 2 dias (4), 3 dias (8), 4 dias (16)… e medir frequência do movimento seguinte para avaliar previsão; “fonte de muitas ideias valiosas e também caminhos falsos”. | Testar folclore objetivamente. | 685–686 |
+| C2 | Estatísticos dizem que melhor previsão de amanhã é preço de hoje (longo prazo: média); ainda assim operadores projetam faixas diárias: **pontos de pivô** `P=(H+L+C)/3`, `R1=2P−L`, `S1=2P−H`, `R2`, `S2`; projeções DeMark condicionam faixas ao preço de abertura versus fecho anterior. | Projeções de níveis. | 687–688 |
+| C3 | **Horário do dia**: volume intradiário clássico (máximo perto da abertura, depois do fecho, mínimo ao meio-dia); hábitos (análise à noite → ordens pela manhã; fecho para liquidação; instituições negociam com volume alto ou usam VWAP; queda de liquidez no almoço pode gerar reversão temporária). Estrutura não alterou padrões temporais apesar de HFT. | Sazonalidade intradiária. | 689–690 |
+| C4 | **Seis padrões intradiários de Tubbs** (ex.: alta que retorna ao preço de abertura até 13h implica fecho mais fraco); regras anedóticas de leitura de fita. | Folclore de mercado. | 690 |
+| C5 | **Estatísticas de dias de reversão** (S&P): após dia de máxima maior e fecho menor, próxima abertura continua baixa 52% das vezes, mas próximo fecho só 43% (reversão de abertura não persiste; alta da abertura ao fecho). Após mínima menor e fecho maior, abertura seguinte sobe 40%, mas fecho 53%. Autor observa que superam viés geral de alta dos índices; mercados diferem (trigo/petróleo exibem outros padrões). | Comportamento condicional do dia seguinte. | 731–732 |
+| C6 | **Reconhecimento por computador com perfis de operação** (método anterior de Aronson): definir *resultado* desejado (preço sobe ≥3% em 20 dias sem perda maior que 0,5%); marcar os cinco dias anteriores como “dias de compra” (e simetricamente “venda”); buscar indicadores (direção da média, RSI/sentimento, direção do volume, momentum de dez dias) e **combinações presentes sobretudo nesses dias**. Sinal ideal sem perdas na zona não existe na prática; avaliar sinais pelo retorno líquido e risco. Análogo à regressão múltipla. | Rotular resultados e descobrir preditores. | 732–734 |
 
-Crypto remarks are **our adaptation**.
+Referências a cripto são **adaptações nossas**.
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| Up/down sequence statistics | ❌ | None. |
-| Time-of-day / weekday statistics | ❌ | None (planned in book 4 ch. 10 O1). |
-| Reversal-day conditional statistics | ❌ | None. |
-| Outcome labelling for supervised learning | ❌ | No labels, features or ML module. This is the topic of book 5. |
-| Pivot-point style level projections | ❌ | None; not recommended without evidence. |
+| Estatísticas de sequências alta/baixa | ❌ | Nenhuma. |
+| Estatísticas por hora/dia da semana | ❌ | Nenhuma (planejadas no livro 4, cap. 10 O1). |
+| Estatísticas condicionais de dia de reversão | ❌ | Nenhuma. |
+| Rotulagem para aprendizado supervisionado | ❌ | Sem rótulos, atributos ou módulo ML; assunto do livro 5. |
+| Projeções de nível por pivôs | ❌ | Nenhuma; não recomendadas sem evidência. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — N-candle sequence diagnostics (conditional probabilities of the next candle) *(book: C1, pp. 685–686)*
-* **Proposal:** in the series-diagnostics module, tabulate for `k = 2…5` the frequency of up/down candle sequences and the conditional probability that the next candle's return is positive (and its mean), with sample sizes, an unconditional baseline, and a **correction count** (the number of patterns examined: 2+4+8+16 = 30 tables for k up to 4 plus further for the next-move definitions), reporting results as the book's "ideas and false paths": a screening aid only.
-* **Benefit:** a quick objective answer to "does any short sequence predict direction on this pair/timeframe?". **Complexity:** low. **Risks:** huge multiple-testing risk; autocorrelation and volatility clustering make runs look informative; weak edges disappear after costs; do not turn into a strategy without best-of-N and validation (book 3). **Validation:** synthetic random walk should yield about 5% of tables "significant" at p = 0.05 before correction.
+### O1 — Diagnóstico de sequências de N candles (probabilidades condicionais do seguinte) *(livro: C1, pp. 685–686)*
 
-### O2 — Reversal-day and opening-gap studies are the same diagnostics with different conditioning *(book: C5, p. 731–732)*
-Add conditioning by *prior-candle type* (outside/inside, higher high with lower close, etc.) to O1's tables and report the open-to-close behaviour of the next period. Equity-index results in the book show that conditional behaviour can differ strongly from the unconditional drift. For crypto, "next open" is simply the next candle's open (no gap); the hypothesis is about candle-to-candle persistence. **Complexity:** low. Same multiple-testing caution.
+No módulo de diagnóstico, tabular para `k=2…5` frequências de sequências alta/baixa e probabilidade condicional (e média) de retorno positivo do candle seguinte; incluir tamanho de amostra, base incondicional e **contagem de correção** (número de padrões examinados: 2+4+8+16=30 tabelas até k=4, além de definições de movimento futuro). Exibir como “ideias e caminhos falsos” do livro: apenas triagem.
 
-### O3 — Outcome labelling pipeline (bridge to book 5) *(book: C6, pp. 732–734)*
-The method defined by "a move of at least x% within n days without an adverse move beyond y%" is a **barrier-style label**; marking the days before such moves and searching for indicators that discriminate them is supervised learning in plain language. It anticipates the labelling methods in López de Prado (triple barrier, meta-labelling), to be analysed in [book 5](../05-advances-in-financial-ml-lopez-de-prado). Do not build anything here; the design belongs to that analysis (leakage, overlapping labels, purged cross-validation).
+**Benefício:** responde rapidamente se alguma sequência curta prevê direção num par/intervalo. **Complexidade:** baixa. **Riscos:** alto risco de testes múltiplos; autocorrelação/volatilidade em grupos fazem sequências parecer informativas; vantagens fracas somem com custos; não transformar em estratégia sem melhor de N e validação (livro 3). **Validação:** passeio aleatório sintético deve gerar cerca de 5% de tabelas “significativas” a p=0,05 antes da correção.
 
-### O4 — Intraday volume/time shape as a feature, not a rule *(book: C3, p. 689–690 · adaptation)*
-Use hour-of-day normalisation of volume and volatility (book 4 ch. 12 O1) rather than rules such as "if the rally returns to the open by 1 pm…", which rest on equity session structure that crypto spot lacks. **Complexity:** part of ch. 12 O1.
+### O2 — Estudos de dia de reversão/lacuna como condicionamentos das mesmas tabelas *(livro: C5, pp. 731–732)*
 
-### Not applicable
-Pivot-point and DeMark projections (no evidence provided), Tubbs' tape-reading patterns, equity open/close structure.
+Condicionar tabelas O1 pelo tipo de candle anterior (externo/interno, máxima maior com fecho menor etc.) e reportar abertura-fecho do próximo período. Resultados de índices do livro mostram que comportamento condicional pode divergir bastante da deriva incondicional. Em cripto, “abertura seguinte” é apenas abertura do próximo candle, sem lacuna; hipótese é persistência entre candles. **Complexidade:** baixa, com mesma cautela de testes múltiplos.
 
-## 4. Priority
+### O3 — Fluxo de rotulagem de resultados (ponte para livro 5) *(livro: C6, pp. 732–734)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+Definir resultado como “movimento de pelo menos x% em n dias sem movimento adverso maior que y%” é rótulo de **barreira**; marcar dias anteriores e buscar indicadores discriminantes equivale a aprendizado supervisionado. Antecipação de López de Prado (barreira tripla, meta-rotulagem), analisada no [livro 5](../05-advances-in-financial-ml-lopez-de-prado). Não implementar aqui: desenho pertence a essa análise (vazamento, rótulos sobrepostos, validação purgada).
+
+### O4 — Formato de volume/horário como atributo, não regra *(livro: C3, pp. 689–690 · adaptação)*
+
+Usar normalização de volume por hora e volatilidade (livro 4, cap. 12 O1), em vez de regras como “se a alta voltar à abertura às 13h”, dependentes de sessão de ações que cripto à vista não tem. **Complexidade:** parte do cap. 12 O1.
+
+### Não aplicável
+
+Projeções pivô/DeMark (sem evidência), padrões Tubbs/leitura de fita e estrutura de abertura/fecho de ações.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O1 sequence diagnostics | low | – | – | low | diagnostics module |
-| 2 | O2 conditional next-candle tables | low | – | – | low | O1 |
-| 3 | O3 labelling bridge | – | – | – | – | book 5 analysis |
-| 4 | O4 time/volume features | low | – | – | low | ch. 12 O1 |
+| 1 | O1 diagnóstico de sequências | baixa | – | – | baixa | módulo de diagnósticos |
+| 2 | O2 tabelas condicionais do próximo candle | baixa | – | – | baixa | O1 |
+| 3 | O3 ponte de rotulagem | – | – | – | – | análise do livro 5 |
+| 4 | O4 atributos horário/volume | baixa | – | – | baixa | cap. 12 O1 |
 
-## 5. Affected files
-`analytics/domain/` (sequence and conditional tabulation), diagnostics endpoint, app diagnostics page, tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Tabulation functions and the correction count.
-2. Report in the app with null-baseline comparison.
-3. Plan labelling after book 5.
+`analytics/domain/` (contagem de sequências/condicionais), endpoint e página de diagnóstico no app e testes.
 
-## 7. Acceptance criteria and tests
-* On synthetic random-walk data about 5% of cells exceed p = 0.05 uncorrected; with a planted dependency the cell is flagged; all read-only; ruff, mypy, tests green.
+## 6. Plano incremental
 
-## Caveats
-The statistics cited come from futures and equity indices (often 1980s–2000s); some are described as "interesting" without tests of significance. Ideas from this chapter are search hypotheses, not evidence.
+1. Funções de tabulação e contagem de correções.
+2. Relatório no app com comparação à hipótese nula.
+3. Planejar rotulagem após livro 5.
+
+## 7. Critérios de aceitação e testes
+
+* Em passeio aleatório sintético, cerca de 5% das células excedem p=0,05 sem correção; dependência inserida é identificada; tudo somente leitura; Ruff, mypy e testes passam.
+
+## Ressalvas
+
+Estatísticas citadas referem-se a futuros/índices de ações (muitas vezes anos 1980–2000); algumas são “interessantes” sem teste de significância. São hipóteses de pesquisa, não evidência.

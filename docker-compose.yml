@@ -1,0 +1,20 @@
+name: api
+
+# Whole stack: postgres + api + worker (from api/docker-compose.yml) and the web app.
+include:
+  - path: api/docker-compose.yml
+
+services:
+  app:
+    build:
+      context: app
+      args:
+        # Public URL the browser uses to reach the API (baked into the bundle at build time).
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
+        VITE_APP_ENV: ${VITE_APP_ENV:-local}
+    ports:
+      - "5173:5173"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped

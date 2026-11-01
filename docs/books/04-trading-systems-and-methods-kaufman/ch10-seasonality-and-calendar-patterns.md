@@ -1,66 +1,74 @@
-# Book 4 · Chapter 10 — Seasonality and Calendar Patterns
+# Livro 4 · Capítulo 10 — Sazonalidade e padrões de calendário
 
-*Trading Systems and Methods*, 5th ed., Kaufman (2013). Book pages (PDF = book + 20). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Trading Systems and Methods*, 5.ª ed., Kaufman (2013). Páginas do livro (PDF = livro + 20). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 427–436 (framing, data caveats, decomposition, detrending) and pp. 478–483 (stock-market calendar effects) were read. The long middle (pp. 436–477: computing seasonal averages and medians, indexes, seasonal filters, commodity examples) was **not** read in detail and is not summarised.
+**Profundidade da leitura:** pp. 427–436 (enquadramento, ressalvas dos dados, decomposição e remoção de tendência) e 478–483 (efeitos de calendário em ações) foram lidas. A parte intermediária longa (pp. 436–477: cálculo de médias/medianas sazonais, índices, filtros e exemplos de commodities) **não** foi lida em detalhe nem é resumida.
 
-## 1. Chapter summary (pages read)
+## 1. Resumo (páginas lidas)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | Seasonality is a **yearly cycle tied to real causes** (planting/harvest, demand for energy, travel). Even when not visible, consistent factors remain (harvest-time selling pressure, storage costs in forward prices). Seasonal patterns can bias position size, flag changes in risk, affect direction and be exploited. Structural changes (globalised supply) shift patterns. | Why calendar effects exist. | 427–428 |
-| C2 | Seasonal patterns are easier to find than longer cycles because they repeat each calendar year; study with **monthly data** (shorter periods = more noise); start the year at a neutral calendar point if the season start is unknown. | Method. | 429–430 |
-| C3 | **Data caveats**: continuous back-adjusted futures cannot be expressed in percentages and differ from cash prices (wheat 1965 $1.72 cash vs $12.45 back-adjusted); stock splits alter old percentages; seasonal studies use cash prices where possible. | Data quality for seasonal analysis. | 430 |
-| C4 | **Seasonal decomposition / detrending**: separate trend, seasonal, cycle, noise (software options for seasonal differences with period 12 for monthly data and about 252 for daily); detrend by regression and take residuals; because the trend is a constant monthly drift it does not change the seasonal shape. | Isolating the seasonal component. | 430–431 |
-| C5 | **Stock market calendar effects**: patterns **changed** between 1982–2000 and later years (the S&P's summer weakness and the "buy in May and go away" adage no longer reliably hold; October–November strength persisted); "only the most significant patterns will survive". **Holiday effect** (Merrill, Fosback): day before holidays up 67.9% of the time (1897–1964) vs a ~54% general up-day rate; Fosback's holiday strategy returned 880% in 1928–1975 with 70% winners and only a few days of exposure per year, but Freeburg found it still profitable but less impressive. **Month-end effect**, **January effect / January barometer** (patterns table; in the 12 years to 2010 only 7 correct, net 14 points: "still a confirmation, but very weak. Geopolitical events can overwhelm these patterns"); McGinley's January rule with a chi-squared of 8–82 in the table (extraction is garbled). | Calendar effects and their decay. | 478–483 |
+| C1 | Sazonalidade é **ciclo anual ligado a causas reais** (plantio/colheita, demanda de energia, viagens). Mesmo quando não é visível, persistem fatores (pressão de venda na colheita, custo de armazenamento nos preços futuros). Padrões podem enviesar tamanho de posição, sinalizar mudança de risco, afetar direção e ser explorados. Mudanças estruturais (oferta globalizada) alteram padrões. | Por que existem efeitos de calendário. | 427–428 |
+| C2 | Padrões sazonais são mais fáceis de encontrar que ciclos longos, pois repetem-se a cada ano; estudar com **dados mensais** (intervalos menores têm mais ruído); iniciar ano num ponto neutro se início da temporada for desconhecido. | Método. | 429–430 |
+| C3 | **Ressalvas dos dados**: futuros contínuos ajustados retroativamente não podem ser expressos em porcentagens e diferem de preços à vista (trigo em 1965: US$1,72 à vista versus US$12,45 ajustado); desdobramentos alteram percentuais históricos; preferir preços à vista em estudos sazonais. | Qualidade dos dados sazonais. | 430 |
+| C4 | **Decomposição/remoção de tendência**: separar tendência, sazonalidade, ciclo e ruído (diferenças sazonais com período 12 em dados mensais e ~252 em diários); remover tendência por regressão e usar resíduos. Como tendência é deriva mensal constante, não muda formato sazonal. | Isolar componente sazonal. | 430–431 |
+| C5 | **Efeitos de calendário em ações**: padrões **mudaram** entre 1982–2000 e anos seguintes (fraqueza de verão do S&P e “vender em maio” deixaram de valer regularmente; força outubro–novembro persistiu). “Só sobrevivem os padrões mais significativos”. **Efeito feriado** (Merrill, Fosback): dia antes de feriado subiu 67,9% das vezes (1897–1964), versus ~54% em dia comum. Estratégia de Fosback rendeu 880% em 1928–1975, 70% vencedoras e poucos dias expostos ao ano; Freeburg achou lucro ainda existente, mas menos impressionante. **Efeito de fim do mês**, **efeito/barômetro de janeiro**: em 12 anos até 2010, só 7 previsões corretas, saldo de 14 pontos (“confirmação, porém muito fraca”; eventos geopolíticos podem dominar). Regra de janeiro de McGinley tem qui-quadrado 8–82 na tabela, mas texto extraído está corrompido. | Efeitos de calendário e sua perda de força. | 478–483 |
 
-Examples are futures and US stocks. Crypto has no harvest cycle or exchange holidays. Crypto remarks are **our adaptation**.
+Exemplos são futuros e ações dos EUA. Cripto não tem ciclo de colheita nem feriados de bolsa. Referências a cripto são **adaptações nossas**.
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| Calendar/time features available to strategies | ❌ | `StrategyContext` carries a single closed candle and the position quantity; no explicit calendar features beyond `candle.open_time` (which does exist). |
-| Seasonal decomposition / detrended seasonal analysis | ❌ | Not in diagnostics. |
-| Persistence check across sub-periods | ❌ | No sub-period comparison (book 1 ch. 2 O5, book 2 ch. 5 O1). |
-| Risk handling of structural change in a pattern | ❌ | None. |
+| Recursos de calendário/tempo disponíveis às estratégias | ❌ | `StrategyContext` tem candle fechado e quantidade da posição; não há campos explícitos de calendário além de `candle.open_time` (que existe). |
+| Decomposição sazonal/análise sem tendência | ❌ | Não consta nos diagnósticos. |
+| Verificação de persistência por subperíodo | ❌ | Não há comparação temporal (livro 1, cap. 2 O5; livro 2, cap. 5 O1). |
+| Gestão de mudança estrutural num padrão | ❌ | Nenhuma. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Calendar-effect diagnostics with persistence checks (research tool) *(book: C2, C4, C5, pp. 430–431, 478–479)*
-* **Problem:** crypto traders often assume weekday/month/hour effects; the book's own S&P example shows effects that appear in one era and vanish in the next.
-* **Proposal:** extend the diagnostics module (book 2 ch. 2 O1; book 2 ch. 4 O3) with detrended mean and median returns by **hour of day (UTC), day of week and day of month**, computed separately for **two or more eras** (first half vs second half, or per year) with sample sizes, so that persistence across eras is visible, as in the book's 19-year vs 10-year comparison. Use returns (crypto spot has percentages, unlike back-adjusted futures) and detrend by subtracting the sample mean (book 3 ch. 1).
-* **Benefit:** a cheap, honest look at whether any calendar structure exists and whether it persisted. **Complexity:** low–medium (pure aggregation).
-* **Risks:** data mining across 24×7×(per-pair) buckets (state the number of buckets examined and apply the best-of-N logic, book 3 ch. 6); weekly/hourly patterns in crypto mostly reflect volume cycles of regions; effect sizes are small relative to costs. **Validation:** synthetic data with a planted hour effect; null data produce spurious buckets at the expected rate (about 5% at p = 0.05 before correction).
+### O1 — Diagnósticos de calendário com teste de persistência *(livro: C2, C4, C5, pp. 430–431, 478–479)*
 
-### O2 — Time-window filter for existing strategies (experiment only) *(book: C1, C5, pp. 428, 479–480)*
-If O1 shows a persistent window, add an optional "allowed hours/weekdays" filter to a strategy as an experiment, with its parameters counted in N. The holiday-effect example shows how a rule with tiny exposure can dominate returns, which is exactly the pattern that is easy to overfit. **H-CALENDAR-WINDOW**; do not implement without evidence from O1 that survives the pipeline. **Complexity:** low.
+* **Problema:** operadores de cripto frequentemente presumem efeitos de dia/hora/mês; exemplo do S&P no livro mostra efeitos que aparecem numa era e desaparecem em outra.
+* **Proposta:** ampliar diagnósticos (livro 2, cap. 2 O1 e cap. 4 O3) para calcular médias/medianas de retornos sem tendência por **hora UTC, dia da semana e dia do mês**, separadamente em **duas ou mais eras** (metade inicial/final ou por ano), exibindo amostras. Usar retornos percentuais (cripto à vista não tem problema de futuros ajustados) e remover tendência subtraindo média amostral (livro 3, cap. 1).
+* **Benefício:** avaliação simples e honesta de estrutura de calendário e sua persistência. **Complexidade:** baixa a média (agregação pura).
+* **Riscos:** seleção de dados em grupos 24×7×pares; declarar quantidade de grupos examinados e aplicar lógica do melhor entre N (livro 3, cap. 6). Padrões semanais/horários podem refletir volume regional; efeitos pequenos perante custos. **Validação:** dado sintético com efeito horário inserido; dados nulos produzem falsos grupos na taxa esperada (~5% com p=0,05 antes da correção).
 
-### O3 — Treat known scheduled events as exposure-control inputs *(book: C1, p. 428 · adaptation)*
-The book lists seasonal factors as inputs for sizing and risk changes. A crypto analogue is scheduled events (token unlocks, protocol upgrades, exchange maintenance, major macro dates). The system has no event calendar (also B-EVENTS in book 2 ch. 7). Record only; if built, use for **risk reduction or pausing**, not for return prediction.
+### O2 — Filtro de janela temporal para estratégias atuais (só experimento) *(livro: C1, C5, pp. 428, 479–480)*
 
-### Not applicable
-Agricultural crop-year methods, cash vs futures, holiday effects tied to exchange holidays, January/barometer rules.
+Se O1 encontrar janela persistente, adicionar filtro opcional de “horas/dias permitidos”, contando seus parâmetros em N. Efeito de feriado mostra como pequena exposição pode dominar retorno, padrão fácil de sobreajustar. **H-CALENDAR-WINDOW**; não desenvolver sem evidência de O1 que sobreviva ao fluxo. **Complexidade:** baixa.
 
-## 4. Priority
+### O3 — Usar eventos programados conhecidos para controlar exposição *(livro: C1, p. 428 · adaptação)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+O livro cita fatores sazonais para dimensionamento e mudanças de risco. Analogia cripto: desbloqueios de tokens, atualizações, manutenção de corretoras e eventos macro. Não há calendário de eventos no sistema (também B-EVENTS, livro 2, cap. 7). Apenas registrar; se desenvolvido, usar para **reduzir risco ou pausar**, não prever retornos.
+
+### Não aplicável
+
+Métodos sazonais agrícolas, preços à vista versus futuros, feriados de bolsas e regras de janeiro/barômetro.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O1 calendar diagnostics | low–medium | – | – | low–medium | diagnostics module |
-| 2 | O2 window filter | low | – | – | low | evidence from O1 |
-| 3 | O3 event calendar | – | medium | – | medium | B-EVENTS |
+| 1 | O1 diagnósticos de calendário | baixa–média | – | – | baixa–média | módulo de diagnósticos |
+| 2 | O2 filtro de janela | baixa | – | – | baixa | evidência O1 |
+| 3 | O3 calendário de eventos | – | média | – | média | B-EVENTS |
 
-## 5. Affected files
-`analytics/domain/` (grouped aggregation), `market_data/presentation/router.py`, app market-data diagnostics, tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Aggregation functions with synthetic tests.
-2. Era split and bucket counts displayed with every table.
-3. Filter experiment only if a persistent effect survives out-of-sample testing.
+`analytics/domain/` (agregação agrupada), `market_data/presentation/router.py`, diagnóstico da página de dados de mercado e testes.
 
-## 7. Acceptance criteria and tests
-* Aggregations match hand computations; every cell shows its sample size and the number of cells examined.
-* Diagnostics are read-only; no trading behaviour changes; ruff, mypy, tests green.
+## 6. Plano incremental
 
-## Caveats
-The holiday and January results are for US stocks across many decades and the author himself says they weakened. They give no support for any calendar effect in crypto. The garbled table on p. 483 (extraction of McGinley's results) was not interpreted.
+1. Funções de agregação e testes sintéticos.
+2. Separação por eras e exibição da contagem de grupos em cada tabela.
+3. Experimentar filtro somente se o efeito persistir fora da amostra.
+
+## 7. Critérios de aceitação e testes
+
+* Agregações conferem com cálculo manual; cada célula exibe tamanho amostral e quantidade de células examinadas.
+* Diagnósticos são somente leitura; não alteram negociação; Ruff, mypy e testes passam.
+
+## Ressalvas
+
+Efeitos de feriados/janeiro são para ações dos EUA ao longo de décadas e, segundo o autor, enfraqueceram. Não sustentam efeito algum em cripto. Tabela da p. 483 (resultados McGinley) estava corrompida e não foi interpretada.

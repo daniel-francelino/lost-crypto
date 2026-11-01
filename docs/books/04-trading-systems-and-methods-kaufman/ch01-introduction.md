@@ -1,79 +1,89 @@
-# Book 4 · Chapter 1 — Introduction
+# Livro 4 · Capítulo 1 — Introdução
 
-*Trading Systems and Methods*, 5th ed., Perry J. Kaufman (Wiley, 2013). Book pages (PDF page = book page + 20; the PDF text has some lost symbols). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only. Pp. 1–24 were read, except p. 2–5 which were skimmed (overview of trading styles and fundamentals vs technical analysis) and pp. 16–17 (market maturity by region, reading list) which were only skimmed.
+*Trading Systems and Methods*, 5.ª ed., Perry J. Kaufman (Wiley, 2013). Páginas do livro (PDF = livro + 20; alguns símbolos se perderam no texto). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise. Foram lidas pp. 1–24, exceto pp. 2–5 (visão geral de estilos e fundamentos versus análise técnica), percorridas por alto, e pp. 16–17 (maturidade dos mercados por região e bibliografia), também lidas por alto.
 
-## 1. Chapter summary (pp. 1–24)
+## 1. Resumo do capítulo (pp. 1–24)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | **Random walk vs anticipation**: two arguments against pure randomness: decades of documented systematic performance, and prices moving on **anticipation**. Randomness depends on data frequency: the same series looks noisier at high frequency and trendier at long horizons; prices are **not symmetric nor normal**, with **fat tails in runs** (longer runs than a normal distribution implies). Reasons that methods work: flows unrelated to timing (monthly fund inflows/redemptions), anticipation, extreme volatility, price far from value. | Is trading possible at all. | 6–8 |
-| C2 | **Style follows data frequency**: long-term trend followers should use low-frequency data (more trend visible); short-term traders favour mean reversion and fast moves with high-frequency data. | Match strategy and horizon. | 8–9 |
-| C3 | **Measuring noise**: the **efficiency ratio (ER)** `= |P_t − P_{t−n}| / Σ|P_i − P_{i−1}|` (1 = straight line, 0 = pure noise), distinct from volatility; alternatives: **price density** (sum of highs minus lows over the n-day box height) and **fractal dimension** (estimated by a six-step procedure). The author prefers ER as the clearest. | Quantifying "how trendy". | 10–12 |
-| C4 | **Evidence**: across futures and world equity indices (2000–Mar 2012), the average 20-day noise vs the profit factor of a basic always-in-market **40-day moving-average trend system without costs** shows a positive relation: **low noise → better trend following; high noise favours mean reversion**. Trendiest: short-term interest-rate futures, then longer rates, USD crosses, energy, metals; **equity indices were the noisiest and worst for trend following**. | Choosing the market and style by noise. | 13–14 |
-| C5 | **Market maturity**: noise in North American equity indices rose over 20 years along with volume and participation; the same happens elsewhere. | Edge decay through participation. | 14–16 |
-| C6 | **Eight research guidelines**: start from a sound premise (not discovered by testing everything); state it simply (Occam); assume nothing; try the simplest and most important parts first (transparent solutions); watch errors of omission (costs, risk); **question good results as hard as bad ones**; no shortcuts (verify others' work); start at the end (define the goal). | Research discipline. | 18–19 |
-| C7 | **Profile of a trading system**: changing markets and system longevity (technology, participation, globalisation, falling costs); choice of data; diversification (can be across strategies in one market); **trade selection** (too many filters cause overfitting or no trades); **testing is for validation and robustness, not massive scanning** (a robust solution across many markets never looks as good as an optimised single-stock result); risk control at four levels (trade, sector, single-system portfolio, portfolio of systems; volatility-based risk management; leverage); **transaction costs** (fast systems most sensitive; directional systems have larger slippage than mean-reversion; **overstating costs is as harmful as understating**); **performance monitoring and feedback** against expectations. | Checklist for a complete system. | 20–23 |
-| C8 | Occam's razor throughout: adding complexity for a few basis points increases problems and risk more than returns. | Simplicity as a principle. | 23 |
+| C1 | **Passeio aleatório versus antecipação**: dois argumentos contra aleatoriedade pura são décadas de desempenho sistemático documentado e preços que se movem por **antecipação**. Aleatoriedade depende da frequência dos dados: a mesma série parece mais ruidosa em alta frequência e mais tendencial em horizontes longos. Preços **não são simétricos nem normais**; têm **caudas pesadas em sequências** (sequências longas mais frequentes do que prevê a distribuição normal). Motivos pelos quais métodos funcionam: fluxos sem relação com o momento (aportes/resgates mensais de fundos), antecipação, volatilidade extrema e preço distante do valor. | Se é possível negociar com vantagem. | 6–8 |
+| C2 | **Estilo depende da frequência dos dados**: seguidores de tendência de longo prazo devem usar dados de baixa frequência (tendências mais visíveis); operadores de curto prazo preferem reversão à média e movimentos rápidos em dados de alta frequência. | Ajustar estratégia ao horizonte. | 8–9 |
+| C3 | **Medir ruído**: **razão de eficiência (ER)** `= |P_t − P_{t−n}| / Σ|P_i − P_{i−1}|` (1 = linha reta, 0 = ruído puro), distinta de volatilidade. Alternativas: **densidade de preço** (soma das máximas menos mínimas sobre altura da faixa de n dias) e **dimensão fractal** (estimada em seis etapas). O autor prefere ER por clareza. | Quantificar “o quanto há de tendência”. | 10–12 |
+| C4 | **Evidência**: em futuros e índices de ações globais (2000–mar. 2012), média de ruído de 20 dias versus fator de lucro de sistema tendencial básico de média móvel de 40 dias, sempre posicionado e sem custos, mostra relação positiva: **baixo ruído favorece seguir tendência; alto ruído favorece reversão à média**. Mais tendenciais: futuros de juros de curto prazo, juros longos, cruzamentos USD, energia e metais. **Índices de ações tinham mais ruído e pior desempenho tendencial**. | Escolher mercado/estilo pelo ruído. | 13–14 |
+| C5 | **Maturidade do mercado**: ruído dos índices de ações norte-americanos aumentou em 20 anos, junto com volume e participação; fenômeno semelhante ocorre em outros lugares. | Erosão da vantagem com aumento de participantes. | 14–16 |
+| C6 | **Oito diretrizes de pesquisa**: partir de premissa sólida (não descoberta testando tudo); enunciá-la simples (Occam); não pressupor; testar primeiro as partes mais simples e importantes (soluções transparentes); evitar erros de omissão (custos, risco); **questionar resultados bons tanto quanto os ruins**; não buscar atalhos (verificar trabalho alheio); começar pelo fim (definir objetivo). | Disciplina de pesquisa. | 18–19 |
+| C7 | **Perfil de um sistema de negociação**: mudanças do mercado e longevidade do sistema (tecnologia, participação, globalização, custos menores); escolha dos dados; diversificação (inclusive entre estratégias num mercado); **seleção de operações** (muitos filtros causam sobreajuste ou nenhuma operação); **testes servem para validação e robustez, não para varreduras massivas** (solução robusta em vários mercados nunca parece tão boa quanto resultado otimizado para uma única ação); controle de risco em quatro níveis (operação, setor, carteira de um sistema, carteira de sistemas; risco por volatilidade; alavancagem); **custos de transação** (sistemas rápidos são mais sensíveis; sistemas direcionais têm mais slippage que reversão à média; **superestimar custos é tão prejudicial quanto subestimá-los**); **monitoramento e retorno de informação** comparados às expectativas. | Lista de verificação de sistema completo. | 20–23 |
+| C8 | Navalha de Occam em todo o processo: acrescentar complexidade por poucos pontos-base aumenta problemas e riscos mais que retornos. | Simplicidade como princípio. | 23 |
 
-Examples are futures and equity indices. Crypto remarks are **our adaptation**.
+Os exemplos são futuros e índices de ações. Referências a criptoativos são **adaptações nossas**.
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| Noise / efficiency ratio measurement | ❌ | Not computed anywhere; neither in `analytics/domain/metrics.py` nor in the market-data module. |
-| Choosing timeframe by noise | ❌ | The operator picks one of six timeframes (`Timeframe`) without guidance. |
-| Strategy family chosen by market character | ❌ | Only trend strategies exist. |
-| Research guidelines | ⚠️ | Many are already in the product's constraints (simple strategies; costs always applied; train/test); others are missing (questioning good results, premise first). |
-| Costs: both over- and under-stating are harmful | ⚠️ | Fixed fee and slippage; no calibration from realised execution (book 1 ch. 5 O4). |
-| Directional vs mean-reversion slippage difference | ❌ | One slippage number for all strategies/sides. |
-| Performance monitoring vs expectations | ⚠️ | Bot metrics and reconciliation exist; no comparison with backtest expectations (book 1 ch. 5). |
+| Medida de ruído/razão de eficiência | ❌ | Não calculada em `analytics/domain/metrics.py` nem em dados de mercado. |
+| Escolha de intervalo pelo ruído | ❌ | Operador escolhe um dos seis intervalos (`Timeframe`), sem orientação. |
+| Família de estratégia conforme o mercado | ❌ | Só há estratégias de tendência. |
+| Diretrizes de pesquisa | ⚠️ | Restrições do produto já incorporam várias (estratégias simples, custos sempre aplicados, treino/teste); faltam questionar resultados bons e começar pela premissa. |
+| Custos: superestimar/subestimar é prejudicial | ⚠️ | Taxa/slippage fixos, sem calibração pela execução real (livro 1, cap. 5 O4). |
+| Slippage direcional versus reversão | ❌ | Um único valor para todas as estratégias e lados. |
+| Monitoramento versus expectativas | ⚠️ | Existem métricas e reconciliação do bot, mas sem comparação com expectativas do backtest (livro 1, cap. 5). |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Efficiency ratio (noise) diagnostics per pair and timeframe *(book: C3, C4, pp. 10–14)*
-* **Problem:** the operator chooses a timeframe and a trend strategy without evidence that the series is trendy enough at that frequency.
-* **Proposal:** add to the series diagnostics (book 2 ch. 2 O1, ch. 6 O1) the rolling `ER(n)` for a chosen window, its average and distribution (percentiles) by timeframe, shown for each imported pair, together with the *relationship the author measured*: lower noise → higher trend-system profit factor. Optionally compute the same relation on **our own data**: for each pair/timeframe, the basic always-in-market trend system's gross profit factor versus its average ER, replicating the book's scatter on the stored crypto candles. This tests the book's claim on crypto instead of assuming it.
-* **Benefit:** a cheap pre-filter for strategy/timeframe choice, in the same family as the half-life and Hurst diagnostics, and a conditioning variable for results (performance by noise tercile). **Complexity:** low (pure function on closes, additive endpoint, chart rows in the app).
-* **Risks:** the book's regression is on twelve years of futures and equity indices without costs; the relation may be weak or different in crypto; ER depends on the window; low ER at one timeframe can come from microstructure noise. **Validation:** synthetic straight-line series → ER = 1, alternating series → ER ≈ 0; reproduce the book's Table 1.1 numbers (0.06 and 0.56).
+### O1 — Diagnóstico da razão de eficiência (ruído) por par/intervalo *(livro: C3, C4, pp. 10–14)*
 
-### O2 — Performance by noise regime *(book: C4, pp. 13–14 · adaptation)*
-Split a backtest's results by ER tercile (computed on the same window) to show whether a trend strategy earns only in low-noise periods. Extends sub-period reporting (book 1 ch. 2 O5, book 2 ch. 5 O1). **Complexity:** low–medium. **Risk:** more slicing, more multiple-testing; label sample sizes.
+* **Problema:** operador escolhe intervalo e estratégia tendencial sem evidência de que a série tenha tendência suficiente nessa frequência.
+* **Proposta:** acrescentar aos diagnósticos de séries (livro 2, cap. 2 O1 e cap. 6 O1) ER móvel `ER(n)` para janela escolhida, média e distribuição (percentis) por intervalo, por par importado, junto da relação medida pelo autor: menos ruído → maior fator de lucro tendencial. Opcionalmente, calcular essa relação nos **nossos dados**: fator de lucro bruto do sistema tendencial básico sempre posicionado versus ER média por par/intervalo, reproduzindo o gráfico do livro com candles cripto para testar a afirmação em vez de pressupô-la.
+* **Benefício:** filtro inicial barato para escolher estratégia/intervalo, complementar a meia-vida e Hurst, e variável de segmentação (desempenho por tercil de ruído). **Complexidade:** baixa (função pura nos fechamentos, endpoint aditivo e gráfico no app).
+* **Riscos:** regressão do livro usa 12 anos de futuros/índices sem custos; relação pode ser fraca ou diferente em cripto; ER depende da janela; ER baixo pode refletir ruído microestrutural. **Validação:** série reta sintética → ER=1; série alternada → ER≈0; reproduzir Tabela 1.1 do livro (0,06 e 0,56).
 
-### O3 — "Question the good results" checks as automated red flags *(book: C6, p. 19)*
-Add to the run-screening block (book 2 ch. 1 O3): unusually high profit factor or Sharpe relative to the median of comparable runs; trade count too low; results far better than buy-and-hold with high drawdown mismatch; first/last trade dominating profit. The book is a guideline, not a threshold set. **Complexity:** low. **Validation:** unit tests per flag.
+### O2 — Desempenho por regime de ruído *(livro: C4, pp. 13–14 · adaptação)*
 
-### O4 — Side- and strategy-aware slippage *(book: C7, p. 22 · adaptation)*
-The author states directional (breakout/trend) systems suffer larger slippage than mean-reversion systems that provide liquidity. Make `slippage_bps` configurable **per entry type** (market entry on breakout vs limit-style entry) once a limit-order simulation exists; until then document that the single-bps model likely understates trend-entry cost and overstates a limit-order strategy's. Ties to book 2 ch. 7 O2. **Complexity:** medium. **Depends on:** realised-slippage records (book 1 ch. 5 O4).
+Dividir resultados do backtest por tercil ER (calculado na mesma janela) para mostrar se tendência só rende em períodos de pouco ruído. Amplia relatórios por subperíodo (livro 1, cap. 2 O5; livro 2, cap. 5 O1). **Complexidade:** baixa a média. **Risco:** mais segmentação e testes múltiplos; identificar tamanhos de amostra.
 
-### O5 — Feedback loop checklist in the runbook *(book: C7, pp. 22–23)*
-Document: expected metrics at go-live, a comparison cadence and the decision rule for changing size or retiring (ties to book 2 ch. 4 O1, book 2 ch. 8 O7). **Complexity:** very low.
+### O3 — Verificações “questione resultados bons” como alertas automáticos *(livro: C6, p. 19)*
 
-### Not applicable
-Futures-specific market lists, regional equity noise rankings, reading list, spreadsheet/EasyLanguage notation.
+Acrescentar ao bloco de triagem (livro 2, cap. 1 O3): fator de lucro/Sharpe excepcional ante mediana de execuções comparáveis; poucas operações; desempenho muito superior a comprar e manter com drawdown incompatível; lucro dominado pela primeira/última operação. O livro oferece diretriz, não limite específico. **Complexidade:** baixa. **Validação:** teste unitário de cada alerta.
 
-## 4. Priority
+### O4 — Slippage conforme lado e estratégia *(livro: C7, p. 22 · adaptação)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+O autor diz que sistemas direcionais (rompimento/tendência) têm mais slippage que reversão à média, que provê liquidez. Tornar `slippage_bps` configurável **por tipo de entrada** (entrada a mercado em rompimento versus entrada tipo limite) quando houver simulação de ordens limite; até lá, documentar que modelo único provavelmente subestima custo de entrada tendencial e superestima o de estratégia limite. Relaciona-se ao livro 2, cap. 7 O2. **Complexidade:** média. **Dependência:** registros de slippage realizado (livro 1, cap. 5 O4).
+
+### O5 — Lista de verificação de feedback no runbook *(livro: C7, pp. 22–23)*
+
+Documentar métricas esperadas ao iniciar operação real, frequência de comparação e critério para alterar tamanho ou encerrar (livro 2, cap. 4 O1 e cap. 8 O7). **Complexidade:** muito baixa.
+
+### Não aplicável
+
+Listas específicas de futuros, classificações regionais de ruído em ações, bibliografia e notação de planilha/EasyLanguage.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O1 ER diagnostics | medium | – | – | low | diagnostics module |
-| 2 | O3 good-results flags | medium | – | – | low | metrics |
-| 3 | O2 performance by noise | medium | – | – | low–medium | O1 |
-| 4 | O5 runbook | – | medium | – | very low | – |
-| 5 | O4 slippage by type | medium | – | – | medium | execution records |
+| 1 | O1 diagnóstico ER | média | – | – | baixa | módulo de diagnósticos |
+| 2 | O3 alertas de bons resultados | média | – | – | baixa | métricas |
+| 3 | O2 desempenho por ruído | média | – | – | baixa–média | O1 |
+| 4 | O5 runbook | – | média | – | muito baixa | – |
+| 5 | O4 slippage por tipo | média | – | – | média | registros de execução |
 
-## 5. Affected files
-`analytics/domain/` (ER, price density), `market_data/presentation/router.py` (diagnostics), `backtesting/domain/segments.py` or a new regime splitter, app market-data page (`lib/market-data/*`), `docs/` runbook, tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Pure ER function with the book's example as a test.
-2. Endpoint and app chart.
-3. Own-data replication of the noise-vs-trend-profit relation (research report).
-4. Red flags and regime splits.
+`analytics/domain/` (ER, densidade de preço), `market_data/presentation/router.py` (diagnósticos), `backtesting/domain/segments.py` ou novo divisor de regimes, página de dados de mercado (`lib/market-data/*`), runbook em `docs/` e testes.
 
-## 7. Acceptance criteria and tests
-* ER reproduces Table 1.1 (0.06 and 0.56) and the boundary cases (1.0 and ≈ 0).
-* Diagnostics are read-only and do not change trading or stored runs; ruff, mypy, existing tests green.
+## 6. Plano incremental
 
-## Caveats
-The noise–profit relation uses a cost-free, always-in-market trend system on futures and equity indices (p. 13). It is the author's evidence for his framework, not a rule for crypto spot, and past relations may not persist.
+1. Função pura ER com exemplo do livro como teste.
+2. Endpoint e gráfico no app.
+3. Replicar a relação ruído versus lucro tendencial nos dados próprios (relatório de pesquisa).
+4. Alertas e segmentação por regime.
+
+## 7. Critérios de aceitação e testes
+
+* ER reproduz Tabela 1.1 (0,06 e 0,56) e casos extremos (1,0 e aproximadamente 0).
+* Diagnósticos são somente leitura e não alteram negociação nem execuções armazenadas; Ruff, mypy e testes atuais passam.
+
+## Ressalvas
+
+A relação ruído/lucro usa sistema tendencial sem custos e sempre posicionado em futuros e índices (p. 13). É evidência do autor para seu modelo, não regra para cripto à vista; relações passadas podem não persistir.

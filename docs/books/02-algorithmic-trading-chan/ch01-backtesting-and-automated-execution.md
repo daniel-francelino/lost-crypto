@@ -1,105 +1,116 @@
-# Book 2 · Chapter 1 — Backtesting and Automated Execution
+# Livro 2 · Capítulo 1 — Backtesting e execução automatizada
 
-*Algorithmic Trading: Winning Strategies and Their Rationale*, Ernest P. Chan (Wiley, 2013). Book pages (PDF page = book page + 18). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Algorithmic Trading: Winning Strategies and Their Rationale*, Ernest P. Chan (Wiley, 2013). Páginas do livro (PDF = livro + 18). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-Reading note: pp. 1–38 were read. The software-platform survey (pp. 25–36: Deltix, Apama, MATLAB bridges, open-source IDEs, colocation, multithreading, CEP) describes products and was read for its principles only.
+Nota de leitura: foram lidas as pp. 1–38. O levantamento de plataformas de software (pp. 25–36: Deltix, Apama, integrações com MATLAB, IDEs de código aberto, colocalização, multithreading e CEP) foi considerado apenas quanto aos princípios.
 
-## 1. Chapter summary (pp. 1–38)
+## 1. Resumo do capítulo (pp. 1–38)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | **Backtest every strategy yourself**: results depend on implementation details (order type, price used to trigger); the same program should become the execution program. A published strategy gives a genuine out-of-sample period **after publication**. Follow the scientific method: hypothesis → backtest → refine. | Unreproducible or detail-sensitive claims. | 1–3 |
-| C2 | **Look-ahead bias** is a programming error that can exist only in a backtest; if backtest and live are the *same program* fed different data, it cannot occur. | Future leakage. | 4 |
-| C3 | **Data-snooping bias**: too many free parameters. Detect with out-of-sample data; but tweaking after a poor out-of-sample turns it into in-sample. Use **cross-validation** (several subsets); prefer high Sharpe and short maximum-drawdown duration because they pass cross-validation almost automatically. Few parameters **and few rules**; **linear models are less prone to snooping** than non-linear (a non-linear model has a linear approximation; justify not using it). Occam's razor also for distributions: assume Gaussian unless there is strong reason otherwise (author's argument). Equal-weight factor combination (z-scores or signed ranks) is cited as robust (Kahneman quote; Greenblatt's "magic formula" 30.8% vs 12.4% APR, 1988–2004 is the author's illustration). | Overfitting. | 4–7 |
-| C4 | **Walk-forward test** is the final out-of-sample check: paper trading or, better, minimal-leverage live trading; **most traders would be happy to find live Sharpe better than half of backtest Sharpe** (author's experience). | Final validation. | 7 |
-| C5 | **Data pitfalls**: splits/dividends (adjust history, also live); survivorship bias (hits long-only mean reversion most; momentum less; buy-the-biggest-loser example); **primary vs consolidated prices** (auction open/close vs away-venue prints; consolidated highs/lows are exaggerated; backtests with them inflate mean reversion); **venue dependence of currency quotes** (use data from the venue you trade; spreads differ by venue); **short-sale constraints** (hard-to-borrow, bans, uptick rules); **futures continuous contracts** (roll gaps create false P&L; price vs return back-adjustment cannot both be right; negative prices); **settlement vs last price**; **asynchronous prices in spreads**. | Inflated or unrealistic backtests. | 7–16 |
-| C6 | **Statistical significance by hypothesis testing**: null hypothesis = true mean return is zero; test statistic = average daily return; p-value. Three ways to build the null distribution: (1) assume Gaussian: statistic = `mean/std × √n` (equivalently daily Sharpe × √n) with critical values 1.282 / 1.645 / 2.326 / 3.091 for p = 0.10 / 0.05 / 0.01 / 0.001; (2) **Monte Carlo** on simulated prices with the first four moments of the real series (the example: 1,166 of 10,000 simulations did as well, so only 88% confidence); (3) **random entry dates** with the same number of trades and holding period (Lo et al.; in the example 0 of 100,000 did as well). The three can disagree because each compares against a different notion of randomness. Critique: p-values give P(R | H0), not P(H0 | R). More round trips → higher significance. | "Is this backtest luck?" | 15–22 |
-| C7 | **When not to backtest** (red flags): high return but Sharpe 0.3 with a 2-year drawdown; long-only strategy not beating buy-and-hold on the **information ratio**; "buy cheapest stocks" without survivorship-free data; neural net with ~100 nodes; high-frequency backtests whose results depend on how other participants react. | Wasted effort. | 22–24 |
-| C8 | **Is a backtest predictive?** It assumes unchanging statistical properties; regime shifts (decimalisation 2001, 2008 crisis, Reg NMS 2007, uptick rule changes) can make pre-shift backtests worthless; recent data is no guarantee either. | Stationarity of the edge. | 24–25 |
-| C9 | **Platform choice**: a platform where backtest and live are one program removes transcription errors and look-ahead; event-driven (tick) vs bar-driven; latency comes mostly from data and broker confirmation (retail confirmations can take seconds); colocating on a cloud server mainly gives resilience to power/Internet outages and may not reduce latency (verify with ping); multithreading; CEP; news feeds. | Operating the system. | 25–36 |
-| C10 | Key points recap, including: walk-forward beats other snooping defences; simple models; verify with the right benchmark. | – | 37–38 |
+| C1 | **Faça o backtest de cada estratégia por conta própria**: os resultados dependem dos detalhes de implementação (tipo de ordem, preço que a aciona); o mesmo programa deve ser usado na execução. Uma estratégia publicada oferece um período genuinamente fora da amostra **após a publicação**. Siga o método científico: hipótese → backtest → refinamento. | Afirmações difíceis de reproduzir ou sensíveis aos detalhes. | 1–3 |
+| C2 | O **viés de antecipação** (*look-ahead bias*) é um erro de programação que só pode existir no backtest; se o backtest e a operação real usam o *mesmo programa* com dados diferentes, ele não ocorre. | Vazamento de informação futura. | 4 |
+| C3 | **Viés de seleção de dados** (*data-snooping bias*): excesso de parâmetros livres. Detecte-o com dados fora da amostra; ajustar a estratégia após um resultado ruim fora da amostra transforma esses dados em dados de treino. Use **validação cruzada** (vários subconjuntos); prefira Sharpe alto e duração máxima de drawdown curta, pois essas características tendem a sobreviver à validação cruzada. Use poucos parâmetros **e poucas regras**; **modelos lineares são menos sujeitos à seleção de dados** que os não lineares (um modelo não linear tem uma aproximação linear; justifique por que ela não serve). A parcimônia de Occam também se aplica às distribuições: suponha normalidade, salvo forte motivo em contrário (argumento do autor). A combinação de fatores com pesos iguais (escores z ou postos com sinal) é citada como robusta (citação de Kahneman; a “fórmula mágica” de Greenblatt, 30,8% contra 12,4% de retorno anual entre 1988 e 2004, é um exemplo do autor). | Sobreajuste. | 4–7 |
+| C4 | O **teste walk-forward** é a verificação final fora da amostra: negociação em paper ou, de preferência, negociação real com alavancagem mínima; **pela experiência do autor, a maioria dos traders ficaria satisfeita se o Sharpe real superasse metade do Sharpe do backtest**. | Validação final. | 7 |
+| C5 | **Armadilhas nos dados**: desdobramentos e dividendos (ajustar o histórico e os dados em tempo real); viés de sobrevivência (afeta sobretudo a reversão à média comprada, menos o momentum; exemplo de comprar o maior perdedor); **preços primários e consolidados** (preços de leilão de abertura/fecho versus transações em outras bolsas; máximas e mínimas consolidadas são exageradas e podem inflar os resultados de reversão à média); **dependência da bolsa nas cotações cambiais** (usar dados da bolsa em que se negocia; os spreads variam); **restrições a vendas a descoberto** (ativos difíceis de tomar emprestados, proibições e regras de uptick); **contratos contínuos de futuros** (lacunas na rolagem criam P&L falso; ajustes retroativos por preço e por retorno não podem ser ambos corretos; preços negativos); **preço de liquidação versus último preço**; **preços assíncronos em spreads**. | Backtests inflados ou pouco realistas. | 7–16 |
+| C6 | **Significância estatística por teste de hipóteses**: hipótese nula = retorno médio verdadeiro igual a zero; estatística de teste = retorno diário médio; valor-p. Três formas de construir a distribuição nula: (1) supor normalidade: estatística = `média/desvio-padrão × √n` (equivalente a Sharpe diário × √n), com valores críticos 1,282 / 1,645 / 2,326 / 3,091 para p = 0,10 / 0,05 / 0,01 / 0,001; (2) **Monte Carlo** sobre preços simulados com os quatro primeiros momentos da série real (no exemplo, 1.166 de 10.000 simulações tiveram resultado igual ou melhor, ou seja, confiança de apenas 88%); (3) **datas de entrada aleatórias**, mantendo o número de operações e a duração das posições (Lo et al.; no exemplo, 0 de 100.000 tiveram resultado igual ou melhor). Os métodos podem discordar porque cada um define aleatoriedade de forma diferente. Ressalva: valores-p indicam P(R | H0), não P(H0 | R). Mais operações completas implicam maior significância. | “Este backtest pode ser acaso?” | 15–22 |
+| C7 | **Quando não fazer backtest** (sinais de alerta): retorno alto, mas Sharpe 0,3 e drawdown de dois anos; estratégia comprada que não supera comprar e manter pelo **índice de informação**; “comprar as ações mais baratas” sem dados livres de viés de sobrevivência; rede neural com cerca de 100 nós; backtests de alta frequência cujos resultados dependem da reação dos demais participantes. | Evitar esforço desperdiçado. | 22–24 |
+| C8 | **O backtest prevê o futuro?** Ele pressupõe propriedades estatísticas constantes; mudanças de regime (decimalização em 2001, crise de 2008, Reg NMS em 2007, alterações na regra de uptick) podem tornar inúteis os dados anteriores; dados recentes também não oferecem garantia. | Estabilidade da vantagem estatística. | 24–25 |
+| C9 | **Escolha da plataforma**: uma plataforma que usa o mesmo programa no backtest e na operação real evita erros de transcrição e viés de antecipação; processamento orientado a eventos (ticks) versus barras; a latência vem principalmente dos dados e da confirmação da corretora (confirmações de varejo podem levar segundos); colocalizar num servidor em nuvem pode sobretudo proteger contra falhas de energia e Internet, sem necessariamente reduzir a latência (verificar com ping); multithreading, CEP e feeds de notícias. | Operação do sistema. | 25–36 |
+| C10 | Recapitulação dos pontos principais: o teste walk-forward supera outras defesas contra seleção de dados; prefira modelos simples; valide com o benchmark adequado. | – | 37–38 |
 
-Everything about equities, futures and currencies is equity-market specific. Crypto remarks are **our adaptation**.
+As observações sobre ações, futuros e moedas aplicam-se especificamente a esses mercados. As observações sobre criptoativos são **adaptações nossas**.
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| C1 same strategy code in backtest and live | ✅ | One `Strategy` class per type, used by `run_backtest` and by the trader; fill and stop logic are shared (`execution/domain/fills.py`, `risk_management/domain/stops.py`). The *engine loops* differ (`backtesting/domain/engine.py` vs `trading/application/trader.py`) and risk sizing exists only in live (chapter 5 of book 1). |
-| C2 look-ahead | ✅ by design, ❌ not tested | Strategy sees only the closed candle; fill at next open. No automated truncation test (book 1, ch. 3 O5). |
-| C3 cross-validation | ❌ | One fixed train/test split only (`segments.py`). |
-| C3 simplicity | ✅ | ≤ 4 parameters per strategy. |
-| C4 walk-forward / minimal-leverage live | ✅ partly | Paper stage mandatory (`live_min_paper_days`), live caps exist, but nothing compares live Sharpe to backtest Sharpe. |
-| C5 venue consistency | ✅ | Candles come from the same exchange adapter that executes (`ExchangeRegistry.market_data(cfg.exchange)`); data is per exchange in storage. |
-| C5 survivorship | ❌ | No delisting handling (book 1, ch. 3). |
-| C5 splits/dividends/futures/shorting | n/a | Spot long-only crypto. |
-| C5 consolidated-vs-primary analogue | n/a | Single venue. Aggregated "indices" are not used. |
-| C6 significance tests | ❌ | None: no p-value, no Monte Carlo, no random-entry test, no Sharpe significance. |
-| C6 number of round trips | ✅ | `round_trips` exposed, but not tied to confidence. |
-| C7 red-flag screening | ❌ | No automated sanity flags on a run (low Sharpe with long drawdown, not beating buy-and-hold). `buy_and_hold_return_pct` exists. |
-| C8 regime shifts | ❌ | None tracked; train/test is chronological (recent data held out), which partly helps. |
-| C9 same program | ⚠️ | Same strategy; different orchestration. |
-| C9 resilience / hosting | ⚠️ | See book 1, ch. 4 (continuity runbook). |
-| C9 latency | ✅ | Bars are 1 min+; seconds-scale latency is irrelevant at these horizons. |
+| C1 mesmo código de estratégia no backtest e na operação real | ✅ | Há uma classe `Strategy` por tipo, usada por `run_backtest` e pelo trader; a lógica de execução e stops é compartilhada (`execution/domain/fills.py`, `risk_management/domain/stops.py`). Os *loops* do motor são diferentes (`backtesting/domain/engine.py` e `trading/application/trader.py`), e o dimensionamento de risco existe apenas na operação real (livro 1, cap. 5). |
+| C2 viés de antecipação | ✅ por projeto, ❌ sem teste | A estratégia vê apenas o candle fechado; a execução ocorre na abertura seguinte. Não há teste automatizado de truncamento (livro 1, cap. 3 O5). |
+| C3 validação cruzada | ❌ | Existe apenas uma divisão fixa entre treino e teste (`segments.py`). |
+| C3 simplicidade | ✅ | No máximo quatro parâmetros por estratégia. |
+| C4 walk-forward/operação real com alavancagem mínima | ✅ parcialmente | A etapa paper é obrigatória (`live_min_paper_days`) e há limites para a operação real, mas não se compara o Sharpe real com o do backtest. |
+| C5 consistência da bolsa | ✅ | Os candles vêm do mesmo adaptador da corretora usado para executar (`ExchangeRegistry.market_data(cfg.exchange`); os dados são armazenados por bolsa. |
+| C5 sobrevivência | ❌ | Não há tratamento de ativos removidos da listagem (livro 1, cap. 3). |
+| C5 desdobramentos/dividendos/futuros/vendas a descoberto | n/a | Cripto à vista, apenas posições compradas. |
+| C5 preços consolidados versus primários | n/a | Uma única bolsa; não são usados índices agregados. |
+| C6 testes de significância | ❌ | Não há valor-p, Monte Carlo, teste de entradas aleatórias nem teste de significância do Sharpe. |
+| C6 número de operações completas | ✅ | `round_trips` é exposto, mas não está ligado à confiança estatística. |
+| C7 triagem de sinais de alerta | ❌ | Não há alertas automáticos para Sharpe baixo com drawdown longo ou desempenho inferior a comprar e manter. Existe `buy_and_hold_return_pct`. |
+| C8 mudanças de regime | ❌ | Não são monitoradas; a divisão cronológica treino/teste retém dados recentes e ajuda parcialmente. |
+| C9 mesmo programa | ⚠️ | A estratégia é a mesma; a orquestração é diferente. |
+| C9 resiliência/hospedagem | ⚠️ | Ver livro 1, cap. 4 (runbook de continuidade). |
+| C9 latência | ✅ | As barras têm duração de 1 minuto ou mais; latência de segundos é irrelevante nesses horizontes. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Statistical significance of a backtest *(book: C6, pp. 15–22)*
-* **Problem:** a positive backtest return is shown without any measure of whether it could be luck; sweeps worsen it.
-* **Proposal (staged):**
-  1. *Gaussian test statistic*: `daily Sharpe × √n` (n = number of return observations) compared with the book's critical values; report approximate p-value. Cheap, closed form.
-  2. *Random-entry test*: re-place the same number of entries at random times with the same holding-period distribution over the actual price series and report the fraction of simulations whose average return is at least the observed; requires a deterministic seeded generator (the config already carries `seed`).
-  3. *Monte Carlo on simulated prices* (matching four moments): defer; it needs a distribution generator (Pearson system) and heavy compute.
-* **Benefit:** puts a number on "could be luck"; the book's own example shows the tests disagree, so they must be shown with their definitions. **Complexity:** stage 1 low; stage 2 medium. **Risks:** returns are serially correlated and fat-tailed in crypto, so the Gaussian shortcut is optimistic; many tests across a sweep inflate false positives (multiple testing, addressed in later books); a p-value is not the probability the strategy works (the book says so, p. 22). **Validation:** known synthetic series with and without edge; reproduce the book's critical values; seeded determinism.
+### O1 — Significância estatística do backtest *(livro: C6, pp. 15–22)*
 
-### O2 — Walk-forward and cross-validation harness *(book: C3, C4, pp. 4–7)*
-* **Proposal:** extend the single split to *k* chronological folds (for a trend strategy, parameters chosen on the earlier window, scored on the next) and report the dispersion of results across folds. Cross-validation across time should not shuffle data. Ties to book 1 ch. 3 O8 (backlog B-WALK-FORWARD) and to book 5 (purged cross-validation) which treats leakage between folds properly; **do not implement until book 5 is analysed.**
-* **Complexity:** high.
+* **Problema:** o retorno positivo do backtest é apresentado sem indicar se pode ser acaso; buscas de parâmetros agravam o problema.
+* **Proposta (em etapas):**
+  1. *Estatística de teste gaussiana*: `Sharpe diário × √n` (n = número de observações de retorno), comparada aos valores críticos do livro; apresentar valor-p aproximado. É simples e tem forma fechada.
+  2. *Teste de entradas aleatórias*: reposicionar aleatoriamente o mesmo número de entradas, com a mesma distribuição de duração das posições, na série de preços observada; informar a fração de simulações cujo retorno médio é igual ou superior ao observado. Requer gerador determinístico com semente (a configuração já contém `seed`).
+  3. *Monte Carlo sobre preços simulados* (compatíveis com os quatro momentos): deixar para depois; exige um gerador de distribuições (sistema de Pearson) e muito processamento.
+* **Benefício:** quantifica a possibilidade de acaso. O exemplo do próprio livro mostra que os testes discordam; por isso, suas definições devem ser apresentadas. **Complexidade:** baixa na etapa 1; média na etapa 2. **Riscos:** retornos de cripto têm autocorrelação e caudas pesadas, então a aproximação gaussiana pode ser otimista; muitos testes numa busca aumentam falsos positivos (testes múltiplos, tratados nos livros seguintes); valor-p não é a probabilidade de a estratégia funcionar (o livro ressalta isso, p. 22). **Validação:** séries sintéticas conhecidas, com e sem vantagem; reproduzir os valores críticos do livro; garantir determinismo com semente fixa.
 
-### O3 — Run screening flags *(book: C7, pp. 22–24)*
-* **Proposal:** a "red flags" block on each backtest: Sharpe below a threshold with long drawdown duration; return not above buy-and-hold (information-ratio style, using the existing benchmark); too few round trips for significance; high parameter count relative to sample (book 1 ch. 3 O6). Display as warnings, never as blocks. **Complexity:** low once Sharpe and drawdown duration exist. **Validation:** unit tests per flag. Thresholds are the author's examples, make them configurable.
+### O2 — Estrutura de walk-forward e validação cruzada *(livro: C3, C4, pp. 4–7)*
 
-### O4 — Live-vs-backtest Sharpe monitor *(book: C4, p. 7)*
-* **Proposal:** for a bot with enough live/paper history, compute realised Sharpe on its equity snapshots and compare it with its backtest Sharpe; show the ratio and a note that the author considers ≥ 0.5 acceptable (his experience, not a standard). **Complexity:** low–medium. **Risks:** short live samples are noisy; show sample size. **Depends on:** Sharpe metric (book 1 ch. 2 O1) and parity report (book 1 ch. 5 O1).
+* **Proposta:** substituir a divisão única por *k* intervalos cronológicos (para uma estratégia de tendência, escolher parâmetros na janela anterior e avaliar na seguinte) e apresentar a dispersão dos resultados entre os intervalos. A validação temporal não deve embaralhar os dados. Relaciona-se ao livro 1, cap. 3 O8 (backlog B-WALK-FORWARD) e ao livro 5 (validação cruzada com purga), que trata corretamente o vazamento entre intervalos; **não implementar antes da análise do livro 5**.
+* **Complexidade:** alta.
 
-### O5 — Honest out-of-sample bookkeeping *(book: C1, C3, pp. 3–4 · adaptation)*
-* **Problem:** repeatedly editing parameters after looking at the test segment turns it into training data (the book's central warning).
-* **Proposal:** record in each run which segment(s) the operator inspected when choosing parameters and count how many runs share the same data window; warn when the test segment has been used many times. Pragmatic version: number of runs on the same pair/timeframe/window shown beside the result. **Complexity:** low. **Validation:** API test.
+### O3 — Sinalizadores de triagem dos resultados *(livro: C7, pp. 22–24)*
 
-### O6 — Information ratio against the right benchmark *(book: C7, p. 22–23)*
-* **Proposal:** for long-only strategies compute excess returns versus buy-and-hold of the same pair and report their information ratio (book 1 ch. 2 gives the formula). Already partly in place via `buy_and_hold_return_pct`. **Complexity:** low.
+* **Proposta:** bloco de “sinais de alerta” em cada backtest: Sharpe abaixo de um limite com duração longa de drawdown; retorno inferior ao de comprar e manter (estilo índice de informação, usando o benchmark existente); poucas operações completas para sustentar significância; muitos parâmetros em relação ao tamanho da amostra (livro 1, cap. 3 O6). Exibir avisos, sem bloquear. **Complexidade:** baixa quando Sharpe e duração do drawdown estiverem disponíveis. **Validação:** testes unitários para cada alerta. Os limites dos exemplos do autor devem ser configuráveis.
 
-### Not applicable / deferred
-Splits/dividends, primary vs consolidated, currency venue dependence, short-sale rules, futures continuous contracts, settlement prices, platform selection (we already own our platform), CEP, news feeds, multithreading, colocation for latency. Colocation for **resilience** is covered by book 1 ch. 4.
+### O4 — Monitor de Sharpe real versus backtest *(livro: C4, p. 7)*
 
-## 4. Priority
+* **Proposta:** para um bot com histórico suficiente em paper ou real, calcular o Sharpe realizado a partir das amostras de patrimônio e compará-lo com o Sharpe do backtest; exibir a razão e a observação de que, pela experiência do autor — não por uma norma —, um valor ≥ 0,5 é aceitável. **Complexidade:** baixa a média. **Riscos:** amostras reais curtas são ruidosas; exibir o tamanho da amostra. **Dependências:** métrica de Sharpe (livro 1, cap. 2 O1) e relatório de paridade (livro 1, cap. 5 O1).
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+### O5 — Registro transparente das avaliações fora da amostra *(livro: C1, C3, pp. 3–4 · adaptação)*
+
+* **Problema:** alterar repetidamente os parâmetros após observar o segmento de teste transforma esse segmento em dados de treino (alerta central do livro).
+* **Proposta:** registrar, em cada execução, quais segmentos o operador consultou ao escolher parâmetros e contar quantas execuções usam a mesma janela de dados; avisar quando o segmento de teste já tiver sido usado muitas vezes. Versão prática: mostrar junto ao resultado o número de execuções para o mesmo par, intervalo e janela. **Complexidade:** baixa. **Validação:** teste da API.
+
+### O6 — Índice de informação com benchmark adequado *(livro: C7, pp. 22–23)*
+
+* **Proposta:** para estratégias compradas, calcular os retornos excedentes em relação à estratégia de comprar e manter o mesmo par e apresentar seu índice de informação (a fórmula consta no livro 1, cap. 2). Já há suporte parcial por `buy_and_hold_return_pct`. **Complexidade:** baixa.
+
+### Não aplicável ou adiado
+
+Desdobramentos e dividendos, preços primários e consolidados, dependência da bolsa nas cotações cambiais, regras de venda a descoberto, contratos contínuos de futuros, preços de liquidação, escolha da plataforma (a plataforma já existe), CEP, feeds de notícias e multithreading. A colocalização para **resiliência** é abordada no livro 1, cap. 4.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O6 information ratio | medium | – | – | low | book 1 ch. 2 O1 |
-| 2 | O3 red-flag screening | high | medium | – | low | Sharpe, DD duration |
-| 3 | O1 stage 1 Gaussian significance | high | – | – | low | Sharpe |
-| 4 | O5 test-segment reuse counter | medium | – | – | low | – |
-| 5 | O1 stage 2 random-entry test | high | – | – | medium | O1 stage 1 |
-| 6 | O4 live-vs-backtest monitor | – | medium | medium | low–med | parity report |
-| 7 | O2 walk-forward / CV | high | – | – | high | book 5 |
+| 1 | O6 índice de informação | média | – | – | baixa | livro 1, cap. 2 O1 |
+| 2 | O3 sinais de alerta | alta | média | – | baixa | Sharpe, duração do drawdown |
+| 3 | O1 etapa 1: significância gaussiana | alta | – | – | baixa | Sharpe |
+| 4 | O5 contador de reutilização do teste | média | – | – | baixa | – |
+| 5 | O1 etapa 2: entradas aleatórias | alta | – | – | média | O1 etapa 1 |
+| 6 | O4 monitor da operação real versus backtest | – | média | média | baixa–média | relatório de paridade |
+| 7 | O2 walk-forward/validação cruzada | alta | – | – | alta | livro 5 |
 
-## 5. Affected files
-`analytics/domain/` (significance functions, information ratio), `backtesting/application/service.py` and `router.py` (additive result fields, run counters), `backtesting/domain/` (random-entry simulation, seeded), tests in `api/tests/unit`, `docs/openapi.json`, app backtest detail page.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Metrics prerequisites from book 1 ch. 2 (Sharpe, drawdown duration).
-2. Information ratio and Gaussian significance as additive fields.
-3. Red flags block.
-4. Random-entry test with seed.
-5. Reuse counter; live-vs-backtest monitor.
-6. Walk-forward after analysing book 5.
+`analytics/domain/` (funções de significância e índice de informação), `backtesting/application/service.py` e `router.py` (campos aditivos de resultado e contadores de execuções), `backtesting/domain/` (simulação de entradas aleatórias com semente), testes em `api/tests/unit`, `docs/openapi.json` e página de detalhes do backtest no app.
 
-## 7. Acceptance criteria and tests
-* The critical values reproduce Table 1.1; a series with injected edge has small p, pure noise does not.
-* Random-entry test is deterministic for a fixed seed and its runtime is bounded.
-* Old runs without new fields still render; ruff, mypy and existing tests green.
-* UI wording states that a p-value is not a guarantee.
+## 6. Plano incremental
 
-## Caveats
-All thresholds (critical values excepted) are Chan's practical heuristics. The Monte Carlo and random-entry examples are for one futures momentum strategy and do not generalise. Statistical significance of a backtest says nothing certain about future returns; regime shifts can nullify it (p. 24).
+1. Implementar os pré-requisitos das métricas no livro 1, cap. 2 (Sharpe e duração do drawdown).
+2. Adicionar índice de informação e significância gaussiana aos resultados.
+3. Incluir o bloco de sinais de alerta.
+4. Implementar teste de entradas aleatórias com semente.
+5. Acrescentar contador de reutilização e monitor da operação real versus backtest.
+6. Implementar walk-forward após analisar o livro 5.
+
+## 7. Critérios de aceitação e testes
+
+* Os valores críticos reproduzem a Tabela 1.1; uma série com vantagem inserida tem valor-p pequeno e uma série de puro ruído não.
+* O teste de entradas aleatórias é determinístico para uma semente fixa e tem tempo de execução limitado.
+* Execuções antigas, sem os novos campos, continuam sendo exibidas; Ruff, mypy e os testes existentes passam.
+* O texto da interface deixa claro que valor-p não é garantia.
+
+## Ressalvas
+
+Todos os limites (exceto os valores críticos) são heurísticas práticas de Chan. Os exemplos de Monte Carlo e entradas aleatórias referem-se a uma estratégia de momentum em futuros e não são generalizáveis. A significância estatística do backtest não garante retornos futuros; mudanças de regime podem anulá-la (p. 24).

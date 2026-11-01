@@ -1,80 +1,89 @@
-# Book 3 · Introduction and Chapter 1 — Objective Rules and Their Evaluation
+# Livro 3 · Introdução e Capítulo 1 — Regras objetivas e sua avaliação
 
-*Evidence-Based Technical Analysis*, David R. Aronson (Wiley, 2007). Book pages (PDF page = book page + 16). The PDF is an OCR scan; formulas were checked against the surrounding text. Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only. Introduction (pp. 1–11) and Chapter 1 (pp. 15–31) were read in full.
+*Evidence-Based Technical Analysis*, David R. Aronson (Wiley, 2007). Páginas do livro (PDF = livro + 16). O PDF é uma digitalização com OCR; fórmulas foram conferidas com o texto ao redor. Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise. A introdução (pp. 1–11) e o capítulo 1 (pp. 15–31) foram lidos na íntegra.
 
-## 1. Summary (pp. 1–31)
+## 1. Resumo (pp. 1–31)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | A claim must have **cognitive content** (a discernible-difference test): it must be possible to tell whether it was right or wrong. Knowledge = justified true belief; scientific knowledge stays provisional. | Vague, untestable forecasts. | 2–5 |
-| C2 | **Objective vs subjective** technical analysis. Programmability criterion: a method is objective iff it can be coded to output unambiguous positions. Subjective methods (chart patterns, Elliott wave) are rejected as untestable. A profitable back test of an objective method is *necessary but not sufficient*: it can be luck or **data-mining bias**; "advanced statistical inference" (Chapters 4–6) decides. | What counts as evidence. | 5–7, 15–16 |
-| C3 | Cited academic findings (author's selection, no new evidence here): trend indicators work in commodities and FX; simple rules on young-company indices; chartists cannot tell real from random charts; head-and-shoulders adds nothing on stocks. | Context. | 8–9 |
-| C4 | **A rule** maps input series to a position series (+1/−1 or 0); **binary reversal rules** (always long or short) are used; thresholds can be fixed (for stationary inputs) or variable (moving average; bands/Bollinger), possibly with **flip-flop** logic (two events). Single-threshold rules give mutually exclusive, exhaustive states. | Formal rule definition. | 16–21 |
-| C5 | **Traditional and inverse rules**: test the opposite interpretation as well, since the traditional reading may be wrong or the input may have no obvious reading. | Not assuming the sign of an effect. | 21–22 |
-| C6 | **Benchmark = a rule with no predictive power** (like a placebo), not zero and not necessarily buy-and-hold; to count, a rule must beat it by a margin that excludes chance (Chapters 4–6). | What to compare against. | 22–23 |
-| C7 | **Position bias × market trend**: a rule's back-tested return = predictive component + an unwanted component from (1) the share of time long vs short and (2) the market's average daily change in the sample. Expected return of a random rule: `ER = p(L)·ADC − p(S)·ADC`. Example: S&P 500 1976–2004, ADC +0.035%/day (9.22%/yr): a random rule long 90% of the time earns about 7.31%/yr, one long 60% about 1.78%/yr, with **no** predictive power. A rule can have a bias that comes from asymmetric long/short conditions (a restrictive short condition). | Rules that merely hold the market's drift. | 23–27 |
-| C8 | **Remedies**: subtract the expected return of a non-predictive rule with the same position bias, or, equivalently (proof in the appendix), **detrend** the market's daily returns by subtracting their sample average; detrended data is used only to compute rule returns, signals still use real prices. Use **log returns** (`ln(P_t/P_{t-1})`). | Fair evaluation. | 27–29 |
-| C9 | **Look-ahead and execution price**: if a signal uses the close, the earliest fill is the **next open**; daily rule return = position at close of day 0 × `ln(Open_{t+2}/Open_{t+1})` minus the average log return; lagged or revised inputs must be lagged. | Leakage. | 29–30 |
-| C10 | **Trading costs**: needed if the rule is used stand-alone; the author omits them in his case study because the aim is to find predictive information. | Costs vs signal discovery. | 31 |
+| C1 | Uma afirmação precisa ter **conteúdo cognitivo** (critério de diferença discernível): deve ser possível determinar se está certa ou errada. Conhecimento é crença verdadeira justificada; o conhecimento científico é provisório. | Previsões vagas e impossíveis de testar. | 2–5 |
+| C2 | Análise técnica **objetiva versus subjetiva**. Critério de programabilidade: um método é objetivo se pode ser codificado para produzir posições inequívocas. Métodos subjetivos (padrões gráficos, ondas de Elliott) são rejeitados como não testáveis. Backtest lucrativo de método objetivo é *necessário, mas não suficiente*: pode ser acaso ou sofrer **viés de seleção de dados**; a “inferência estatística avançada” (caps. 4–6) é que decide. | O que conta como evidência. | 5–7, 15–16 |
+| C3 | Estudos acadêmicos citados (seleção do autor, sem evidência nova aqui): indicadores de tendência funcionam em commodities e câmbio; regras simples em índices de empresas jovens; analistas gráficos não distinguem gráficos reais de aleatórios; cabeça-e-ombros não acrescenta informação em ações. | Contexto. | 8–9 |
+| C4 | **Regra** mapeia uma série de entrada numa série de posições (+1/−1 ou 0); usam-se **regras binárias de reversão** (sempre comprado ou vendido); limites podem ser fixos (entradas estacionárias) ou variáveis (média móvel, bandas/Bollinger), possivelmente com lógica de **alternância** (*flip-flop*, dois eventos). Regras de limite único geram estados mutuamente exclusivos e exaustivos. | Definir formalmente uma regra. | 16–21 |
+| C5 | **Regras tradicionais e inversas**: testar também a interpretação oposta, pois a leitura tradicional pode estar errada ou a entrada pode não ter interpretação evidente. | Não pressupor o sinal de um efeito. | 21–22 |
+| C6 | **Benchmark = regra sem poder preditivo** (como placebo), não zero e necessariamente não comprar e manter; para contar como evidência, a regra deve superá-lo por margem que exclua o acaso (caps. 4–6). | Escolha da comparação. | 22–23 |
+| C7 | **Viés de posição × tendência do mercado**: retorno de backtest = componente preditivo + componente indesejado decorrente (1) da fração do tempo comprado/vendido e (2) da variação diária média do mercado na amostra. Retorno esperado de regra aleatória: `ER = p(L)·ADC − p(S)·ADC`. Exemplo: S&P 500, 1976–2004, ADC +0,035% ao dia (9,22% ao ano): regra aleatória comprada 90% do tempo rende cerca de 7,31% ao ano; comprada 60%, cerca de 1,78%, **sem** poder preditivo. O viés pode vir de condições assimétricas de compra/venda (condição de venda restritiva). | Regras que apenas capturam a deriva do mercado. | 23–27 |
+| C8 | **Correções**: subtrair o retorno esperado de regra sem poder preditivo com o mesmo viés de posição ou, de forma equivalente (prova no apêndice), **remover a tendência** dos retornos diários do mercado subtraindo sua média amostral. Usar dados sem tendência só para calcular retornos da regra; os sinais continuam usando preços reais. Usar **retornos logarítmicos** (`ln(P_t/P_{t-1})`). | Avaliação justa. | 27–29 |
+| C9 | **Antecipação e preço de execução**: se o sinal usa o fecho, a execução mais cedo é na **abertura seguinte**; retorno diário da regra = posição no fecho do dia 0 × `ln(Open_{t+2}/Open_{t+1})` menos o retorno logarítmico médio. Entradas atrasadas ou revisadas também devem ser defasadas. | Vazamento de informação. | 29–30 |
+| C10 | **Custos de negociação**: necessários se a regra for usada isoladamente; o autor os omite no estudo de caso porque procura informação preditiva. | Custos versus descoberta do sinal. | 31 |
 
-Not covered here: Chapters 2 (psychology of subjective belief, pp. 33–102) and 3 (scientific method, pp. 103–164) are separate reports.
+Não estão cobertos aqui: cap. 2 (psicologia das crenças subjetivas, pp. 33–102) e cap. 3 (método científico, pp. 103–164), tratados em relatórios separados.
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| C2 programmability, objective rules | ✅ | All strategies are code (`strategies/domain/*`) producing signals; nothing subjective. |
-| C4 rule formalisation, threshold logic | ✅ | EMA crossover = variable threshold (moving-average cross); Donchian = flip-flop with entry and exit channels. |
-| C5 inverse rules | ❌ | Long-only; no systematic test of the opposite interpretation. A short side is impossible in spot. Not applicable. |
-| C6 benchmark = random/no-skill rule | ❌ | The only benchmark is buy-and-hold (`buy_and_hold_return_pct`). No "same-exposure random rule" benchmark. |
-| C7 position bias × market trend | ❌ **material** | A long-only strategy that is in the market 60% of the time during a strong bull run earns a large positive return with zero skill. Metrics report neither time in market nor an exposure-adjusted benchmark. |
-| C8 detrending | ❌ | Not done. |
-| C9 look-ahead | ✅ | Fill at the next candle's open (`engine.py`); uses the same convention the book recommends. Daily returns differ: the book uses `ln` returns, the engine tracks equity. |
-| C10 costs | ✅ | Always included (the book omits them for discovery, but includes them for stand-alone use, matching ours). |
+| C2 programabilidade/regras objetivas | ✅ | Todas as estratégias são código (`strategies/domain/*`) e geram sinais; nenhuma é subjetiva. |
+| C4 formalização e limites | ✅ | EMA crossover usa limite variável (cruzamento de médias); Donchian usa alternância com canais de entrada e saída. |
+| C5 regras inversas | ❌ | Apenas posições compradas; não há teste sistemático da interpretação oposta. Venda a descoberto é impossível à vista; não aplicável. |
+| C6 benchmark aleatório/sem habilidade | ❌ | Só há benchmark de comprar e manter (`buy_and_hold_return_pct`), sem benchmark aleatório de mesma exposição. |
+| C7 viés de posição × tendência | ❌ **relevante** | Estratégia comprada exposta 60% do tempo durante forte alta pode lucrar muito sem habilidade. Métricas não mostram tempo no mercado nem benchmark ajustado à exposição. |
+| C8 remoção da tendência | ❌ | Não feita. |
+| C9 antecipação | ✅ | Executa na abertura do candle seguinte (`engine.py`), como recomendado. Os retornos diários diferem: o livro usa retornos `ln`, o motor acompanha patrimônio. |
+| C10 custos | ✅ | Sempre incluídos (o livro os omite na descoberta do sinal, mas inclui no uso isolado, como o sistema). |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Time-in-market and exposure-adjusted benchmark *(book: C6–C8, pp. 22–29 · long/flat adaptation is our derivation)*
-* **Problem:** a long-only bot reports "+40% vs buy-and-hold +60%": we cannot tell skill from the market's drift. The book shows that the right yardstick is *what a no-skill rule with the same exposure would have earned*.
-* **Proposal:** add to the metrics: (a) `time_in_market` (share of bars with a position); (b) `exposure_adjusted_benchmark_pct`: for a long/flat rule the expected return of a no-skill rule with exposure `p(L)` is `p(L) × market return` (our derivation from the book's formula `ER = p(L)·ADC − p(S)·ADC`, which assumes long/short reversal rules, with `p(S) = 0` for long/flat); (c) `excess_vs_exposure_pct = strategy return − benchmark`. For multi-period, work in log returns with the sample average as in C8. The book's detrending result is for long/short rules; the long/flat adjustment is a derivation to be verified by simulation (Monte Carlo with random positions at the same exposure).
-* **Benefit:** the most direct, cheap fix for bull-market illusion in crypto; complements buy-and-hold. **Complexity:** low (pure functions on the equity curve and fills).
-* **Risks:** the adjustment is first-order (it treats exposure as independent of returns, as the random rule does); with high volatility the sampling noise of the benchmark is large (Chapters 4–5); costs are not part of the benchmark and must be added consistently.
-* **Validation:** simulate random long/flat positions with a given exposure on a trending series: average excess must be ≈ 0; reproduce the book's 7.31% and 1.78% numerically from the stated inputs (ADC 0.035%/day, 90% and 60% long).
+### O1 — Tempo no mercado e benchmark ajustado à exposição *(livro: C6–C8, pp. 22–29 · adaptação long/flat derivada por nós)*
 
-### O2 — Placebo comparison (random-entry benchmark) *(book: C6, p. 23)*
-Re-using the random-entry test proposed in [book 2 ch. 1 O1 stage 2](../02-algorithmic-trading-chan/ch01-backtesting-and-automated-execution.md): replace the strategy's entries by random ones with the same trade count and holding period and show where the strategy falls in that distribution. This is the book's "placebo" idea made practical. Cross-reference only; implement once.
+* **Problema:** um bot comprado reporta “+40% contra +60% de comprar e manter”; não se distingue habilidade da deriva do mercado. O livro diz que a comparação correta é o retorno de uma regra sem habilidade com a mesma exposição.
+* **Proposta:** acrescentar às métricas: (a) `time_in_market` (fração de barras com posição); (b) `exposure_adjusted_benchmark_pct`: para regra comprado/neutro, retorno esperado de regra sem habilidade com exposição `p(L)` é `p(L) × retorno de mercado` (derivação nossa da fórmula do livro `ER = p(L)·ADC − p(S)·ADC`, que pressupõe regras compradas/vendidas; em comprado/neutro, `p(S)=0`); (c) `excess_vs_exposure_pct = retorno da estratégia − benchmark`. Em vários períodos, usar retornos logarítmicos e média da amostra conforme C8. A remoção da tendência do livro aplica-se a regras compradas/vendidas; a correção comprado/neutro deve ser validada por simulação Monte Carlo de posições aleatórias com mesma exposição.
+* **Benefício:** correção simples e direta da ilusão de mercado em alta para cripto, complementar a comprar e manter. **Complexidade:** baixa (funções puras sobre curva patrimonial e operações).
+* **Riscos:** ajuste de primeira ordem (supõe independência entre exposição e retornos, como a regra aleatória); com alta volatilidade, benchmark tem grande ruído amostral (caps. 4–5); custos não entram no benchmark e devem ser tratados consistentemente.
+* **Validação:** simular posições aleatórias comprado/neutro com dada exposição numa série tendencial: excesso médio ≈ 0; reproduzir numericamente 7,31% e 1,78% com ADC 0,035%/dia e 90%/60% do tempo comprado.
 
-### O3 — Report the longest-only / long-bias explicitly *(book: C7, pp. 24–26)*
-Show "% of bars long" and "market return over the run" next to every result and in sweeps so that rankings are not dominated by rules that simply stay long more often. Part of O1; no extra work beyond the display. **Complexity:** very low.
+### O2 — Comparação placebo (benchmark de entradas aleatórias) *(livro: C6, p. 23)*
 
-### O4 — Keep the execution convention; document the log-return convention *(book: C8, C9, pp. 28–30)*
-The engine already fills at the next open. Document in `docs/` that metrics use equity changes, and decide whether new statistics (O1, book 1 ch. 2 O1) use simple or log returns. Recommend log returns for statistical tests, simple for reporting. **Complexity:** very low.
+Reutilizar o teste de entradas aleatórias proposto em [livro 2, cap. 1 O1 etapa 2](../02-algorithmic-trading-chan/ch01-backtesting-and-automated-execution.md): substituir entradas da estratégia por entradas aleatórias com mesmo número de operações e duração, e mostrar a posição do resultado nessa distribuição. É a ideia de “placebo” do livro em forma prática. Apenas referência cruzada; implementar uma vez.
 
-### Not applicable
-Inverse rules (no shorts), subjective TA, long/short bias with a short leg, omitting costs.
+### O3 — Exibir explicitamente exposição e viés comprado *(livro: C7, pp. 24–26)*
 
-## 4. Priority
+Mostrar “% de barras comprado” e “retorno de mercado durante o período” junto de cada resultado e nas varreduras, para evitar que classificações favoreçam regras que simplesmente ficam compradas mais tempo. Parte de O1; nenhuma tarefa além da exibição. **Complexidade:** muito baixa.
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+### O4 — Manter convenção de execução e documentar retornos logarítmicos *(livro: C8, C9, pp. 28–30)*
+
+O motor já executa na abertura seguinte. Documentar em `docs/` que as métricas usam variação do patrimônio e decidir se novas estatísticas (O1, livro 1, cap. 2 O1) usam retorno simples ou logarítmico. Recomenda-se logarítmico para testes estatísticos e simples para apresentação. **Complexidade:** muito baixa.
+
+### Não aplicável
+
+Regras inversas (sem posições vendidas), análise técnica subjetiva, viés comprado/vendido com perna vendida e omissão de custos.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O1 time-in-market + exposure benchmark | **high** | – | – | low | – |
-| 2 | O3 display of bias | medium | – | – | very low | O1 |
-| 3 | O4 convention note | low | – | – | very low | – |
-| 4 | O2 placebo distribution | high | – | – | medium | book 2 ch. 1 O1 |
+| 1 | O1 tempo no mercado + benchmark por exposição | **alta** | – | – | baixa | – |
+| 2 | O3 exibir viés | média | – | – | muito baixa | O1 |
+| 3 | O4 nota sobre convenção | baixa | – | – | muito baixa | – |
+| 4 | O2 distribuição placebo | alta | – | – | média | livro 2, cap. 1 O1 |
 
-## 5. Affected files
-`analytics/domain/metrics.py` (new fields), `backtesting/domain/segments.py` (per-segment equivalents), `analytics/presentation/schemas.py`, `docs/openapi.json`, app metric cards and sweep table (`components/backtests`), tests (`api/tests/unit`), docs.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Pure functions: time in market, exposure-adjusted benchmark, excess; unit tests incl. the book's numbers.
-2. Add as additive metric fields (train/test too); show in the app.
-3. Add the same fields to sweep results so the ranking can use excess instead of raw return.
+`analytics/domain/metrics.py` (novos campos), `backtesting/domain/segments.py` (equivalentes por segmento), `analytics/presentation/schemas.py`, `docs/openapi.json`, cartões de métricas e tabela de varreduras no app (`components/backtests`), testes (`api/tests/unit`) e documentação.
 
-## 7. Acceptance criteria and tests
-* The book's 7.31% / 1.78% examples are reproduced from ADC and exposure.
-* Random long/flat simulations at fixed exposure give mean excess ≈ 0 within sampling error.
-* Existing metrics, stored runs and API shapes unchanged except for new optional fields.
-* ruff, mypy, existing tests green.
+## 6. Plano incremental
 
-## Caveats
-The S&P 500 numbers are examples; the benchmark logic removes only the first-order drift effect and does not by itself prove skill. Back-test profitability is not evidence of future profitability, as the author stresses (p. 6).
+1. Funções puras para tempo no mercado, benchmark ajustado à exposição e excesso; testes unitários, inclusive os números do livro.
+2. Adicionar campos de métrica (também para treino/teste) e exibi-los no app.
+3. Acrescentar os mesmos campos às varreduras, para classificar por excesso em vez de retorno bruto.
+
+## 7. Critérios de aceitação e testes
+
+* Reproduzir os exemplos de 7,31% e 1,78% a partir do ADC e da exposição.
+* Simulações de posições aleatórias com exposição fixa produzem excesso médio ≈ 0 dentro do erro amostral.
+* Métricas existentes, execuções armazenadas e formatos da API permanecem compatíveis, além dos novos campos opcionais.
+* Ruff, mypy e testes existentes passam.
+
+## Ressalvas
+
+Os números do S&P 500 são exemplos; o benchmark remove apenas o efeito de primeira ordem da tendência e não comprova habilidade por si só. Como ressalta o autor (p. 6), rentabilidade passada no backtest não prova rentabilidade futura.

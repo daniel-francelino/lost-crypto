@@ -1,73 +1,82 @@
-# Book 4 · Chapter 3 — Charting
+# Livro 4 · Capítulo 3 — Gráficos
 
-*Trading Systems and Methods*, 5th ed., Kaufman (2013). Book pages (PDF = book + 20). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Trading Systems and Methods*, 5.ª ed., Kaufman (2013). Páginas do livro (PDF = livro + 20). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 79–82 and 144–146 were read; the section headings of pp. 83–150 (Dow's bar chart, formations, trendlines, one-day patterns, continuation patterns, accumulation and distribution, price objectives, candlesticks, evolution of patterns) were scanned. The ~60 pages of pattern descriptions were **not read** in detail. Pattern analysis in this chapter is subjective charting, which the project excludes (see [book 3 ch. 1](../03-evidence-based-technical-analysis-aronson/ch01-objective-rules-and-their-evaluation.md)).
+**Profundidade da leitura:** pp. 79–82 e 144–146 foram lidas. Os títulos das seções pp. 83–150 (gráficos de barras de Dow, formações, linhas de tendência, padrões de um dia, continuação, acumulação/distribuição, objetivos de preço, candles e evolução de padrões) foram percorridos. As cerca de 60 páginas com descrições de padrões **não foram lidas** em detalhe. A análise de padrões é subjetiva e o projeto a exclui (ver [livro 3, cap. 1](../03-evidence-based-technical-analysis-aronson/ch01-objective-rules-and-their-evaluation.md)).
 
-## 1. Chapter summary (what was read)
+## 1. Resumo do capítulo (conteúdo lido)
 
-| ID | Concept | Pages |
+| ID | Conceito | Páginas |
 |---|---|---|
-| C1 | Every trading system began with a chart; the system's past signals should always be viewed on a chart ("the appearance of an odd trade can save a lot of aggravation and money"). | 79 |
-| C2 | Markets have a "character" (habitual pattern types, e.g. V bottoms in cattle, round tops in cotton, new highs followed by fast pullbacks in the S&P). The author says this about commodities of the 1970s; no evidence is presented here. | 79–80 |
-| C3 | Many valid chart interpretations exist for the same chart (frequency, start date, horizon), and published chart analysis may help *cause* the repeating patterns (self-fulfilling behaviour). | 80 |
-| C4 | **What causes chart patterns**: human habits, e.g. orders cluster at **round numbers** (even dollars, then 50¢ and 25¢) in both stocks and futures; the public enters at the wrong time ("grand rush"); "lost motion" overshoot of up to about 10%; mass psychology (bubbles and crashes quoted). | 81–82 |
-| C5 | Trends are **easier to see in retrospect**; a trend signal arrives at the point of greatest uncertainty; trend followers need to be right only **30–35% of the time** because average wins exceed average losses; long-term trends are more reliable than short-term ones (the daily effect of a long trend is tiny relative to noise); weekly charts reveal trends daily charts hide. | 144–145 |
-| C6 | Confirming signals converging at one price carry more weight; **pattern failures** are signals (a failed breakout, "bull/bear trap", is traded the other way: Wyckoff's "effort and results"); a **change of character** (larger reactions inside a trend) signals an exit. | 145–146 |
-| C7 | Bulkowski's candlestick findings quoted: best candles close within a third of the bar low, candle patterns perform better in bear markets and on higher volume, unusually long wicks or tall candles outperform. | 144 |
+| C1 | Todo sistema de negociação começou com um gráfico; sinais passados devem sempre ser vistos num gráfico (“a aparência de uma operação estranha pode poupar muito aborrecimento e dinheiro”). | 79 |
+| C2 | Mercados têm um “caráter” (padrões habituais, como fundos em V em gado, topos arredondados em algodão e novas máximas seguidas de recuos rápidos no S&P). O autor refere-se a commodities dos anos 1970, sem apresentar evidência nesta seção. | 79–80 |
+| C3 | Há várias interpretações válidas para o mesmo gráfico (frequência, data inicial, horizonte); análises gráficas publicadas podem ajudar a *causar* padrões repetidos (profecia autorrealizável). | 80 |
+| C4 | **Causas dos padrões gráficos**: hábitos humanos; por exemplo, ordens agrupam-se em **números redondos** (dólares inteiros e depois 50¢/25¢) em ações e futuros; público entra na hora errada (“corrida geral”); extrapolação excessiva de até ~10%; psicologia de massas (bolhas e crashes). | 81–82 |
+| C5 | Tendências são **mais fáceis de ver retrospectivamente**; sinal tendencial aparece no ponto de maior incerteza. Seguidores de tendência só precisam acertar **30–35%** das vezes, pois ganhos médios excedem perdas médias. Tendências longas são mais confiáveis que curtas (efeito diário é pequeno perante ruído); gráficos semanais revelam tendências ocultas nos diários. | 144–145 |
+| C6 | Sinais confirmatórios que convergem no mesmo preço têm mais peso; **falhas de padrões** também sinalizam (rompimento falhado/“armadilha de alta ou baixa” é negociado no sentido oposto: “esforço e resultado” de Wyckoff); **mudança de caráter** (reações maiores dentro da tendência) sinaliza saída. | 145–146 |
+| C7 | Resultados de candles citados de Bulkowski: candles melhores fecham no terço inferior da barra; padrões funcionam melhor em mercados de baixa e com volume maior; pavios muito longos ou candles altos têm desempenho superior. | 144 |
 
-Chapter 4 turns some of these into systems and quotes Bulkowski's rankings.
+O capítulo 4 transforma alguns conceitos em sistemas e cita classificações de Bulkowski.
 
-## 2. Diagnosis (verified in code and UI)
+## 2. Diagnóstico (verificado no código e na interface)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| View trades on a chart | ✅ | The app's backtest detail shows candles/equity, trades and orders (`candle-chart-rows.ts`, trades tab). Whether signal markers are overlaid on candles is not verified here. |
-| Round-number order clustering | ❌ | No consideration in stop or target placement (`stop_loss_pct` is a percentage from the entry close). |
-| Win rate as a target | ⚠️ | `win_rate_pct` is a headline metric; `profit_factor` and `avg_trade_pnl` exist but not payoff ratio / expectancy per trade or the breakeven win rate. |
-| Pattern failures as signals | ❌ | None. |
-| Multi-timeframe confirmation | ❌ | A bot runs one timeframe (see ch. 19). |
-| Subjective chart patterns | n/a (excluded) | |
+| Ver operações no gráfico | ✅ | Detalhes de backtest mostram candles/curva patrimonial, operações e ordens (`candle-chart-rows.ts`, aba de operações). Não foi confirmado se sinais aparecem sobre os candles. |
+| Agrupamento de ordens em números redondos | ❌ | Stops/alvos não consideram isso (`stop_loss_pct` é percentual do fecho de entrada). |
+| Taxa de acerto como meta | ⚠️ | `win_rate_pct` é métrica principal; há `profit_factor` e `avg_trade_pnl`, mas não relação ganho/perda, expectativa por operação ou taxa de acerto de equilíbrio. |
+| Falhas de padrão como sinal | ❌ | Não há. |
+| Confirmação em vários intervalos | ❌ | Bot opera num único intervalo (ver cap. 19). |
+| Padrões gráficos subjetivos | n/a (excluídos) | – |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Payoff ratio, expectancy and breakeven win rate beside win rate *(book: C5, p. 144)*
-* **Problem:** a trend strategy with a 35% win rate is normal (the book); showing win rate prominently invites the wrong judgement.
-* **Proposal:** add `payoff_ratio = average win / average loss`, `expectancy per trade` (net, after costs; already close to `avg_trade_pnl`) and `breakeven_win_rate = 1 / (1 + payoff_ratio)`, plus the sample size. In the app, show win rate next to its breakeven. **Complexity:** very low (pure functions over `round_trip_pnls`). **Validation:** hand fixtures.
-* **Caveat:** payoff ratio is itself noisy with few trades.
+### O1 — Relação ganho/perda, expectativa e taxa de acerto de equilíbrio *(livro: C5, p. 144)*
 
-### O2 — Check that trades are drawn on candles in the app *(book: C1, p. 79)*
-Verify that entries, exits, stops and rejected signals are overlaid on the candle chart (bots and backtests) so odd trades are visible. If missing, add markers. **Complexity:** low (frontend chart rows). This is a UX check; the book's recommendation is to look at the chart of past signals.
+* **Problema:** taxa de acerto de 35% é normal para estratégia de tendência, segundo o livro; exibi-la em destaque pode induzir a avaliação errada.
+* **Proposta:** acrescentar `payoff_ratio = ganho médio / perda média`, `expectancy per trade` (líquida, após custos; próxima de `avg_trade_pnl`) e `breakeven_win_rate = 1 / (1 + payoff_ratio)`, com tamanho amostral. Exibir taxa de acerto junto à taxa de equilíbrio. **Complexidade:** muito baixa (funções puras sobre `round_trip_pnls`). **Validação:** casos calculados à mão.
+* **Ressalva:** relação ganho/perda é ruidosa com poucas operações.
 
-### O3 — Stop and target placement relative to round numbers *(book: C4, p. 81 · hypothesis)*
-* The book states order clustering at round numbers. A stop at an obvious level may be filled with worse slippage (also book 2 ch. 7 stop hunting). **Hypothesis H-ROUND:** test, using realised stop fills (book 1 ch. 5 O4), whether stops/targets at round numbers experience worse slippage than nearby non-round levels, then decide whether to offset them. No change until measured. **Complexity:** low (analysis after data exists).
+### O2 — Verificar se operações aparecem sobre candles no app *(livro: C1, p. 79)*
 
-### O4 — Failed-breakout (trap) rule as a candidate objective strategy *(book: C6, p. 146 · hypothesis)*
-An objective definition is possible (a Donchian breakout that returns inside the channel within *k* candles → exit/reverse). Long-only spot can use it as an **exit** rule on the existing Donchian strategy ("exit early if the breakout fails"). **H-FAILED-BREAKOUT:** run as an experiment through the sweep → best-of-N → validation pipeline; no a-priori edge claimed. **Complexity:** low–medium.
+Verificar se entradas, saídas, stops e sinais rejeitados aparecem no gráfico de candles (bots e backtests); se não, adicionar marcadores. **Complexidade:** baixa (linhas do gráfico no frontend). Ver gráfico dos sinais passados é a recomendação do livro.
 
-### Not applicable
-Descriptions of formations, trendline drawing, Dow theory, candlestick names, price objectives from patterns.
+### O3 — Posicionar stop/alvo em relação a números redondos *(livro: C4, p. 81 · hipótese)*
 
-## 4. Priority
+O livro diz que ordens se agrupam em preços redondos. Stop num nível evidente pode executar com slippage pior (também livro 2, cap. 7, caça a stops). **Hipótese H-ROUND:** com execuções reais registradas (livro 1, cap. 5 O4), comparar slippage em stops/alvos redondos versus níveis próximos não redondos e decidir se convém deslocá-los. Sem mudança antes de medir. **Complexidade:** baixa após haver dados.
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+### O4 — Regra objetiva para rompimento falhado *(livro: C6, p. 146 · hipótese)*
+
+Definir objetivamente: rompimento Donchian que regressa ao canal em *k* candles → sair/inverter. À vista e comprado, pode ser regra de **saída** da estratégia Donchian (“sair antes se o rompimento falhar”). **H-FAILED-BREAKOUT:** testar no fluxo varredura → melhor de N → validação; não assumir vantagem a priori. **Complexidade:** baixa a média.
+
+### Não aplicável
+
+Descrições de formações, desenho de linhas de tendência, teoria de Dow, nomes de candles e objetivos de preço de padrões.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O1 payoff/expectancy/breakeven | medium | – | – | very low | – |
-| 2 | O2 chart overlay check | – | – | medium | low | frontend review |
-| 3 | O4 failed-breakout experiment | low | – | – | low–medium | book 3 pipeline |
-| 4 | O3 round-number study | – | low | – | low | realised slippage records |
+| 1 | O1 ganho/expectativa/equilíbrio | média | – | – | muito baixa | – |
+| 2 | O2 verificar sobreposição no gráfico | – | – | média | baixa | revisão frontend |
+| 3 | O4 experimento de rompimento falhado | baixa | – | – | baixa–média | fluxo do livro 3 |
+| 4 | O3 estudo de números redondos | – | baixa | – | baixa | registros de slippage |
 
-## 5. Affected files
-`analytics/domain/metrics.py`, `analytics/presentation/schemas.py`, `docs/openapi.json`, app metric cards and chart components (`components/backtests`, `components/bots`), `strategies/domain/donchian_breakout.py` (O4 only), tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Payoff and breakeven metrics.
-2. Chart overlay review.
-3. Experiments (O3, O4) only after the evidence tooling from book 3.
+`analytics/domain/metrics.py`, `analytics/presentation/schemas.py`, `docs/openapi.json`, cartões de métricas e gráficos no app (`components/backtests`, `components/bots`), `strategies/domain/donchian_breakout.py` (apenas O4) e testes.
 
-## 7. Acceptance criteria and tests
-* Payoff, expectancy and breakeven win rate match hand calculations; `None` when there are no losses or no trades.
-* No change to existing strategy behaviour; ruff, mypy, tests green.
+## 6. Plano incremental
 
-## Caveats
-Most of the chapter is subjective charting and 1970s–2000s anecdotes; none of the pattern lore was verified or read. The 30–35% accuracy remark is a general statement about trend systems, not a measured crypto figure.
+1. Métricas de ganho e equilíbrio.
+2. Revisão de marcadores no gráfico.
+3. Experimentos O3/O4 somente após ferramentas de evidência do livro 3.
+
+## 7. Critérios de aceitação e testes
+
+* Ganho/perda, expectativa e taxa de equilíbrio conferem com cálculos manuais; retornar `None` sem perdas ou operações.
+* Comportamento das estratégias existentes não muda; Ruff, mypy e testes passam.
+
+## Ressalvas
+
+A maior parte do capítulo é análise gráfica subjetiva e anedotas de 1970–2000; relatos sobre padrões não foram verificados nem lidos. Taxa de acerto de 30–35% é afirmação geral sobre tendências, não número observado em cripto.

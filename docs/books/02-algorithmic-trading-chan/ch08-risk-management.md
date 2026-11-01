@@ -1,97 +1,109 @@
-# Book 2 · Chapter 8 — Risk Management
+# Livro 2 · Capítulo 8 — Gestão de risco
 
-*Algorithmic Trading*, Chan (2013). Book pages (PDF = book + 18). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only. All of pp. 169–186 was read. Builds on [book 1 ch. 6](../01-quantitative-trading-chan/ch06-money-and-risk-management.md).
+*Algorithmic Trading*, Chan (2013). Páginas do livro (PDF = livro + 18). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise. Todo o conteúdo das pp. 169–186 foi lido. Complementa [livro 1, cap. 6](../01-quantitative-trading-chan/ch06-money-and-risk-management.md).
 
-## 1. Chapter summary (pp. 169–186)
+## 1. Resumo do capítulo (pp. 169–186)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | Objective: **maximise long-term equity growth**; avoid risk only insofar as it harms that. Loss aversion (needing about $2 of upside per $1 of downside, Kahneman) explains why a Sharpe of 2 feels good, but is not rational on its own. | Framing risk. | 169 |
-| C2 | **Optimal leverage assumptions**: the future return distribution equals the past one; stricter versions: the strategy's own distribution is unchanged; strictest: Gaussian. Optimal leverage implies no ruin in history; a maximum drawdown limit becomes an extra constraint. **Leverage must be kept constant**, which means *selling into losses* and buying into gains (Example 8.1: leverage 5, equity 100K → 90K forces selling to 450K); this "selling into losses" is blamed for contagion in the August 2007 quant crisis. | Constant-leverage discipline. | 170–171 |
-| C3 | **Kelly** `f = m/σ²` (Gaussian). Overestimated mean or underestimated variance → overestimated leverage → eventual ruin; underestimation only reduces growth, so traders use **half-Kelly**. In the author's experience Kelly is **an upper bound**: backtest Kelly often exceeds broker limits or would have ruined the account in backtest because returns are not Gaussian; Russell 1000/2000 Kelly ≈ 1.8 vs 3× ETFs. Multi-strategy: `F = C⁻¹M`; under a maximum-leverage cap, uniform scaling is not optimal; Example 8.2 (two strategies, cap 2): all buying power on the highest-growth strategy gave g = 0.96 vs 0.82 scaled. | Sizing. | 172–175 |
-| C4 | **Monte Carlo optimisation of growth**: `g(f) = ⟨log(1 + f·R)⟩` over simulated per-bar returns R drawn from a **Pearson-system** distribution matching mean, standard deviation, skewness and kurtosis of the strategy's returns; maximise numerically. Example: Kelly 18.4, Monte Carlo ≈ 19, historical optimisation also 18.4; leverage above 1/|worst return| (30.2) gives −100%. Directly optimising on historical returns suffers data-snooping but here agreed with the other two. | Fat-tailed sizing. | 175–178 |
-| C5 | **Maximum drawdown constraint**: not linear in leverage; the unconstrained optimum had a −99.9% simulated drawdown; half of it still −96.3%; ~7× lower leverage (2.7) needed for −50%; historical returns needed only ÷1.5. Simulated returns give statistical power but may miss serial correlation and describe once-in-a-million-years events; historical returns capture correlation but have too little data; **a compromise between the two is suggested**. Leverage limits do not *guarantee* future drawdown limits. | Drawdown budgeting. | 179–180 |
-| C6 | **CPPI** (constant proportion portfolio insurance): set aside `D` (the maximum drawdown allowed) as the trading sub-account and apply Kelly leverage `f` to it; the rest sits in cash; **raise the sub-account back to D of total equity only at new high-water marks, never top it up after losses**; if the sub-account is exhausted, retire the strategy (a principled wind-down). Same growth as an equivalent fixed leverage in the author's simulation (0.002484 vs 0.002525 per day) but the drawdown is bounded below `D` (0.5 vs 0.9). Applies to **one strategy per account**; cannot protect against gaps or suspended trading. | Bounded drawdown with growth. | 180–182 |
-| C7 | **Stop-loss**: per-position vs strategy-level (awkward, one-time; CPPI preferred). Works only when the market is open while you hold; fails when liquidity vanishes (2010 flash crash stub quotes: an Accenture stop sold at $0.01). For **mean-reverting** strategies stops lower backtest performance, but that is partly **survivorship bias** (strategies whose regime changed to trending never made it into the catalogue). Recommendation: set the stop **beyond the largest backtest intraday drawdown**, so it never fires in the backtest and only guards against a black swan. For **momentum** strategies the opposite signal is a de facto stop, so tail risk is lower. | Using stops sensibly. | 182–184 |
-| C8 | **Leading risk indicators** (VIX, TED spread, HYG, MXN, ONN/OFF, order flow): proactive avoidance of risky periods; strategy-specific (VIX > 35 *helped* the buy-on-gap strategy and *destroyed* the FSTX gap strategy: Sharpe 1.4 → 0.16); crises are rare so indicators are easily data-snooped. | Avoiding bad periods. | 184–186 |
-| C9 | Conclusion: judgment calls remain (lowering leverage before a known event: author says no if the model survived earlier stress; allocate Kelly **per strategy** so poor ones die quickly rather than across a pool); regime shifts, not backtest pitfalls, are often why live diverges; hypothesis → model → test on unseen data. | Judgment vs rules. | 187–189 |
+| C1 | Objetivo: **maximizar o crescimento patrimonial no longo prazo**; evitar risco apenas quando prejudica esse objetivo. A aversão à perda (exigir cerca de US$ 2 de ganho para cada US$ 1 de perda, segundo Kahneman) explica por que Sharpe 2 parece bom, mas isso não é, por si só, racional. | Enquadrar o risco. | 169 |
+| C2 | **Pressupostos da alavancagem ótima**: a distribuição futura dos retornos é igual à passada; versões mais estritas: distribuição da própria estratégia não muda; versão mais estrita: distribuição gaussiana. Alavancagem ótima pressupõe que não houve ruína histórica; limite de drawdown máximo torna-se uma restrição adicional. **A alavancagem deve permanecer constante**, o que significa vender após perdas e comprar após ganhos (exemplo 8.1: alavancagem 5, patrimônio 100 mil → 90 mil força venda até 450 mil). Essa venda após perdas foi apontada como causa de contágio na crise quantitativa de agosto de 2007. | Disciplina de alavancagem constante. | 170–171 |
+| C3 | **Kelly** `f = m/σ²` (gaussiano). Superestimar a média ou subestimar a variância superestima a alavancagem e pode levar à ruína; subestimá-las só reduz o crescimento, por isso traders usam **meio Kelly**. Pela experiência do autor, Kelly é **limite superior**: o Kelly calculado pelo backtest frequentemente excede os limites da corretora ou teria levado a conta à ruína, pois os retornos não são gaussianos. Kelly de Russell 1000/2000 ≈ 1,8 ante ETFs 3×. Para várias estratégias: `F = C⁻¹M`; sob limite máximo de alavancagem, escalar todas igualmente não é ótimo. Exemplo 8.2 (duas estratégias, limite 2): todo o poder de compra na estratégia de maior crescimento dá g = 0,96, contra 0,82 com escala proporcional. | Dimensionamento. | 172–175 |
+| C4 | **Otimização do crescimento por Monte Carlo**: `g(f) = ⟨log(1 + f·R)⟩` sobre retornos simulados por barra R, extraídos de uma distribuição do **sistema de Pearson** compatível com média, desvio-padrão, assimetria e curtose da estratégia; maximizar numericamente. Exemplo: Kelly 18,4, Monte Carlo ≈ 19, otimização histórica 18,4; alavancagem acima de 1/|pior retorno| (30,2) leva a −100%. Otimização direta dos retornos históricos sofre seleção de dados, embora neste exemplo concorde com os outros dois métodos. | Dimensionamento com caudas pesadas. | 175–178 |
+| C5 | **Restrição de drawdown máximo**: não varia linearmente com alavancagem; ótimo irrestrito produz drawdown simulado de −99,9%; metade ainda produz −96,3%; é necessário reduzir a alavancagem cerca de sete vezes (para 2,7) para atingir −50%; retornos históricos exigiram divisão por apenas 1,5. Retornos simulados aumentam o poder estatístico, mas podem perder autocorrelação e representar eventos raríssimos; históricos capturam correlação, mas são poucos. **Sugere-se combinar os dois métodos**. Limites de alavancagem não garantem drawdowns futuros. | Orçamento de drawdown. | 179–180 |
+| C6 | **CPPI** (seguro de carteira com proporção constante): reservar `D` (drawdown máximo permitido) como subconta de negociação e aplicar alavancagem Kelly `f` a ela; o resto permanece em caixa. **Repor a subconta até D do patrimônio total apenas quando houver nova máxima histórica, nunca após perdas**; se esgotada, retirar a estratégia (encerramento disciplinado). Na simulação do autor, crescimento igual ao de alavancagem fixa equivalente (0,002484 contra 0,002525 por dia), mas drawdown limitado abaixo de `D` (0,5 contra 0,9). Aplica-se a **uma estratégia por conta**; não protege contra lacunas nem interrupções de negociação. | Limitar drawdown sem abandonar crescimento. | 180–182 |
+| C7 | **Stop de perda**: por posição versus por estratégia (este é incômodo e usado uma única vez; o autor prefere CPPI). Só funciona enquanto o mercado está aberto e há liquidez; pode falhar quando ela desaparece (cotações residuais no flash crash de 2010: stop de Accenture executado a US$ 0,01). Para estratégias de **reversão à média**, stops reduzem o desempenho do backtest, em parte por **viés de sobrevivência** (estratégias cujo regime mudou para tendência nunca entraram no catálogo). Recomendação: pôr o stop **além do maior drawdown intradiário do backtest**, sem acioná-lo no backtest e usando-o só para cisnes negros. Para **momentum**, o sinal oposto já funciona como stop, reduzindo o risco de cauda. | Usar stops com critério. | 182–184 |
+| C8 | **Indicadores antecedentes de risco** (VIX, spread TED, HYG, MXN, ONN/OFF, fluxo de ordens): evitar proativamente períodos arriscados; dependem da estratégia (VIX > 35 *ajudou* compra na lacuna e *prejudicou* a estratégia FSTX de lacuna: Sharpe 1,4 → 0,16). Crises são raras, o que facilita selecionar dados nesses indicadores. | Evitar períodos desfavoráveis. | 184–186 |
+| C9 | Conclusão: ainda há decisões de julgamento (reduzir alavancagem antes de evento conhecido: o autor diz que não se o modelo já resistiu a estresse anterior; distribuir Kelly **por estratégia** para que as piores sejam eliminadas, em vez de agrupar); divergências entre operação real e backtest muitas vezes vêm de mudanças de regime, não de falhas do backtest; hipótese → modelo → teste em dados não vistos. | Julgamento e regras. | 187–189 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| Constant leverage / equity-proportional sizing | ✅ spot | Entries are sized as a fraction of **current bot equity** (`equity * max_position_fraction` in `assess_signal`), so size shrinks after losses and grows after gains without an explicit rebalance. Leverage ≤ 1. |
-| Kelly / Monte Carlo growth optimisation | ❌ | Nothing computes `m/σ²`, `g(f)` or simulated optimisation. |
-| Drawdown as a function of exposure | ❌ | No analysis of how drawdown scales with `max_position_fraction`. |
-| Stops: native exchange stop orders live | ✅ | `trader.py:189-196`: "a stop resting on the exchange is the authority". Paper/backtest use the gap-through-open model. |
-| Stops: never-in-backtest placement rule | ❌ | `stop_loss_pct` is user-chosen; no check against the backtest's worst adverse excursion. |
-| Strategy-level drawdown stop | ✅ | `max_drawdown_pct`, `max_daily_loss_pct`, `max_consecutive_losses` pause the bot (`risk_management/domain/models.py`, `trader.py:550-568`). |
-| CPPI-style sub-account | ⚠️ partial | Each bot is a virtual sub-account with its own capital (`bot_portfolios`), the reconciler enforces that the exchange account holds at least the sum of bot books. There is **no ratchet** (raising allocation at new high-water marks, never after losses) and no automatic retirement rule tied to a drawdown budget beyond the pause. |
-| Per-strategy rather than pooled allocation | ✅ | Bots are independent. |
-| Leading risk indicators | ❌ | No external indicators; the only market-based guard is `max_candle_range_pct` (entry-time). |
-| Max exposure caps | ✅ | `max_position_fraction`, `max_order_notional`, global exposure and live caps. |
+| Alavancagem constante/dimensionamento proporcional ao patrimônio | ✅ à vista | Entradas são dimensionadas como fração do **patrimônio atual do bot** (`equity * max_position_fraction` em `assess_signal`); o tamanho diminui após perdas e cresce após ganhos, sem rebalanceamento explícito. Alavancagem ≤ 1. |
+| Kelly/otimização de crescimento por Monte Carlo | ❌ | Não se calcula `m/σ²`, `g(f)` ou otimização simulada. |
+| Drawdown em função da exposição | ❌ | Não há análise da escala de drawdown conforme `max_position_fraction`. |
+| Stops: ordens nativas na corretora durante operação real | ✅ | `trader.py:189-196`: “um stop colocado na corretora é a autoridade”. Paper/backtest usa modelo de execução na abertura após lacuna. |
+| Regra de stop que não dispara no backtest | ❌ | `stop_loss_pct` é escolhido pelo usuário; não é comparado à pior excursão adversa do backtest. |
+| Stop de drawdown por estratégia | ✅ | `max_drawdown_pct`, `max_daily_loss_pct`, `max_consecutive_losses` pausam o bot (`risk_management/domain/models.py`, `trader.py:550-568`). |
+| Subconta no estilo CPPI | ⚠️ parcial | Cada bot é uma subconta virtual com capital próprio (`bot_portfolios`); a reconciliação exige que a conta da corretora tenha pelo menos a soma dos livros dos bots. Não há *ratchet* (elevar alocação em novas máximas, nunca após perdas) nem encerramento automático por orçamento de drawdown, além da pausa. |
+| Alocação por estratégia em vez de conjunta | ✅ | Bots são independentes. |
+| Indicadores antecedentes de risco | ❌ | Sem indicadores externos; a única proteção baseada no mercado é `max_candle_range_pct` na entrada. |
+| Limites máximos de exposição | ✅ | `max_position_fraction`, `max_order_notional`, exposição global e limites da operação real. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Growth-rate and drawdown curves vs exposure from backtest returns *(book: C3–C5, pp. 172–180)*
-* **Problem:** `max_position_fraction` is picked blindly. The chapter's machinery tells how growth `g(f)` and maximum drawdown change with exposure.
-* **Proposal:** from a backtest's per-bar returns compute, over exposure `f ∈ (0, 1]` (cap of 1 because spot): (a) the empirical growth rate `⟨log(1+f·R)⟩`, (b) the maximum drawdown with that exposure, (c) a flag when `f` exceeds the Kelly value or half-Kelly. Show as a small curve/table beside the bot's configured fraction. Use historical returns first; add a **bootstrap of the empirical per-bar returns** as the "simulated" counterpart (our adaptation: resampling avoids needing the Pearson system, and it keeps skew and kurtosis without fitting a family; it destroys serial correlation, which the book also points out for simulated returns).
-* **Benefit:** concrete numbers for sizing and drawdown budgeting; replaces guesswork. **Complexity:** medium (log-growth in `Decimal` or a documented float boundary; bootstrap needs a seeded RNG).
-* **Risks:** results are only as good as the sample (book: historical optimisation is snooped and simulations describe unobserved extremes); returns in crypto are volatile and autocorrelated; presenting a single "optimal" value invites over-confidence, so present a range and keep Kelly as an upper bound, as the author does.
-* **Validation:** reproduce Example 8.2's two-strategy numbers for the Gaussian case; known synthetic returns where `g(f)` peaks at the analytic Kelly; seeded determinism; leverage above `1/|worst return|` yields ruin.
+### O1 — Curvas de crescimento e drawdown do backtest em função da exposição *(livro: C3–C5, pp. 172–180)*
 
-### O2 — CPPI-style "risk budget" per bot *(book: C6, pp. 180–182 · adaptation to our bot sub-accounts)*
-* **Problem:** a bot's loss is limited only by pauses and caps; the book proposes a principled structure that bounds drawdown by design and winds a failing strategy down.
-* **Proposal:** give each bot a **risk budget `D`** (fraction of the allocated capital that may be lost). Only the budget is "at risk"; when the bot's equity makes a new high-water mark, the budget is reset to `D` of equity (ratchet); after losses it is never topped up; if the budget is exhausted, the bot stops permanently with a clear reason and audit entry. In spot long-only terms the position size is `exposure × budget`. This is a thin layer on the existing `RiskLimits` (it generalises `max_drawdown_pct` from "pause" to "retire with a ratchet").
-* **Benefit:** a bounded, explainable maximum loss per bot and an end-of-life rule for decaying strategies. **Complexity:** medium (state: high-water mark, current budget; interaction with reset, manual capital changes, live approvals).
-* **Risks:** gaps can still exceed the budget (book, p. 182); spot sizing already shrinks with equity so the extra protection is smaller than in the levered example; ratchet logic is easy to get wrong; applies per bot only (the book warns pooled accounts let winners subsidise losers). **Validation:** deterministic unit tests of the ratchet and of retirement; property test that realised loss never exceeds the budget on a no-gap series; no change when the feature is off.
+* **Problema:** `max_position_fraction` é escolhido sem base quantitativa; os métodos do capítulo mostram como crescimento `g(f)` e drawdown variam com a exposição.
+* **Proposta:** a partir dos retornos por barra do backtest, calcular para exposição `f ∈ (0, 1]` (limite 1 por ser à vista): (a) crescimento empírico `⟨log(1+f·R)⟩`; (b) drawdown máximo; (c) aviso se `f` exceder Kelly ou meio Kelly. Mostrar curva/tabela junto à fração configurada do bot. Começar pelos retornos históricos; acrescentar *bootstrap* dos retornos por barra como contraparte “simulada” (adaptação nossa: reamostragem dispensa o sistema de Pearson e preserva assimetria/curtose sem ajustar uma família, mas destrói autocorrelação, limitação também observada pelo livro para retornos simulados).
+* **Benefício:** números concretos para dimensionamento e orçamento de drawdown, em vez de palpites. **Complexidade:** média (log-crescimento em `Decimal` ou conversão float documentada; bootstrap requer gerador aleatório com semente).
+* **Riscos:** depende da qualidade da amostra (otimização histórica sujeita a seleção e simulações podem representar extremos nunca observados); retornos cripto são voláteis e autocorrelacionados. Um “ótimo” único incentiva excesso de confiança: mostrar faixa e tratar Kelly como limite superior, como o autor.
+* **Validação:** reproduzir números do Exemplo 8.2 para o caso gaussiano; retornos sintéticos conhecidos cujo `g(f)` atinge o Kelly analítico; determinismo com semente; alavancagem acima de `1/|pior retorno|` resulta em ruína.
 
-### O3 — Stop placement relative to backtest adverse excursion *(book: C7, pp. 183–184)*
-* **Problem:** a stop tighter than the strategy's normal drawdown fires inside ordinary noise and silently changes what was backtested; a looser one is the book's recommended "black-swan only" stop for reversion strategies.
-* **Proposal:** compute and report the largest **adverse excursion** (worst unrealised loss within a trade) from a backtest and compare it with the configured `stop_loss_pct`; warn if the stop is inside the historical excursion and explain what that means for each strategy family (momentum: stop is part of the signal; reversion: stop beyond the worst excursion). **Complexity:** low–medium (engine must track the in-trade low). **Validation:** synthetic trades with known excursions.
+### O2 — Orçamento de risco por bot no estilo CPPI *(livro: C6, pp. 180–182 · adaptação às subcontas dos bots)*
 
-### O4 — Stop-failure awareness in crypto *(book: C7, pp. 182–183 · adaptation)*
-* The book shows that stops can execute at absurd prices during liquidity withdrawal. Crypto has analogous flash events. The system already uses native exchange stops live and sizes with slippage; add an alert when a protective exit fills far beyond its planned price (needs book 1 ch. 5 O4 execution records) and a documented policy on stop order types (stop-market vs stop-limit) with its trade-offs. **Complexity:** low–medium. **Depends on:** book 1 ch. 1 O1 (alerts) and ch. 5 O4.
+* **Problema:** perdas do bot são limitadas apenas por pausas e limites; o livro propõe estrutura que limita drawdown por projeto e encerra estratégias em deterioração.
+* **Proposta:** atribuir a cada bot um **orçamento de risco `D`** (fração do capital alocado que pode ser perdida). Só esse orçamento fica “em risco”; quando o patrimônio atinge nova máxima, recalcular o orçamento como `D` do patrimônio (ratchet); após perdas, não repor; se esgotado, parar o bot definitivamente com motivo claro e registro de auditoria. Em posição à vista comprada, o tamanho seria `exposure × budget`. Camada fina sobre `RiskLimits`, generalizando `max_drawdown_pct` de “pausar” para “encerrar com ratchet”.
+* **Benefício:** perda máxima explicável e limitada por bot, com regra de fim de vida para estratégias que perdem a vantagem. **Complexidade:** média (estado de máxima histórica/orçamento atual; interação com reinício, alterações manuais de capital e aprovações para operação real).
+* **Riscos:** lacunas podem ultrapassar orçamento (livro, p. 182); dimensionamento à vista já diminui com o patrimônio, portanto o ganho adicional é menor que no exemplo alavancado; lógica de ratchet pode ser implementada incorretamente; aplica-se apenas por bot (o livro alerta que contas agrupadas permitem vencedores subsidiarem perdedores). **Validação:** testes unitários determinísticos do ratchet e encerramento; teste de propriedade de que a perda realizada não excede o orçamento sem lacunas; sem mudança quando desativado.
 
-### O5 — Per-strategy sizing, not pooled Kelly *(book: C9, p. 188)*
-Confirms the current design (independent bots). Do not build pooled covariance allocation; this is a **non-change**, recorded to prevent future drift. Keep **B-PORTFOLIO** as a possible later topic, only if bots share capital.
+### O3 — Posicionamento do stop em relação à excursão adversa do backtest *(livro: C7, pp. 183–184)*
 
-### O6 — Risk indicators: exploratory only *(book: C8, pp. 184–186 · adaptation)*
-* The book's indicators are stock/credit based. Crypto candidates (market-wide realised volatility, BTC drawdown, funding rates) are our ideas, not the book's. Given the author's warning about data-snooping on rare crises, only a **descriptive** step is proposed: report the strategy's performance split by a pre-registered volatility regime (book 2 ch. 5 O1) and do not gate trading on it until it holds out of sample. **Complexity:** low. Record as **H-RISK-INDICATOR**.
+* **Problema:** stop mais apertado que o drawdown normal da estratégia aciona em ruído comum e altera silenciosamente o backtest; para reversão à média, o livro recomenda colocá-lo além desse drawdown como proteção “apenas para cisnes negros”.
+* **Proposta:** calcular a maior **excursão adversa** (pior perda não realizada dentro da operação) e compará-la com `stop_loss_pct`; avisar se o stop estiver dentro da excursão histórica e explicar cada família (momentum: stop faz parte do sinal; reversão: stop além da pior excursão). **Complexidade:** baixa a média (motor precisa registrar mínima durante a operação). **Validação:** operações sintéticas com excursões conhecidas.
 
-### O7 — Document the judgment calls *(book: C9, pp. 188–189)*
-Write down, in the operator runbook, the policy decisions the author calls judgment: whether to reduce size before known events, per-strategy vs pooled sizing, and when to retire a model. Pure documentation. **Complexity:** very low.
+### O4 — Atenção à falha de stops em cripto *(livro: C7, pp. 182–183 · adaptação)*
 
-### Not applicable
-Broker leverage caps, short exposure, VIX/TED/HYG/ONN indicators as given.
+O livro mostra que stops podem executar a preços absurdos quando a liquidez desaparece; cripto tem eventos semelhantes. O sistema já usa stops nativos na corretora durante a operação real e dimensiona com slippage. Acrescentar alerta quando uma saída protetora executar muito além do preço planejado (requer registros de execução, livro 1, cap. 5 O4) e documentar política de tipos de ordem (stop-market versus stop-limit) e suas concessões. **Complexidade:** baixa a média. **Dependências:** livro 1, cap. 1 O1 (alertas) e cap. 5 O4.
 
-## 4. Priority
+### O5 — Dimensionamento por estratégia, sem Kelly agrupado *(livro: C9, p. 188)*
 
-| # | Item | Risk mgmt | Backtest quality | Reliability | Complexity | Depends on |
+Confirma o projeto atual (bots independentes). Não desenvolver alocação conjunta por covariância; registrar como **não alteração** para evitar desvio futuro. Manter **B-PORTFOLIO** como possibilidade futura somente se bots compartilharem capital.
+
+### O6 — Indicadores de risco: apenas exploratórios *(livro: C8, pp. 184–186 · adaptação)*
+
+* Os indicadores do livro referem-se a ações/crédito. Candidatos cripto (volatilidade realizada geral, drawdown de BTC, taxas de financiamento) são ideias nossas, não do livro. Dado o alerta contra seleção de dados em crises raras, propor apenas uma etapa **descritiva**: mostrar desempenho da estratégia separado por regime de volatilidade pré-registrado (livro 2, cap. 5 O1), sem condicionar a negociação até validar fora da amostra. **Complexidade:** baixa. Registrar como **H-RISK-INDICATOR**.
+
+### O7 — Documentar decisões de julgamento *(livro: C9, pp. 188–189)*
+
+Documentar no runbook do operador as decisões mencionadas pelo autor: reduzir tamanho antes de eventos conhecidos, dimensionar por estratégia ou em conjunto e decidir quando encerrar um modelo. Apenas documentação. **Complexidade:** muito baixa.
+
+### Não aplicável
+
+Limites de alavancagem da corretora, exposição vendida e indicadores VIX/TED/HYG/ONN como apresentados.
+
+## 4. Prioridade
+
+| # | Item | Gestão de risco | Qualidade do backtest | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O3 stop vs adverse excursion | high | medium | – | low–medium | engine change |
-| 2 | O1 exposure curves | high | medium | – | medium | book 1 ch. 2 O1 (returns series) |
-| 3 | O2 CPPI risk budget | **high** | – | medium | medium | O1 for choosing `D` and exposure |
-| 4 | O4 stop-failure alert | medium | – | medium | low–medium | book 1 ch. 1 O1, ch. 5 O4 |
-| 5 | O7 policy documentation | medium | – | – | very low | – |
-| 6 | O6 regime descriptive report | low | medium | – | low | book 2 ch. 5 O1 |
-| – | O5 | non-change | | | | |
+| 1 | O3 stop versus excursão adversa | alta | média | – | baixa–média | mudança no motor |
+| 2 | O1 curvas de exposição | alta | média | – | média | livro 1, cap. 2 O1 (série de retornos) |
+| 3 | O2 orçamento CPPI | **alta** | – | média | média | O1 para escolher `D` e exposição |
+| 4 | O4 alerta de falha de stop | média | – | média | baixa–média | livro 1, cap. 1 O1; cap. 5 O4 |
+| 5 | O7 documentar políticas | média | – | – | muito baixa | – |
+| 6 | O6 relatório descritivo por regime | baixa | média | – | baixa | livro 2, cap. 5 O1 |
+| – | O5 | não alteração | | | | |
 
-## 5. Affected files
-`backtesting/domain/engine.py` (adverse excursion), `analytics/domain/` (growth and drawdown vs exposure, bootstrap), `risk_management/domain/models.py` and `trading/application/trader.py` (O2 only), `bots/domain/models.py` (budget state), migrations, `docs/openapi.json`, app bot risk form and backtest detail, `docs/` runbook, tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Adverse-excursion metric and the stop warning.
-2. Exposure-vs-growth/drawdown curves (historical first, bootstrap second).
-3. CPPI risk budget as an opt-in per bot; paper trading only until proven.
-4. Execution-record based stop-failure alert.
-5. Documentation of judgment policies.
+`backtesting/domain/engine.py` (excursão adversa), `analytics/domain/` (crescimento/drawdown por exposição e bootstrap), `risk_management/domain/models.py`, `trading/application/trader.py` (apenas O2), `bots/domain/models.py` (estado do orçamento), migrações, `docs/openapi.json`, formulário de risco do bot e detalhes de backtest no app, runbook em `docs/` e testes.
 
-## 7. Acceptance criteria and tests
-* Reproduce the chapter's Kelly, `g(f)` and constrained-allocation numbers on the book's stated inputs.
-* CPPI ratchet: budget rises only at new high-water marks; never after losses; retirement is triggered when exhausted; no effect when disabled.
-* Live safeguards, kill switch and approvals are untouched; ruff, mypy, existing tests green.
-* UI language never presents a computed "optimal" exposure as a recommendation without its caveats.
+## 6. Plano incremental
 
-## Caveats
-All Kelly, Monte Carlo and drawdown figures are for one futures-like strategy with an exposure of 18× (Example 5.1 strategy) and say nothing about spot crypto. The author states that Kelly is an upper bound, the Gaussian assumption is unreliable, leverage limits do not guarantee future drawdown, and CPPI cannot protect against gaps (pp. 172, 179, 182). Past returns are not a guarantee of future behaviour.
+1. Métrica de excursão adversa e aviso sobre o stop.
+2. Curvas de exposição, crescimento e drawdown (primeiro histórico, depois bootstrap).
+3. Orçamento de risco CPPI opcional por bot; operar apenas em paper até comprovar.
+4. Alerta de falha de stop com base nos registros de execução.
+5. Documentação das políticas de julgamento.
+
+## 7. Critérios de aceitação e testes
+
+* Reproduzir os valores de Kelly, `g(f)` e alocação limitada do capítulo com os dados declarados pelo livro.
+* Ratchet CPPI: orçamento só aumenta em nova máxima, nunca após perdas; encerramento ocorre quando se esgota; desativado, não tem efeito.
+* Salvaguardas da operação real, kill switch e aprovações permanecem intactos; Ruff, mypy e testes existentes passam.
+* A interface nunca apresenta exposição “ótima” calculada como recomendação sem ressalvas.
+
+## Ressalvas
+
+Todos os números de Kelly, Monte Carlo e drawdown referem-se a uma estratégia semelhante a futuros com exposição de 18× (estratégia do Exemplo 5.1) e não descrevem cripto à vista. O autor afirma que Kelly é limite superior, a hipótese gaussiana não é confiável, limites de alavancagem não garantem drawdown futuro e CPPI não protege contra lacunas (pp. 172, 179, 182). Retornos passados não garantem comportamento futuro.

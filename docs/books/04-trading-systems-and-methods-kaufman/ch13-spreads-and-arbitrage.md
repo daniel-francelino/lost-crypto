@@ -1,56 +1,62 @@
-# Book 4 · Chapter 13 — Spreads and Arbitrage
+# Livro 4 · Capítulo 13 — Spreads e arbitragem
 
-*Trading Systems and Methods*, 5th ed., Kaufman (2013). Book pages (PDF = book + 20). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Trading Systems and Methods*, 5.ª ed., Kaufman (2013). Páginas do livro (PDF = livro + 20). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 565–568, 572–574 and 596–598 were read; the headings of 568–572 and 574–616 were scanned. The detailed spread mechanics for specific futures markets, option-related arbitrage, pricing formulas and intermarket spread studies (pp. 568–572, 575–595, 598–616) were **not** read in detail and are not summarised.
+**Profundidade da leitura:** lidas pp. 565–568, 572–574 e 596–598; títulos de pp. 568–572 e 574–616 percorridos. Mecânica detalhada de spreads em mercados específicos de futuros, arbitragem de opções, fórmulas de preço e estudos intermercado (pp. 568–572, 575–595, 598–616) **não** foram lidos nem resumidos.
 
-## 1. Chapter summary (pages read)
+## 1. Resumo (páginas lidas)
 
-| ID | Concept | Pages |
+| ID | Conceito | Páginas |
 |---|---|---|
-| C1 | Terms: **spread/straddle** (opposite positions in related markets), **pairs trading** (long/short in two stocks), **arbitrage** (the dynamics of the spread can be calculated, e.g. same bond, same maturity, or one commodity in two locations); **relative-value arbitrage** when divergence is caused by market forces on similar but not identical products. Spreads remove directional risk (both legs move together; one profits, the other loses) and offer diversification from long-only portfolios. | 565 |
-| C2 | Futures intramarket spreads reduce risk and profit; margin offsets allow leverage, **unlike stocks where both legs need full financing**. Behaviour differs by market: financial near-delivery contracts react faster, precious metals follow carry, industrial metals invert in tight supply, currency forwards reflect interest differentials and policy, crops have carry within a crop year, livestock has no storage so months are independent. | 566–567 |
-| C3 | **Carrying charge** (term structure): interest, storage, insurance; **contango** vs **backwardation** (negative carry) — the carry is implicit even when inverted. | 567 |
-| C4 | **Spread relationship test**: compute the standard deviation of the spread's returns relative to the legs; "the stronger the relationship between A and B, the smaller the standard deviation of F". | 572 |
-| C5 | **Arbitrage conditions** (spatial arbitrage example: peso quoted by banks in Tokyo and Frankfurt): the price difference must exceed the bid–ask spread (execution cost); credit must exist with both counterparties; the two transactions must be **simultaneous**; large-scale arbitrage is the domain of institutions that scan quotes globally and trade large quantities for small differences; opportunities that are true arbitrage have small profits and low liquidity; risk grows with time in the trade. | 572 |
-| C6 | **Futures pricing**: convenience yield `CY = F − S − S·r·(T−t)/365` (gold example 1.20% over six months); fair-value range bounded by financing, storage and convenience cost, widened by separate borrowing/lending rates and transaction costs; outside the range → arbitrage. | 573–574 |
-| C7 | **Carry trade**: borrow low-yield currency, buy high-yield; executed through forwards/futures, so it relies on **forward bias** (high-yield currencies tend to appreciate or fall less), not on harvesting the carry directly; the main risk is a currency move offsetting the interest gain; diversification across currencies is needed. | 596–597 |
+| C1 | Termos: **spread/straddle** (posições opostas em mercados relacionados), **negociação de pares** (comprado/vendido em duas ações), **arbitragem** (dinâmica de spread calculável, por exemplo mesmo título/vencimento ou commodity em dois locais); **arbitragem de valor relativo** quando forças de mercado causam divergência entre produtos parecidos, mas não idênticos. Spreads removem risco direcional (pernas tendem a variar juntas; uma lucra e outra perde) e diversificam carteiras apenas compradas. | 565 |
+| C2 | Spreads intramercado de futuros reduzem risco e podem lucrar; compensação de margem permite alavancagem, **ao contrário de ações, em que ambas as pernas precisam de financiamento integral**. Comportamento varia: futuros financeiros próximos do vencimento reagem mais rápido; metais preciosos seguem custo de carregamento; metais industriais invertem em escassez; câmbio a prazo reflete juros/política; safras têm carregamento no ano agrícola; pecuária não pode ser armazenada, então meses são independentes. | 566–567 |
+| C3 | **Custo de carregamento** (estrutura a termo): juros, armazenamento, seguro; **contango** versus **backwardation** (carregamento negativo); custo de carregamento permanece implícito mesmo em estrutura invertida. | 567 |
+| C4 | **Teste de relação entre spreads**: calcular desvio-padrão dos retornos do spread em relação às pernas; “quanto mais forte a relação entre A e B, menor o desvio-padrão de F”. | 572 |
+| C5 | **Condições de arbitragem** (exemplo espacial: peso cotado por bancos em Tóquio e Frankfurt): diferença precisa superar bid-ask/custo de execução; deve haver crédito/acesso a ambas contrapartes; operações **simultâneas**. Arbitragem em larga escala é de instituições que monitoram cotações globais e operam alto volume por diferenças pequenas; oportunidades verdadeiras têm lucros baixos e pouca liquidez; risco cresce com tempo na posição. | 572 |
+| C6 | **Preço de futuros**: rendimento de conveniência `CY = F − S − S·r·(T−t)/365` (exemplo ouro, 1,20% em seis meses); faixa de valor justo limitada por financiamento, armazenamento e conveniência, ampliada por taxas de empréstimo/aplicação distintas e custos. Fora da faixa → arbitragem. | 573–574 |
+| C7 | **Carry trade**: tomar moeda de juros baixos e comprar moeda de juros altos; executar por contratos a prazo/futuros, dependendo de **viés a termo** (moedas de juros altos tendem a valorizar ou cair menos), não da captura direta do diferencial. Risco principal é variação cambial anular ganho de juros; exige diversificação entre moedas. | 596–597 |
 
-This chapter is about instruments the project does not trade; the ideas touch crypto in four places. Crypto remarks are **our adaptation**.
+Capítulo trata de instrumentos que o projeto não negocia; há quatro pontos de contato com cripto, como **adaptação nossa**.
 
-## 2. Diagnosis
+## 2. Diagnóstico
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| Spreads / pairs | ❌ n/a | One asset, long-only, no short leg. |
-| Cross-exchange or triangular arbitrage | ❌ n/a | One exchange adapter per connection; no simultaneous two-leg execution or inter-exchange balance management. |
-| Carry (funding rate, basis) | ❌ n/a | No derivatives. |
-| Cost test before acting on a price difference | ✅ in spirit | Fee and slippage are always included in simulations. |
+| Spreads/pares | ❌ n/a | Um ativo, apenas comprado, sem perna vendida. |
+| Arbitragem entre corretoras/triangular | ❌ n/a | Um adaptador por conexão; sem execução simultânea de duas pernas nem gestão de saldo intercorretoras. |
+| Carry (taxa de financiamento/base) | ❌ n/a | Sem derivativos. |
+| Verificar custos antes de agir numa diferença de preço | ✅ em princípio | Taxas/slippage sempre incluídos na simulação. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Record the arbitrage conditions as a screening checklist, and keep crypto arbitrage out of scope *(book: C5, p. 572 · adaptation)*
-The author's conditions for a real arbitrage (difference larger than the bid–ask spread, credit/access to both counterparties, simultaneous execution) map onto the practical facts of crypto: withdrawal/transfer delays and fees between exchanges, fee tiers, rate limits, and non-atomic order placement. A retail single-account system without co-location is unlikely to capture them. **Decision recommended: not to pursue cross-exchange or triangular arbitrage**; write the checklist into the strategy-idea template so any such idea must show how each condition is met. **Complexity:** documentation only.
+### O1 — Registrar condições de arbitragem como lista de triagem e manter arbitragem cripto fora do escopo *(livro: C5, p. 572 · adaptação)*
 
-### O2 — Funding-rate / basis carry as a *data point* for a future derivatives decision *(book: C3, C7, pp. 567, 596–597 · speculative)*
-If perpetual futures were ever supported (**B-DERIVATIVES**, book 2 ch. 5 O3), the carry-trade discussion (including the point that the forward already discounts the interest differential and profits rely on forward bias) is the right framing, along with the risk that spot moves can overwhelm carry. No work now.
+Condições do autor (diferença maior que bid-ask, acesso às duas contrapartes e execução simultânea) correspondem a fatos práticos de cripto: atrasos/taxas de transferência entre corretoras, níveis de taxa, limites de requisição e ordens não atômicas. Sistema varejista numa conta sem colocalização provavelmente não consegue capturá-las. **Decisão recomendada: não buscar arbitragem entre corretoras ou triangular**; incluir lista no modelo de ideia para exigir resposta a cada condição. **Complexidade:** apenas documentação.
 
-### O3 — Relationship check between two instruments before any pair-like idea *(book: C4, p. 572)*
-For a research report that compares two symbols (for example an alt against BTC), use the book's quick test: standard deviation of the ratio/difference returns vs the legs'. This is a cheap addition to the diagnostics module (book 2 ch. 2 O1) and a prerequisite for any `companion_symbol` work (H-COMPANION, book 3 ch. 8 O5). **Complexity:** very low.
+### O2 — Carry de taxa de financiamento/base como dado para futura decisão de derivativos *(livro: C3, C7, pp. 567, 596–597 · especulativo)*
 
-### Not applicable
-Commodity carrying-charge mechanics, convenience yield calculations, interest-rate parity, currency carry execution, calendar spreads.
+Se houver suporte a futuros perpétuos (**B-DERIVATIVES**, livro 2, cap. 5 O3), enquadrar pelo carry (incluindo que preço a termo já desconta diferencial e lucro depende de viés a termo) e risco de movimento à vista superar carry. Nenhuma ação agora.
 
-## 4. Priority
+### O3 — Verificar relação entre instrumentos antes de qualquer ideia de pares *(livro: C4, p. 572)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+Em relatório de pesquisa que compare símbolos (ex.: altcoin/BTC), usar teste rápido do livro: desvio-padrão dos retornos da razão/diferença versus pernas. Adição barata ao diagnóstico (livro 2, cap. 2 O1) e pré-requisito de `companion_symbol` (H-COMPANION, livro 3, cap. 8 O5). **Complexidade:** muito baixa.
+
+### Não aplicável
+
+Custos de carregamento de commodities, rendimento de conveniência, paridade de juros e execução de carry cambial, spreads de calendário.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O1 checklist and decision | – | medium | – | doc | – |
-| 2 | O3 relationship check | low | – | – | very low | diagnostics |
-| 3 | O2 carry framing | – | – | – | none | derivatives decision |
+| 1 | O1 lista e decisão | – | média | – | documental | – |
+| 2 | O3 teste de relação | baixa | – | – | muito baixa | diagnósticos |
+| 3 | O2 enquadramento de carry | – | – | – | nenhuma | decisão de derivativos |
 
-## 5–7. Files, plan, acceptance
-Documentation (`docs/`) and, for O3, a pure function in `analytics/domain`; no trading changes. Acceptance: O3 returns the standard-deviation ratio on fixtures; ruff, mypy, tests green.
+## 5–7. Arquivos, plano e aceitação
 
-## Caveats
-Most of the chapter concerns futures and institutional arbitrage and was not read in detail. Nothing in the pages read supports retail crypto arbitrage; the recommendation not to pursue it rests on the conditions the author states, not on measured crypto data.
+Documentação (`docs/`) e, para O3, função pura em `analytics/domain`; nenhuma mudança de negociação. Aceitação: O3 retorna razão de desvios em casos de teste; Ruff, mypy e testes passam.
+
+## Ressalvas
+
+A maior parte do capítulo trata de futuros e arbitragem institucional e não foi lida em detalhe. As páginas lidas não sustentam arbitragem varejista em cripto; recomendação de não persegui-la baseia-se nas condições do autor, não em dados medidos de cripto.

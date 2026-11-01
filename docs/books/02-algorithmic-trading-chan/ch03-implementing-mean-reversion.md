@@ -1,89 +1,99 @@
-# Book 2 · Chapter 3 — Implementing Mean Reversion Strategies
+# Livro 2 · Capítulo 3 — Implementação de estratégias de reversão à média
 
-*Algorithmic Trading*, Chan (2013). Book pages (PDF = book + 18). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only. All of pp. 63–85 was read.
+*Algorithmic Trading*, Chan (2013). Páginas do livro (PDF = livro + 18). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise. Todo o conteúdo das pp. 63–85 foi lido.
 
-The author states that **none of the backtests in the book include transaction costs** and that some commit look-ahead by using the same data to fit parameters and test (p. 64). Every figure below inherits that caveat.
+O autor informa que **nenhum backtest do livro inclui custos de transação** e que alguns usam os mesmos dados para ajustar parâmetros e testar, incorrendo em viés de antecipação (p. 64). A ressalva aplica-se a todos os números abaixo.
 
-## 1. Chapter summary (pp. 63–85)
+## 1. Resumo do capítulo (pp. 63–85)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | True stationarity or cointegration is not required: short-term or seasonal mean reversion can be traded if you leave before the next equilibrium; and a stationary series with a 10-year half-life is not tradable. | Over-reliance on statistical tests. | 63 |
-| C2 | **Spread, log-spread or ratio?** Price spread `y = Σ hᵢyᵢ` fixes the *number of shares*; log-price combination fixes *capital weights* and needs constant rebalancing (extra cost). A ratio is stationary only if hedge ratios are equal in magnitude, but works better when the pair is not truly cointegrated, and avoids a dynamic hedge ratio. Currency crosses are ratios by nature. In the GLD/USO example the price spread with a dynamic hedge ratio beat log-spread and ratio (APR 10.9% / 0.59 Sharpe vs 9% / 0.5 vs negative). | Choosing the signal. | 64–70 |
-| C3 | **Bollinger-band strategy**: enter when the z-score of the spread exceeds `entryZscore` (below −entry → long), exit when it returns to `exitZscore` (< entry; 0 = mean; −entry = opposite band); look-back free or **set to the half-life**; at most one unit at a time, so capital and risk are easy to manage. GLD/USO: APR 17.8%, Sharpe 0.96 with entry 1, exit 0. | A practical, bounded version of the linear strategy. | 70–72 |
-| C4 | **Scaling-in** (multiple bands): intuitive, but **Schoenberg & Corwin show that averaging-in is never optimal in-sample** when the probability of going lower is constant (worked example with L₁, L₂, F: all-in at L₁ expected `2(F−L₁)`; all-in at L₂ `2p(F−L₂)`; averaging `(F−L₁)+p(F−L₂)`; averaging is never the maximum). It can still help **out-of-sample** when volatility, hence *p*, changes, and it reduces market impact; scaling out gradually can still profit when the series is not truly stationary. | Whether to average in. | 72–74 |
-| C5 | **Kalman filter as dynamic regression**: observable `y(t) = x(t)β(t) + ε`, hidden `β(t) = β(t−1) + ω` with identity state transition; iterative equations (3.7–3.13); it yields at once a dynamic hedge ratio, the *intercept* (replaces the moving average) and the forecast-error variance `Q(t)` (replaces the moving standard deviation). Parameters δ (here 0.0001) and `V_e` (0.001) chosen "with the benefit of hindsight". EWA/EWC example: APR 26.2%, Sharpe 2.4 (no costs). Avoids the abrupt effect of a fixed look-back window and an arbitrary weighting scheme. | Adaptive mean, spread and hedge ratio. | 74–82 |
-| C6 | **Kalman filter as a single-series "market-making" model**: hidden mean `m(t)`, observed price `y(t)`; observation noise can be scaled by trade size (larger trade → more certainty), similar to a volume-and-time-weighted average price. | Adaptive fair-value estimate. | 82–83 |
-| C7 | **Data errors inflate mean-reversion backtests** (a bad tick up is "shorted" and then "covered" for a fictitious profit) but *suppress* momentum backtests. Spreads amplify small quote errors (a $1 error on a $5 spread is 20%); the author saw losing live trades caused by a broker's data feed that vanished after switching provider. Bad ticks also trigger wrong live orders in either style. | Data quality. | 83–84 |
-| C8 | Key points: price series for fixed shares, log series for fixed capital, ratios for currency pairs, Kalman or moving look-back for time-varying parameters, Bollinger bands with scaling-in as the practical form, data errors. | – | 85 |
+| C1 | Não é necessário haver estacionariedade ou cointegração verdadeiras: é possível negociar reversões de curto prazo ou sazonais, saindo antes do próximo equilíbrio. Uma série estacionária com meia-vida de dez anos, por sua vez, não é negociável. | Dependência excessiva de testes estatísticos. | 63 |
+| C2 | **Spread, log-spread ou razão?** O spread de preços `y = Σ hᵢyᵢ` fixa a *quantidade de ações*; uma combinação de log-preços fixa os *pesos de capital* e exige rebalanceamento constante (custo adicional). Uma razão só é estacionária se as razões de hedge tiverem a mesma magnitude, mas pode funcionar melhor quando o par não é realmente cointegrado e evita razão de hedge dinâmica. Pares cambiais são razões por natureza. No exemplo GLD/USO, o spread de preços com razão de hedge dinâmica supera o log-spread e a razão (retorno anual/Sharpe: 10,9%/0,59 contra 9%/0,5 e resultado negativo). | Escolha do sinal. | 64–70 |
+| C3 | **Estratégia de bandas de Bollinger**: entrar quando o z-score do spread ultrapassa `entryZscore` (abaixo de −entry → posição comprada); sair ao atingir `exitZscore` (< entry; 0 = média; −entry = banda oposta). A janela pode ser livre ou **definida pela meia-vida**. Manter no máximo uma unidade facilita a gestão de capital e risco. GLD/USO: retorno anual de 17,8%, Sharpe 0,96, com entrada em 1 e saída em 0. | Versão prática e limitada da estratégia linear. | 70–72 |
+| C4 | **Aumentar a posição em etapas** (várias bandas) parece intuitivo, mas **Schoenberg e Corwin mostram que, dentro da amostra, fazer preço médio nunca é ótimo** quando a probabilidade de queda permanece constante. Exemplo com L₁, L₂ e F: retorno esperado de investir tudo em L₁ é `2(F−L₁)`; em L₂, `2p(F−L₂)`; escalonar dá `(F−L₁)+p(F−L₂)`; a média nunca é máxima. Fora da amostra, pode ajudar quando a volatilidade e, portanto, *p*, variam, além de reduzir impacto de mercado. Reduzir a posição gradualmente ainda pode ser lucrativo se a série não for realmente estacionária. | Se vale a pena aumentar a posição gradualmente. | 72–74 |
+| C5 | **Filtro de Kalman como regressão dinâmica**: variável observada `y(t) = x(t)β(t) + ε`; estado oculto `β(t) = β(t−1) + ω`, com transição de estado identidade; equações iterativas (3.7–3.13). Produz simultaneamente uma razão de hedge dinâmica, o *intercepto* (substitui a média móvel) e a variância do erro de previsão `Q(t)` (substitui o desvio-padrão móvel). Os parâmetros δ (0,0001 no exemplo) e `V_e` (0,001) foram escolhidos “com o benefício da retrospectiva”. Exemplo EWA/EWC: retorno anual de 26,2%, Sharpe 2,4, sem custos. Evita efeitos abruptos da janela fixa e da ponderação arbitrária. | Média, spread e razão de hedge adaptativos. | 74–82 |
+| C6 | **Filtro de Kalman como modelo de “formação de mercado” para uma série**: média oculta `m(t)` e preço observado `y(t)`; o ruído de observação pode variar com o tamanho da operação (operação maior → mais certeza), semelhante a um preço médio ponderado por volume e tempo. | Estimativa adaptativa de valor justo. | 82–83 |
+| C7 | **Erros de dados inflam backtests de reversão à média** (um tick incorreto para cima é “vendido” e depois “recomprado” com lucro fictício), mas *reduzem* resultados de momentum. Spreads amplificam pequenos erros de cotação (erro de US$ 1 num spread de US$ 5 = 20%). O autor relata operações reais perdedoras causadas por um feed da corretora, que desapareceram ao trocar de provedor. Ticks incorretos também podem acionar ordens reais erradas em qualquer estilo. | Qualidade dos dados. | 83–84 |
+| C8 | Síntese: séries de preços para quantidade fixa de ações; log-séries para capital fixo; razões para pares cambiais; Kalman ou janela móvel para parâmetros variáveis no tempo; bandas de Bollinger, com aumento gradual da posição como forma prática; atenção a erros nos dados. | – | 85 |
 
-The instruments are US ETFs and FX pairs traded long and short. Crypto remarks are **our adaptation**.
+Os instrumentos são ETFs dos EUA e pares cambiais negociados comprados e vendidos. Referências a criptoativos são **adaptações nossas**.
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| Bollinger-band / z-score strategy | ❌ | Not in the catalogue (`ema_crossover`, `donchian_breakout` only). No standard deviation or z-score helper exists in `strategies/domain`. |
-| Look-back from the half-life | ❌ | Needs book 2 ch. 2 O1. |
-| Scaling in/out | ❌ | One entry, one exit per round trip (the engine rejects a BUY while in position: `"already in position"` in `engine.py`). Partial orders are not modelled by the signal contract. |
-| Kalman filter / adaptive mean | ❌ | None. |
-| Spread/ratio/pair machinery | n/a | Single asset per bot, long-only. A ratio symbol such as ETH/BTC is a tradable single spot market (our adaptation), so *ratio mean reversion* is possible without a short leg. |
-| Data-error protection, backtest | ❌ | No integrity check on stored candles (book 1 ch. 3 O3). |
-| Data-error protection, live | ⚠️ | `max_candle_range_pct` (default 25%) rejects *entries* on suspect candles (`risk_management/domain/models.py`), and the trader only uses closed candles. The check is range-based only. |
-| Costs included in backtests | ✅ | Fee and slippage are always applied in `run_backtest`, unlike the book's examples. |
-| Same data for fit and test | ⚠️ | Train/test split exists; strategies with adaptive state (z-score look-back) run once across all data, which is correct as long as the state only uses past candles. |
+| Estratégia de bandas de Bollinger/z-score | ❌ | Não existe no catálogo (apenas `ema_crossover` e `donchian_breakout`); não há função auxiliar de desvio-padrão ou z-score em `strategies/domain`. |
+| Janela derivada da meia-vida | ❌ | Depende do livro 2, cap. 2 O1. |
+| Aumentar/reduzir posição em etapas | ❌ | Uma entrada e uma saída por operação completa (o motor rejeita COMPRA enquanto há posição: `"already in position"` em `engine.py`). O contrato de sinais não representa ordens parciais. |
+| Filtro de Kalman/média adaptativa | ❌ | Não existe. |
+| Estrutura para spread/razão/pares | n/a | Um ativo por bot e posições compradas. Um símbolo de razão, como ETH/BTC, é um mercado à vista negociável (adaptação nossa), permitindo reversão à média de razões sem posição vendida. |
+| Proteção contra erro de dados no backtest | ❌ | Candles armazenados não passam por verificação de integridade (livro 1, cap. 3 O3). |
+| Proteção contra erro de dados na operação real | ⚠️ | `max_candle_range_pct` (25% por padrão) rejeita *entradas* com candles suspeitos (`risk_management/domain/models.py`); o trader usa apenas candles fechados. A verificação só considera a amplitude. |
+| Custos incluídos no backtest | ✅ | `run_backtest` sempre aplica taxas e slippage, ao contrário dos exemplos do livro. |
+| Mesmos dados para ajuste e teste | ⚠️ | Existe divisão treino/teste; estratégias com estado adaptativo (janela do z-score) percorrem todos os dados uma vez, o que é correto se o estado usar apenas candles passados. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Long-only Bollinger/z-score mean-reversion strategy *(book: C3, pp. 70–72 · long-only crypto version is our adaptation)*
-* **Problem:** the catalogue has no mean-reversion strategy, and the book calls this the practical form of the idea (bounded to one unit, so easy to size and risk-manage).
-* **Proposal:** new strategy `bollinger_reversion`: long when `z < −entry_z` computed on closes over a `lookback`, exit when `z ≥ −exit_z` (default exit at the mean) or at an optional stop; parameters `lookback`, `entry_z`, `exit_z`, optional protective levels. Registered like existing strategies, no change to engine or signal contract (one entry, one exit).
-* **Benefit:** a mean-reverting family that fits the present architecture; with book 2 ch. 2 diagnostics we can first check whether a crypto series reverts on the chosen timeframe.
-* **Complexity:** low–medium (new strategy file, registry entry, catalogue, app parameter form, tests).
-* **Risks:** long-only means it catches falling markets and never profits from the short side; the author notes stop-losses are not logical for this family while crypto crashes are large; three parameters to over-fit; fat tails make z-scores less meaningful; data errors inflate its backtest the most (C7). Must not ship without the data-integrity work from book 1 ch. 3 O3, the truncation test and cost sensitivity.
-* **Validation:** truncation test; cost sweep; train/test; synthetic OU series where it must profit and a trending series where it must not; parameter sensitivity (a spike is overfit).
+### O1 — Estratégia comprada de reversão à média com Bollinger/z-score *(livro: C3, pp. 70–72 · versão comprada para cripto é adaptação nossa)*
 
-### O2 — Use the half-life as the default look-back; fewer free parameters *(book: C3, p. 70; ch. 2 C5)*
-Pre-fill and bound `lookback` from the series half-life; document as a hint (the user can override). Depends on book 2 ch. 2 O1. Complexity low.
+* **Problema:** o catálogo não tem estratégia de reversão à média; o livro apresenta esta forma como prática e limitada a uma unidade, facilitando o dimensionamento e a gestão de risco.
+* **Proposta:** criar `bollinger_reversion`: comprar quando `z < −entry_z`, calculado sobre fechamentos na janela `lookback`; sair quando `z ≥ −exit_z` (por padrão, na média) ou num stop opcional. Parâmetros: `lookback`, `entry_z`, `exit_z` e níveis de proteção opcionais. Registrar como as estratégias atuais, sem mudar o motor ou contrato de sinais (uma entrada e uma saída).
+* **Benefício:** acrescentar uma família de reversão à média compatível com a arquitetura atual; com os diagnósticos do cap. 2, verificar primeiro se a série cripto reverte no intervalo escolhido.
+* **Complexidade:** baixa a média (novo arquivo de estratégia, registro, catálogo, formulário de parâmetros no app e testes).
+* **Riscos:** por ser comprada, pode capturar uma queda e não obtém ganhos do lado vendido; o autor considera stops inadequados à família, embora as quedas de cripto sejam acentuadas; três parâmetros podem causar sobreajuste; caudas pesadas reduzem a utilidade do z-score; erros de dados inflam especialmente esse backtest (C7). Não lançar sem o trabalho de integridade de dados do livro 1, cap. 3 O3, o teste de truncamento e a análise de sensibilidade a custos.
+* **Validação:** teste de truncamento; varredura de custos; divisão treino/teste; série OU sintética em que deve haver lucro e série tendencial em que não deve; sensibilidade dos parâmetros (um pico isolado sugere sobreajuste).
 
-### O3 — Decide scaling-in only with evidence *(book: C4, pp. 72–74)*
-* The book's result is that, **in-sample, a single entry level beats averaging in**, while real life with changing volatility can favour scaling. Our present one-entry model is therefore the book's recommended baseline. Do **not** add partial-order scaling now; revisit only if sweeps show a single-entry strategy suffers from entry timing and after the signal contract is extended for target sizes. Record as **B-SCALE-IN**.
+### O2 — Usar a meia-vida como janela padrão para reduzir parâmetros livres *(livro: C3, p. 70; cap. 2 C5)*
 
-### O4 — Adaptive mean/volatility via an exponential or Kalman estimator *(book: C5, C6, pp. 74–83)*
-* **Proposal:** offer an EMA-based mean and variance (already used by the existing strategies for prices) and, later, a one-dimensional Kalman estimator (`m(t)`, `Q(t)`) as a drop-in replacement for the moving mean and standard deviation of O1, as the book argues it avoids the abrupt effect of a fixed window. The two-asset hedge-ratio version is out of scope.
-* **Complexity:** medium (extra state; two noise parameters, which the author picks with hindsight). **Risk:** two more parameters to tune → snooping; the 1-D filter is a modest gain over an EMA. **Validation:** compare against EMA/rolling on synthetic data; sensitivity to δ and `V_e`. Low priority.
+Preencher e limitar `lookback` a partir da meia-vida da série, apresentando-o como sugestão que o usuário pode alterar. Depende do cap. 2 O1. Complexidade baixa.
 
-### O5 — Strengthen live bad-tick defence *(book: C7, pp. 83–84)*
-* **Proposal:** beyond the range filter, add checks against the *previous close* (jump versus recent volatility) and against a second source (for example the exchange ticker versus the last candle close) before acting on a mean-reversion entry. **Complexity:** medium. **Risk:** more rejected legitimate crashes; tune carefully and log every rejection. Pair with book 1 ch. 3 O3.
+### O3 — Decidir sobre entradas graduais com base em evidências *(livro: C4, pp. 72–74)*
 
-### Not applicable / deferred
-Pairs, spread/log-spread/hedge-ratio construction, Johansen/Kalman hedge ratios, currency crosses, market-making with trade-size-weighted noise (no tick data).
+O resultado do livro é que, **dentro da amostra, um único nível de entrada supera o preço médio**, enquanto mudanças de volatilidade no mercado real podem favorecer o escalonamento. O modelo atual de entrada única é, portanto, a referência recomendada pelo livro. **Não** adicionar agora entradas parciais; reconsiderar somente se as varreduras mostrarem que a entrada única sofre com o momento de entrada e depois de ampliar o contrato de sinais para aceitar tamanhos-alvo. Registrar como **B-SCALE-IN**.
 
-## 4. Priority
+### O4 — Média/volatilidade adaptativas com estimador exponencial ou de Kalman *(livro: C5, C6, pp. 74–83)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+* **Proposta:** oferecer média e variância baseadas em EMA (já usadas pelas estratégias atuais para preços) e, mais adiante, estimador de Kalman unidimensional (`m(t)`, `Q(t)`) para substituir média móvel e desvio-padrão em O1. Segundo o livro, isso evita o efeito abrupto de uma janela fixa. A versão com razão de hedge entre dois ativos está fora de escopo.
+* **Complexidade:** média (estado adicional e dois parâmetros de ruído, escolhidos retrospectivamente pelo autor). **Risco:** dois parâmetros extras aumentam a seleção de dados; o filtro unidimensional oferece ganho modesto sobre uma EMA. **Validação:** comparar EMA/janela móvel em dados sintéticos e medir sensibilidade a δ e `V_e`. Prioridade baixa.
+
+### O5 — Reforçar a defesa contra ticks incorretos na operação real *(livro: C7, pp. 83–84)*
+
+* **Proposta:** além do filtro de amplitude, verificar o *fechamento anterior* (salto em relação à volatilidade recente) e uma segunda fonte (por exemplo, ticker da corretora versus último fechamento) antes de executar uma entrada de reversão à média. **Complexidade:** média. **Risco:** mais quedas legítimas podem ser rejeitadas; calibrar com cuidado e registrar cada rejeição. Combinar com livro 1, cap. 3 O3.
+
+### Não aplicável ou adiado
+
+Pares, construção de spread/log-spread/razão de hedge, hedge dinâmico por Johansen/Kalman, pares cambiais e formação de mercado com ruído ponderado pelo tamanho da operação (não há dados de ticks).
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O5 live bad-tick defence | – | high | high | medium | book 1 ch. 3 O3 |
-| 2 | O1 `bollinger_reversion` | medium | medium | – | low–medium | book 1 ch. 3 O3/O5, book 2 ch. 2 O1 |
-| 3 | O2 half-life default | medium | – | – | low | book 2 ch. 2 O1 |
-| 4 | O4 adaptive estimators | low | – | – | medium | O1 |
-| 5 | O3 scaling-in | – | – | – | high | signal contract (B-SCALE-IN) |
+| 1 | O5 defesa contra ticks incorretos na operação real | – | alta | alta | média | livro 1, cap. 3 O3 |
+| 2 | O1 `bollinger_reversion` | média | média | – | baixa–média | livro 1, cap. 3 O3/O5; livro 2, cap. 2 O1 |
+| 3 | O2 padrão pela meia-vida | média | – | – | baixa | livro 2, cap. 2 O1 |
+| 4 | O4 estimadores adaptativos | baixa | – | – | média | O1 |
+| 5 | O3 entradas graduais | – | – | – | alta | contrato de sinais (B-SCALE-IN) |
 
-## 5. Affected files
-`strategies/domain/` (new strategy file, registry), `strategies/catalog.py`, `risk_management/domain/models.py` (O5), `market_data/domain/models.py`, app strategy parameter forms (`lib/shared/strategies/params.ts`) and labels, `check:consistency`, tests (`api/tests/unit`).
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Data integrity and truncation test first (book 1 ch. 3).
-2. Diagnostics (book 2 ch. 2 O1) on real crypto series to check whether mean reversion exists at the intended timeframe.
-3. If yes: `bollinger_reversion` with cost and sensitivity analysis; otherwise stop.
-4. Live bad-tick checks.
-5. Adaptive estimators only if the strategy proves useful.
+`strategies/domain/` (novo arquivo de estratégia e registro), `strategies/catalog.py`, `risk_management/domain/models.py` (O5), `market_data/domain/models.py`, formulários de parâmetros e rótulos de estratégias no app (`lib/shared/strategies/params.ts`), `check:consistency` e testes (`api/tests/unit`).
 
-## 7. Acceptance criteria and tests
-* New strategy passes the truncation test and parameter validation like existing ones.
-* It trades on synthetic mean-reverting data and stays flat or loses small on trending data in a test.
-* Costs always included; results reported with train/test split and parameter-sensitivity view.
-* No change to existing strategies or to live safeguards; ruff, mypy and tests green.
+## 6. Plano incremental
 
-## Caveats
-The book's APR and Sharpe figures (10.9%, 17.8%, 26.2%, etc.) come from ETF pairs traded long and short without costs, some with hindsight-chosen parameters. They cannot be expected on crypto. The claim that scaling-in is never optimal rests on a single stylised example with constant probabilities.
+1. Primeiro, integridade dos dados e teste de truncamento (livro 1, cap. 3).
+2. Aplicar os diagnósticos (livro 2, cap. 2 O1) a séries cripto reais para verificar a reversão à média no intervalo pretendido.
+3. Se houver evidência, criar `bollinger_reversion` com análise de custos e sensibilidade; caso contrário, interromper.
+4. Acrescentar verificações de ticks incorretos na operação real.
+5. Considerar estimadores adaptativos apenas se a estratégia demonstrar utilidade.
+
+## 7. Critérios de aceitação e testes
+
+* A estratégia passa no teste de truncamento e valida seus parâmetros como as existentes.
+* Opera em dados sintéticos com reversão à média e permanece sem posição ou perde pouco numa série tendencial de teste.
+* Custos sempre incluídos; resultados apresentados com divisão treino/teste e análise de sensibilidade dos parâmetros.
+* Nenhuma alteração nas estratégias atuais ou nas salvaguardas da operação real; Ruff, mypy e testes passam.
+
+## Ressalvas
+
+Os retornos anuais e Sharpe do livro (10,9%, 17,8%, 26,2% etc.) vêm de pares de ETFs comprados e vendidos, sem custos, alguns com parâmetros escolhidos retrospectivamente. Não devem ser esperados em criptoativos. A afirmação de que entradas graduais nunca são ótimas baseia-se num exemplo estilizado com probabilidades constantes.

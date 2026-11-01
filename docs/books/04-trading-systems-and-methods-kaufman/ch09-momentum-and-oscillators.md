@@ -1,70 +1,79 @@
-# Book 4 · Chapter 9 — Momentum and Oscillators
+# Livro 4 · Capítulo 9 — Momentum e osciladores
 
-*Trading Systems and Methods*, 5th ed., Kaufman (2013). Book pages (PDF = book + 20). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Trading Systems and Methods*, 5.ª ed., Kaufman (2013). Páginas do livro (PDF = livro + 20). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 369–379 (momentum), 385–389 (oscillators, RSI and variants) and 426 (final comments) were read. The sections on the divergence index (384–385), stochastic and other oscillators (389–404), double-smoothed momentum, velocity and acceleration, hybrid techniques and momentum divergence (404–425) were **not** read and are not summarised.
+**Profundidade da leitura:** lidas pp. 369–379 (momentum), 385–389 (osciladores, RSI e variantes) e 426 (comentários finais). Índice de divergência (384–385), estocástico/outros osciladores (389–404), momentum com suavização dupla, velocidade/aceleração, técnicas híbridas e divergência (404–425) **não** foram lidos nem resumidos.
 
-## 1. Chapter summary (pages read)
+## 1. Resumo (páginas lidas)
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | **Momentum = price change over a stated interval** (`M(n) = p_t − p_{t−n}`); speed is momentum divided by `n`; acceleration (rate of change of momentum) is more sensitive still. Momentum is **not volatility** (a round trip gives zero momentum and high volatility). Terminology varies: "ROC" is often used for momentum. | Definitions. | 369–371 |
-| C2 | **Momentum vs moving average**: momentum has no lag in the same sense and peaks earlier than a moving average of the same length, at the cost of noise; momentum crossing zero is essentially the same as the moving average turning, so it can serve as a trend signal, with a small band around zero; percentage momentum is better across markets but wrong on back-adjusted futures; "momentum" is also used as price minus its moving average ("relative strength"), which has the same shape and extremes. | Where momentum sits among trend tools. | 372–375 |
-| C3 | **Choosing the span**: sample values, or mark the tops and bottoms on a chart and use about half to double the average peak-to-peak span; momentum and oscillators are mostly used for **timing** relative to a longer trend. **Entry timing**: a short momentum (e.g. 6 days) inside a 30–50 day trend offers an entry within about three days. | Using momentum with a trend. | 376 |
-| C4 | **Fading extremes** (overbought/oversold): fast momentum fluctuates about zero; slow momentum behaves like a trend. Thresholds may be set visually, as a fraction of the maximum possible momentum, or as a **multiple of the standard deviation of momentum (2σ ≈ 5% of values beyond)**. Entry variants: aggressive (on penetration), minor confirmation (first turn after penetration), major confirmation (penetration back), timing (after n days beyond). Exit variants from "enter the opposite" to **"basic exit at zero momentum" (the benchmark mean-reversion assumption)** to "allow an extended move". The scale of momentum **changes with volatility** over time (the ±30 band of 2006 vs later years), so fixed thresholds drift. | Rule menu and scaling problem. | 377–379 |
-| C5 | **Oscillators** are momentum normalised to a bounded range (e.g. divided by its maximum over a rolling window, so a $2 move in 2006 and $8.77 in 2011 for Amazon both score 0.52); the aim is high values at peaks and low at valleys followed by reversals. | Volatility-adjusted extremes. | 385–386 |
-| C6 | **RSI (Wilder)**: `RSI = 100 − 100/(1+RS)`, `RS = AU/AD` over 14 days by an average-off update; thresholds 30/70; more stable than momentum since it uses all changes; a 14-day RSI stays extreme for sustained moves; the data show **RSI tops/bottoms cluster near 72 and 32**, so 70/30 "are too close together to be selective"; **1.5 standard deviations** is suggested as a trade-off between trade frequency and risk; smoother variants use n-day changes instead of 1-day; **countertrend using RSI change** (`RSI_t − RSI_{t−k} > a`), **net momentum oscillator (CMO)** `100·(Su − Sd)/(Su + Sd)`, and the **2-day RSI** (replace each 1-day change with a 2-day change; more smoothing and higher volatility). | Oscillator specifics. | 386–389 |
-| C7 | **Final comments**: with small intervals these indicators are unstable; **all momentum indicators used against the direction of price are high risk**; they are best as a **timing tool within a trend-following strategy**, with the period tuned so that extremes occur at a chosen frequency: e.g. for a trend trade held about 20 days, if you will wait up to two days to enter, build an oscillator (3 periods on daily bars, 10 on hourly bars) that gives at least one, preferably two, oversold signals in every two-day window, and "you are likely to be buying dips rather than rallies". | How to use them safely. | 426 |
+| C1 | **Momentum = variação de preço num intervalo** (`M(n) = p_t − p_{t−n}`); velocidade = momentum dividido por `n`; aceleração (variação do momentum) é ainda mais sensível. Momentum **não é volatilidade** (ida e volta dá momentum zero e volatilidade alta). Terminologia varia: “ROC” muitas vezes significa momentum. | Definições. | 369–371 |
+| C2 | **Momentum versus média móvel**: momentum não tem atraso no mesmo sentido e atinge pico antes da média móvel de mesma duração, ao custo de ruído; cruzar zero é basicamente equivalente à virada da média, portanto serve como sinal tendencial, com pequena banda ao redor de zero. Momentum percentual compara mercados melhor, mas é inadequado para futuros ajustados retroativamente. “Momentum” também pode significar preço menos média móvel (“força relativa”), com formato e extremos iguais. | Posição do momentum entre ferramentas tendenciais. | 372–375 |
+| C3 | **Escolher janela**: usar valores amostrais ou marcar topos/fundos no gráfico e usar metade a duas vezes a distância média entre picos. Momentum/osciladores servem sobretudo para **timing** em relação a tendência maior. **Momento de entrada**: momentum curto (ex. 6 dias) dentro de tendência de 30–50 dias oferece entrada em cerca de três dias. | Usar momentum dentro de tendência. | 376 |
+| C4 | **Operar contra extremos** (sobrecompra/sobrevenda): momentum rápido oscila em torno de zero; lento comporta-se como tendência. Limites podem ser visuais, fração do momentum máximo ou **múltiplo do desvio-padrão do indicador** (2σ ≈ 5% dos valores além). Entradas: agressiva (ao cruzar limite), confirmação menor (primeira virada após cruzar), maior (retorno pelo limite), por tempo (após n dias fora). Saídas variam de “entrar no oposto” a **“sair no momentum zero”** (premissa de reversão à média) ou “permitir movimento prolongado”. Escala do momentum **muda com a volatilidade** (faixa ±30 em 2006 versus anos posteriores), então limites fixos se deslocam. | Opções de regras e problema de escala. | 377–379 |
+| C5 | **Osciladores** são momentum normalizado a faixa limitada (ex.: dividir pelo máximo móvel; variação de US$ 2 em 2006 e US$ 8,77 em 2011 na Amazon dão ambos 0,52); busca valores altos nos picos e baixos nos fundos, seguidos de reversão. | Extremos ajustados à volatilidade. | 385–386 |
+| C6 | **RSI de Wilder**: `RSI = 100 − 100/(1+RS)`, `RS = AU/AD` em 14 dias por atualização de média exponencial; limites 30/70. Mais estável que momentum porque considera todas as variações; RSI 14 dias permanece extremo em movimento sustentado. Dados indicam topos/fundos de RSI perto de **72 e 32**, tornando 70/30 “próximos demais para selecionar”; **1,5 desvios-padrão** é compromisso sugerido entre frequência e risco. Variantes suavizadas usam variação n-diária em vez de 1 dia; **oscilador contrário pela variação do RSI** (`RSI_t − RSI_{t−k} > a`); **CMO** `100·(Su − Sd)/(Su + Sd)`; e **RSI de 2 dias** (substituir variação diária pela de dois dias, maior suavização e volatilidade). | Especificidades de osciladores. | 386–389 |
+| C7 | **Comentários finais**: indicadores em intervalos curtos são instáveis; **indicadores de momentum usados contra a direção do preço têm alto risco**; melhor usá-los como **ferramenta de timing numa estratégia tendencial**, ajustando período para extremos ocorrerem com frequência desejada. Ex.: operação tendencial mantida ~20 dias e espera de até dois dias para entrada; criar oscilador (3 períodos em candles diários, 10 em horários) que dê ao menos um, preferivelmente dois, sinais de sobrevenda em cada janela de dois dias, favorecendo “comprar recuos, não altas”. | Uso prudente. | 426 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| Momentum, RSI, CMO, oscillators | ❌ | No such indicators in `strategies/domain`. |
-| Entry timing within a trend (pullback entries) | ❌ | Both strategies enter at the signal candle's next open. |
-| Thresholds in volatility units | ❌ | None (no standard-deviation or ATR helper yet). |
-| Counter-trend mean reversion | ❌ | Not present. |
-| Stop and limit logic relevant to timing entries | ⚠️ | Entries are market orders at the next open (`engine.py`, trader); no limit-entry simulation. |
+| Momentum, RSI, CMO e osciladores | ❌ | Não existem em `strategies/domain`. |
+| Timing de entrada em recuos dentro de tendência | ❌ | Ambas estratégias entram na abertura após candle-sinal. |
+| Limites em unidades de volatilidade | ❌ | Não há auxiliar de desvio/ATR. |
+| Reversão contra tendência | ❌ | Não presente. |
+| Stops/ordens limite para timing de entrada | ⚠️ | Entradas são ordens a mercado na abertura seguinte; sem simulação de limite. |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Pullback-entry timing for trend strategies (experiment) *(book: C3, C7, pp. 376, 426)*
-* **Proposal:** after a trend entry signal, wait up to `k` bars for a fast oscillator (for example a 3-period RSI or a short momentum) to reach an oversold zone, then enter; if it does not within `k` bars, enter anyway or skip the signal (two variants). Entry price improves on average only if pullbacks are frequent; the cost is a delayed or missed entry. For a long-only spot system this directly implements "buy dips within a trend".
-* **Benefit:** potential reduction in adverse entry price and early drawdown; a natural fit for the project's long-only constraint. **Complexity:** medium (oscillator helper, strategy state, parameters `k`, `oscillator period`, `threshold`).
-* **Risks:** missing the fat tail (the book warns that anything that delays or filters trend entries reduces the chance of capturing it, ch. 8); three more parameters; correlation with the base strategy. **H-PULLBACK-ENTRY**: run only through the evidence pipeline with the extra parameters counted. **Validation:** truncation test; compare entry price vs the base entry, trade count, and the fraction of signals skipped.
+### O1 — Timing de recuo para estratégias tendenciais (experimento) *(livro: C3, C7, pp. 376, 426)*
 
-### O2 — Oscillator helpers with volatility-scaled thresholds *(book: C4, C5, C6, pp. 377–388)*
-* **Proposal:** pure functions: n-bar momentum, normalised momentum (divided by the rolling range), Wilder RSI by average-off update (`Decimal`), CMO, and thresholds defined as **multiples of the rolling standard deviation** of the indicator (the book's 1.5σ/2σ suggestions) rather than fixed 30/70 or fixed momentum levels. **Benefit:** indicators that remain comparable as crypto volatility regimes change (the book's 2006-vs-2011 scaling example). **Complexity:** low–medium. **Validation:** unit tests against hand computations (RSI of a monotonic series = 100; of an alternating series = 50) and scale-invariance tests.
+Após sinal tendencial, esperar até `k` barras por oscilador rápido (ex.: RSI de 3 períodos ou momentum curto) atingir sobrevenda e então entrar; se não ocorrer dentro de `k`, entrar mesmo assim ou ignorar sinal (duas variantes). Preço médio pode melhorar apenas se recuos forem frequentes; custo é entrada atrasada/perdida. Implementa “comprar recuos dentro de tendência” para sistema à vista comprado.
 
-### O3 — Choose one mean-reversion family and compare, rather than adding many *(book: C6, C7; links to book 2 ch. 3 O1)*
-Candidates now on the table: z-score bands (Chan), RSI/oscillator extremes (Kaufman), channel/CCI. To avoid inflating the rule universe with near-duplicates, build **one** parameterised mean-reversion strategy with a selectable trigger (z-score of price vs average, RSI level in σ units) and compare triggers inside a single pre-registered study (book 3 ch. 2 O3, ch. 6 O2). The book's strong warning (counter-trend entries "exhibit high risk") belongs in the strategy description and in the thesis block (book 3 ch. 7 O1). **Complexity:** medium.
+**Benefício:** possível redução de preço adverso/drawdown inicial, compatível com restrição comprada. **Complexidade:** média (auxiliar oscilador, estado e parâmetros `k`, período, limite). **Riscos:** perder captura de cauda (livro 4, cap. 8 alerta que atrasar/filtrar entrada reduz chance); mais três parâmetros e correlação com estratégia-base. **H-PULLBACK-ENTRY**: testar apenas pelo fluxo de evidências, contando os parâmetros. **Validação:** truncamento; preço médio de entrada versus base, quantidade de operações e sinais ignorados.
 
-### O4 — Show indicator scale drift *(book: C4, p. 379)*
-For any oscillator or momentum-based rule, show in the backtest detail the rolling distribution of the indicator (e.g. the value of its 2σ band over time) so a fixed threshold's effective selectivity can be seen drifting. Part of the diagnostics. **Complexity:** low.
+### O2 — Auxiliares de osciladores com limites escalados pela volatilidade *(livro: C4–C6, pp. 377–388)*
 
-### Not applicable
-Chart-pattern use of RSI (head and shoulders on RSI), divergence index and momentum divergence (not read), stochastic and other oscillators (not read), long-short fading.
+Funções puras: momentum n-barras, momentum normalizado (por amplitude móvel), RSI Wilder por atualização média (`Decimal`), CMO e limites como **múltiplos do desvio-padrão móvel** (sugestões 1,5σ/2σ) em vez de 30/70 fixos. Indicadores comparáveis entre regimes de volatilidade cripto. **Complexidade:** baixa a média. **Validação:** casos manuais (RSI de série monotônica = 100; alternada = 50) e invariância de escala.
 
-## 4. Priority
+### O3 — Escolher uma família de reversão e comparar, sem multiplicar variantes *(livro: C6, C7; relacionado ao livro 2, cap. 3 O1)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+Opções: bandas z-score (Chan), extremos RSI/oscilador (Kaufman), canal/CCI. Para não inflar universo com quase duplicatas, construir **uma** estratégia parametrizada com gatilho selecionável (z-score do preço versus média ou RSI em unidades σ) e comparar gatilhos num único estudo pré-registrado (livro 3, cap. 2 O3 e cap. 6 O2). Alertar na descrição/tese que entradas contra tendência têm risco alto. **Complexidade:** média.
+
+### O4 — Mostrar deriva da escala do indicador *(livro: C4, p. 379)*
+
+Para osciladores/momentum, mostrar distribuição móvel do indicador (ex.: faixa 2σ ao longo do tempo) nos detalhes do backtest, para evidenciar como seletividade de limite fixo deriva. Faz parte dos diagnósticos. **Complexidade:** baixa.
+
+### Não aplicável
+
+Uso de RSI em padrões gráficos (cabeça-e-ombros), índice/divergência de momentum (não lidos), estocástico e outros osciladores (não lidos), operações contrárias compradas/vendidas.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O2 oscillator helpers + σ thresholds | medium | – | – | low–medium | stats helpers |
-| 2 | O4 scale drift display | low | – | – | low | O2 |
-| 3 | O1 pullback entry experiment | medium | medium | – | medium | O2, pipeline |
-| 4 | O3 single mean-reversion family | medium | medium | – | medium | book 2 ch. 2–3 |
+| 1 | O2 auxiliares de oscilador + limites σ | média | – | – | baixa–média | auxiliares estatísticos |
+| 2 | O4 exibir deriva de escala | baixa | – | – | baixa | O2 |
+| 3 | O1 experimento de entrada em recuo | média | média | – | média | O2 e fluxo |
+| 4 | O3 uma família de reversão | média | média | – | média | livro 2, caps. 2–3 |
 
-## 5. Affected files
-`strategies/domain/` (helpers and, later, strategy parameters), catalogue and forms, `analytics/domain/`, app strategy forms, tests (including the truncation test).
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Helpers with fixtures.
-2. Display of indicator scale drift.
-3. Pre-registered studies for pullback entries and for the mean-reversion trigger comparison.
+`strategies/domain/` (auxiliares e, depois, parâmetros), catálogo/formulários, `analytics/domain/`, formulários de estratégia no app e testes (incluindo truncamento).
 
-## 7. Acceptance criteria and tests
-* RSI/CMO/momentum helpers reproduce fixtures; thresholds in σ units are scale-invariant under multiplying prices by a constant.
-* New strategy options are default-off; existing strategies unchanged; ruff, mypy and tests green.
+## 6. Plano incremental
 
-## Caveats
-The book offers no performance numbers for these oscillator uses in the pages read. The RSI statistics (tops near 72, bottoms near 32) come from a 1985 study of futures. Counter-trend trading is described by the author himself as high risk.
+1. Auxiliares e casos de teste.
+2. Exibição da deriva de escala.
+3. Estudos pré-registrados para entradas de recuo e comparação de gatilhos de reversão.
+
+## 7. Critérios de aceitação e testes
+
+* Auxiliares RSI/CMO/momentum reproduzem casos; limites em σ são invariantes ao multiplicar preços por constante.
+* Novas opções desligadas por padrão; estratégias existentes inalteradas; Ruff, mypy e testes passam.
+
+## Ressalvas
+
+Páginas lidas não apresentam resultados de desempenho para esses osciladores. Estatísticas RSI (topos ~72, fundos ~32) vêm de estudo de futuros de 1985. O próprio autor caracteriza negociação contra tendência como arriscada.

@@ -1,80 +1,90 @@
-# Book 3 · Chapter 4 — Statistical Analysis
+# Livro 3 · Capítulo 4 — Análise estatística
 
-*Evidence-Based Technical Analysis*, Aronson (2007). Book pages (PDF = book + 16; OCR scan). Baseline: [00-system-baseline](../00-system-baseline.md). Status: analysis only.
+*Evidence-Based Technical Analysis*, Aronson (2007). Páginas do livro (PDF = livro + 16; digitalização com OCR). Referência: [00-system-baseline](../00-system-baseline.md). Status: apenas análise.
 
-**Reading depth:** pp. 165–175 and 186–189 and 202–216 were read in full. The textbook-style middle (pp. 176–185 box-of-beads experiments, 190–201 descriptive statistics, probability and distributions) was read by heading and skimmed; nothing technical specific to trading was found there beyond what the later sections restate.
+**Profundidade da leitura:** pp. 165–175, 186–189 e 202–216 foram lidas na íntegra. A parte intermediária, em estilo de livro didático (pp. 176–185, experimentos com caixas de contas; pp. 190–201, estatística descritiva, probabilidade e distribuições), foi percorrida pelos títulos e lida por alto; não encontrei conteúdo técnico específico de trading além do retomado nas seções seguintes.
 
-## 1. Chapter summary
+## 1. Resumo do capítulo
 
-| ID | Concept | Problem it addresses | Pages |
+| ID | Conceito | Problema que procura resolver | Páginas |
 |---|---|---|---|
-| C1 | The essence of TA is **statistical inference**: generalise from historical samples to the future. Start with the **null hypothesis**: the rule has no predictive power and its expected return is zero **on detrended data**; a profitable back test is "luck" until shown otherwise. | Default skepticism. | 165–167 |
-| C2 | **Reading evidence**: the p-value is the share of the null's probability density at or beyond the observed performance; it speaks to the *likelihood of the evidence under the null*, not the probability that the hypothesis is true. The convention is **0.05**. Affirming the consequent is invalid; denying the consequent is valid. | Interpreting significance. | 167–171 |
-| C3 | **Data mining raises the bar**: when the best of many rules is picked, the appropriate null distribution is that of the *best of 1,000* rules, wider than the single-rule one; an excellent single-rule result is mediocre as the best of 1,000 (Figure 4.4; Chapter 6). | Multiple testing. | 171–172 |
-| C4 | **Six elements of an inference problem**: population, sample, population parameter, sample statistic, inference, statement of reliability. For a rule: the **population** is all the daily returns the rule would earn over the *immediate practical future* (a finite horizon over which a useful rule's profitability is assumed to persist even though markets are non-stationary); the **sample** is the single back test; the **parameter** is expected return (the book uses annualised average daily return on detrended data; Sharpe, profit factor etc. are alternatives); the **statistic** is the observed average return. Without some persistence of predictive power, all TA is pointless. | What exactly is being inferred. | 186–189 |
-| C5 | **Sampling distribution** of a statistic: the distribution of its values over all possible samples; its **dispersion quantifies the uncertainty**; we have only one sample, so it must be estimated. Facts for the sample mean: larger samples are closer to the population mean (Law of Large Numbers); dispersion falls with `√n` (10× the sample → 3.16× narrower); more variation in the data widens it; shape tends to normal (Central Limit Theorem), with convergence depending on the parent shape (5 observations suffice in some cases, 30 in the worst shown case); ratios can be profoundly non-normal. | Uncertainty from sample size. | 202–213 |
-| C6 | **Standard error of the mean** = `σ̂ / √n`, with `σ̂` estimated from the sample using divisor `n − 1`. Combined with normality, gives the classical sampling distribution. Drawback: it assumes a normal shape; if wrong, conclusions are inaccurate. | Classical test. | 213–215 |
-| C7 | **Computer-intensive alternative**: resample the single sample many times to approximate the sampling distribution: **bootstrap** and **Monte Carlo permutation** (next chapter); used in the case study to build the sampling distribution of a *non-predictive rule's* average return as the benchmark. Confidence intervals come from the same distribution. | Distribution-free inference. | 215–216 |
+| C1 | A essência da análise técnica é **inferência estatística**: generalizar amostras históricas para o futuro. Começar pela **hipótese nula**: a regra não tem poder preditivo e seu retorno esperado é zero **em dados sem tendência**; um backtest lucrativo é “acaso” até prova em contrário. | Ceticismo como padrão. | 165–167 |
+| C2 | **Como ler evidências**: valor-p é a fração da densidade de probabilidade nula igual ou mais extrema que o desempenho observado; expressa a *probabilidade da evidência sob a hipótese nula*, não a probabilidade de a hipótese ser verdadeira. Convenção: **0,05**. Afirmar o consequente é inválido; negar o consequente é válido. | Interpretar significância. | 167–171 |
+| C3 | **Seleção de dados eleva o padrão**: ao escolher a melhor dentre muitas regras, distribuição nula adequada é a da *melhor entre 1.000* regras, mais larga que a de uma regra isolada; um ótimo resultado individual é medíocre como melhor de 1.000 (Figura 4.4; cap. 6). | Testes múltiplos. | 171–172 |
+| C4 | **Seis componentes de um problema de inferência**: população, amostra, parâmetro populacional, estatística amostral, inferência e declaração de confiabilidade. Para uma regra: a **população** são todos os retornos diários que obteria no *futuro prático imediato* (horizonte finito em que se supõe que a rentabilidade de uma regra útil persistirá, embora mercados não sejam estacionários); a **amostra** é um único backtest; o **parâmetro** é retorno esperado (o livro usa retorno diário médio anualizado sobre dados sem tendência; Sharpe e fator de lucro são alternativas); a **estatística** é o retorno médio observado. Sem alguma persistência do poder preditivo, análise técnica não faz sentido. | O que se está inferindo exatamente. | 186–189 |
+| C5 | **Distribuição amostral**: distribuição dos valores de uma estatística em todas as amostras possíveis; sua **dispersão quantifica a incerteza**. Como há uma amostra, é preciso estimá-la. Para a média amostral: amostras maiores aproximam a média populacional (Lei dos Grandes Números); dispersão cai com `√n` (amostra 10× maior → intervalo 3,16× mais estreito); maior variação nos dados amplia a distribuição; sua forma tende à normal (Teorema do Limite Central), com convergência dependente da distribuição original (cinco observações bastam em alguns casos, 30 no pior exemplo); razões podem ser muito não normais. | Incerteza pelo tamanho da amostra. | 202–213 |
+| C6 | **Erro-padrão da média** = `σ̂ / √n`, com `σ̂` estimado na amostra usando divisor `n − 1`. Junto à normalidade, produz a distribuição amostral clássica. Limitação: pressupõe forma normal; se incorreta, as conclusões também serão. | Teste clássico. | 213–215 |
+| C7 | **Alternativa computacional intensiva**: reamostrar a amostra única muitas vezes para aproximar a distribuição amostral: **bootstrap** e **permutação Monte Carlo** (próximo capítulo). No estudo de caso, constrói-se a distribuição amostral do retorno médio de uma regra *sem poder preditivo* como benchmark. A mesma distribuição gera intervalos de confiança. | Inferência sem supor uma distribuição específica. | 215–216 |
 
-## 2. Diagnosis (verified in code)
+## 2. Diagnóstico (verificado no código)
 
-| Concept | Status | Evidence |
+| Conceito | Situação | Evidência |
 |---|---|---|
-| Null hypothesis / p-value | ❌ | Not produced anywhere (consistent with book 2 ch. 1 O1). |
-| Standard error, t-statistic, confidence interval of mean return | ❌ | `Metrics` has none. |
-| Sample size visible with every statistic | ⚠️ | `round_trips` and `fills` are shown; the number of return observations (bars) is not part of `Metrics`. |
-| Best-of-N correction | ❌ | Sweeps rank by raw result; `MAX_SWEEP_RUNS` limits the grid but no adjustment (book 1 ch. 3 O7). |
-| Definition of the "immediate practical future" | ❌ | No statement of the horizon over which a result is expected to hold; train/test is chronological only. |
-| Resampling (bootstrap/permutation) | ❌ | Not implemented (see book 3 ch. 3 O1; ch. 5 for the methods). |
-| Detrended expected return of the null | ❌ | Not implemented (book 3 ch. 1 O1). |
+| Hipótese nula/valor-p | ❌ | Não é produzido (coerente com livro 2, cap. 1 O1). |
+| Erro-padrão, estatística t e intervalo de confiança do retorno médio | ❌ | Não existem em `Metrics`. |
+| Tamanho de amostra visível junto às estatísticas | ⚠️ | `round_trips` e `fills` são apresentados; número de observações de retorno (barras) não integra `Metrics`. |
+| Correção de melhor entre N | ❌ | Varreduras ordenam por resultado bruto; `MAX_SWEEP_RUNS` limita a grade, mas não há ajuste (livro 1, cap. 3 O7). |
+| Definição do “futuro prático imediato” | ❌ | Não se declara o horizonte de validade esperada; treino/teste só tem divisão cronológica. |
+| Reamostragem (bootstrap/permutação) | ❌ | Não implementada (ver livro 3, cap. 3 O1 e cap. 5 para os métodos). |
+| Retorno esperado nulo em dados sem tendência | ❌ | Não implementado (livro 3, cap. 1 O1). |
 
-## 3. Opportunities
+## 3. Oportunidades
 
-### O1 — Mean per-bar return with standard error, t-statistic and confidence interval *(book: C5, C6, pp. 209–215)*
-* **Problem:** a net PnL is shown without its uncertainty.
-* **Proposal:** from the equity curve compute per-bar (or per-trade) returns `r_t`, their count `n`, mean, sample standard deviation with `n − 1`, **standard error `s/√n`**, and the t-statistic `mean/SE` plus an approximate confidence interval. Report `n` beside them, and a flag when `n` is below a minimum.
-* **Benefit:** puts a direct uncertainty on the headline number; the same arithmetic as the daily-Sharpe significance in book 2 ch. 1 (`Sharpe × √n`). **Complexity:** low.
-* **Risks (our adaptation, not discussed in this chapter):** the classical formula assumes independent observations and the CLT shape; equity-curve returns of a strategy that holds positions are positively autocorrelated, and bars where the strategy is flat are zeros, which understates `s` and overstates the t-statistic; crypto returns are fat-tailed. Present the classical figures as optimistic and prefer the resampling versions (O2). Use **per-trade** returns as a second view because they are closer to independent.
-* **Validation:** hand-computed series; zero-variance → `None`; compare against the bootstrap interval on known data.
+### O1 — Retorno médio por barra com erro-padrão, estatística t e intervalo de confiança *(livro: C5, C6, pp. 209–215)*
 
-### O2 — Bootstrap and permutation inference (distribution-free) *(book: C7, pp. 215–216; methods continue in ch. 5)*
-Use resampling to build the null sampling distribution instead of assuming normality. Implementation detail belongs to the next chapter's report; cross-references: placebo/shuffled-return runner (book 3 ch. 3 O1), random-entry test (book 2 ch. 1 O1). **Complexity:** medium. Do once.
+* **Problema:** P&L líquido é exibido sem quantificar a incerteza.
+* **Proposta:** derivar da curva patrimonial os retornos por barra (ou operação) `r_t`, quantidade `n`, média, desvio-padrão amostral com divisor `n − 1`, **erro-padrão `s/√n`**, estatística t `média/EP` e intervalo de confiança aproximado. Apresentar `n` junto dos resultados e sinalizar amostras abaixo do mínimo.
+* **Benefício:** quantifica incerteza no resultado principal; mesmo cálculo da significância do Sharpe diário no livro 2, cap. 1 (`Sharpe × √n`). **Complexidade:** baixa.
+* **Riscos (adaptação nossa, não discutida neste capítulo):** fórmula clássica pressupõe observações independentes e formato do TCL; retornos da curva patrimonial com posições mantidas têm autocorrelação positiva; barras sem posição são zeros que subestimam `s` e superestimam a estatística t; retornos cripto têm caudas pesadas. Mostrar números clássicos como otimistas e preferir reamostragem (O2). Apresentar também retornos **por operação**, possivelmente mais próximos de independência.
+* **Validação:** série calculada manualmente; variância zero → `None`; comparação com intervalo bootstrap de dados conhecidos.
 
-### O3 — Make the inference target explicit: horizon and parameter *(book: C4, pp. 186–189)*
-State in each result what is being inferred: the expected return of this rule on this symbol/timeframe over a stated forward horizon (for example "the next N days"), measured by a named statistic (net return on detrended data or Sharpe). Pair with the pre-registration idea (book 3 ch. 2 O3). **Complexity:** low (labels and fields). It also documents the assumption of persistence (no persistence → no TA).
+### O2 — Inferência por bootstrap e permutação *(livro: C7, pp. 215–216; métodos continuam no cap. 5)*
 
-### O4 — Best-of-N awareness in sweeps *(book: C3, pp. 171–172)*
-Show, next to the best sweep result, the **distribution of the best result under the null** (via the permutation/bootstrap of O2) so that the winner is judged against "best of N random rules" rather than a single rule. This is the data-mining correction in outline; Chapter 6 supplies the method. Cross-reference only. **Complexity:** medium (depends on O2).
+Usar reamostragem para construir a distribuição amostral nula em vez de supor normalidade. Detalhes de implementação ficam no relatório seguinte; referências cruzadas: executor placebo/retornos embaralhados (livro 3, cap. 3 O1) e teste de entradas aleatórias (livro 2, cap. 1 O1). **Complexidade:** média. Implementar uma vez.
 
-### O5 — Minimum sample sizes in the UI *(book: C5, pp. 209–213)*
-Display `n` (bars and trades) with every statistic and warn when it is too small for the CLT assumption the book itself places at 30 in its worst case. Extends book 1 ch. 3 O6 and book 2 ch. 6 O4. **Complexity:** very low.
+### O3 — Explicitar alvo da inferência: horizonte e parâmetro *(livro: C4, pp. 186–189)*
 
-### Not applicable
-Textbook coin-toss and bead experiments; descriptive statistics tutorials.
+Declarar em cada resultado o que está sendo inferido: retorno esperado desta regra para este símbolo/intervalo num horizonte futuro definido (por exemplo, “próximos N dias”), medido por estatística nomeada (retorno líquido sem tendência ou Sharpe). Relacionar ao pré-registro (livro 3, cap. 2 O3). **Complexidade:** baixa (rótulos e campos). Documenta também o pressuposto de persistência (sem persistência, não há análise técnica).
 
-## 4. Priority
+### O4 — Considerar a distribuição do melhor entre N nas varreduras *(livro: C3, pp. 171–172)*
 
-| # | Item | Backtest quality | Risk mgmt | Reliability | Complexity | Depends on |
+Mostrar junto ao melhor resultado da varredura a **distribuição do melhor resultado sob a hipótese nula** (por permutação/bootstrap de O2), avaliando o vencedor contra o “melhor de N regras aleatórias”, não contra uma regra isolada. É a correção por seleção de dados em linhas gerais; o método está no cap. 6. Apenas referência cruzada. **Complexidade:** média (depende de O2).
+
+### O5 — Tamanho mínimo de amostra na interface *(livro: C5, pp. 209–213)*
+
+Exibir `n` (barras e operações) com cada estatística e avisar se for pequeno demais para o pressuposto do TCL, cujo pior caso o livro situa em 30. Amplia livro 1, cap. 3 O6 e livro 2, cap. 6 O4. **Complexidade:** muito baixa.
+
+### Não aplicável
+
+Experimentos didáticos de lançamentos de moeda e contas; tutoriais de estatística descritiva.
+
+## 4. Prioridade
+
+| # | Item | Qualidade do backtest | Gestão de risco | Confiabilidade | Complexidade | Dependências |
 |---|---|---|---|---|---|---|
-| 1 | O5 sample size display | medium | – | – | very low | – |
-| 2 | O1 SE / t-stat / CI (with caveats) | high | – | – | low | returns series |
-| 3 | O3 explicit inference target | medium | – | – | low | – |
-| 4 | O2 resampling inference | **high** | – | – | medium | engine reuse |
-| 5 | O4 best-of-N reference | high | – | – | medium | O2, book 3 ch. 6 |
+| 1 | O5 exibir tamanho da amostra | média | – | – | muito baixa | – |
+| 2 | O1 EP/estatística t/IC com ressalvas | alta | – | – | baixa | série de retornos |
+| 3 | O3 explicitar alvo da inferência | média | – | – | baixa | – |
+| 4 | O2 inferência por reamostragem | **alta** | – | – | média | reutilizar motor |
+| 5 | O4 referência de melhor entre N | alta | – | – | média | O2, livro 3, cap. 6 |
 
-## 5. Affected files
-`analytics/domain/metrics.py` and a new `analytics/domain/inference.py` (pure functions), `backtesting/application/service.py` and sweep schemas, `docs/openapi.json`, app backtest detail and sweep pages, tests.
+## 5. Arquivos afetados
 
-## 6. Incremental plan
-1. Show `n` everywhere (bars, trades).
-2. Pure functions for mean, SE, t, CI with per-bar and per-trade variants; unit tests.
-3. Resampling inference (with ch. 5), then best-of-N reference (with ch. 6).
+`analytics/domain/metrics.py` e novo `analytics/domain/inference.py` (funções puras), `backtesting/application/service.py`, schemas de varredura, `docs/openapi.json`, páginas de detalhes/varredura do app e testes.
 
-## 7. Acceptance criteria and tests
-* `SE = s/√n` with divisor `n−1` reproduced on hand-computed series; width of the CI shrinks with `√n` in a simulation.
-* Statistics return `None` with a reason for too few observations.
-* No change to trading behaviour; ruff, mypy, existing tests green.
-* UI text states that a p-value is the probability of the evidence under the null, not of the hypothesis (p. 169).
+## 6. Plano incremental
 
-## Caveats
-The chapter explains concepts and defers the test procedures to Chapters 5 and 6. The classical formula's independence and normality assumptions are known to be questionable for strategy returns; treat figures from O1 as lower bounds on uncertainty.
+1. Exibir `n` em todo lugar (barras e operações).
+2. Funções puras para média, EP, t e IC, por barra e por operação, com testes unitários.
+3. Inferência por reamostragem (cap. 5), seguida da referência do melhor entre N (cap. 6).
+
+## 7. Critérios de aceitação e testes
+
+* Reproduzir `EP = s/√n` com divisor `n−1` em séries calculadas manualmente; numa simulação, largura do IC cai com `√n`.
+* Para poucas observações, estatísticas retornam `None` com motivo.
+* Nenhuma mudança no comportamento de negociação; Ruff, mypy e testes existentes passam.
+* Interface explica que valor-p é probabilidade da evidência sob a hipótese nula, não probabilidade da hipótese (p. 169).
+
+## Ressalvas
+
+O capítulo explica conceitos e deixa os procedimentos de teste para os caps. 5 e 6. Independência e normalidade da fórmula clássica são pressupostos questionáveis para retornos de estratégias; trate os resultados O1 como limites inferiores da incerteza.
