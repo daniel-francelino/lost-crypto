@@ -115,6 +115,11 @@ class Order:
     # Protective levels of the position this BUY opens, applied once it fills.
     planned_stop_price: Decimal | None = None
     planned_take_profit_price: Decimal | None = None
+    # Execution quality (book 1 ch. 5, O1): the price the decision was made at (the signal
+    # candle's close, or a stop/target trigger), when the order was sent and first filled.
+    reference_price: Decimal | None = None
+    submitted_at: datetime | None = None
+    first_fill_at: datetime | None = None
 
     @property
     def is_final(self) -> bool:
@@ -141,6 +146,8 @@ class Order:
             raise InvalidOrderTransition("fill exceeds the order quantity")
         previous_value = (self.avg_fill_price or Decimal(0)) * self.filled_quantity
         self.fills.append(fill)
+        if self.first_fill_at is None:
+            self.first_fill_at = fill.time
         self.filled_quantity += fill.quantity
         self.avg_fill_price = (previous_value + fill.notional) / self.filled_quantity
         done = self.filled_quantity == self.quantity
@@ -156,3 +163,23 @@ def make_client_order_id(bot_id: UUID, bar_time: datetime, side: Side) -> str:
     """Deterministic per (bot, candle, side): the same decision always maps to the same id."""
     digest = hashlib.sha256(f"{bot_id}|{bar_time.isoformat()}|{side.value}".encode()).hexdigest()
     return f"lc-{digest[:32]}"
+
+
+_BPS = Decimal(10_000)
+
+
+def realized_slippage_bps(order: Order) -> Decimal | None:
+    """Adverse move from the reference to the average fill, in bps (buys above / sells below
+    the reference are positive). None when either price is unknown."""
+    ref, fill = order.reference_price, order.avg_fill_price
+    if ref is None or fill is None or ref <= 0:
+        return None
+    move = (fill - ref) / ref * _BPS
+    return move if order.side is Side.BUY else -move
+
+
+def latency_ms(order: Order) -> int | None:
+    """From the decision (order creation) to the first fill."""
+    if order.first_fill_at is None:
+        return None
+    return int((order.first_fill_at - order.created_at).total_seconds() * 1000)

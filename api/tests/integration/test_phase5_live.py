@@ -48,11 +48,23 @@ async def _ready_bot(
     await env.run_until(runner, paper_hours)
     await env.command(bot, "stop")
     await runner.run_once()
+    await check_parity(env, runner, bot)
     promoted = await env.http.post(
         f"/api/v1/bots/{bot}/promote-to-live", json={"connection_id": connection}
     )
     assert promoted.status_code == 200 and promoted.json()["mode"] == "live", promoted.text
     return runner, bot, connection
+
+
+async def check_parity(env: TestnetEnv, runner: Any, bot: str) -> dict[str, Any]:
+    """Replay the paper session through the backtester (book 1 ch. 5): live readiness needs it."""
+    queued = await env.http.post(f"/api/v1/bots/{bot}/parity")
+    assert queued.status_code == 202, queued.text
+    await runner.run_once()  # the worker runs the replay
+    parity: dict[str, Any] = (await env.http.get(f"/api/v1/bots/{bot}/parity")).json()
+    assert parity["status"] == "completed", parity["error"]
+    assert parity["unexplained"] == 0, parity["summary"]["differences"]
+    return parity
 
 
 async def _approve(env: TestnetEnv, bot: str, name: str = "itest-live-bot") -> str:
@@ -179,7 +191,7 @@ async def test_a_clean_bot_with_paper_history_is_ready(live_env: TestnetEnv) -> 
     assert readiness["ready"] is True, readiness
     assert {c["name"] for c in readiness["checks"]} >= {
         "mode", "stopped", "environment", "hard caps", "live connection", "risk limits",
-        "capital within caps", "paper history", "clean history",
+        "capital within caps", "paper history", "clean history", "paper vs backtest parity",
     }  # fmt: skip
 
 

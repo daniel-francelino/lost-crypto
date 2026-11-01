@@ -38,6 +38,9 @@ class OrderRow(Base):
     planned_take_profit_price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     bar_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    reference_price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    first_fill_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class OrderFillRow(Base):

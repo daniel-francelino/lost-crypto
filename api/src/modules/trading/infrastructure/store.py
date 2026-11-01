@@ -14,9 +14,13 @@ from modules.execution.infrastructure.repository import (
     SqlAlchemyOrderRepository,
     SqlAlchemySignalRepository,
 )
+from modules.market_data.infrastructure.repository import SqlAlchemyCandleRepository
 from modules.portfolio.infrastructure.repository import SqlAlchemyPortfolioRepository
 from modules.risk_management.infrastructure.repository import SqlAlchemySystemFlagsRepository
-from modules.trading.infrastructure.repository import SqlAlchemySessionRepository
+from modules.trading.infrastructure.repository import (
+    SqlAlchemyParityRepository,
+    SqlAlchemySessionRepository,
+)
 
 
 class SqlAlchemyStore:
@@ -37,6 +41,8 @@ class SqlAlchemyStore:
         self.audit = SqlAlchemyAuditRepository(session)
         self.connections = SqlAlchemyConnectionRepository(session)
         self.reconciliations = SqlAlchemyReconciliationRepository(session)
+        self.candles = SqlAlchemyCandleRepository(session)
+        self.parity = SqlAlchemyParityRepository(session)
         self.users = SqlAlchemyUserRepository(session)
         self.live_approvals = SqlAlchemyLiveApprovalRepository(session)
         self.refresh_tokens = SqlAlchemyRefreshTokenRepository(session)

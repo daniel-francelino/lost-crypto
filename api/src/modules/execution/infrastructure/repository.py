@@ -49,6 +49,9 @@ def _to_order(row: OrderRow, fills: Sequence[Fill] = ()) -> Order:
         reserved_quantity=row.reserved_quantity,
         planned_stop_price=row.planned_stop_price,
         planned_take_profit_price=row.planned_take_profit_price,
+        reference_price=row.reference_price,
+        submitted_at=row.submitted_at,
+        first_fill_at=row.first_fill_at,
     )
 
 
@@ -80,6 +83,9 @@ class SqlAlchemyOrderRepository:
                 planned_take_profit_price=order.planned_take_profit_price,
                 bar_time=order.bar_time,
                 created_at=order.created_at,
+                reference_price=order.reference_price,
+                submitted_at=order.submitted_at,
+                first_fill_at=order.first_fill_at,
             )
             .on_conflict_do_nothing(index_elements=["bot_id", "client_order_id"])
             .returning(OrderRow.id)
@@ -108,6 +114,8 @@ class SqlAlchemyOrderRepository:
                 exchange_order_id=order.exchange_order_id,
                 reserved_cash=order.reserved_cash,
                 reserved_quantity=order.reserved_quantity,
+                submitted_at=order.submitted_at,
+                first_fill_at=order.first_fill_at,
             )
         )
         await self._session.flush()

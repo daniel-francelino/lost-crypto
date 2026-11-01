@@ -2165,6 +2165,191 @@
         }
       }
     },
+    "/api/v1/bots/{bot_id}/execution-quality": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Get Execution Quality",
+        "description": "Realized slippage and latency of the bot's filled orders against its assumption.",
+        "operationId": "get_execution_quality_api_v1_bots__bot_id__execution_quality_get",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionQualityOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/parity": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Request Parity",
+        "description": "Queue a replay of the bot's latest session through the backtester (the worker runs it)\nand a comparison of signals and trades. Read-only: the bot is not affected.",
+        "operationId": "request_parity_api_v1_bots__bot_id__parity_post",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParityOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Get Parity",
+        "operationId": "get_parity_api_v1_bots__bot_id__parity_get",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ParityOut"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Parity Api V1 Bots  Bot Id  Parity Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/divergence": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Get Divergence",
+        "description": "Chan's checklist for \"why does it differ from the backtest?\", in his order. Never\nconcludes bad luck: it cannot be proven.",
+        "operationId": "get_divergence_api_v1_bots__bot_id__divergence_get",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StepOut"
+                  },
+                  "title": "Response Get Divergence Api V1 Bots  Bot Id  Divergence Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/system/kill-switch": {
       "get": {
         "tags": [
@@ -2818,6 +3003,22 @@
             "title": "Max Drawdown Tolerance Days",
             "description": "Longest drawdown (days below the peak) the operator accepts."
           },
+          "fill_timing": {
+            "$ref": "#/components/schemas/FillTiming",
+            "description": "`next_open`: fill at the next candle's open (default). `signal_close`: fill at the close of the signal candle, like the bots do (use it to compare with a bot).",
+            "default": "next_open"
+          },
+          "risk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskLimitsIn-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Size and pause exactly like a bot with these limits (the bot's risk module). Null keeps the all-in sizing."
+          },
           "allow_gaps": {
             "type": "boolean",
             "title": "Allow Gaps",
@@ -2930,6 +3131,19 @@
             "type": "boolean",
             "title": "Allow Gaps"
           },
+          "fill_timing": {
+            "$ref": "#/components/schemas/FillTiming"
+          },
+          "risk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskLimitsIn-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "sweep_id": {
             "anyOf": [
               {
@@ -3024,6 +3238,16 @@
               }
             ]
           },
+          "risk_report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskReportOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "error": {
             "anyOf": [
               {
@@ -3085,6 +3309,8 @@
           "max_drawdown_tolerance_pct",
           "max_drawdown_tolerance_days",
           "allow_gaps",
+          "fill_timing",
+          "risk",
           "sweep_id",
           "data_hash",
           "candles_count",
@@ -3094,6 +3320,7 @@
           "cost_ladder",
           "tolerance",
           "data_quality",
+          "risk_report",
           "error",
           "created_at",
           "started_at",
@@ -3272,7 +3499,7 @@
             "default": "5"
           },
           "risk": {
-            "$ref": "#/components/schemas/RiskIn-Input"
+            "$ref": "#/components/schemas/RiskLimitsIn-Input"
           },
           "mode": {
             "type": "string",
@@ -3348,7 +3575,7 @@
             "title": "Slippage Bps"
           },
           "risk": {
-            "$ref": "#/components/schemas/RiskIn-Output"
+            "$ref": "#/components/schemas/RiskLimitsIn-Output"
           },
           "mode": {
             "$ref": "#/components/schemas/ExecutionMode"
@@ -3689,7 +3916,7 @@
           "risk": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/RiskIn-Input"
+                "$ref": "#/components/schemas/RiskLimitsIn-Input"
               },
               {
                 "type": "null"
@@ -4401,6 +4628,41 @@
           "live"
         ],
         "title": "ExecutionMode"
+      },
+      "ExecutionQualityOut": {
+        "properties": {
+          "configured_slippage_bps": {
+            "type": "string",
+            "title": "Configured Slippage Bps"
+          },
+          "by_type": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "By Type",
+            "description": "Per order type: orders, slippage_bps {mean, median, worst}, latency_ms {mean, max}."
+          },
+          "above_configured": {
+            "type": "boolean",
+            "title": "Above Configured",
+            "description": "Realized market-order slippage above the assumption (+1 bps tolerance)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "configured_slippage_bps",
+          "by_type",
+          "above_configured"
+        ],
+        "title": "ExecutionQualityOut"
+      },
+      "FillTiming": {
+        "type": "string",
+        "enum": [
+          "next_open",
+          "signal_close"
+        ],
+        "title": "FillTiming",
+        "description": "When a signal is filled (book 1 ch. 5): at the next candle's open (the backtest's\ndefault), or at the close of the signal candle, which is what the bots do."
       },
       "GapItemOut": {
         "properties": {
@@ -5205,6 +5467,66 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "reference_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Price",
+            "description": "Price of the decision: signal candle close or stop trigger."
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "first_fill_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Fill At"
+          },
+          "slippage_bps": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slippage Bps",
+            "description": "Adverse move from the reference to the fill (bps)."
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms",
+            "description": "Decision to first fill."
           }
         },
         "type": "object",
@@ -5356,6 +5678,83 @@
           "description"
         ],
         "title": "ParamOut"
+      },
+      "ParityOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "queued | running | completed | failed"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "unexplained": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unexplained"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary",
+            "description": "counts by class, verdict, differences, returns, replay_equity."
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "created_at",
+          "finished_at",
+          "unexplained",
+          "summary",
+          "error"
+        ],
+        "title": "ParityOut"
       },
       "PeriodOut": {
         "properties": {
@@ -5683,7 +6082,7 @@
         ],
         "title": "ReadinessOut"
       },
-      "RiskIn-Input": {
+      "RiskLimitsIn-Input": {
         "properties": {
           "max_position_fraction": {
             "anyOf": [
@@ -5795,12 +6194,30 @@
             ],
             "title": "Max Candle Range Pct",
             "default": "25"
+          },
+          "max_order_pct_of_volume": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Order Pct Of Volume",
+            "description": "Cap an order at this % of the average traded value of the last 20 candles (Chan's rule of thumb: ~1% of daily volume, for stocks). Null = off."
           }
         },
         "type": "object",
-        "title": "RiskIn"
+        "title": "RiskLimitsIn",
+        "description": "A bot's risk limits; also accepted by backtests to size and pause exactly like the bot."
       },
-      "RiskIn-Output": {
+      "RiskLimitsIn-Output": {
         "properties": {
           "max_position_fraction": {
             "type": "string",
@@ -5880,10 +6297,71 @@
             ],
             "title": "Max Candle Range Pct",
             "default": "25"
+          },
+          "max_order_pct_of_volume": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Order Pct Of Volume",
+            "description": "Cap an order at this % of the average traded value of the last 20 candles (Chan's rule of thumb: ~1% of daily volume, for stocks). Null = off."
           }
         },
         "type": "object",
-        "title": "RiskIn"
+        "title": "RiskLimitsIn",
+        "description": "A bot's risk limits; also accepted by backtests to size and pause exactly like the bot."
+      },
+      "RiskReportOut": {
+        "properties": {
+          "sizing": {
+            "type": "string",
+            "title": "Sizing",
+            "description": "`all_in` or `risk_limits`."
+          },
+          "paused_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paused At"
+          },
+          "paused_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paused Reason"
+          },
+          "refusals": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Refusals",
+            "description": "Refused signals by reason."
+          }
+        },
+        "type": "object",
+        "required": [
+          "sizing",
+          "paused_at",
+          "paused_reason",
+          "refusals"
+        ],
+        "title": "RiskReportOut"
       },
       "RobustnessOut": {
         "properties": {
@@ -6205,6 +6683,31 @@
         "type": "object",
         "title": "StartIn"
       },
+      "StepOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "bugs | trades | costs | liquidity | snooping | regime"
+          },
+          "state": {
+            "type": "string",
+            "title": "State",
+            "description": "ok | attention | no_data"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "state",
+          "detail"
+        ],
+        "title": "StepOut"
+      },
       "StrategyOut": {
         "properties": {
           "type_key": {
@@ -6395,6 +6898,22 @@
             ],
             "title": "Max Drawdown Tolerance Days",
             "description": "Longest drawdown (days below the peak) the operator accepts."
+          },
+          "fill_timing": {
+            "$ref": "#/components/schemas/FillTiming",
+            "description": "`next_open`: fill at the next candle's open (default). `signal_close`: fill at the close of the signal candle, like the bots do (use it to compare with a bot).",
+            "default": "next_open"
+          },
+          "risk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskLimitsIn-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Size and pause exactly like a bot with these limits (the bot's risk module). Null keeps the all-in sizing."
           },
           "allow_gaps": {
             "type": "boolean",

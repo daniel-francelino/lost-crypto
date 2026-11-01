@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.jobs import JobStatus
 from modules.backtesting.application.ports import BacktestRun, BacktestSweep
-from modules.backtesting.domain.models import BacktestConfig, EquityPoint
+from modules.backtesting.domain.models import BacktestConfig, EquityPoint, FillTiming
 from modules.backtesting.infrastructure.orm import (
     BacktestRunRow,
     BacktestSweepRow,
@@ -17,6 +17,7 @@ from modules.backtesting.infrastructure.orm import (
 from modules.execution.domain.orders import Fill
 from modules.market_data.domain.models import MarketInfo, Timeframe
 from modules.market_data.infrastructure.repository import SqlAlchemyCandleRepository
+from modules.risk_management.domain.models import limits_from_dict, limits_to_dict
 from modules.strategies.domain.types import Side
 
 
@@ -61,6 +62,8 @@ def _to_run(row: BacktestRunRow) -> BacktestRun:
             max_drawdown_tolerance_pct=row.max_drawdown_tolerance_pct,
             max_drawdown_tolerance_days=row.max_drawdown_tolerance_days,
             allow_gaps=row.allow_gaps,
+            fill_timing=FillTiming(row.fill_timing),
+            risk=limits_from_dict(row.risk_limits) if row.risk_limits else None,
         ),
         created_at=row.created_at,
         started_at=row.started_at,
@@ -73,6 +76,7 @@ def _to_run(row: BacktestRunRow) -> BacktestRun:
         periods=row.periods,
         cost_ladder=row.cost_ladder,
         data_quality=row.data_quality,
+        risk_report=row.risk_report,
         sweep_id=row.sweep_id,
         error=row.error,
     )
@@ -103,6 +107,8 @@ class SqlAlchemyBacktestStore:
                 max_drawdown_tolerance_pct=c.max_drawdown_tolerance_pct,
                 max_drawdown_tolerance_days=c.max_drawdown_tolerance_days,
                 allow_gaps=c.allow_gaps,
+                fill_timing=c.fill_timing.value,
+                risk_limits=limits_to_dict(c.risk) if c.risk else None,
                 data_quality=run.data_quality,
                 sweep_id=run.sweep_id,
                 strategy_type=c.strategy_type,
@@ -218,6 +224,7 @@ class SqlAlchemyBacktestStore:
         periods: dict[str, Any] | None,
         cost_ladder: dict[str, Any] | None,
         data_quality: dict[str, Any] | None,
+        risk_report: dict[str, Any] | None,
         equity_curve: list[EquityPoint],
         fills: list[Fill],
     ) -> None:
@@ -234,6 +241,7 @@ class SqlAlchemyBacktestStore:
                 periods=periods,
                 cost_ladder=cost_ladder,
                 data_quality=data_quality,
+                risk_report=risk_report,
                 equity_curve=[[p.time.isoformat(), str(p.equity)] for p in equity_curve],
                 finished_at=func.now(),
             )

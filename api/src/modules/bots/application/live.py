@@ -41,6 +41,9 @@ DISQUALIFYING_EVENTS = (
 BotStoreFactory = Callable[[], AbstractAsyncContextManager[BotStore]]
 
 
+PARITY_MAX_AGE = timedelta(days=7)  # book 1 ch. 5, O7: a recent paper vs backtest check
+
+
 class LiveNotApproved(DomainError):
     """The confirmation token is missing, wrong, expired, used or for another version."""
 
@@ -148,6 +151,19 @@ class LiveService:
                 "paper history",
                 days >= s.live_min_paper_days,
                 f"{days:.1f} days of paper trading; {s.live_min_paper_days} required",
+            )
+        )
+        parity = await store.parity.latest_completed(bot.id)
+        fresh = parity is not None and self._clock.now() - parity.created_at <= PARITY_MAX_AGE
+        checks.append(
+            Check(
+                "paper vs backtest parity",
+                fresh and parity is not None and parity.unexplained == 0,
+                "run the parity check (bot vs backtest) on the paper session; it must be from "
+                f"the last {PARITY_MAX_AGE.days} days with no unexplained difference"
+                if not fresh
+                else f"the last parity check found {parity.unexplained if parity else 0} "
+                "unexplained difference(s) with the backtest",
             )
         )
         # Only the history that EARNED the promotion counts. What happens after a bot is

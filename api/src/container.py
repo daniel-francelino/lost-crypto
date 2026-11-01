@@ -34,6 +34,7 @@ from modules.strategies.catalog import build_strategy_registry
 from modules.strategies.domain.registry import StrategyRegistry
 from modules.trading.application.operations import OperationsMonitor
 from modules.trading.application.orders import OrderExecutor
+from modules.trading.application.parity import ParityExecutor, ParityService
 from modules.trading.application.ports import TradingStore
 from modules.trading.application.reconciler import Reconciler
 from modules.trading.application.status import StatusService
@@ -60,6 +61,7 @@ class Container:
     kill_switch: KillSwitchService
     audit: AuditService
     status: StatusService
+    parity: ParityService
     connections: ConnectionService
     resolver: ConnectionResolver
     auth: AuthService
@@ -125,6 +127,7 @@ def build_container(
             live_allowed=settings.app_env is AppEnv.PROD,
         ),
         resolver=ConnectionResolver(trading_stores, vault, exchanges, clock),
+        parity=ParityService(trading_stores, clock, ids),
         status=StatusService(
             trading_stores,
             clock,
@@ -144,12 +147,14 @@ class JobRunner:
         supervisor: BotSupervisor,
         listings: ListingRecorder | None = None,
         operations: OperationsMonitor | None = None,
+        parity: ParityExecutor | None = None,
     ) -> None:
         self._importer = importer
         self._executor = executor
         self._supervisor = supervisor
         self._listings = listings
         self._operations = operations
+        self._parity = parity
 
     async def recover(self) -> int:
         """Jobs left 'running' by a crashed worker are queued again (all jobs are idempotent).
@@ -166,7 +171,11 @@ class JobRunner:
         await self._supervisor.run_once()
         if self._listings is not None:
             await self._listings.run_due()  # once a day; failures are logged, never raised
-        return await self._importer.run_next() or await self._executor.run_next()
+        return (
+            await self._importer.run_next()
+            or await self._executor.run_next()
+            or (self._parity is not None and await self._parity.run_next())
+        )
 
 
 def build_job_runner(container: Container) -> JobRunner:
@@ -220,4 +229,7 @@ def build_job_runner(container: Container) -> JobRunner:
         ),
         ListingRecorder(container.import_stores, container.exchanges, container.clock),
         OperationsMonitor(container.trading_stores, container.exchanges, container.clock),
+        ParityExecutor(
+            container.trading_stores, container.registry, container.exchanges, container.clock
+        ),
     )

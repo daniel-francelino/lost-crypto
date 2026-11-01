@@ -23,7 +23,7 @@ from modules.backtesting.domain.data_quality import (
     gaps_summary,
     sample_check,
 )
-from modules.backtesting.domain.engine import run_backtest
+from modules.backtesting.domain.engine import risk_report, run_backtest
 from modules.backtesting.domain.models import BacktestConfig, EquityPoint, hash_candles
 from modules.backtesting.domain.periods import compute_periods
 from modules.backtesting.domain.segments import compute_segments
@@ -295,6 +295,7 @@ class BacktestExecutor:
                 periods=compute_periods(config, candles, outcome),
                 cost_ladder=ladder,
                 data_quality=quality,
+                risk_report=risk_report(outcome),
                 equity_curve=outcome.equity_curve,
                 fills=outcome.fills,
             )

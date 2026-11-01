@@ -14,9 +14,10 @@ from core.pagination import Offset, set_total
 from modules.analytics.presentation.schemas import MetricsOut
 from modules.backtesting.application.ports import BacktestRun
 from modules.backtesting.application.service import BacktestNotFound
-from modules.backtesting.domain.models import BacktestConfig
+from modules.backtesting.domain.models import BacktestConfig, FillTiming
 from modules.backtesting.domain.robustness import assess
 from modules.market_data.domain.models import Timeframe
+from modules.risk_management.presentation.schemas import RiskLimitsIn
 from modules.strategies.domain.types import Side
 
 router = APIRouter(prefix="/backtests", tags=["backtests"])
@@ -72,6 +73,20 @@ class BacktestCreate(BaseModel):
         gt=0,
         le=3650,
         description="Longest drawdown (days below the peak) the operator accepts.",
+    )
+    fill_timing: FillTiming = Field(
+        default=FillTiming.NEXT_OPEN,
+        description=(
+            "`next_open`: fill at the next candle's open (default). `signal_close`: fill at the "
+            "close of the signal candle, like the bots do (use it to compare with a bot)."
+        ),
+    )
+    risk: RiskLimitsIn | None = Field(
+        default=None,
+        description=(
+            "Size and pause exactly like a bot with these limits (the bot's risk module). "
+            "Null keeps the all-in sizing."
+        ),
     )
     allow_gaps: bool = Field(
         default=False,
@@ -147,6 +162,13 @@ class ToleranceOut(BaseModel):
     exceeded_duration: bool | None = Field(
         description="Null when the run predates drawdown duration (not computed)."
     )
+
+
+class RiskReportOut(BaseModel):
+    sizing: str = Field(description="`all_in` or `risk_limits`.")
+    paused_at: datetime | None
+    paused_reason: str | None
+    refusals: dict[str, int] = Field(description="Refused signals by reason.")
 
 
 class GapItemOut(BaseModel):
@@ -242,6 +264,8 @@ class BacktestOut(BaseModel):
     max_drawdown_tolerance_pct: Decimal | None
     max_drawdown_tolerance_days: int | None
     allow_gaps: bool
+    fill_timing: FillTiming
+    risk: RiskLimitsIn | None
     sweep_id: UUID | None
     data_hash: str | None
     candles_count: int | None
@@ -251,6 +275,7 @@ class BacktestOut(BaseModel):
     cost_ladder: CostLadderOut | None
     tolerance: ToleranceOut | None
     data_quality: DataQualityOut | None
+    risk_report: RiskReportOut | None
     error: str | None
     created_at: datetime
     started_at: datetime | None
@@ -330,6 +355,8 @@ def _out(run: BacktestRun) -> BacktestOut:
         max_drawdown_tolerance_pct=c.max_drawdown_tolerance_pct,
         max_drawdown_tolerance_days=c.max_drawdown_tolerance_days,
         allow_gaps=c.allow_gaps,
+        fill_timing=c.fill_timing,
+        risk=None if c.risk is None else RiskLimitsIn.from_domain(c.risk),
         sweep_id=run.sweep_id,
         data_hash=run.data_hash,
         candles_count=run.candles_count,
@@ -339,6 +366,7 @@ def _out(run: BacktestRun) -> BacktestOut:
         cost_ladder=CostLadderOut.model_validate(run.cost_ladder) if run.cost_ladder else None,
         tolerance=_tolerance(run),
         data_quality=DataQualityOut.model_validate(run.data_quality) if run.data_quality else None,
+        risk_report=RiskReportOut.model_validate(run.risk_report) if run.risk_report else None,
         error=run.error,
         created_at=run.created_at,
         started_at=run.started_at,
@@ -368,6 +396,8 @@ def _config(body: BacktestCreate, container: Container) -> BacktestConfig:
         max_drawdown_tolerance_pct=body.max_drawdown_tolerance_pct,
         max_drawdown_tolerance_days=body.max_drawdown_tolerance_days,
         allow_gaps=body.allow_gaps,
+        fill_timing=body.fill_timing,
+        risk=None if body.risk is None else body.risk.to_domain(),
     )
 
 

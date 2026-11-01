@@ -11,6 +11,7 @@ another venue or exchange does not touch this flow.
 """
 
 import logging
+from collections import deque
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import replace
@@ -40,6 +41,7 @@ from modules.risk_management.domain.models import (
     LiveLimits,
     RiskLimits,
     assess_signal,
+    average_quote_volume,
     candle_range_pct,
     consecutive_losses_breached,
     daily_loss_breached,
@@ -55,6 +57,7 @@ from modules.trading.domain.models import WARMUP_CANDLES, TradingSession, max_si
 
 logger = logging.getLogger(__name__)
 
+VOLUME_WINDOW = 20  # candles averaged for the volume cap
 MAX_LIVE_CLOCK_SKEW_MS = 5000  # beyond this the worker opens no new live positions
 CLOCK_SKEW_FRESH = timedelta(minutes=10)  # an older measurement is not trusted either way
 
@@ -101,6 +104,9 @@ class BotTrader:
         self._executor = executor
         self._live_limits = live_limits or LiveLimits()
         self._pending: list[UUID] = []  # orders created this candle, sent after the commit
+        # Recent traded value (volume x close) per bot, for the volume cap (book 1 ch. 5, O5).
+        self._volumes: dict[UUID, deque[Decimal]] = {}
+        self._avg_volume: Decimal | None = None
 
     async def market_info(self, exchange: str, symbol: str) -> MarketInfo:
         key = (exchange, symbol)
@@ -144,17 +150,57 @@ class BotTrader:
             if session.strategy_state is not None
             else strategy.initial_state()
         )
+        await self._store_candles(bot, [c for c in candles if not candle_problems(c)])
+        window = self._volumes.setdefault(bot.id, deque(maxlen=VOLUME_WINDOW))
         for candle in candles:
             problems = candle_problems(candle)
             if problems:
                 await self._skip_invalid_candle(bot, session, strategy, state, candle, problems)
                 continue
+            window.append(candle.volume * candle.close)
+            self._avg_volume = average_quote_volume(list(window))
             state, paused = await self._process_candle(
                 bot, session, strategy, state, candle, market
             )
             await self._submit_pending(bot)
             if paused:
                 break
+
+    async def _store_candles(self, bot: Bot, candles: list[Candle]) -> None:
+        """Keep every candle the bot decided on (book 1 ch. 5, O2): the parity replay needs
+        exactly what the bot saw. A stored candle the exchange now reports differently is
+        overwritten, like an import, and the change is audited."""
+        if not candles:
+            return
+        cfg = bot.config
+        async with self._stores() as store:
+            first, last = candles[0].open_time, candles[-1].open_time + cfg.timeframe.delta
+            stored = {
+                c.open_time: c
+                for c in await store.candles.get_range(
+                    cfg.exchange, cfg.symbol, cfg.timeframe, first, last
+                )
+            }
+            changed = [
+                c.open_time.isoformat()
+                for c in candles
+                if (old := stored.get(c.open_time)) is not None
+                and (old.open, old.high, old.low, old.close, old.volume)
+                != (c.open, c.high, c.low, c.close, c.volume)
+            ]
+            await store.candles.upsert_many(cfg.exchange, candles)
+            if changed:
+                await store.audit.add(
+                    AuditEvent(
+                        "data.candle_changed",
+                        "bot",
+                        str(bot.id),
+                        actor="worker",
+                        bot_id=bot.id,
+                        payload={"open_times": changed[:20], "count": len(changed)},
+                    )
+                )
+            await store.commit()
 
     async def _skip_invalid_candle(
         self,
@@ -310,6 +356,7 @@ class BotTrader:
                     candle_range=candle_range_pct(candle.high, candle.low),
                     global_limits=global_limits,
                     exposure=await self._exposure(store, signal, global_limits, is_live),
+                    avg_quote_volume=self._avg_volume,
                 )
                 if not decision.approved or decision.quantity is None:
                     await self._record(
@@ -496,6 +543,8 @@ class BotTrader:
             quantity=quantity,
             bar_time=candle.open_time,
             created_at=now,
+            reference_price=reference_price,
+            submitted_at=now,  # the paper venue fills in the same step
         )
         order.submit()
         self._prices.set(cfg.symbol, reference_price, now)
@@ -561,6 +610,7 @@ class BotTrader:
             created_at=now,
             planned_stop_price=signal.stop_loss if signal.side is Side.BUY else None,
             planned_take_profit_price=signal.take_profit if signal.side is Side.BUY else None,
+            reference_price=reference_price,
         )
         try:
             OrderExecutor.reserve(

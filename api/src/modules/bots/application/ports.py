@@ -8,6 +8,7 @@ from modules.bots.domain.models import Bot, BotConfig, BotState
 from modules.exchanges.application.connections import ConnectionRepository
 from modules.execution.application.ports import OrderRepository, SignalRepository
 from modules.portfolio.application.ports import PortfolioRepository
+from modules.trading.application.parity_store import ParityRepository
 
 
 class BotRepository(Protocol):
@@ -78,5 +79,7 @@ class BotStore(Protocol):
     def connections(self) -> ConnectionRepository: ...
     @property
     def live_approvals(self) -> LiveApprovalRepository: ...
+    @property
+    def parity(self) -> ParityRepository: ...
 
     async def commit(self) -> None: ...

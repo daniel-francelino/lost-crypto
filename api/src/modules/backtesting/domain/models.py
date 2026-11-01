@@ -3,16 +3,26 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 from typing import Any
 
 from core.errors import DomainError
 from modules.execution.domain.orders import Fill
 from modules.market_data.domain.models import Candle, Timeframe
-from modules.strategies.domain.types import Side
+from modules.risk_management.domain.models import RiskLimits
+from modules.strategies.domain.types import Side, SignalKind
 
 
 class InvalidBacktestConfig(DomainError):
     pass
+
+
+class FillTiming(StrEnum):
+    """When a signal is filled (book 1 ch. 5): at the next candle's open (the backtest's
+    default), or at the close of the signal candle, which is what the bots do."""
+
+    NEXT_OPEN = "next_open"
+    SIGNAL_CLOSE = "signal_close"
 
 
 MAX_COST_MULTIPLIER = 3  # the highest level of the cost ladder (``domain.cost_ladder``)
@@ -37,6 +47,9 @@ class BacktestConfig:
     max_drawdown_tolerance_pct: Decimal | None = None
     max_drawdown_tolerance_days: int | None = None
     allow_gaps: bool = False  # run even when the range misses many candles (book 1 ch. 3, O4)
+    fill_timing: FillTiming = FillTiming.NEXT_OPEN
+    # The bot's risk module inside the backtest (sizing and pauses); None = all-in sizing.
+    risk: RiskLimits | None = None
 
     def __post_init__(self) -> None:
         if self.start >= self.end:
@@ -78,6 +91,15 @@ class RejectedSignal:
 
 
 @dataclass(frozen=True, slots=True)
+class EmittedSignal:
+    """A signal the strategy emitted, keyed by its candle (compared with a bot's signals)."""
+
+    bar_time: datetime
+    side: Side
+    kind: SignalKind
+
+
+@dataclass(frozen=True, slots=True)
 class BacktestOutcome:
     fills: list[Fill]
     equity_curve: list[EquityPoint]
@@ -88,6 +110,9 @@ class BacktestOutcome:
     first_price: Decimal  # open of the first candle (buy & hold benchmark entry)
     last_price: Decimal  # close of the last candle
     unfilled_signals: int  # signals emitted on the last candle (nothing left to fill them)
+    signals: list[EmittedSignal] = field(default_factory=list)
+    paused: tuple[datetime, str] | None = None  # when the risk guard paused it, and why
+    sizing: str = "all_in"  # "all_in" | "risk_limits"
 
 
 def hash_candles(candles: Sequence[Candle]) -> str:

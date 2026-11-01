@@ -11,10 +11,13 @@ from core.pagination import Offset, set_total
 from core.security.auth import Principal, require_auth
 from modules.analytics.presentation.schemas import MetricsOut
 from modules.bots.domain.models import Bot, BotConfig, BotState, ExecutionMode
-from modules.execution.domain.orders import OrderStatus
+from modules.execution.domain.orders import OrderStatus, latency_ms, realized_slippage_bps
 from modules.market_data.domain.models import Timeframe
 from modules.risk_management.domain.models import RiskLimits
+from modules.risk_management.presentation.schemas import RiskLimitsIn
 from modules.strategies.domain.types import Side, SignalKind
+from modules.trading.application.parity_store import ParityRun
+from modules.trading.domain.diagnosis import VOLUME_MARKER, checklist, execution_quality
 
 router = APIRouter(prefix="/bots", tags=["bots"])
 
@@ -53,15 +56,7 @@ class PromoteIn(BaseModel):
     connection_id: UUID = Field(description="An ACTIVE live connection of the bot's exchange")
 
 
-class RiskIn(BaseModel):
-    max_position_fraction: Decimal = Field(default=Decimal(1), gt=0, le=1)
-    max_order_notional: Decimal | None = Field(default=None, gt=0)
-    max_daily_loss_pct: Decimal | None = Field(default=Decimal(10), gt=0, le=100)
-    max_drawdown_pct: Decimal | None = Field(default=None, gt=0, le=100)
-    max_consecutive_losses: int | None = Field(default=None, ge=1)
-    max_risk_per_trade_pct: Decimal | None = Field(default=None, gt=0, le=100)
-    require_stop_loss: bool = False
-    max_candle_range_pct: Decimal | None = Field(default=Decimal(25), gt=0)
+RiskIn = RiskLimitsIn  # shared with backtests
 
 
 class BotCreate(BaseModel):
@@ -139,6 +134,15 @@ class OrderOut(BaseModel):
     reject_reason: str | None
     bar_time: datetime
     created_at: datetime
+    reference_price: Decimal | None = Field(
+        default=None, description="Price of the decision: signal candle close or stop trigger."
+    )
+    submitted_at: datetime | None = None
+    first_fill_at: datetime | None = None
+    slippage_bps: Decimal | None = Field(
+        default=None, description="Adverse move from the reference to the fill (bps)."
+    )
+    latency_ms: int | None = Field(default=None, description="Decision to first fill.")
 
 
 class SignalOut(BaseModel):
@@ -205,16 +209,7 @@ def _out(bot: Bot) -> BotOut:
         initial_capital=c.initial_capital,
         fee_rate=c.fee_rate,
         slippage_bps=c.slippage_bps,
-        risk=RiskIn(
-            max_position_fraction=c.risk.max_position_fraction,
-            max_order_notional=c.risk.max_order_notional,
-            max_daily_loss_pct=c.risk.max_daily_loss_pct,
-            max_drawdown_pct=c.risk.max_drawdown_pct,
-            max_consecutive_losses=c.risk.max_consecutive_losses,
-            max_risk_per_trade_pct=c.risk.max_risk_per_trade_pct,
-            require_stop_loss=c.risk.require_stop_loss,
-            max_candle_range_pct=c.risk.max_candle_range_pct,
-        ),
+        risk=RiskIn.from_domain(c.risk),
         mode=c.mode,
         connection_id=c.connection_id,
         desired_state=bot.desired_state,
@@ -230,7 +225,7 @@ def _out(bot: Bot) -> BotOut:
 
 
 def _risk(risk: RiskIn) -> RiskLimits:
-    return RiskLimits(**risk.model_dump())
+    return risk.to_domain()
 
 
 def _container(request: Request) -> Container:
@@ -437,6 +432,13 @@ async def get_orders(
             reject_reason=o.reject_reason,
             bar_time=o.bar_time,
             created_at=o.created_at,
+            reference_price=o.reference_price,
+            submitted_at=o.submitted_at,
+            first_fill_at=o.first_fill_at,
+            slippage_bps=None
+            if (bps := realized_slippage_bps(o)) is None
+            else bps.quantize(Decimal("0.01")),
+            latency_ms=latency_ms(o),
         )
         for o in orders
     ]
@@ -494,3 +496,114 @@ async def get_performance(bot_id: UUID, request: Request) -> MetricsOut | None:
 async def get_equity(bot_id: UUID, request: Request, limit: Limit = 500) -> list[EquityPointOut]:
     curve = await _container(request).bots.equity_curve(bot_id, limit)
     return [EquityPointOut(time=p.time, equity=p.equity) for p in curve]
+
+
+# --- execution systems (book 1 ch. 5) -------------------------------------------------------
+
+ALL_RECORDS = 20_000
+
+
+class ExecutionQualityOut(BaseModel):
+    configured_slippage_bps: Decimal
+    by_type: dict[str, Any] = Field(
+        description="Per order type: orders, slippage_bps {mean, median, worst}, latency_ms "
+        "{mean, max}."
+    )
+    above_configured: bool = Field(
+        description="Realized market-order slippage above the assumption (+1 bps tolerance)."
+    )
+
+
+@router.get("/{bot_id}/execution-quality", response_model=ExecutionQualityOut)
+async def get_execution_quality(bot_id: UUID, request: Request) -> ExecutionQualityOut:
+    """Realized slippage and latency of the bot's filled orders against its assumption."""
+    container = _container(request)
+    bot = await container.bots.get(bot_id)
+    orders, _ = await container.bots.orders(bot_id, ALL_RECORDS, 0)
+    return ExecutionQualityOut.model_validate(execution_quality(orders, bot.config.slippage_bps))
+
+
+class ParityOut(BaseModel):
+    id: UUID
+    status: str = Field(description="queued | running | completed | failed")
+    created_at: datetime
+    finished_at: datetime | None
+    unexplained: int | None
+    summary: dict[str, Any] | None = Field(
+        description="counts by class, verdict, differences, returns, replay_equity."
+    )
+    error: str | None
+
+
+def _parity_out(run: ParityRun) -> ParityOut:
+    return ParityOut(
+        id=run.id,
+        status=run.status,
+        created_at=run.created_at,
+        finished_at=run.finished_at,
+        unexplained=run.unexplained,
+        summary=run.summary,
+        error=run.error,
+    )
+
+
+@router.post("/{bot_id}/parity", response_model=ParityOut, status_code=status.HTTP_202_ACCEPTED)
+async def request_parity(bot_id: UUID, request: Request) -> ParityOut:
+    """Queue a replay of the bot's latest session through the backtester (the worker runs it)
+    and a comparison of signals and trades. Read-only: the bot is not affected."""
+    return _parity_out(await _container(request).parity.request(bot_id))
+
+
+@router.get("/{bot_id}/parity", response_model=ParityOut | None)
+async def get_parity(bot_id: UUID, request: Request) -> ParityOut | None:
+    run = await _container(request).parity.latest(bot_id)
+    return None if run is None else _parity_out(run)
+
+
+class StepOut(BaseModel):
+    key: str = Field(description="bugs | trades | costs | liquidity | snooping | regime")
+    state: str = Field(description="ok | attention | no_data")
+    detail: str
+
+
+@router.get("/{bot_id}/divergence", response_model=list[StepOut])
+async def get_divergence(bot_id: UUID, request: Request) -> list[StepOut]:
+    """Chan's checklist for "why does it differ from the backtest?", in his order. Never
+    concludes bad luck: it cannot be proven."""
+    container = _container(request)
+    bot = await container.bots.get(bot_id)
+    orders, _ = await container.bots.orders(bot_id, ALL_RECORDS, 0)
+    signals, _ = await container.bots.signals(bot_id, ALL_RECORDS, 0)
+    parity = await container.parity.latest(bot_id)
+    summary = parity.summary if parity is not None and parity.status == "completed" else None
+    volume_refusals = sum(1 for s in signals if VOLUME_MARKER in (s.decision_reason or ""))
+    steps = checklist(
+        summary,
+        execution_quality(orders, bot.config.slippage_bps),
+        volume_refusals,
+        await _regime(container, bot, summary),
+    )
+    return [StepOut(key=s.key, state=s.state.value, detail=s.detail) for s in steps]
+
+
+async def _regime(
+    container: Container, bot: Bot, summary: dict[str, Any] | None
+) -> tuple[Decimal, Decimal] | None:
+    """Bot return vs the worst period of the latest comparable backtest (same strategy,
+    parameters, symbol and timeframe)."""
+    if summary is None or summary.get("bot_return_pct") is None:
+        return None
+    runs, _ = await container.backtests.list_runs(200, 0)
+    cfg = bot.config
+    for run in runs:
+        c = run.config
+        if (
+            run.periods
+            and c.strategy_type == cfg.strategy_type
+            and c.symbol == cfg.symbol
+            and c.timeframe is cfg.timeframe
+            and dict(c.strategy_params) == dict(cfg.strategy_params)
+        ):
+            worst = min(Decimal(p["metrics"]["total_return_pct"]) for p in run.periods["periods"])
+            return Decimal(summary["bot_return_pct"]), worst
+    return None
