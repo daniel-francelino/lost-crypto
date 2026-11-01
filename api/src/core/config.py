@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     worker_heartbeat_seconds: float = 5.0
     worker_poll_seconds: float = 2.0
     worker_stale_after_seconds: float = 60.0
+    # Database backups (book 1 ch. 4, O4): ``python -m manage backup`` / ``restore-check``.
+    backup_dir: str = "backups"
+    backup_keep: int = 14  # newest dump files kept in backup_dir
     # Reconciliation with the exchange (testnet/live bots).
     reconcile_interval_seconds: float = 60.0
     reconcile_absent_after_seconds: float = 30.0  # unknown order still missing after this: aborted

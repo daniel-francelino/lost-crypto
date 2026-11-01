@@ -8,7 +8,7 @@ reproduce timeouts, rejections, bad credentials and rate limits deterministicall
 
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Protocol
 
@@ -98,6 +98,7 @@ class SimulatedExchange(Exchange):
         self.fee_rate = fee_rate
         self.orders: dict[str, SimOrder] = {}
         self.permissions = ApiPermissions(True, True, False, False, True)  # trade-only key
+        self.server_offset = timedelta(0)  # how far the exchange's clock is BEHIND ours
         self.create_calls: list[str] = []  # every create attempt, by client order id
         self.cancel_calls: list[str] = []
         self._failures: dict[str, deque[str]] = {}
@@ -210,6 +211,9 @@ class SimulatedExchange(Exchange):
     async def fetch_open_orders(self, symbol: str) -> list[VenueOrder]:
         self.tick()
         return [o.to_venue() for o in self.open_orders() if o.symbol == symbol]
+
+    async def fetch_server_time(self) -> datetime:
+        return self.clock.now() - self.server_offset
 
     async def fetch_api_permissions(self) -> ApiPermissions:
         self._raise_before(self._next_failure("permissions"))

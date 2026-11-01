@@ -162,7 +162,7 @@ Arrows mean "depends on the public interface of". There are no cycles: `risk` re
 **Public interface.** `GetBotPerformance(bot_id, window)`, `GetSessionPerformance`, `ComputeBacktestMetrics`, `CompareBots`.
 **Rules.** Pure functions over data (NumPy/Pandas); same functions used for backtests and live to guarantee comparable numbers; metrics stored as time-bucketed rows for fast dashboards; always net of fees.
 **Patterns.** Query service/CQRS read side, pure functions.
-**MVP.** Core metrics + equity curve per bot/session/backtest. **Later:** benchmarks, attribution, scheduled reports.
+**MVP.** Core metrics + equity curve per bot/session/backtest. **Done since:** Sharpe/Sortino/information ratio (365-day annualisation, risk-free 0), annualised return/volatility, exposure, drawdown duration (`analytics/domain/risk_ratios.py`, `metrics.py`), computed in `Decimal` rather than NumPy. **Later:** attribution, scheduled reports.
 
 ## Cross-cutting modules (not business modules)
 

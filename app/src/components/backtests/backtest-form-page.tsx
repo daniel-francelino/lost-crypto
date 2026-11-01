@@ -5,6 +5,7 @@ import { PageHeader } from "lost-ui/app/page-header";
 import { Form } from "lost-ui/forms/form";
 import { FormInput } from "lost-ui/forms/form-input";
 import { FormSelect } from "lost-ui/forms/form-select";
+import { FormCheckbox } from "lost-ui/forms/form-checkbox";
 import { FormSwitch } from "lost-ui/forms/form-switch";
 import { rules } from "lost-ui/forms/rules";
 import { Button } from "lost-ui/ui/button";
@@ -13,14 +14,23 @@ import { ErrorBlock, SkeletonBlock } from "@/components/shared/feedback/query-bo
 import { CoverageNotice } from "@/components/shared/market-data/coverage-notice";
 import { StrategyFields } from "@/components/shared/strategy/strategy-fields";
 import { createBacktest, createSweep } from "@/lib/backtests/backtests.api";
+import { BotLikeCard } from "@/components/backtests/bot-like-card";
+import type { BacktestPrefill } from "@/lib/shared/backtest-prefill";
 import {
+  applyBacktestPrefill,
   type BacktestFormValues,
+  MAX_PARAMETERS,
   buildGrid,
   combinationCount,
   defaultBacktestValues,
   gridError,
+  sampleAdvice,
+  testFractionWarning,
   toBacktestInput,
 } from "@/lib/backtests/form";
+import { useRangeCoverage } from "@/hooks/shared/use-coverage";
+import { formatInteger } from "@/lib/shared/format";
+import { gapsOverLimit } from "@/lib/shared/market-data/gaps";
 import { useStrategies } from "@/hooks/shared/use-catalog";
 import { useCapabilities } from "@/hooks/shared/use-system";
 import { errorMessage } from "@/lib/shared/api/messages";
@@ -33,16 +43,35 @@ import type { Strategy } from "@/lib/shared/strategies/strategies.api";
 
 const TIMEFRAMES = Object.values(Timeframe).map((value) => ({ label: value, value }));
 
-function BacktestForm({ strategies, exchanges }: { strategies: Strategy[]; exchanges: string[] }) {
+type BacktestFormProps = {
+  strategies: Strategy[];
+  exchanges: string[];
+  prefill: BacktestPrefill;
+};
+
+function BacktestForm({ strategies, exchanges, prefill }: BacktestFormProps) {
   const navigate = useNavigate();
   const client = useQueryClient();
   const [values, setValues] = useState<BacktestFormValues>(() =>
-    defaultBacktestValues(strategies[0]),
+    applyBacktestPrefill(defaultBacktestValues(strategies[0]), prefill, strategies),
   );
   const [error, setError] = useState<string | null>(null);
   const strategy = strategies.find((item) => item.type_key === values.strategyType);
   const set = <K extends keyof BacktestFormValues>(key: K, value: BacktestFormValues[K]) =>
     setValues((current) => ({ ...current, [key]: value }));
+
+  const validRange = isDayString(values.start) && isDayString(values.end);
+  const coverage = useRangeCoverage({
+    exchange: values.exchange,
+    symbol: values.symbol,
+    timeframe: values.timeframe,
+    start: values.start,
+    end: values.end,
+  });
+  const range = validRange ? (coverage.data?.in_range ?? null) : null;
+  const blockedByGaps = gapsOverLimit(range, values.timeframe) && !values.allowGaps;
+  const advice = sampleAdvice(strategy, values.params, range?.expected ?? 0);
+  const fractionWarning = testFractionWarning(values.testFraction);
 
   const grid = values.sweep ? buildGrid(strategy, values.grid) : {};
   const gridProblem = typeof grid === "string" ? grid : values.sweep ? gridError(grid) : undefined;
@@ -76,6 +105,12 @@ function BacktestForm({ strategies, exchanges }: { strategies: Strategy[]; excha
         setError(null);
         if (gridProblem !== undefined) {
           setError(gridProblem);
+          return;
+        }
+        if (blockedByGaps) {
+          setError(
+            "Há lacunas acima do limite: importe os candles ou marque “Rodar mesmo com lacunas”.",
+          );
           return;
         }
         mutation.mutate();
@@ -128,15 +163,31 @@ function BacktestForm({ strategies, exchanges }: { strategies: Strategy[]; excha
               ]}
             />
           </div>
-          {isDayString(values.start) && isDayString(values.end) ? (
+          {validRange ? (
             <CoverageNotice
               exchange={values.exchange}
-              symbol={values.symbol.trim().toUpperCase()}
+              symbol={values.symbol}
               timeframe={values.timeframe}
               start={values.start}
               end={values.end}
             />
           ) : null}
+          {gapsOverLimit(range, values.timeframe) ? (
+            <FormCheckbox
+              label="Rodar mesmo com lacunas"
+              description="O motor executa os sinais na próxima abertura disponível; as lacunas ficam registradas no resultado."
+              value={values.allowGaps}
+              onValueChange={(value) => set("allowGaps", value)}
+            />
+          ) : null}
+          {range === null || range.expected === 0 ? null : (
+            <p className={advice.enough ? "text-sm text-muted-foreground" : "text-sm text-warning"}>
+              Este período tem ~{formatInteger(range.expected)} candles. Com {advice.freeParameters}{" "}
+              parâmetros livres, a regra prática do livro pede pelo menos{" "}
+              {formatInteger(advice.minBars)} observações (252 por parâmetro)
+              {advice.enough ? "." : ": amostra curta para tantos parâmetros."}
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -146,6 +197,12 @@ function BacktestForm({ strategies, exchanges }: { strategies: Strategy[]; excha
           <CardDescription>{strategy?.description}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {strategy?.too_many_parameters === true ? (
+            <p className="text-sm text-warning">
+              Esta estratégia tem {strategy.parameter_count} parâmetros; o livro sugere no máximo{" "}
+              {MAX_PARAMETERS} para não ajustar ao ruído.
+            </p>
+          ) : null}
           <FormSelect
             label="Estratégia"
             items={strategies.map((item) => ({ label: item.name, value: item.type_key }))}
@@ -250,6 +307,54 @@ function BacktestForm({ strategies, exchanges }: { strategies: Strategy[]; excha
               rules.maxLength(8),
             ]}
           />
+          {fractionWarning === undefined ? null : (
+            <p className="text-sm text-warning sm:col-span-2 lg:col-span-5">{fractionWarning}</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <BotLikeCard
+        values={values}
+        onChange={(next) => setValues((current) => ({ ...current, ...next }))}
+      />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Robustez e tolerância</CardTitle>
+          <CardDescription>
+            Opcional. Mostra se o resultado aguenta custos maiores e se cabe no drawdown que você
+            aceita.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {values.sweep ? (
+            <p className="text-sm text-muted-foreground sm:col-span-2 lg:col-span-1">
+              A sensibilidade a custos é por backtest: rode-a no resultado escolhido da varredura.
+            </p>
+          ) : (
+            <FormSwitch
+              label="Testar sensibilidade a custos"
+              description="Repete a simulação com taxa e slippage de 0× a 3× e mostra onde o lucro some. Mais lento."
+              value={values.costSensitivity}
+              onValueChange={(value) => set("costSensitivity", value)}
+            />
+          )}
+          <FormInput
+            label="Drawdown máximo aceitável (%)"
+            inputMode="decimal"
+            description="Vazio desliga. O drawdown real costuma ser maior que o simulado."
+            value={values.toleranceDrawdownPct}
+            onValueChange={(value) => set("toleranceDrawdownPct", value)}
+            rules={[(value) => decimalError(value ?? "", false)]}
+          />
+          <FormInput
+            label="Tempo máximo abaixo do pico (dias)"
+            inputMode="numeric"
+            description="Vazio desliga."
+            value={values.toleranceDrawdownDays}
+            onValueChange={(value) => set("toleranceDrawdownDays", value)}
+            rules={[(value) => integerError(value ?? "")]}
+          />
         </CardContent>
       </Card>
 
@@ -259,7 +364,7 @@ function BacktestForm({ strategies, exchanges }: { strategies: Strategy[]; excha
         </p>
       )}
       <div className="flex gap-2">
-        <Button type="submit" disabled={mutation.isPending}>
+        <Button type="submit" disabled={mutation.isPending || blockedByGaps}>
           {mutation.isPending ? "Enviando…" : values.sweep ? "Rodar varredura" : "Rodar backtest"}
         </Button>
         <Button type="button" variant="outline" onClick={() => void navigate({ to: "/backtests" })}>
@@ -270,7 +375,7 @@ function BacktestForm({ strategies, exchanges }: { strategies: Strategy[]; excha
   );
 }
 
-export function BacktestFormPage() {
+export function BacktestFormPage({ prefill = {} }: { prefill?: BacktestPrefill }) {
   const strategies = useStrategies();
   const capabilities = useCapabilities();
   return (
@@ -287,6 +392,7 @@ export function BacktestFormPage() {
         <BacktestForm
           strategies={strategies.data}
           exchanges={capabilities.data?.exchanges ?? ["binance"]}
+          prefill={prefill}
         />
       )}
     </div>

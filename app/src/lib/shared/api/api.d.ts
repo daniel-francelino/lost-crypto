@@ -44,6 +44,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/health/worker": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Worker
+         * @description Is the worker alive? 503 when its heartbeat is older than WORKER_STALE_AFTER_SECONDS.
+         *
+         *     For a monitor OUTSIDE this host (book 1 ch. 4, O3): the only way to learn that the whole
+         *     machine is down while nobody has the app open. Unauthenticated and without sensitive data.
+         */
+        get: operations["worker_api_v1_health_worker_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -289,9 +312,54 @@ export interface paths {
         };
         /**
          * Get Coverage
-         * @description What is stored for a series, including detected gaps.
+         * @description What is stored for a series, including detected gaps (and those inside start/end).
          */
         get: operations["get_coverage_api_v1_market_data_coverage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market-data/outliers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Outliers
+         * @description Close-to-close moves beyond ``k`` standard deviations (Chan suggests ~4) to review.
+         *
+         *     Flags, never deletes: crashes are real. Each one comes with the same-candle move of
+         *     BTC/USDT when stored, as a hint of a market-wide move.
+         */
+        get: operations["get_outliers_api_v1_market_data_outliers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market-data/listings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Listings
+         * @description Pairs the exchange listed, from daily snapshots taken by the worker.
+         *
+         *     The history starts on the day the snapshots began: older delistings are unknown.
+         */
+        get: operations["get_listings_api_v1_market_data_listings_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -340,8 +408,8 @@ export interface paths {
          * @description Queue one backtest per parameter combination of ``grid`` and compare them.
          *
          *     Combinations the strategy rejects (e.g. fast >= slow) are skipped and reported. With
-         *     ``test_fraction`` set, rank by the test (out-of-sample) return to avoid picking an overfit
-         *     parameter set.
+         *     ``test_fraction`` set, runs are ranked by the train part and the test part checks the
+         *     winner; choosing by the test part would turn it into selection data.
          */
         post: operations["create_sweep_api_v1_backtests_sweeps_post"];
         delete?: never;
@@ -761,6 +829,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bots/{bot_id}/execution-quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Execution Quality
+         * @description Realized slippage and latency of the bot's filled orders against its assumption.
+         */
+        get: operations["get_execution_quality_api_v1_bots__bot_id__execution_quality_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bots/{bot_id}/parity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Parity */
+        get: operations["get_parity_api_v1_bots__bot_id__parity_get"];
+        put?: never;
+        /**
+         * Request Parity
+         * @description Queue a replay of the bot's latest session through the backtester (the worker runs it)
+         *     and a comparison of signals and trades. Read-only: the bot is not affected.
+         */
+        post: operations["request_parity_api_v1_bots__bot_id__parity_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bots/{bot_id}/divergence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Divergence
+         * @description Chan's checklist for "why does it differ from the backtest?", in his order. Never
+         *     concludes bad luck: it cannot be proven.
+         */
+        get: operations["get_divergence_api_v1_bots__bot_id__divergence_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/kill-switch": {
         parameters: {
             query?: never;
@@ -979,6 +1110,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/exchange-connections/{connection_id}/recheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recheck Connection
+         * @description Ask the exchange now what this ACTIVE key may do (the worker also does it daily).
+         *
+         *     A key that turned unacceptable keeps working for exits but gets ``permission_warning``,
+         *     which blocks new entries until it is fixed and checked again.
+         */
+        post: operations["recheck_connection_api_v1_exchange_connections__connection_id__recheck_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1136,6 +1290,35 @@ export interface components {
              * @description Hold out this share of the series (at the end) as an out-of-sample test part. Train and test metrics are then reported separately in `segments`.
              */
             test_fraction?: number | string | null;
+            /**
+             * Cost Sensitivity
+             * @description Also re-run the backtest with fee and slippage scaled by 0, 0.5, 1, 1.5, 2 and 3 and report the break-even cost in `cost_ladder`. Slower; limited to 50,000 candles.
+             * @default false
+             */
+            cost_sensitivity: boolean;
+            /**
+             * Max Drawdown Tolerance Pct
+             * @description Deepest drawdown the operator accepts; `tolerance` flags runs beyond it.
+             */
+            max_drawdown_tolerance_pct?: number | string | null;
+            /**
+             * Max Drawdown Tolerance Days
+             * @description Longest drawdown (days below the peak) the operator accepts.
+             */
+            max_drawdown_tolerance_days?: number | null;
+            /**
+             * @description `next_open`: fill at the next candle's open (default). `signal_close`: fill at the close of the signal candle, like the bots do (use it to compare with a bot).
+             * @default next_open
+             */
+            fill_timing: components["schemas"]["FillTiming"];
+            /** @description Size and pause exactly like a bot with these limits (the bot's risk module). Null keeps the all-in sizing. */
+            risk?: components["schemas"]["RiskLimitsIn-Input"] | null;
+            /**
+             * Allow Gaps
+             * @description Run even when the range misses more than 1% of its candles or has a hole longer than 24 h (otherwise 422). The gaps are reported in `data_quality.gaps`.
+             * @default false
+             */
+            allow_gaps: boolean;
         };
         /** BacktestOut */
         BacktestOut: {
@@ -1176,6 +1359,16 @@ export interface components {
             seed: number;
             /** Test Fraction */
             test_fraction: string | null;
+            /** Cost Sensitivity */
+            cost_sensitivity: boolean;
+            /** Max Drawdown Tolerance Pct */
+            max_drawdown_tolerance_pct: string | null;
+            /** Max Drawdown Tolerance Days */
+            max_drawdown_tolerance_days: number | null;
+            /** Allow Gaps */
+            allow_gaps: boolean;
+            fill_timing: components["schemas"]["FillTiming"];
+            risk: components["schemas"]["RiskLimitsIn-Output"] | null;
             /** Sweep Id */
             sweep_id: string | null;
             /** Data Hash */
@@ -1184,6 +1377,11 @@ export interface components {
             candles_count: number | null;
             metrics: components["schemas"]["MetricsOut"] | null;
             segments: components["schemas"]["SegmentsOut"] | null;
+            periods: components["schemas"]["PeriodsOut"] | null;
+            cost_ladder: components["schemas"]["CostLadderOut"] | null;
+            tolerance: components["schemas"]["ToleranceOut"] | null;
+            data_quality: components["schemas"]["DataQualityOut"] | null;
+            risk_report: components["schemas"]["RiskReportOut"] | null;
             /** Error */
             error: string | null;
             /**
@@ -1195,6 +1393,32 @@ export interface components {
             started_at: string | null;
             /** Finished At */
             finished_at: string | null;
+        };
+        /** BackupOut */
+        BackupOut: {
+            last_backup: components["schemas"]["BackupRecordOut"] | null;
+            last_restore_check: components["schemas"]["BackupRecordOut"] | null;
+            /**
+             * Overdue
+             * @description No successful backup in 26 h, or the last restore check failed.
+             */
+            overdue: boolean;
+        };
+        /** BackupRecordOut */
+        BackupRecordOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Ok */
+            ok: boolean;
+            /** File */
+            file: string | null;
+            /** Size Bytes */
+            size_bytes: number | null;
+            /** Detail */
+            detail: string | null;
         };
         /** BotCreate */
         BotCreate: {
@@ -1236,7 +1460,7 @@ export interface components {
              * @default 5
              */
             slippage_bps: number | string;
-            risk?: components["schemas"]["RiskIn-Input"];
+            risk?: components["schemas"]["RiskLimitsIn-Input"];
             /**
              * Mode
              * @default paper
@@ -1275,7 +1499,7 @@ export interface components {
             fee_rate: string;
             /** Slippage Bps */
             slippage_bps: string;
-            risk: components["schemas"]["RiskIn-Output"];
+            risk: components["schemas"]["RiskLimitsIn-Output"];
             mode: components["schemas"]["ExecutionMode"];
             /** Connection Id */
             connection_id: string | null;
@@ -1369,7 +1593,7 @@ export interface components {
             fee_rate?: number | string | null;
             /** Slippage Bps */
             slippage_bps?: number | string | null;
-            risk?: components["schemas"]["RiskIn-Input"] | null;
+            risk?: components["schemas"]["RiskLimitsIn-Input"] | null;
             /** Mode */
             mode?: ("paper" | "testnet") | null;
             /** Connection Id */
@@ -1392,6 +1616,16 @@ export interface components {
             close: string;
             /** Volume */
             volume: string;
+        };
+        /** CandleSampleOut */
+        CandleSampleOut: {
+            /**
+             * Open Time
+             * Format: date-time
+             */
+            open_time: string;
+            /** Problems */
+            problems: string[];
         };
         /**
          * CapabilitiesOut
@@ -1438,6 +1672,26 @@ export interface components {
             ok: boolean;
             /** Detail */
             detail: string;
+        };
+        /** ClockOut */
+        ClockOut: {
+            /**
+             * Skew Ms
+             * @description Local clock minus the exchange's, in ms.
+             */
+            skew_ms: number | null;
+            /** Measured At */
+            measured_at: string | null;
+            /**
+             * Warning
+             * @description Beyond 1 s.
+             */
+            warning: boolean;
+            /**
+             * Blocking Live
+             * @description Beyond 5 s: no new live positions are opened.
+             */
+            blocking_live: boolean;
         };
         /** ConnectionCreate */
         ConnectionCreate: {
@@ -1496,12 +1750,63 @@ export interface components {
             created_at: string;
             /** Verified At */
             verified_at: string | null;
+            /** @description What the key could do at the last check. */
+            permissions?: components["schemas"]["PermissionsOut"] | null;
+            /**
+             * Status Reason
+             * @description Why the last check refused the key (null when accepted).
+             */
+            status_reason?: string | null;
+            /** Last Checked At */
+            last_checked_at?: string | null;
+            /**
+             * Permission Warning
+             * @description An ACTIVE key that later became unacceptable: new entries are refused, exits continue, until the key is fixed and checked again.
+             */
+            permission_warning?: string | null;
         };
         /**
          * ConnectionStatus
          * @enum {string}
          */
         ConnectionStatus: "active" | "disabled" | "invalid" | "pending";
+        /** CostLadderOut */
+        CostLadderOut: {
+            /** Levels */
+            levels: components["schemas"]["CostLevelOut"][];
+            /**
+             * Break Even Status
+             * @description `found`, `never_profitable` or `above_max`.
+             */
+            break_even_status: string;
+            /** Break Even Multiplier */
+            break_even_multiplier: string | null;
+            /** Break Even Cost Per Side Bps */
+            break_even_cost_per_side_bps: string | null;
+            /** Note */
+            note: string;
+        };
+        /** CostLevelOut */
+        CostLevelOut: {
+            /** Multiplier */
+            multiplier: string;
+            /** Fee Rate */
+            fee_rate: string;
+            /** Slippage Bps */
+            slippage_bps: string;
+            /** Cost Per Side Bps */
+            cost_per_side_bps: string;
+            /** Net Pnl */
+            net_pnl: string;
+            /** Total Return Pct */
+            total_return_pct: string;
+            /** Sharpe Ratio */
+            sharpe_ratio: string | null;
+            /** Round Trips */
+            round_trips: number;
+            /** Fees Paid */
+            fees_paid: string;
+        };
         /** CoverageOut */
         CoverageOut: {
             /** Exchange */
@@ -1515,8 +1820,34 @@ export interface components {
             first: string | null;
             /** Last */
             last: string | null;
-            /** Gaps */
+            /**
+             * Gaps
+             * @description Gaps of the whole stored series.
+             */
             gaps: components["schemas"]["GapOut"][];
+            /** @description Gaps inside start/end, when both were given. */
+            in_range?: components["schemas"]["RangeCoverageOut"] | null;
+        };
+        /**
+         * DataQualityOut
+         * @description What the result rests on. Older runs miss some or all of it.
+         */
+        DataQualityOut: {
+            gaps?: components["schemas"]["GapsSummaryOut"] | null;
+            /** Invalid Candles */
+            invalid_candles?: number | null;
+            /** Invalid Samples */
+            invalid_samples?: components["schemas"]["CandleSampleOut"][];
+            /** Outlier Sigmas */
+            outlier_sigmas?: string | null;
+            /**
+             * Outliers
+             * @description Close-to-close moves beyond outlier_sigmas std. deviations.
+             */
+            outliers?: number | null;
+            /** Outlier Samples */
+            outlier_samples?: components["schemas"]["OutlierSampleOut"][];
+            sample?: components["schemas"]["SampleCheckOut"] | null;
         };
         /**
          * Environment
@@ -1538,6 +1869,45 @@ export interface components {
          * @enum {string}
          */
         ExecutionMode: "paper" | "testnet" | "live";
+        /** ExecutionQualityOut */
+        ExecutionQualityOut: {
+            /** Configured Slippage Bps */
+            configured_slippage_bps: string;
+            /**
+             * By Type
+             * @description Per order type: orders, slippage_bps {mean, median, worst}, latency_ms {mean, max}.
+             */
+            by_type: {
+                [key: string]: unknown;
+            };
+            /**
+             * Above Configured
+             * @description Realized market-order slippage above the assumption (+1 bps tolerance).
+             */
+            above_configured: boolean;
+        };
+        /**
+         * FillTiming
+         * @description When a signal is filled (book 1 ch. 5): at the next candle's open (the backtest's
+         *     default), or at the close of the signal candle, which is what the bots do.
+         * @enum {string}
+         */
+        FillTiming: "next_open" | "signal_close";
+        /** GapItemOut */
+        GapItemOut: {
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Missing */
+            missing: number;
+        };
         /** GapOut */
         GapOut: {
             /**
@@ -1552,6 +1922,30 @@ export interface components {
             end: string;
             /** Missing */
             missing: number;
+        };
+        /** GapsSummaryOut */
+        GapsSummaryOut: {
+            /** Expected */
+            expected: number;
+            /** Present */
+            present: number;
+            /** Missing */
+            missing: number;
+            /** Gap Count */
+            gap_count: number;
+            /** Largest Gap Candles */
+            largest_gap_candles: number;
+            /** Largest Gap Seconds */
+            largest_gap_seconds: number;
+            /** Over Limit */
+            over_limit: boolean;
+            /** Allowed */
+            allowed: boolean;
+            /**
+             * Gaps
+             * @description Up to 20 gaps.
+             */
+            gaps: components["schemas"]["GapItemOut"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1604,6 +1998,25 @@ export interface components {
             started_at: string | null;
             /** Finished At */
             finished_at: string | null;
+            /**
+             * Candles Rejected
+             * @description Invalid candles (e.g. high below close) that were not stored.
+             * @default 0
+             */
+            candles_rejected: number;
+            /**
+             * Candles Changed
+             * @description Stored candles the exchange now reports differently (updated).
+             * @default 0
+             */
+            candles_changed: number;
+            /**
+             * Rejection Samples
+             * @description Up to 20 rejected candles with their problem codes.
+             */
+            rejection_samples?: {
+                [key: string]: unknown;
+            }[];
         };
         /** ImportRequest */
         ImportRequest: {
@@ -1655,6 +2068,31 @@ export interface components {
             /** Changed At */
             changed_at: string | null;
         };
+        /** ListingOut */
+        ListingOut: {
+            /** Exchange */
+            exchange: string;
+            /** Symbol */
+            symbol: string;
+            /**
+             * Status
+             * @description `active`, `inactive` (listed but halted) or `delisted`.
+             */
+            status: string;
+            /**
+             * First Seen
+             * Format: date-time
+             * @description First daily snapshot that listed the pair.
+             */
+            first_seen: string;
+            /**
+             * Last Seen
+             * Format: date-time
+             */
+            last_seen: string;
+            /** Delisted At */
+            delisted_at: string | null;
+        };
         /** LoginIn */
         LoginIn: {
             /** Username */
@@ -1700,6 +2138,60 @@ export interface components {
             open_position: boolean;
             /** Rejected Signals */
             rejected_signals: number;
+            /**
+             * Sharpe Ratio
+             * @description Annualised (365 days), risk-free rate 0. Null below 30 returns.
+             */
+            sharpe_ratio?: string | null;
+            /** Sortino Ratio */
+            sortino_ratio?: string | null;
+            /**
+             * Information Ratio
+             * @description Sharpe of the excess return over holding the same asset.
+             */
+            information_ratio?: string | null;
+            /**
+             * Annualized Return Pct
+             * @description Geometric; null for spans shorter than 30 days.
+             */
+            annualized_return_pct?: string | null;
+            /** Annualized Volatility Pct */
+            annualized_volatility_pct?: string | null;
+            /**
+             * Exposure Pct
+             * @description Share of bars with an open position.
+             */
+            exposure_pct?: string | null;
+            /**
+             * Return Periods
+             * @description Number of periodic returns behind the ratios.
+             */
+            return_periods?: number | null;
+            /**
+             * Return Gaps
+             * @description Steps skipped because the equity curve had a hole.
+             */
+            return_gaps?: number | null;
+            /** Annualization Factor */
+            annualization_factor?: string | null;
+            /**
+             * Max Drawdown Duration Seconds
+             * @description Longest time from a peak until equity was back at it.
+             */
+            max_drawdown_duration_seconds?: number | null;
+            /** Max Drawdown Duration Bars */
+            max_drawdown_duration_bars?: number | null;
+            /** Max Drawdown Peak At */
+            max_drawdown_peak_at?: string | null;
+            /** Max Drawdown Trough At */
+            max_drawdown_trough_at?: string | null;
+            /** Current Drawdown Pct */
+            current_drawdown_pct?: string | null;
+            /**
+             * Drawdown Open
+             * @description The curve ends below its high watermark (not recovered).
+             */
+            drawdown_open?: boolean | null;
         };
         /** OrderOut */
         OrderOut: {
@@ -1736,12 +2228,64 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Reference Price
+             * @description Price of the decision: signal candle close or stop trigger.
+             */
+            reference_price?: string | null;
+            /** Submitted At */
+            submitted_at?: string | null;
+            /** First Fill At */
+            first_fill_at?: string | null;
+            /**
+             * Slippage Bps
+             * @description Adverse move from the reference to the fill (bps).
+             */
+            slippage_bps?: string | null;
+            /**
+             * Latency Ms
+             * @description Decision to first fill.
+             */
+            latency_ms?: number | null;
         };
         /**
          * OrderStatus
          * @enum {string}
          */
         OrderStatus: "INTENT" | "SUBMITTING" | "OPEN" | "PARTIALLY_FILLED" | "FILLED" | "CANCELED" | "REJECTED" | "EXPIRED" | "UNKNOWN";
+        /** OutlierOut */
+        OutlierOut: {
+            /**
+             * Open Time
+             * Format: date-time
+             */
+            open_time: string;
+            /** Close */
+            close: string;
+            /** Return Pct */
+            return_pct: string;
+            /** Sigmas */
+            sigmas: string;
+            /** Reference Symbol */
+            reference_symbol: string | null;
+            /**
+             * Reference Return Pct
+             * @description Same-candle move of the reference pair: if it also moved, it was probably a market-wide move, not bad data.
+             */
+            reference_return_pct: string | null;
+        };
+        /** OutlierSampleOut */
+        OutlierSampleOut: {
+            /**
+             * Open Time
+             * Format: date-time
+             */
+            open_time: string;
+            /** Return Pct */
+            return_pct: string;
+            /** Sigmas */
+            sigmas: string;
+        };
         /** ParamOut */
         ParamOut: {
             /** Name */
@@ -1754,6 +2298,78 @@ export interface components {
             minimum: number | null;
             /** Description */
             description: string;
+        };
+        /** ParityOut */
+        ParityOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Status
+             * @description queued | running | completed | failed
+             */
+            status: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Finished At */
+            finished_at: string | null;
+            /** Unexplained */
+            unexplained: number | null;
+            /**
+             * Summary
+             * @description counts by class, verdict, differences, returns, replay_equity.
+             */
+            summary: {
+                [key: string]: unknown;
+            } | null;
+            /** Error */
+            error: string | null;
+        };
+        /** PeriodOut */
+        PeriodOut: {
+            /** Label */
+            label: string;
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Candles */
+            candles: number;
+            metrics: components["schemas"]["MetricsOut"];
+        };
+        /** PeriodsOut */
+        PeriodsOut: {
+            /**
+             * Granularity
+             * @description `year`, or `quarter` when the run spans < 2 years.
+             */
+            granularity: string;
+            /** Periods */
+            periods: components["schemas"]["PeriodOut"][];
+        };
+        /** PermissionsOut */
+        PermissionsOut: {
+            /** Can Read */
+            can_read: boolean;
+            /** Can Trade */
+            can_trade: boolean;
+            /** Can Withdraw */
+            can_withdraw: boolean;
+            /** Can Transfer */
+            can_transfer: boolean;
+            /** Ip Restricted */
+            ip_restricted: boolean;
         };
         /** PortfolioOut */
         PortfolioOut: {
@@ -1815,6 +2431,35 @@ export interface components {
              */
             connection_id: string;
         };
+        /** RangeCoverageOut */
+        RangeCoverageOut: {
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /**
+             * Expected
+             * @description Closed candles the range should have.
+             */
+            expected: number;
+            /** Present */
+            present: number;
+            /** Missing */
+            missing: number;
+            /**
+             * Largest Gap
+             * @description Candles missing in the largest single hole.
+             */
+            largest_gap: number;
+            /** Gaps */
+            gaps: components["schemas"]["GapOut"][];
+        };
         /** ReadinessOut */
         ReadinessOut: {
             /** Ready */
@@ -1822,8 +2467,11 @@ export interface components {
             /** Checks */
             checks: components["schemas"]["CheckOut"][];
         };
-        /** RiskIn */
-        "RiskIn-Input": {
+        /**
+         * RiskLimitsIn
+         * @description A bot's risk limits; also accepted by backtests to size and pause exactly like the bot.
+         */
+        "RiskLimitsIn-Input": {
             /**
              * Max Position Fraction
              * @default 1
@@ -1852,9 +2500,17 @@ export interface components {
              * @default 25
              */
             max_candle_range_pct: number | string | null;
+            /**
+             * Max Order Pct Of Volume
+             * @description Cap an order at this % of the average traded value of the last 20 candles (Chan's rule of thumb: ~1% of daily volume, for stocks). Null = off.
+             */
+            max_order_pct_of_volume?: number | string | null;
         };
-        /** RiskIn */
-        "RiskIn-Output": {
+        /**
+         * RiskLimitsIn
+         * @description A bot's risk limits; also accepted by backtests to size and pause exactly like the bot.
+         */
+        "RiskLimitsIn-Output": {
             /**
              * Max Position Fraction
              * @default 1
@@ -1883,12 +2539,89 @@ export interface components {
              * @default 25
              */
             max_candle_range_pct: string | null;
+            /**
+             * Max Order Pct Of Volume
+             * @description Cap an order at this % of the average traded value of the last 20 candles (Chan's rule of thumb: ~1% of daily volume, for stocks). Null = off.
+             */
+            max_order_pct_of_volume?: string | null;
+        };
+        /** RiskReportOut */
+        RiskReportOut: {
+            /**
+             * Sizing
+             * @description `all_in` or `risk_limits`.
+             */
+            sizing: string;
+            /** Paused At */
+            paused_at: string | null;
+            /** Paused Reason */
+            paused_reason: string | null;
+            /**
+             * Refusals
+             * @description Refused signals by reason.
+             */
+            refusals: {
+                [key: string]: number;
+            };
+        };
+        /** RobustnessOut */
+        RobustnessOut: {
+            /**
+             * Verdict
+             * @description `plateau`, `peak`, `unprofitable` or `insufficient`.
+             */
+            verdict: string;
+            metric: components["schemas"]["SweepRankBy"];
+            /** Winner Score */
+            winner_score: string | null;
+            /** Neighbours */
+            neighbours: number;
+            /** Neighbour Mean */
+            neighbour_mean: string | null;
+            /** Neighbour Min */
+            neighbour_min: string | null;
+            /**
+             * Neighbour Ratio
+             * @description Neighbour mean / winner score.
+             */
+            neighbour_ratio: string | null;
+            /**
+             * Profitable Share
+             * @description % of scored combinations above 0.
+             */
+            profitable_share: string | null;
+            /** Median */
+            median: string | null;
+            /** Top3 Mean */
+            top3_mean: string | null;
+            /** Scored */
+            scored: number;
         };
         /**
          * Role
          * @enum {string}
          */
         Role: "admin" | "viewer";
+        /** SampleCheckOut */
+        SampleCheckOut: {
+            /** Free Parameters */
+            free_parameters: number;
+            /** Bars */
+            bars: number;
+            /** Round Trips */
+            round_trips: number;
+            /**
+             * Min Bars
+             * @description 252 x free parameters (Chan's rule of thumb).
+             */
+            min_bars: number;
+            /** Min Round Trips */
+            min_round_trips: number;
+            /** Meets Bar Rule */
+            meets_bar_rule: boolean;
+            /** Meets Trade Rule */
+            meets_trade_rule: boolean;
+        };
         /** SegmentsOut */
         SegmentsOut: {
             /**
@@ -1951,6 +2684,28 @@ export interface components {
              */
             confirmation_token?: string | null;
         };
+        /** StepOut */
+        StepOut: {
+            /**
+             * Key
+             * @description bugs | trades | costs | liquidity | snooping | regime
+             */
+            key: string;
+            /**
+             * State
+             * @description ok | attention | no_data
+             */
+            state: string;
+            /** Detail */
+            detail: string;
+            /**
+             * Values
+             * @description The numbers behind the detail.
+             */
+            values?: {
+                [key: string]: string | number | null;
+            };
+        };
         /** StrategyOut */
         StrategyOut: {
             /** Type Key */
@@ -1961,6 +2716,13 @@ export interface components {
             description: string;
             /** Parameters */
             parameters: components["schemas"]["ParamOut"][];
+            /**
+             * Parameter Count
+             * @description Configurable parameters. Chan's rule of thumb: at most 5 (book 1 ch. 3).
+             */
+            parameter_count: number;
+            /** Too Many Parameters */
+            too_many_parameters: boolean;
         };
         /** SweepCreate */
         SweepCreate: {
@@ -2028,6 +2790,35 @@ export interface components {
              */
             test_fraction?: number | string | null;
             /**
+             * Cost Sensitivity
+             * @description Also re-run the backtest with fee and slippage scaled by 0, 0.5, 1, 1.5, 2 and 3 and report the break-even cost in `cost_ladder`. Slower; limited to 50,000 candles.
+             * @default false
+             */
+            cost_sensitivity: boolean;
+            /**
+             * Max Drawdown Tolerance Pct
+             * @description Deepest drawdown the operator accepts; `tolerance` flags runs beyond it.
+             */
+            max_drawdown_tolerance_pct?: number | string | null;
+            /**
+             * Max Drawdown Tolerance Days
+             * @description Longest drawdown (days below the peak) the operator accepts.
+             */
+            max_drawdown_tolerance_days?: number | null;
+            /**
+             * @description `next_open`: fill at the next candle's open (default). `signal_close`: fill at the close of the signal candle, like the bots do (use it to compare with a bot).
+             * @default next_open
+             */
+            fill_timing: components["schemas"]["FillTiming"];
+            /** @description Size and pause exactly like a bot with these limits (the bot's risk module). Null keeps the all-in sizing. */
+            risk?: components["schemas"]["RiskLimitsIn-Input"] | null;
+            /**
+             * Allow Gaps
+             * @description Run even when the range misses more than 1% of its candles or has a hole longer than 24 h (otherwise 422). The gaps are reported in `data_quality.gaps`.
+             * @default false
+             */
+            allow_gaps: boolean;
+            /**
              * Grid
              * @description Parameter name -> values to try. One run per combination (max 200).
              * @example {
@@ -2074,13 +2865,28 @@ export interface components {
             skipped: {
                 [key: string]: unknown;
             }[];
-            /** Ranked By */
-            ranked_by: string;
+            /**
+             * Trials
+             * @description Parameter combinations tried, including skipped ones.
+             */
+            trials: number;
+            /**
+             * Prior Trials
+             * @description Approximate: earlier completed runs of the same strategy on overlapping data (same exchange, symbol and timeframe) outside this sweep.
+             */
+            prior_trials: number;
+            ranked_by: components["schemas"]["SweepRankBy"];
             /** Note */
             note: string;
+            robustness: components["schemas"]["RobustnessOut"] | null;
             /** Runs */
             runs: components["schemas"]["SweepRunOut"][];
         };
+        /**
+         * SweepRankBy
+         * @enum {string}
+         */
+        SweepRankBy: "total_return_pct" | "train_return_pct" | "test_return_pct" | "sharpe_ratio" | "train_sharpe_ratio" | "test_sharpe_ratio";
         /** SweepRunOut */
         SweepRunOut: {
             /**
@@ -2093,10 +2899,21 @@ export interface components {
             strategy_params: {
                 [key: string]: unknown;
             };
-            /** Total Return Pct */
+            /**
+             * Total Return Pct
+             * @description Whole period (train + test).
+             */
             total_return_pct: string | null;
+            /** Train Return Pct */
+            train_return_pct: string | null;
             /** Test Return Pct */
             test_return_pct: string | null;
+            /** Sharpe Ratio */
+            sharpe_ratio: string | null;
+            /** Train Sharpe Ratio */
+            train_sharpe_ratio: string | null;
+            /** Test Sharpe Ratio */
+            test_sharpe_ratio: string | null;
             /** Max Drawdown Pct */
             max_drawdown_pct: string | null;
             /** Round Trips */
@@ -2118,6 +2935,13 @@ export interface components {
             stale_bots: components["schemas"]["StaleBotOut"][];
             /** Exchanges */
             exchanges: string[];
+            /**
+             * Unprotected Positions
+             * @description Testnet/live positions with no stop resting on the exchange: exposed while the worker is down.
+             */
+            unprotected_positions?: components["schemas"]["UnprotectedPositionOut"][];
+            clock?: components["schemas"]["ClockOut"] | null;
+            backup?: components["schemas"]["BackupOut"] | null;
         };
         /**
          * Timeframe
@@ -2144,6 +2968,20 @@ export interface components {
             expires_in: number;
             user: components["schemas"]["UserOut"];
         };
+        /** ToleranceOut */
+        ToleranceOut: {
+            /** Max Drawdown Pct */
+            max_drawdown_pct: string | null;
+            /** Max Drawdown Days */
+            max_drawdown_days: number | null;
+            /** Exceeded Depth */
+            exceeded_depth: boolean | null;
+            /**
+             * Exceeded Duration
+             * @description Null when the run predates drawdown duration (not computed).
+             */
+            exceeded_duration: boolean | null;
+        };
         /** TradeOut */
         TradeOut: {
             /**
@@ -2160,6 +2998,24 @@ export interface components {
             fee: string;
             /** Notional */
             notional: string;
+        };
+        /** UnprotectedPositionOut */
+        UnprotectedPositionOut: {
+            /** Bot Id */
+            bot_id: string;
+            /** Name */
+            name: string;
+            /** Symbol */
+            symbol: string;
+            /** Mode */
+            mode: string;
+            /** Quantity */
+            quantity: string;
+            /**
+             * Stop Price
+             * @description Stop watched by the worker only (none on the exchange), when set.
+             */
+            stop_price: string | null;
         };
         /** UserCreate */
         UserCreate: {
@@ -2210,6 +3066,18 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** WorkerHealthResponse */
+        WorkerHealthResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "stale";
+            /** Last Heartbeat At */
+            last_heartbeat_at: string | null;
+            /** Age Seconds */
+            age_seconds: number | null;
         };
         /** WorkerOut */
         WorkerOut: {
@@ -2265,6 +3133,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    worker_api_v1_health_worker_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerHealthResponse"];
                 };
             };
         };
@@ -2663,6 +3551,8 @@ export interface operations {
                 symbol: string;
                 timeframe: components["schemas"]["Timeframe"];
                 exchange?: string;
+                start?: string | null;
+                end?: string | null;
             };
             header?: never;
             path?: never;
@@ -2677,6 +3567,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CoverageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_outliers_api_v1_market_data_outliers_get: {
+        parameters: {
+            query: {
+                symbol: string;
+                timeframe: components["schemas"]["Timeframe"];
+                start: string;
+                end: string;
+                k?: number | string;
+                exchange?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutlierOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_listings_api_v1_market_data_listings_get: {
+        parameters: {
+            query?: {
+                exchange?: string;
+                symbol?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingOut"][];
                 };
             };
             /** @description Validation Error */
@@ -2822,7 +3780,10 @@ export interface operations {
     };
     get_sweep_api_v1_backtests_sweeps__sweep_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Ranking criterion. Default: `train_return_pct` with a train/test split (the test part then stays a check, not a selection criterion), else `total_return_pct`. */
+                rank_by?: components["schemas"]["SweepRankBy"] | null;
+            };
             header?: never;
             path: {
                 sweep_id: string;
@@ -3506,6 +4467,130 @@ export interface operations {
             };
         };
     };
+    get_execution_quality_api_v1_bots__bot_id__execution_quality_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecutionQualityOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_parity_api_v1_bots__bot_id__parity_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParityOut"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_parity_api_v1_bots__bot_id__parity_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParityOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_divergence_api_v1_bots__bot_id__divergence_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_kill_switch_api_v1_system_kill_switch_get: {
         parameters: {
             query?: never;
@@ -3824,6 +4909,37 @@ export interface operations {
         };
     };
     disable_connection_api_v1_exchange_connections__connection_id__disable_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recheck_connection_api_v1_exchange_connections__connection_id__recheck_post: {
         parameters: {
             query?: never;
             header?: never;

@@ -26,6 +26,7 @@ from modules.bots.domain.models import BotState
 from modules.exchanges.application.connections import ConnectionResolver, ConnectionService
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.exchanges.infrastructure.catalog import build_exchange_registry
+from modules.market_data.application.listings import ListingRecorder
 from modules.market_data.application.ports import ImportStore
 from modules.market_data.application.service import CandleImporter, MarketDataService
 from modules.market_data.application.updater import (
@@ -42,7 +43,9 @@ from modules.risk_management.application.service import KillSwitchService
 from modules.risk_management.domain.models import GlobalRiskLimits, LiveLimits
 from modules.strategies.catalog import build_strategy_registry
 from modules.strategies.domain.registry import StrategyRegistry
+from modules.trading.application.operations import OperationsMonitor
 from modules.trading.application.orders import OrderExecutor
+from modules.trading.application.parity import ParityExecutor, ParityService
 from modules.trading.application.ports import TradingStore
 from modules.trading.application.reconciler import Reconciler
 from modules.trading.application.status import StatusService
@@ -74,6 +77,7 @@ class Container:
     alerts: AlertService
     alert_monitor: AlertMonitor
     status: StatusService
+    parity: ParityService
     connections: ConnectionService
     resolver: ConnectionResolver
     auth: AuthService
@@ -149,6 +153,7 @@ def build_container(
             live_allowed=settings.app_env is AppEnv.PROD,
         ),
         resolver=ConnectionResolver(trading_stores, vault, exchanges, clock),
+        parity=ParityService(trading_stores, clock, ids),
         status=status,
     )
 
@@ -162,12 +167,18 @@ class JobRunner:
         importer: CandleImporter,
         executor: BacktestExecutor,
         supervisor: BotSupervisor,
+        listings: ListingRecorder | None = None,
+        operations: OperationsMonitor | None = None,
+        parity: ParityExecutor | None = None,
         updater: CandleUpdater | None = None,
         alert_monitor: AlertMonitor | None = None,
     ) -> None:
         self._importer = importer
         self._executor = executor
         self._supervisor = supervisor
+        self._listings = listings
+        self._operations = operations
+        self._parity = parity
         self._updater = updater
         self._alert_monitor = alert_monitor
 
@@ -182,7 +193,11 @@ class JobRunner:
     async def run_once(self) -> bool:
         """One supervisor pass, the candle update and alert checks (each throttled by its own
         interval and never fatal), plus at most one job; False when there was no job to run."""
+        if self._operations is not None:
+            await self._operations.run_due()  # clock skew (once a minute), before trading on it
         await self._supervisor.run_once()
+        if self._listings is not None:
+            await self._listings.run_due()  # once a day; failures are logged, never raised
         if self._updater is not None:
             try:
                 await self._updater.run_if_due()
@@ -190,7 +205,11 @@ class JobRunner:
                 logger.exception("candle update failed")
         if self._alert_monitor is not None:
             await self._alert_monitor.run_worker_if_due()
-        return await self._importer.run_next() or await self._executor.run_next()
+        return (
+            await self._importer.run_next()
+            or await self._executor.run_next()
+            or (self._parity is not None and await self._parity.run_next())
+        )
 
 
 def build_alert_monitor(
@@ -290,6 +309,11 @@ def build_job_runner(container: Container) -> JobRunner:
             live_require_ip_restriction=settings.live_require_ip_restriction,
             reconcile_interval=timedelta(seconds=settings.reconcile_interval_seconds),
             stop_poll_interval=timedelta(seconds=settings.native_stop_poll_seconds),
+        ),
+        ListingRecorder(container.import_stores, container.exchanges, container.clock),
+        OperationsMonitor(container.trading_stores, container.exchanges, container.clock),
+        ParityExecutor(
+            container.trading_stores, container.registry, container.exchanges, container.clock
         ),
         updater,
         build_alert_monitor(

@@ -4,6 +4,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -51,6 +52,12 @@ class BacktestRunRow(Base):
     slippage_bps: Mapped[Decimal] = mapped_column(MONEY)
     seed: Mapped[int] = mapped_column(Integer)
     test_fraction: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
+    cost_sensitivity: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    max_drawdown_tolerance_pct: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
+    max_drawdown_tolerance_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    allow_gaps: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    fill_timing: Mapped[str] = mapped_column(Text, server_default="next_open")
+    risk_limits: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     sweep_id: Mapped[UUID | None] = mapped_column(ForeignKey("backtest_sweeps.id"), nullable=True)
     strategy_type: Mapped[str] = mapped_column(Text)
     strategy_params: Mapped[dict[str, Any]] = mapped_column(JSONB)
@@ -59,6 +66,10 @@ class BacktestRunRow(Base):
     candles_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     metrics: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     segments: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    periods: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    cost_ladder: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    data_quality: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    risk_report: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     equity_curve: Mapped[list[list[str]] | None] = mapped_column(JSONB, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

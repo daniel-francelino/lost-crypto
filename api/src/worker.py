@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import signal
+import sys
 import time
 from contextlib import suppress
 
@@ -83,7 +84,21 @@ async def _main() -> None:
         await container.engine.dispose()
 
 
+async def _healthcheck() -> int:
+    """Exit code 0 when the worker's heartbeat is fresh (Docker ``healthcheck``)."""
+    settings = get_settings()
+    container = build_container(settings)
+    try:
+        state = await container.status.worker_status()
+    finally:
+        await container.engine.dispose()
+    print(f"worker {'alive' if state.alive else 'STALE'}: heartbeat age {state.age_seconds}s")
+    return 0 if state.alive else 1
+
+
 def main() -> None:
+    if "--healthcheck" in sys.argv[1:]:
+        raise SystemExit(asyncio.run(_healthcheck()))
     with suppress(KeyboardInterrupt):
         asyncio.run(_main())
 

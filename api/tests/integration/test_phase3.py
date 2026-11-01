@@ -160,4 +160,13 @@ async def test_status_reports_worker_liveness_and_stale_bots(env: Env) -> None:
     assert bot_id in {b.bot_id for b in stale.stale_bots}
 
     api = (await env.http.get("/api/v1/system/status")).json()  # shape of the HTTP contract
-    assert set(api) == {"worker", "kill_switch", "bots_by_state", "stale_bots", "exchanges"}
+    assert set(api) == {
+        "worker",
+        "kill_switch",
+        "bots_by_state",
+        "stale_bots",
+        "exchanges",
+        "unprotected_positions",  # book 1 ch. 4
+        "clock",
+        "backup",
+    }

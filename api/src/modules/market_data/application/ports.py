@@ -1,11 +1,11 @@
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
 from core.jobs import JobStatus
-from modules.market_data.domain.models import Candle, MarketInfo, Timeframe
+from modules.market_data.domain.models import Candle, ListedMarket, Listing, MarketInfo, Timeframe
 
 
 class MarketDataSource(Protocol):
@@ -53,6 +53,13 @@ class CandleRepository(Protocol):
     ) -> list[datetime]: ...
 
 
+class ListingRepository(Protocol):
+    """Point-in-time listings per exchange (see ``application.listings``)."""
+
+    async def record(self, exchange: str, markets: list[ListedMarket], now: datetime) -> int: ...
+    async def list(self, exchange: str, symbol: str | None = None) -> list[Listing]: ...
+
+
 @dataclass(slots=True)
 class ImportJob:
     id: UUID
@@ -67,6 +74,20 @@ class ImportJob:
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+    # Data quality (book 1 ch. 3, O3): invalid candles are not stored; changed ones are counted.
+    candles_rejected: int = 0
+    candles_changed: int = 0
+    rejection_samples: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
+class ImportQuality:
+    rejected: int = 0
+    changed: int = 0
+    samples: tuple[dict[str, Any], ...] = ()
+
+
+NO_ISSUES = ImportQuality()
 
 
 class ImportStore(Protocol):
@@ -75,12 +96,19 @@ class ImportStore(Protocol):
     @property
     def candles(self) -> CandleRepository: ...
 
+    @property
+    def listings(self) -> ListingRepository: ...
+
     async def add_job(self, job: ImportJob) -> None: ...
     async def get_job(self, job_id: UUID) -> ImportJob | None: ...
     async def list_jobs(self, limit: int) -> list[ImportJob]: ...
     async def claim_next_queued(self) -> ImportJob | None: ...
     async def requeue_running(self) -> int: ...
-    async def set_progress(self, job_id: UUID, candles_imported: int) -> None: ...
-    async def mark_completed(self, job_id: UUID, candles_imported: int) -> None: ...
+    async def set_progress(
+        self, job_id: UUID, candles_imported: int, quality: ImportQuality = NO_ISSUES
+    ) -> None: ...
+    async def mark_completed(
+        self, job_id: UUID, candles_imported: int, quality: ImportQuality = NO_ISSUES
+    ) -> None: ...
     async def mark_failed(self, job_id: UUID, error: str) -> None: ...
     async def commit(self) -> None: ...

@@ -16,6 +16,21 @@ export const metricsSchema = z.object({
   avg_trade_pnl: nullableDecimalSchema,
   open_position: z.boolean(),
   rejected_signals: z.number(),
+  sharpe_ratio: nullableDecimalSchema.optional(),
+  sortino_ratio: nullableDecimalSchema.optional(),
+  information_ratio: nullableDecimalSchema.optional(),
+  annualized_return_pct: nullableDecimalSchema.optional(),
+  annualized_volatility_pct: nullableDecimalSchema.optional(),
+  exposure_pct: nullableDecimalSchema.optional(),
+  return_periods: z.number().nullish(),
+  return_gaps: z.number().nullish(),
+  annualization_factor: nullableDecimalSchema.optional(),
+  max_drawdown_duration_seconds: z.number().nullish(),
+  max_drawdown_duration_bars: z.number().nullish(),
+  max_drawdown_peak_at: z.string().nullish(),
+  max_drawdown_trough_at: z.string().nullish(),
+  current_drawdown_pct: nullableDecimalSchema.optional(),
+  drawdown_open: z.boolean().nullish(),
 });
 export type Metrics = z.infer<typeof metricsSchema>;
 

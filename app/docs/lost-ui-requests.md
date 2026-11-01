@@ -13,3 +13,9 @@
 | L7 | `LineChart` option `showYAxis` (it exists on `AreaChart` only) | Comparison charts need a value axis | none: comparison charts have no Y axis | open |
 | L8 | `ProfilePage` with `onSaveName` optional (there is no editable name here) | The profile screen only changes the password | A page of our own built from `Card` and `FormInputPassword` | open |
 | L9 | Sorting a column by a custom comparer should not need numeric parsing in the app | Sweep results sorted by a decimal-string return | `compare` + `compareDecimal` in `lib/shared/format.ts` | open |
+
+## Heatmap chart (requested 2026-10-31)
+
+**Need:** the sweep page shows, for 2-parameter grids, a cross table of results (rows = one parameter, columns = the other) to tell a plateau from an isolated peak (book 1 ch. 3, O7). Today it is a plain `<table>` with token tints in `components/backtests/robustness-card.tsx`.
+
+**Ask:** a `HeatmapChart` in `lost-ui/charts` driven by props: `rows`, `columns`, `value(row, column)`, a diverging scale around zero from tokens, a formatter, an optional marked cell (the winner), tooltips and an accessible table fallback. State must not rely on colour alone (show the value).

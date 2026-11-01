@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, Request, Response, status
@@ -30,3 +31,26 @@ async def health(request: Request, response: Response) -> HealthResponse:
 async def live() -> HealthResponse:
     """Liveness: the process is running (no dependencies checked)."""
     return HealthResponse(status="ok")
+
+
+class WorkerHealthResponse(BaseModel):
+    status: Literal["ok", "stale"]
+    last_heartbeat_at: datetime | None
+    age_seconds: float | None
+
+
+@router.get("/worker", response_model=WorkerHealthResponse)
+async def worker(request: Request, response: Response) -> WorkerHealthResponse:
+    """Is the worker alive? 503 when its heartbeat is older than WORKER_STALE_AFTER_SECONDS.
+
+    For a monitor OUTSIDE this host (book 1 ch. 4, O3): the only way to learn that the whole
+    machine is down while nobody has the app open. Unauthenticated and without sensitive data.
+    """
+    state = await request.app.state.container.status.worker_status()
+    if not state.alive:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    return WorkerHealthResponse(
+        status="ok" if state.alive else "stale",
+        last_heartbeat_at=state.last_heartbeat_at,
+        age_seconds=state.age_seconds,
+    )

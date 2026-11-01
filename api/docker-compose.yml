@@ -31,9 +31,12 @@ services:
       LIVE_MAX_ORDER_NOTIONAL: ${LIVE_MAX_ORDER_NOTIONAL:-}
       LIVE_MAX_TOTAL_EXPOSURE: ${LIVE_MAX_TOTAL_EXPOSURE:-}
       LIVE_MAX_DAILY_LOSS: ${LIVE_MAX_DAILY_LOSS:-}
+      BACKUP_DIR: ${BACKUP_DIR:-/backups}
       # LIVE_TRADING_ENABLED is intentionally not defined here (defaults to false).
     ports:
       - "8000:8000"
+    volumes:
+      - backups:/backups  # `docker compose exec api python -m manage backup`
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,6 +56,16 @@ services:
         condition: service_healthy
     restart: unless-stopped
     stop_grace_period: 30s
+    # Unhealthy when the worker's heartbeat in the database is older than
+    # WORKER_STALE_AFTER_SECONDS. For a whole-host outage point an external monitor at
+    # GET /api/v1/health/worker (see docs/operations/runbook.md).
+    healthcheck:
+      test: ["CMD", "python", "-m", "worker", "--healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
 volumes:
   pgdata:
+  backups:

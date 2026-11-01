@@ -42,6 +42,7 @@ const prefilledValues = (strategies: Strategy[], prefill: BotPrefill): BotFormVa
     symbol: prefill.symbol ?? base.symbol,
     timeframe: prefill.timeframe ?? base.timeframe,
     params: paramsFromRecord(strategy, prefillParams(prefill)),
+    maxDrawdownPct: prefill.maxDrawdownPct ?? base.maxDrawdownPct,
   };
 };
 
@@ -269,6 +270,14 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
             inputMode="decimal"
             value={values.maxCandleRangePct}
             onValueChange={(value) => set("maxCandleRangePct", value)}
+            rules={[(value) => decimalError(value ?? "", false)]}
+          />
+          <FormInput
+            label="Máximo da ordem (% do volume médio)"
+            inputMode="decimal"
+            description="Média do valor negociado nos últimos 20 candles. Vazio desliga. O livro sugere ~1% do volume diário (em ações)."
+            value={values.maxOrderPctOfVolume}
+            onValueChange={(value) => set("maxOrderPctOfVolume", value)}
             rules={[(value) => decimalError(value ?? "", false)]}
           />
           <FormSwitch

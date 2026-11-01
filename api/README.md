@@ -24,8 +24,11 @@ B=localhost:8000/api/v1
 # 1. Importar candles de BTC/USDT (1h)
 curl -X POST $B/market-data/imports -H 'content-type: application/json' \
   -d '{"symbol":"BTC/USDT","timeframe":"1h","start":"2024-01-01T00:00:00Z","end":"2024-07-01T00:00:00Z"}'
-curl $B/market-data/imports/<job_id>                       # status: queued → running → completed
-curl "$B/market-data/coverage?symbol=BTC/USDT&timeframe=1h"  # quantidade e lacunas
+curl $B/market-data/imports/<job_id>                       # status, candles_rejected, candles_changed
+curl "$B/market-data/coverage?symbol=BTC/USDT&timeframe=1h"  # quantidade e lacunas da série
+curl "$B/market-data/coverage?symbol=BTC/USDT&timeframe=1h&start=2024-01-01T00:00:00Z&end=2024-07-01T00:00:00Z"  # + in_range
+curl "$B/market-data/outliers?symbol=BTC/USDT&timeframe=1h&start=2024-01-01T00:00:00Z&end=2024-07-01T00:00:00Z"  # > 4σ
+curl "$B/market-data/listings?symbol=BTC/USDT"               # listado/deslistado (registro diário)
 
 # 2. Rodar o backtest
 curl -X POST $B/backtests -H 'content-type: application/json' -d '{
@@ -146,13 +149,28 @@ curl -X POST $B/backtests/sweeps -H 'content-type: application/json' -d '{
   "strategy_type": "ema_crossover", "start": "2024-01-01T00:00:00Z", "end": "2024-07-01T00:00:00Z",
   "test_fraction": "0.3", "grid": {"fast_period": [5, 9, 20], "slow_period": [21, 50, 100]}
 }'
-curl $B/backtests/sweeps/<id>                                  # ranking (por retorno no TESTE)
+curl $B/backtests/sweeps/<id>                                  # ranking pelo TREINO; o teste confere o vencedor
+curl "$B/backtests/sweeps/<id>?rank_by=test_sharpe_ratio"      # outro critério (consome o teste)
 curl "$B/backtests/compare?ids=<id1>&ids=<id2>"                # lado a lado
+
+# Robustez: escada de custos (0x a 3x taxa+slippage, até 50.000 candles) e tolerância de drawdown
+curl -X POST $B/backtests -H 'content-type: application/json' -d '{
+  "strategy_type": "ema_crossover", "start": "2024-01-01T00:00:00Z", "end": "2024-07-01T00:00:00Z",
+  "cost_sensitivity": true, "max_drawdown_tolerance_pct": "15", "max_drawdown_tolerance_days": 60
+}'
 ```
 
-Ranqueie pelo **retorno no teste**: o melhor parâmetro do treino costuma ser sobreajuste. Sem `test_fraction` o ranking usa o período todo e a resposta avisa disso.
+Com `test_fraction`, a varredura **escolhe pelo treino** e mostra o teste do vencedor como verificação: escolher pelo teste o transforma em dado de seleção. A resposta traz `trials` (combinações tentadas) e `prior_trials` (execuções anteriores da mesma estratégia sobre os mesmos dados, aproximado). Sem `test_fraction` o ranking usa o período todo e a resposta avisa disso.
+
+Qualidade dos dados: candles inválidos (máxima abaixo do corpo, preço ≤ 0, horário fora da grade…) **não são gravados** na importação (`candles_rejected` + amostras) e o bot pula o candle com um evento de auditoria `data.invalid_candle`; reimportações contam `candles_changed`. Um backtest com mais de 1% dos candles faltando no período, ou um buraco maior que 24 h, é recusado (422) a menos que `"allow_gaps": true`; cada execução traz `data_quality` (lacunas, candles inválidos, movimentos acima de 4σ, tamanho da amostra contra 252 × parâmetros livres). A varredura traz `robustness` (`plateau`, `peak`, `unprofitable`, `insufficient`) comparando o vencedor com os vizinhos na grade. O worker grava uma vez por dia os pares listados pela exchange (`/market-data/listings`).
+
+Execução (livro 1, cap. 5): cada ordem guarda o preço de referência e os horários (`slippage_bps`, `latency_ms`); `GET /bots/{id}/execution-quality`. O bot grava os candles que processa; `POST /bots/{id}/parity` (o worker roda) refaz a sessão no backtester e classifica as diferenças, e o live exige uma paridade recente sem `unexplained`; `GET /bots/{id}/divergence` dá o checklist do livro. Backtests aceitam `"fill_timing": "signal_close"` e `"risk": {…}` para executar e dimensionar como um bot. Limite opcional `max_order_pct_of_volume` no risco do bot.
+
+Métricas (`metrics`, também em `/bots/{id}/performance`): além de retorno e drawdown, Sharpe, Sortino, information ratio contra comprar e segurar, retorno e volatilidade anualizados (365 dias, taxa livre de risco 0; `null` com menos de 30 retornos), exposição, duração do drawdown e se ele ainda está aberto. Cada backtest traz também `periods` (por ano, ou trimestre abaixo de 2 anos) e, se pedido, `cost_ladder` com o custo de equilíbrio e `tolerance`.
 
 ### Observabilidade
+
+Operação (servidor, monitor externo, backup e restauração, relógio, chaves): [`docs/operations/runbook.md`](docs/operations/runbook.md). Resumo: `GET /health/worker` responde 503 quando o worker para (aponte um monitor externo para ele); `make backup` e `make restore-check`; `POST /exchange-connections/{id}/recheck` reverifica as permissões de uma chave.
 
 ```bash
 curl $B/system/status     # worker vivo? bots 'running' sem heartbeat recente (stale_bots)? kill switch?

@@ -50,6 +50,28 @@
         }
       }
     },
+    "/api/v1/health/worker": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Worker",
+        "description": "Is the worker alive? 503 when its heartbeat is older than WORKER_STALE_AFTER_SECONDS.\n\nFor a monitor OUTSIDE this host (book 1 ch. 4, O3): the only way to learn that the whole\nmachine is down while nobody has the app open. Unauthenticated and without sensitive data.",
+        "operationId": "worker_api_v1_health_worker_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerHealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "tags": [
@@ -603,7 +625,7 @@
           "market-data"
         ],
         "summary": "Get Coverage",
-        "description": "What is stored for a series, including detected gaps.",
+        "description": "What is stored for a series, including detected gaps (and those inside start/end).",
         "operationId": "get_coverage_api_v1_market_data_coverage_get",
         "parameters": [
           {
@@ -636,6 +658,40 @@
               "default": "binance",
               "title": "Exchange"
             }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End"
+            }
           }
         ],
         "responses": {
@@ -645,6 +701,182 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CoverageOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/market-data/outliers": {
+      "get": {
+        "tags": [
+          "market-data"
+        ],
+        "summary": "Get Outliers",
+        "description": "Close-to-close moves beyond ``k`` standard deviations (Chan suggests ~4) to review.\n\nFlags, never deletes: crashes are real. Each one comes with the same-candle move of\nBTC/USDT when stored, as a hint of a market-wide move.",
+        "operationId": "get_outliers_api_v1_market_data_outliers_get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+              "examples": [
+                "BTC/USDT"
+              ],
+              "title": "Symbol"
+            }
+          },
+          {
+            "name": "timeframe",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Timeframe"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "End"
+            }
+          },
+          {
+            "name": "k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 20.0,
+                  "exclusiveMinimum": 1.0
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "default": "4",
+              "title": "K"
+            }
+          },
+          {
+            "name": "exchange",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "binance",
+              "title": "Exchange"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OutlierOut"
+                  },
+                  "title": "Response Get Outliers Api V1 Market Data Outliers Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/market-data/listings": {
+      "get": {
+        "tags": [
+          "market-data"
+        ],
+        "summary": "Get Listings",
+        "description": "Pairs the exchange listed, from daily snapshots taken by the worker.\n\nThe history starts on the day the snapshots began: older delistings are unknown.",
+        "operationId": "get_listings_api_v1_market_data_listings_get",
+        "parameters": [
+          {
+            "name": "exchange",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "binance",
+              "title": "Exchange"
+            }
+          },
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+                  "examples": [
+                    "BTC/USDT"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Symbol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ListingOut"
+                  },
+                  "title": "Response Get Listings Api V1 Market Data Listings Get"
                 }
               }
             }
@@ -771,7 +1003,7 @@
           "backtests"
         ],
         "summary": "Create Sweep",
-        "description": "Queue one backtest per parameter combination of ``grid`` and compare them.\n\nCombinations the strategy rejects (e.g. fast >= slow) are skipped and reported. With\n``test_fraction`` set, rank by the test (out-of-sample) return to avoid picking an overfit\nparameter set.",
+        "description": "Queue one backtest per parameter combination of ``grid`` and compare them.\n\nCombinations the strategy rejects (e.g. fast >= slow) are skipped and reported. With\n``test_fraction`` set, runs are ranked by the train part and the test part checks the\nwinner; choosing by the test part would turn it into selection data.",
         "operationId": "create_sweep_api_v1_backtests_sweeps_post",
         "requestBody": {
           "content": {
@@ -877,6 +1109,24 @@
               "format": "uuid",
               "title": "Sweep Id"
             }
+          },
+          {
+            "name": "rank_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/SweepRankBy"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Ranking criterion. Default: `train_return_pct` with a train/test split (the test part then stays a check, not a selection criterion), else `total_return_pct`.",
+              "title": "Rank By"
+            },
+            "description": "Ranking criterion. Default: `train_return_pct` with a train/test split (the test part then stays a check, not a selection criterion), else `total_return_pct`."
           }
         ],
         "responses": {
@@ -1915,6 +2165,191 @@
         }
       }
     },
+    "/api/v1/bots/{bot_id}/execution-quality": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Get Execution Quality",
+        "description": "Realized slippage and latency of the bot's filled orders against its assumption.",
+        "operationId": "get_execution_quality_api_v1_bots__bot_id__execution_quality_get",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionQualityOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/parity": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Request Parity",
+        "description": "Queue a replay of the bot's latest session through the backtester (the worker runs it)\nand a comparison of signals and trades. Read-only: the bot is not affected.",
+        "operationId": "request_parity_api_v1_bots__bot_id__parity_post",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParityOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Get Parity",
+        "operationId": "get_parity_api_v1_bots__bot_id__parity_get",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ParityOut"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Parity Api V1 Bots  Bot Id  Parity Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/divergence": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Get Divergence",
+        "description": "Chan's checklist for \"why does it differ from the backtest?\", in his order. Never\nconcludes bad luck: it cannot be proven.",
+        "operationId": "get_divergence_api_v1_bots__bot_id__divergence_get",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StepOut"
+                  },
+                  "title": "Response Get Divergence Api V1 Bots  Bot Id  Divergence Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/system/kill-switch": {
       "get": {
         "tags": [
@@ -2452,6 +2887,50 @@
           }
         }
       }
+    },
+    "/api/v1/exchange-connections/{connection_id}/recheck": {
+      "post": {
+        "tags": [
+          "exchange-connections"
+        ],
+        "summary": "Recheck Connection",
+        "description": "Ask the exchange now what this ACTIVE key may do (the worker also does it daily).\n\nA key that turned unacceptable keeps working for exits but gets ``permission_warning``,\nwhich blocks new entries until it is fixed and checked again.",
+        "operationId": "recheck_connection_api_v1_exchange_connections__connection_id__recheck_post",
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Connection Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2790,6 +3269,65 @@
             ],
             "title": "Test Fraction",
             "description": "Hold out this share of the series (at the end) as an out-of-sample test part. Train and test metrics are then reported separately in `segments`."
+          },
+          "cost_sensitivity": {
+            "type": "boolean",
+            "title": "Cost Sensitivity",
+            "description": "Also re-run the backtest with fee and slippage scaled by 0, 0.5, 1, 1.5, 2 and 3 and report the break-even cost in `cost_ladder`. Slower; limited to 50,000 candles.",
+            "default": false
+          },
+          "max_drawdown_tolerance_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Tolerance Pct",
+            "description": "Deepest drawdown the operator accepts; `tolerance` flags runs beyond it."
+          },
+          "max_drawdown_tolerance_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3650.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Tolerance Days",
+            "description": "Longest drawdown (days below the peak) the operator accepts."
+          },
+          "fill_timing": {
+            "$ref": "#/components/schemas/FillTiming",
+            "description": "`next_open`: fill at the next candle's open (default). `signal_close`: fill at the close of the signal candle, like the bots do (use it to compare with a bot).",
+            "default": "next_open"
+          },
+          "risk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskLimitsIn-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Size and pause exactly like a bot with these limits (the bot's risk module). Null keeps the all-in sizing."
+          },
+          "allow_gaps": {
+            "type": "boolean",
+            "title": "Allow Gaps",
+            "description": "Run even when the range misses more than 1% of its candles or has a hole longer than 24 h (otherwise 422). The gaps are reported in `data_quality.gaps`.",
+            "default": false
           }
         },
         "type": "object",
@@ -2867,6 +3405,49 @@
             ],
             "title": "Test Fraction"
           },
+          "cost_sensitivity": {
+            "type": "boolean",
+            "title": "Cost Sensitivity"
+          },
+          "max_drawdown_tolerance_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Tolerance Pct"
+          },
+          "max_drawdown_tolerance_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Tolerance Days"
+          },
+          "allow_gaps": {
+            "type": "boolean",
+            "title": "Allow Gaps"
+          },
+          "fill_timing": {
+            "$ref": "#/components/schemas/FillTiming"
+          },
+          "risk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskLimitsIn-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "sweep_id": {
             "anyOf": [
               {
@@ -2915,6 +3496,56 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/SegmentsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "periods": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PeriodsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost_ladder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CostLadderOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tolerance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToleranceOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "data_quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataQualityOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "risk_report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskReportOut"
               },
               {
                 "type": "null"
@@ -2978,17 +3609,119 @@
           "slippage_bps",
           "seed",
           "test_fraction",
+          "cost_sensitivity",
+          "max_drawdown_tolerance_pct",
+          "max_drawdown_tolerance_days",
+          "allow_gaps",
+          "fill_timing",
+          "risk",
           "sweep_id",
           "data_hash",
           "candles_count",
           "metrics",
           "segments",
+          "periods",
+          "cost_ladder",
+          "tolerance",
+          "data_quality",
+          "risk_report",
           "error",
           "created_at",
           "started_at",
           "finished_at"
         ],
         "title": "BacktestOut"
+      },
+      "BackupOut": {
+        "properties": {
+          "last_backup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BackupRecordOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_restore_check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BackupRecordOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "overdue": {
+            "type": "boolean",
+            "title": "Overdue",
+            "description": "No successful backup in 26 h, or the last restore check failed."
+          }
+        },
+        "type": "object",
+        "required": [
+          "last_backup",
+          "last_restore_check",
+          "overdue"
+        ],
+        "title": "BackupOut"
+      },
+      "BackupRecordOut": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "at",
+          "ok",
+          "file",
+          "size_bytes",
+          "detail"
+        ],
+        "title": "BackupRecordOut"
       },
       "BotCreate": {
         "properties": {
@@ -3070,7 +3803,7 @@
             "default": "5"
           },
           "risk": {
-            "$ref": "#/components/schemas/RiskIn-Input"
+            "$ref": "#/components/schemas/RiskLimitsIn-Input"
           },
           "mode": {
             "type": "string",
@@ -3146,7 +3879,7 @@
             "title": "Slippage Bps"
           },
           "risk": {
-            "$ref": "#/components/schemas/RiskIn-Output"
+            "$ref": "#/components/schemas/RiskLimitsIn-Output"
           },
           "mode": {
             "$ref": "#/components/schemas/ExecutionMode"
@@ -3487,7 +4220,7 @@
           "risk": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/RiskIn-Input"
+                "$ref": "#/components/schemas/RiskLimitsIn-Input"
               },
               {
                 "type": "null"
@@ -3564,6 +4297,28 @@
           "volume"
         ],
         "title": "CandleOut"
+      },
+      "CandleSampleOut": {
+        "properties": {
+          "open_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Open Time"
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Problems"
+          }
+        },
+        "type": "object",
+        "required": [
+          "open_time",
+          "problems"
+        ],
+        "title": "CandleSampleOut"
       },
       "CapabilitiesOut": {
         "properties": {
@@ -3674,6 +4429,52 @@
         ],
         "title": "CheckOut"
       },
+      "ClockOut": {
+        "properties": {
+          "skew_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skew Ms",
+            "description": "Local clock minus the exchange's, in ms."
+          },
+          "measured_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measured At"
+          },
+          "warning": {
+            "type": "boolean",
+            "title": "Warning",
+            "description": "Beyond 1 s."
+          },
+          "blocking_live": {
+            "type": "boolean",
+            "title": "Blocking Live",
+            "description": "Beyond 5 s: no new live positions are opened."
+          }
+        },
+        "type": "object",
+        "required": [
+          "skew_ms",
+          "measured_at",
+          "warning",
+          "blocking_live"
+        ],
+        "title": "ClockOut"
+      },
       "ConnectionCreate": {
         "properties": {
           "exchange": {
@@ -3764,6 +4565,53 @@
               }
             ],
             "title": "Verified At"
+          },
+          "permissions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PermissionsOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the key could do at the last check."
+          },
+          "status_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Reason",
+            "description": "Why the last check refused the key (null when accepted)."
+          },
+          "last_checked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Checked At"
+          },
+          "permission_warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permission Warning",
+            "description": "An ACTIVE key that later became unacceptable: new entries are refused, exits continue, until the key is fixed and checked again."
           }
         },
         "type": "object",
@@ -3789,6 +4637,117 @@
           "pending"
         ],
         "title": "ConnectionStatus"
+      },
+      "CostLadderOut": {
+        "properties": {
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/CostLevelOut"
+            },
+            "type": "array",
+            "title": "Levels"
+          },
+          "break_even_status": {
+            "type": "string",
+            "title": "Break Even Status",
+            "description": "`found`, `never_profitable` or `above_max`."
+          },
+          "break_even_multiplier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Break Even Multiplier"
+          },
+          "break_even_cost_per_side_bps": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Break Even Cost Per Side Bps"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "levels",
+          "break_even_status",
+          "break_even_multiplier",
+          "break_even_cost_per_side_bps",
+          "note"
+        ],
+        "title": "CostLadderOut"
+      },
+      "CostLevelOut": {
+        "properties": {
+          "multiplier": {
+            "type": "string",
+            "title": "Multiplier"
+          },
+          "fee_rate": {
+            "type": "string",
+            "title": "Fee Rate"
+          },
+          "slippage_bps": {
+            "type": "string",
+            "title": "Slippage Bps"
+          },
+          "cost_per_side_bps": {
+            "type": "string",
+            "title": "Cost Per Side Bps"
+          },
+          "net_pnl": {
+            "type": "string",
+            "title": "Net Pnl"
+          },
+          "total_return_pct": {
+            "type": "string",
+            "title": "Total Return Pct"
+          },
+          "sharpe_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpe Ratio"
+          },
+          "round_trips": {
+            "type": "integer",
+            "title": "Round Trips"
+          },
+          "fees_paid": {
+            "type": "string",
+            "title": "Fees Paid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "multiplier",
+          "fee_rate",
+          "slippage_bps",
+          "cost_per_side_bps",
+          "net_pnl",
+          "total_return_pct",
+          "sharpe_ratio",
+          "round_trips",
+          "fees_paid"
+        ],
+        "title": "CostLevelOut"
       },
       "CoverageOut": {
         "properties": {
@@ -3836,7 +4795,19 @@
               "$ref": "#/components/schemas/GapOut"
             },
             "type": "array",
-            "title": "Gaps"
+            "title": "Gaps",
+            "description": "Gaps of the whole stored series."
+          },
+          "in_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RangeCoverageOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Gaps inside start/end, when both were given."
           }
         },
         "type": "object",
@@ -3850,6 +4821,81 @@
           "gaps"
         ],
         "title": "CoverageOut"
+      },
+      "DataQualityOut": {
+        "properties": {
+          "gaps": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GapsSummaryOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "invalid_candles": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invalid Candles"
+          },
+          "invalid_samples": {
+            "items": {
+              "$ref": "#/components/schemas/CandleSampleOut"
+            },
+            "type": "array",
+            "title": "Invalid Samples"
+          },
+          "outlier_sigmas": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outlier Sigmas"
+          },
+          "outliers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outliers",
+            "description": "Close-to-close moves beyond outlier_sigmas std. deviations."
+          },
+          "outlier_samples": {
+            "items": {
+              "$ref": "#/components/schemas/OutlierSampleOut"
+            },
+            "type": "array",
+            "title": "Outlier Samples"
+          },
+          "sample": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SampleCheckOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "DataQualityOut",
+        "description": "What the result rests on. Older runs miss some or all of it."
       },
       "Environment": {
         "type": "string",
@@ -3887,6 +4933,66 @@
         ],
         "title": "ExecutionMode"
       },
+      "ExecutionQualityOut": {
+        "properties": {
+          "configured_slippage_bps": {
+            "type": "string",
+            "title": "Configured Slippage Bps"
+          },
+          "by_type": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "By Type",
+            "description": "Per order type: orders, slippage_bps {mean, median, worst}, latency_ms {mean, max}."
+          },
+          "above_configured": {
+            "type": "boolean",
+            "title": "Above Configured",
+            "description": "Realized market-order slippage above the assumption (+1 bps tolerance)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "configured_slippage_bps",
+          "by_type",
+          "above_configured"
+        ],
+        "title": "ExecutionQualityOut"
+      },
+      "FillTiming": {
+        "type": "string",
+        "enum": [
+          "next_open",
+          "signal_close"
+        ],
+        "title": "FillTiming",
+        "description": "When a signal is filled (book 1 ch. 5): at the next candle's open (the backtest's\ndefault), or at the close of the signal candle, which is what the bots do."
+      },
+      "GapItemOut": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "missing": {
+            "type": "integer",
+            "title": "Missing"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "missing"
+        ],
+        "title": "GapItemOut"
+      },
       "GapOut": {
         "properties": {
           "start": {
@@ -3911,6 +5017,63 @@
           "missing"
         ],
         "title": "GapOut"
+      },
+      "GapsSummaryOut": {
+        "properties": {
+          "expected": {
+            "type": "integer",
+            "title": "Expected"
+          },
+          "present": {
+            "type": "integer",
+            "title": "Present"
+          },
+          "missing": {
+            "type": "integer",
+            "title": "Missing"
+          },
+          "gap_count": {
+            "type": "integer",
+            "title": "Gap Count"
+          },
+          "largest_gap_candles": {
+            "type": "integer",
+            "title": "Largest Gap Candles"
+          },
+          "largest_gap_seconds": {
+            "type": "integer",
+            "title": "Largest Gap Seconds"
+          },
+          "over_limit": {
+            "type": "boolean",
+            "title": "Over Limit"
+          },
+          "allowed": {
+            "type": "boolean",
+            "title": "Allowed"
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/GapItemOut"
+            },
+            "type": "array",
+            "title": "Gaps",
+            "description": "Up to 20 gaps."
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected",
+          "present",
+          "missing",
+          "gap_count",
+          "largest_gap_candles",
+          "largest_gap_seconds",
+          "over_limit",
+          "allowed",
+          "gaps"
+        ],
+        "title": "GapsSummaryOut"
       },
       "HTTPValidationError": {
         "properties": {
@@ -4031,6 +5194,27 @@
               }
             ],
             "title": "Finished At"
+          },
+          "candles_rejected": {
+            "type": "integer",
+            "title": "Candles Rejected",
+            "description": "Invalid candles (e.g. high below close) that were not stored.",
+            "default": 0
+          },
+          "candles_changed": {
+            "type": "integer",
+            "title": "Candles Changed",
+            "description": "Stored candles the exchange now reports differently (updated).",
+            "default": 0
+          },
+          "rejection_samples": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Rejection Samples",
+            "description": "Up to 20 rejected candles with their problem codes."
           }
         },
         "type": "object",
@@ -4164,6 +5348,56 @@
         ],
         "title": "KillSwitchOut"
       },
+      "ListingOut": {
+        "properties": {
+          "exchange": {
+            "type": "string",
+            "title": "Exchange"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "`active`, `inactive` (listed but halted) or `delisted`."
+          },
+          "first_seen": {
+            "type": "string",
+            "format": "date-time",
+            "title": "First Seen",
+            "description": "First daily snapshot that listed the pair."
+          },
+          "last_seen": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Seen"
+          },
+          "delisted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delisted At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "exchange",
+          "symbol",
+          "status",
+          "first_seen",
+          "last_seen",
+          "delisted_at"
+        ],
+        "title": "ListingOut"
+      },
       "LoginIn": {
         "properties": {
           "username": {
@@ -4279,6 +5513,181 @@
           "rejected_signals": {
             "type": "integer",
             "title": "Rejected Signals"
+          },
+          "sharpe_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpe Ratio",
+            "description": "Annualised (365 days), risk-free rate 0. Null below 30 returns."
+          },
+          "sortino_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sortino Ratio"
+          },
+          "information_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Information Ratio",
+            "description": "Sharpe of the excess return over holding the same asset."
+          },
+          "annualized_return_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annualized Return Pct",
+            "description": "Geometric; null for spans shorter than 30 days."
+          },
+          "annualized_volatility_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annualized Volatility Pct"
+          },
+          "exposure_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exposure Pct",
+            "description": "Share of bars with an open position."
+          },
+          "return_periods": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Periods",
+            "description": "Number of periodic returns behind the ratios."
+          },
+          "return_gaps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Gaps",
+            "description": "Steps skipped because the equity curve had a hole."
+          },
+          "annualization_factor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annualization Factor"
+          },
+          "max_drawdown_duration_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Duration Seconds",
+            "description": "Longest time from a peak until equity was back at it."
+          },
+          "max_drawdown_duration_bars": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Duration Bars"
+          },
+          "max_drawdown_peak_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Peak At"
+          },
+          "max_drawdown_trough_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Trough At"
+          },
+          "current_drawdown_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Drawdown Pct"
+          },
+          "drawdown_open": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drawdown Open",
+            "description": "The curve ends below its high watermark (not recovered)."
           }
         },
         "type": "object",
@@ -4375,6 +5784,66 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "reference_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Price",
+            "description": "Price of the decision: signal candle close or stop trigger."
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "first_fill_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Fill At"
+          },
+          "slippage_bps": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slippage Bps",
+            "description": "Adverse move from the reference to the fill (bps)."
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms",
+            "description": "Decision to first fill."
           }
         },
         "type": "object",
@@ -4409,6 +5878,84 @@
           "UNKNOWN"
         ],
         "title": "OrderStatus"
+      },
+      "OutlierOut": {
+        "properties": {
+          "open_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Open Time"
+          },
+          "close": {
+            "type": "string",
+            "title": "Close"
+          },
+          "return_pct": {
+            "type": "string",
+            "title": "Return Pct"
+          },
+          "sigmas": {
+            "type": "string",
+            "title": "Sigmas"
+          },
+          "reference_symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Symbol"
+          },
+          "reference_return_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Return Pct",
+            "description": "Same-candle move of the reference pair: if it also moved, it was probably a market-wide move, not bad data."
+          }
+        },
+        "type": "object",
+        "required": [
+          "open_time",
+          "close",
+          "return_pct",
+          "sigmas",
+          "reference_symbol",
+          "reference_return_pct"
+        ],
+        "title": "OutlierOut"
+      },
+      "OutlierSampleOut": {
+        "properties": {
+          "open_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Open Time"
+          },
+          "return_pct": {
+            "type": "string",
+            "title": "Return Pct"
+          },
+          "sigmas": {
+            "type": "string",
+            "title": "Sigmas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "open_time",
+          "return_pct",
+          "sigmas"
+        ],
+        "title": "OutlierSampleOut"
       },
       "ParamOut": {
         "properties": {
@@ -4448,6 +5995,172 @@
           "description"
         ],
         "title": "ParamOut"
+      },
+      "ParityOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "queued | running | completed | failed"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "unexplained": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unexplained"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary",
+            "description": "counts by class, verdict, differences, returns, replay_equity."
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "created_at",
+          "finished_at",
+          "unexplained",
+          "summary",
+          "error"
+        ],
+        "title": "ParityOut"
+      },
+      "PeriodOut": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "candles": {
+            "type": "integer",
+            "title": "Candles"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/MetricsOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "start",
+          "end",
+          "candles",
+          "metrics"
+        ],
+        "title": "PeriodOut"
+      },
+      "PeriodsOut": {
+        "properties": {
+          "granularity": {
+            "type": "string",
+            "title": "Granularity",
+            "description": "`year`, or `quarter` when the run spans < 2 years."
+          },
+          "periods": {
+            "items": {
+              "$ref": "#/components/schemas/PeriodOut"
+            },
+            "type": "array",
+            "title": "Periods"
+          }
+        },
+        "type": "object",
+        "required": [
+          "granularity",
+          "periods"
+        ],
+        "title": "PeriodsOut"
+      },
+      "PermissionsOut": {
+        "properties": {
+          "can_read": {
+            "type": "boolean",
+            "title": "Can Read"
+          },
+          "can_trade": {
+            "type": "boolean",
+            "title": "Can Trade"
+          },
+          "can_withdraw": {
+            "type": "boolean",
+            "title": "Can Withdraw"
+          },
+          "can_transfer": {
+            "type": "boolean",
+            "title": "Can Transfer"
+          },
+          "ip_restricted": {
+            "type": "boolean",
+            "title": "Ip Restricted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "can_read",
+          "can_trade",
+          "can_withdraw",
+          "can_transfer",
+          "ip_restricted"
+        ],
+        "title": "PermissionsOut"
       },
       "PortfolioOut": {
         "properties": {
@@ -4615,6 +6328,56 @@
         ],
         "title": "PromoteIn"
       },
+      "RangeCoverageOut": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "expected": {
+            "type": "integer",
+            "title": "Expected",
+            "description": "Closed candles the range should have."
+          },
+          "present": {
+            "type": "integer",
+            "title": "Present"
+          },
+          "missing": {
+            "type": "integer",
+            "title": "Missing"
+          },
+          "largest_gap": {
+            "type": "integer",
+            "title": "Largest Gap",
+            "description": "Candles missing in the largest single hole."
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/GapOut"
+            },
+            "type": "array",
+            "title": "Gaps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "expected",
+          "present",
+          "missing",
+          "largest_gap",
+          "gaps"
+        ],
+        "title": "RangeCoverageOut"
+      },
       "ReadinessOut": {
         "properties": {
           "ready": {
@@ -4636,7 +6399,7 @@
         ],
         "title": "ReadinessOut"
       },
-      "RiskIn-Input": {
+      "RiskLimitsIn-Input": {
         "properties": {
           "max_position_fraction": {
             "anyOf": [
@@ -4748,12 +6511,30 @@
             ],
             "title": "Max Candle Range Pct",
             "default": "25"
+          },
+          "max_order_pct_of_volume": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Order Pct Of Volume",
+            "description": "Cap an order at this % of the average traded value of the last 20 candles (Chan's rule of thumb: ~1% of daily volume, for stocks). Null = off."
           }
         },
         "type": "object",
-        "title": "RiskIn"
+        "title": "RiskLimitsIn",
+        "description": "A bot's risk limits; also accepted by backtests to size and pause exactly like the bot."
       },
-      "RiskIn-Output": {
+      "RiskLimitsIn-Output": {
         "properties": {
           "max_position_fraction": {
             "type": "string",
@@ -4833,10 +6614,185 @@
             ],
             "title": "Max Candle Range Pct",
             "default": "25"
+          },
+          "max_order_pct_of_volume": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Order Pct Of Volume",
+            "description": "Cap an order at this % of the average traded value of the last 20 candles (Chan's rule of thumb: ~1% of daily volume, for stocks). Null = off."
           }
         },
         "type": "object",
-        "title": "RiskIn"
+        "title": "RiskLimitsIn",
+        "description": "A bot's risk limits; also accepted by backtests to size and pause exactly like the bot."
+      },
+      "RiskReportOut": {
+        "properties": {
+          "sizing": {
+            "type": "string",
+            "title": "Sizing",
+            "description": "`all_in` or `risk_limits`."
+          },
+          "paused_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paused At"
+          },
+          "paused_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paused Reason"
+          },
+          "refusals": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Refusals",
+            "description": "Refused signals by reason."
+          }
+        },
+        "type": "object",
+        "required": [
+          "sizing",
+          "paused_at",
+          "paused_reason",
+          "refusals"
+        ],
+        "title": "RiskReportOut"
+      },
+      "RobustnessOut": {
+        "properties": {
+          "verdict": {
+            "type": "string",
+            "title": "Verdict",
+            "description": "`plateau`, `peak`, `unprofitable` or `insufficient`."
+          },
+          "metric": {
+            "$ref": "#/components/schemas/SweepRankBy"
+          },
+          "winner_score": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winner Score"
+          },
+          "neighbours": {
+            "type": "integer",
+            "title": "Neighbours"
+          },
+          "neighbour_mean": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Neighbour Mean"
+          },
+          "neighbour_min": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Neighbour Min"
+          },
+          "neighbour_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Neighbour Ratio",
+            "description": "Neighbour mean / winner score."
+          },
+          "profitable_share": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profitable Share",
+            "description": "% of scored combinations above 0."
+          },
+          "median": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median"
+          },
+          "top3_mean": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top3 Mean"
+          },
+          "scored": {
+            "type": "integer",
+            "title": "Scored"
+          }
+        },
+        "type": "object",
+        "required": [
+          "verdict",
+          "metric",
+          "winner_score",
+          "neighbours",
+          "neighbour_mean",
+          "neighbour_min",
+          "neighbour_ratio",
+          "profitable_share",
+          "median",
+          "top3_mean",
+          "scored"
+        ],
+        "title": "RobustnessOut"
       },
       "Role": {
         "type": "string",
@@ -4845,6 +6801,50 @@
           "viewer"
         ],
         "title": "Role"
+      },
+      "SampleCheckOut": {
+        "properties": {
+          "free_parameters": {
+            "type": "integer",
+            "title": "Free Parameters"
+          },
+          "bars": {
+            "type": "integer",
+            "title": "Bars"
+          },
+          "round_trips": {
+            "type": "integer",
+            "title": "Round Trips"
+          },
+          "min_bars": {
+            "type": "integer",
+            "title": "Min Bars",
+            "description": "252 x free parameters (Chan's rule of thumb)."
+          },
+          "min_round_trips": {
+            "type": "integer",
+            "title": "Min Round Trips"
+          },
+          "meets_bar_rule": {
+            "type": "boolean",
+            "title": "Meets Bar Rule"
+          },
+          "meets_trade_rule": {
+            "type": "boolean",
+            "title": "Meets Trade Rule"
+          }
+        },
+        "type": "object",
+        "required": [
+          "free_parameters",
+          "bars",
+          "round_trips",
+          "min_bars",
+          "min_round_trips",
+          "meets_bar_rule",
+          "meets_trade_rule"
+        ],
+        "title": "SampleCheckOut"
       },
       "SegmentsOut": {
         "properties": {
@@ -5000,6 +7000,49 @@
         "type": "object",
         "title": "StartIn"
       },
+      "StepOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "bugs | trades | costs | liquidity | snooping | regime"
+          },
+          "state": {
+            "type": "string",
+            "title": "State",
+            "description": "ok | attention | no_data"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "values": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Values",
+            "description": "The numbers behind the detail."
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "state",
+          "detail"
+        ],
+        "title": "StepOut"
+      },
       "StrategyOut": {
         "properties": {
           "type_key": {
@@ -5020,6 +7063,15 @@
             },
             "type": "array",
             "title": "Parameters"
+          },
+          "parameter_count": {
+            "type": "integer",
+            "title": "Parameter Count",
+            "description": "Configurable parameters. Chan's rule of thumb: at most 5 (book 1 ch. 3)."
+          },
+          "too_many_parameters": {
+            "type": "boolean",
+            "title": "Too Many Parameters"
           }
         },
         "type": "object",
@@ -5027,7 +7079,9 @@
           "type_key",
           "name",
           "description",
-          "parameters"
+          "parameters",
+          "parameter_count",
+          "too_many_parameters"
         ],
         "title": "StrategyOut"
       },
@@ -5143,6 +7197,65 @@
             "title": "Test Fraction",
             "description": "Hold out this share of the series (at the end) as an out-of-sample test part. Train and test metrics are then reported separately in `segments`."
           },
+          "cost_sensitivity": {
+            "type": "boolean",
+            "title": "Cost Sensitivity",
+            "description": "Also re-run the backtest with fee and slippage scaled by 0, 0.5, 1, 1.5, 2 and 3 and report the break-even cost in `cost_ladder`. Slower; limited to 50,000 candles.",
+            "default": false
+          },
+          "max_drawdown_tolerance_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Tolerance Pct",
+            "description": "Deepest drawdown the operator accepts; `tolerance` flags runs beyond it."
+          },
+          "max_drawdown_tolerance_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3650.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Tolerance Days",
+            "description": "Longest drawdown (days below the peak) the operator accepts."
+          },
+          "fill_timing": {
+            "$ref": "#/components/schemas/FillTiming",
+            "description": "`next_open`: fill at the next candle's open (default). `signal_close`: fill at the close of the signal candle, like the bots do (use it to compare with a bot).",
+            "default": "next_open"
+          },
+          "risk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskLimitsIn-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Size and pause exactly like a bot with these limits (the bot's risk module). Null keeps the all-in sizing."
+          },
+          "allow_gaps": {
+            "type": "boolean",
+            "title": "Allow Gaps",
+            "description": "Run even when the range misses more than 1% of its candles or has a hole longer than 24 h (otherwise 422). The gaps are reported in `data_quality.gaps`.",
+            "default": false
+          },
           "grid": {
             "additionalProperties": {
               "items": {},
@@ -5220,13 +7333,32 @@
             "type": "array",
             "title": "Skipped"
           },
+          "trials": {
+            "type": "integer",
+            "title": "Trials",
+            "description": "Parameter combinations tried, including skipped ones."
+          },
+          "prior_trials": {
+            "type": "integer",
+            "title": "Prior Trials",
+            "description": "Approximate: earlier completed runs of the same strategy on overlapping data (same exchange, symbol and timeframe) outside this sweep."
+          },
           "ranked_by": {
-            "type": "string",
-            "title": "Ranked By"
+            "$ref": "#/components/schemas/SweepRankBy"
           },
           "note": {
             "type": "string",
             "title": "Note"
+          },
+          "robustness": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RobustnessOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "runs": {
             "items": {
@@ -5246,11 +7378,26 @@
           "completed",
           "failed",
           "skipped",
+          "trials",
+          "prior_trials",
           "ranked_by",
           "note",
+          "robustness",
           "runs"
         ],
         "title": "SweepOut"
+      },
+      "SweepRankBy": {
+        "type": "string",
+        "enum": [
+          "total_return_pct",
+          "train_return_pct",
+          "test_return_pct",
+          "sharpe_ratio",
+          "train_sharpe_ratio",
+          "test_sharpe_ratio"
+        ],
+        "title": "SweepRankBy"
       },
       "SweepRunOut": {
         "properties": {
@@ -5276,7 +7423,19 @@
                 "type": "null"
               }
             ],
-            "title": "Total Return Pct"
+            "title": "Total Return Pct",
+            "description": "Whole period (train + test)."
+          },
+          "train_return_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Train Return Pct"
           },
           "test_return_pct": {
             "anyOf": [
@@ -5288,6 +7447,39 @@
               }
             ],
             "title": "Test Return Pct"
+          },
+          "sharpe_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpe Ratio"
+          },
+          "train_sharpe_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Train Sharpe Ratio"
+          },
+          "test_sharpe_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Sharpe Ratio"
           },
           "max_drawdown_pct": {
             "anyOf": [
@@ -5340,7 +7532,11 @@
           "status",
           "strategy_params",
           "total_return_pct",
+          "train_return_pct",
           "test_return_pct",
+          "sharpe_ratio",
+          "train_sharpe_ratio",
+          "test_sharpe_ratio",
           "max_drawdown_pct",
           "round_trips",
           "buy_and_hold_return_pct",
@@ -5376,6 +7572,34 @@
             },
             "type": "array",
             "title": "Exchanges"
+          },
+          "unprotected_positions": {
+            "items": {
+              "$ref": "#/components/schemas/UnprotectedPositionOut"
+            },
+            "type": "array",
+            "title": "Unprotected Positions",
+            "description": "Testnet/live positions with no stop resting on the exchange: exposed while the worker is down."
+          },
+          "clock": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClockOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "backup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BackupOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -5429,6 +7653,63 @@
         "title": "TokenOut",
         "description": "Keep ``access_token`` in memory and send it as ``Authorization: Bearer``. The refresh\ntoken travels only in an httpOnly cookie, out of reach of page scripts."
       },
+      "ToleranceOut": {
+        "properties": {
+          "max_drawdown_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Pct"
+          },
+          "max_drawdown_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Days"
+          },
+          "exceeded_depth": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exceeded Depth"
+          },
+          "exceeded_duration": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exceeded Duration",
+            "description": "Null when the run predates drawdown duration (not computed)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "max_drawdown_pct",
+          "max_drawdown_days",
+          "exceeded_depth",
+          "exceeded_duration"
+        ],
+        "title": "ToleranceOut"
+      },
       "TradeOut": {
         "properties": {
           "time": {
@@ -5466,6 +7747,52 @@
           "notional"
         ],
         "title": "TradeOut"
+      },
+      "UnprotectedPositionOut": {
+        "properties": {
+          "bot_id": {
+            "type": "string",
+            "title": "Bot Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "quantity": {
+            "type": "string",
+            "title": "Quantity"
+          },
+          "stop_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Price",
+            "description": "Stop watched by the worker only (none on the exchange), when set."
+          }
+        },
+        "type": "object",
+        "required": [
+          "bot_id",
+          "name",
+          "symbol",
+          "mode",
+          "quantity",
+          "stop_price"
+        ],
+        "title": "UnprotectedPositionOut"
       },
       "UserCreate": {
         "properties": {
@@ -5588,6 +7915,48 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WorkerHealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "stale"
+            ],
+            "title": "Status"
+          },
+          "last_heartbeat_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heartbeat At"
+          },
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "last_heartbeat_at",
+          "age_seconds"
+        ],
+        "title": "WorkerHealthResponse"
       },
       "WorkerOut": {
         "properties": {

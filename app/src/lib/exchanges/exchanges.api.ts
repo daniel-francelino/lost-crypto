@@ -26,3 +26,10 @@ export const disableConnection = (id: string) =>
     path: `/exchange-connections/${id}/disable`,
     schema: emptySchema,
   });
+
+export const recheckConnection = (id: string) =>
+  request({
+    method: HttpMethod.Post,
+    path: `/exchange-connections/${id}/recheck`,
+    schema: connectionSchema,
+  });

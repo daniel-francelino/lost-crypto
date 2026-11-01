@@ -121,6 +121,10 @@ class OrderExecutor:
         request = MarketOrderRequest(
             order.client_order_id, order.symbol, order.side, order.quantity
         )
+        order.submitted_at = self._clock.now()
+        async with self._stores() as store:  # when it really left for the exchange
+            await store.orders.update(order, [])
+            await store.commit()
         try:
             # Shielded: if this task is cancelled mid-flight the request still completes, and
             # the reconciler picks the result up from the exchange.
@@ -193,6 +197,8 @@ class OrderExecutor:
                 created_at=self._clock.now(),
                 order_type="stop_loss",
                 stop_price=portfolio.stop_price,
+                reference_price=portfolio.stop_price,
+                submitted_at=self._clock.now(),
             )
             stop_price = portfolio.stop_price
             stop.submit()

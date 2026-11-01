@@ -4,6 +4,9 @@ import {
   combinationCount,
   defaultBacktestValues,
   gridError,
+  applyBacktestPrefill,
+  sampleAdvice,
+  testFractionWarning,
   toBacktestInput,
 } from "@/lib/backtests/form";
 import { toMs } from "@/lib/shared/dates";
@@ -65,5 +68,68 @@ describe("backtest form", () => {
     };
     expect(gridError(big)).toContain("225");
     expect(buildGrid(STRATEGY, { fast_period: "a" })).toContain("fast_period");
+  });
+
+  it("sends cost sensitivity and the drawdown tolerance, never cost sensitivity in a sweep", () => {
+    const values = {
+      ...defaultBacktestValues(STRATEGY, NOW),
+      costSensitivity: true,
+      toleranceDrawdownPct: "15",
+      toleranceDrawdownDays: " 90 ",
+    };
+    const input = toBacktestInput(values, STRATEGY);
+    expect(input.cost_sensitivity).toBe(true);
+    expect(input.max_drawdown_tolerance_pct).toBe("15");
+    expect(input.max_drawdown_tolerance_days).toBe(90);
+    expect(toBacktestInput({ ...values, sweep: true }, STRATEGY).cost_sensitivity).toBe(false);
+    const plain = toBacktestInput(defaultBacktestValues(STRATEGY, NOW), STRATEGY);
+    expect(plain.max_drawdown_tolerance_pct).toBeNull();
+    expect(plain.max_drawdown_tolerance_days).toBeNull();
+  });
+
+  it("warns about a small test part and short samples, and sends allow_gaps", () => {
+    expect(testFractionWarning("0.2")).toContain("0.25");
+    expect(testFractionWarning("0.25")).toBeUndefined();
+    expect(testFractionWarning("0.3")).toBeUndefined();
+    expect(testFractionWarning("")).toBeUndefined();
+    const values = defaultBacktestValues(STRATEGY, NOW);
+    expect(sampleAdvice(STRATEGY, values.params, 400)).toEqual({
+      freeParameters: 2,
+      minBars: 504,
+      enough: false,
+    });
+    const withStop = { ...values.params, stop_loss_pct: "3" };
+    expect(sampleAdvice(STRATEGY, withStop, 2000).freeParameters).toBe(3);
+    expect(toBacktestInput({ ...values, allowGaps: true }, STRATEGY).allow_gaps).toBe(true);
+  });
+
+  it("fills the form from a bot and sends its risk limits and timing", () => {
+    const values = applyBacktestPrefill(
+      defaultBacktestValues(STRATEGY, NOW),
+      {
+        strategy: "ema_crossover",
+        symbol: "ETH/USDT",
+        params: '{"fast_period":5,"slow_period":13}',
+        slippageBps: "7.500000000000000000",
+        fillTiming: "signal_close",
+        risk: '{"max_position_fraction":"0.500000000000000000","max_daily_loss_pct":null,"max_consecutive_losses":3,"require_stop_loss":true}',
+      },
+      [STRATEGY],
+    );
+    expect(values.symbol).toBe("ETH/USDT");
+    expect(values.params["fast_period"]).toBe("5");
+    expect(values.riskEnabled).toBe(true);
+    const input = toBacktestInput(values, STRATEGY);
+    expect(input.fill_timing).toBe("signal_close");
+    expect(input.slippage_bps).toBe("7.5");
+    expect(input.risk).toMatchObject({
+      max_position_fraction: "0.5",
+      max_daily_loss_pct: null,
+      max_consecutive_losses: 3,
+      require_stop_loss: true,
+    });
+    const plain = toBacktestInput(defaultBacktestValues(STRATEGY, NOW), STRATEGY);
+    expect(plain.risk).toBeNull();
+    expect(plain.fill_timing).toBe("next_open");
   });
 });

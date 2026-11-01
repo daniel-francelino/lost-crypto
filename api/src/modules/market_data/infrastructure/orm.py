@@ -1,8 +1,10 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import CheckConstraint, DateTime, Index, Integer, Numeric, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base
@@ -46,3 +48,19 @@ class CandleImportJobRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    candles_rejected: Mapped[int] = mapped_column(Integer, server_default="0")
+    candles_changed: Mapped[int] = mapped_column(Integer, server_default="0")
+    rejection_samples: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
+
+
+class ExchangeListingRow(Base):
+    """Point-in-time record of which pairs an exchange listed (book 1 ch. 3, O10)."""
+
+    __tablename__ = "exchange_listings"
+
+    exchange: Mapped[str] = mapped_column(Text, primary_key=True)
+    symbol: Mapped[str] = mapped_column(Text, primary_key=True)
+    status: Mapped[str] = mapped_column(Text)
+    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    delisted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

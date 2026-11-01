@@ -45,7 +45,7 @@ from modules.exchanges.infrastructure.ccxt_orders import (
     parse_order,
     raw_fills_as_trades,
 )
-from modules.market_data.domain.models import Candle, MarketInfo, Timeframe
+from modules.market_data.domain.models import Candle, ListedMarket, MarketInfo, Timeframe
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +118,20 @@ class CcxtExchange(Exchange):
                 volume=Decimal(str(r[5])),
             )
             for r in rows
+        ]
+
+    async def fetch_server_time(self) -> datetime:
+        """The exchange's clock (to measure the local clock's skew)."""
+        millis = await self._call(self._client.fetch_time)
+        return datetime.fromtimestamp(int(millis) / 1000, UTC)
+
+    async def list_markets(self) -> list[ListedMarket]:
+        """Spot pairs the exchange lists today (used by the daily listing snapshot)."""
+        await self._call(self._client.load_markets)
+        return [
+            ListedMarket(str(m["symbol"]), bool(m.get("active")))
+            for m in self._client.markets.values()
+            if m.get("spot")
         ]
 
     async def fetch_market_info(self, symbol: str) -> MarketInfo:

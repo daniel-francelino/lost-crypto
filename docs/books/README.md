@@ -25,10 +25,10 @@ Chapter-by-chapter analyses of the reference books in [`books/`](../../books), c
 | Chapter | Report | Main outcome |
 |---|---|---|
 | 1 | [Whats, Whos, Whys](01-quantitative-trading-chan/ch01-whats-whos-whys.md) | No alerting channel exists (O1); manual-import gaps; intervention reasons |
-| 2 | [Fishing for Ideas](01-quantitative-trading-chan/ch02-fishing-for-ideas.md) | Sharpe/Sortino and drawdown duration missing; no trial count in sweeps |
-| 3 | [Backtesting](01-quantitative-trading-chan/ch03-backtesting.md) | No candle integrity check; backtests run over data gaps; no truncation (look-ahead) test |
-| 4 | [Setting Up Your Business](01-quantitative-trading-chan/ch04-setting-up-your-business.md) | Key-permission policy, continuity runbook |
-| 5 | [Execution Systems](01-quantitative-trading-chan/ch05-execution-systems.md) | No paper-vs-backtest parity; no volume cap; backtest ignores real risk sizing |
+| 2 | [Fishing for Ideas](01-quantitative-trading-chan/ch02-fishing-for-ideas.md) | ✅ Implemented: risk ratios, drawdown duration, cost ladder, periods, screening, sweep trials and train-based ranking |
+| 3 | [Backtesting](01-quantitative-trading-chan/ch03-backtesting.md) | ✅ Implemented: truncation test, candle integrity + outliers, gap guard, data quality per run, sweep robustness, listing snapshots (O1/O2/O9 via ch. 2) |
+| 4 | [Setting Up Your Business](01-quantitative-trading-chan/ch04-setting-up-your-business.md) | ✅ Implemented: daily key re-checks with visible reason, exposed-position report, external worker health, tested backups, clock-skew guard, runbook |
+| 5 | [Execution Systems](01-quantitative-trading-chan/ch05-execution-systems.md) | ✅ Implemented: execution record (slippage, latency), stored bot candles, bot vs backtest parity (gates live), backtests timed and sized like the bot, volume cap, divergence checklist |
 | 6 | [Money and Risk Management](01-quantitative-trading-chan/ch06-money-and-risk-management.md) | Kelly reference as advice; tail-aware exposure cap; only hard pauses, no gradual de-risking |
 | 7 | [Special Topics](01-quantitative-trading-chan/ch07-special-topics.md) | Only trend strategies; no time exit; half-life tool; data cleansing first |
 | 8 | [Conclusion](01-quantitative-trading-chan/ch08-conclusion.md) | No new items; reinforces earlier ones |

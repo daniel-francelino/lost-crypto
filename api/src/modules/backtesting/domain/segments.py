@@ -50,6 +50,9 @@ def compute_segments(
         last_price=candles[split - 1].close,
         open_position=_holds_position(train_fills),
         rejected_signals=rejected_train,
+        bar=config.timeframe.delta,
+        benchmark_prices=[c.close for c in candles[:split]],
+        in_market=outcome.in_market[:split],
     )
     test = compute_metrics(
         initial_capital=outcome.equity_curve[split - 1].equity,  # where the test part begins
@@ -59,6 +62,9 @@ def compute_segments(
         last_price=candles[-1].close,
         open_position=outcome.final_quantity > 0,
         rejected_signals=len(outcome.rejected) - rejected_train,
+        bar=config.timeframe.delta,
+        benchmark_prices=[c.close for c in candles[split:]],
+        in_market=outcome.in_market[split:],
     )
     return {
         "split_at": split_time.isoformat(),

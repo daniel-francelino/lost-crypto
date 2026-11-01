@@ -75,3 +75,34 @@ export const compareDecimal = (a: string | null, b: string | null): number => {
   const right = b === null || !isDecimal(b) ? Number.NEGATIVE_INFINITY : Number.parseFloat(b);
   return left === right ? 0 : left < right ? -1 : 1;
 };
+
+const RATIO: Digits = { min: 2, max: 2 };
+
+export const formatRatio = (value: string | null | undefined): string => decimal(value, RATIO);
+
+const HOUR_SECONDS = 3600;
+const DAY_SECONDS = 24 * HOUR_SECONDS;
+
+export const formatDuration = (seconds: number | null | undefined): string => {
+  if (seconds === null || seconds === undefined) return EMPTY;
+  if (seconds < DAY_SECONDS) {
+    const hours = Math.round(seconds / HOUR_SECONDS);
+    return hours === 1 ? "1 hora" : `${formatInteger(hours)} horas`;
+  }
+  const days = Math.round((seconds / DAY_SECONDS) * 10) / 10;
+  const text = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 }).format(days);
+  return days === 1 ? "1 dia" : `${text} dias`;
+};
+
+export const formatFractionAsPercent = (value: string | null | undefined): string => {
+  if (value === null || value === undefined || !isDecimal(value)) return EMPTY;
+  return new Intl.NumberFormat(LOCALE, { style: "percent", maximumFractionDigits: 0 }).format(
+    value,
+  );
+};
+
+export const formatFraction = (value: string | null | undefined): string =>
+  decimal(value, { min: 0, max: 4 });
+
+export const trimDecimalZeros = (value: string): string =>
+  isDecimal(value) && value.includes(".") ? value.replace(/0+$/, "").replace(/\.$/, "") : value;

@@ -31,6 +31,9 @@ class RiskLimits:
     max_risk_per_trade_pct: Decimal | None = None  # equity % lost if the stop is hit (sizing)
     require_stop_loss: bool = False  # refuse entries that come without a stop-loss
     max_candle_range_pct: Decimal | None = Decimal(25)  # refuse entries on suspect candles
+    # An order may use at most this % of the average quote volume of the last candles
+    # (book 1 ch. 5, O5: Chan's rule of thumb is ~1% of daily volume for stocks). None = off.
+    max_order_pct_of_volume: Decimal | None = None
 
     def __post_init__(self) -> None:
         if not (0 < self.max_position_fraction <= 1):
@@ -45,6 +48,9 @@ class RiskLimits:
             raise InvalidRiskLimits("max_consecutive_losses must be at least 1")
         if self.max_candle_range_pct is not None and self.max_candle_range_pct <= 0:
             raise InvalidRiskLimits("max_candle_range_pct must be positive")
+        volume = self.max_order_pct_of_volume
+        if volume is not None and not (0 < volume <= 100):
+            raise InvalidRiskLimits("max_order_pct_of_volume must be in (0, 100]")
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +93,17 @@ class RiskDecision:
 
 
 @dataclass(frozen=True, slots=True)
+class BackupRecord:
+    kind: str  # "backup" | "restore_check"
+    at: datetime
+    ok: bool
+    file: str | None = None
+    size_bytes: int | None = None
+    checksum: str | None = None
+    detail: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class KillSwitchState:
     active: bool = False
     reason: str | None = None
@@ -110,6 +127,7 @@ def assess_signal(
     candle_range: Decimal = Decimal(0),
     global_limits: GlobalRiskLimits | None = None,
     exposure: GlobalExposure | None = None,
+    avg_quote_volume: Decimal | None = None,
 ) -> RiskDecision:
     """Approve and size a signal, or reject it with a reason.
 
@@ -153,6 +171,8 @@ def assess_signal(
             equity * limits.max_risk_per_trade_pct / _PCT / (entry - signal.stop_loss)
         )
         budget = min(budget, quantity_at_risk * entry * (1 + fee_rate))
+    if limits.max_order_pct_of_volume is not None and avg_quote_volume is not None:
+        budget = min(budget, avg_quote_volume * limits.max_order_pct_of_volume / _PCT)
     if global_limits.max_total_exposure is not None:
         remaining = global_limits.max_total_exposure - exposure.notional
         if remaining <= 0:
@@ -162,8 +182,23 @@ def assess_signal(
     try:
         quantity = affordable_buy_quantity(budget, entry, fee_rate, market)
     except OrderRejected as exc:
+        if limits.max_order_pct_of_volume is not None and avg_quote_volume is not None:
+            return RiskDecision.reject(
+                f"{exc} after capping the order at {limits.max_order_pct_of_volume}% of the "
+                f"average volume ({avg_quote_volume:.2f} quote)"
+            )
         return RiskDecision.reject(str(exc))
     return RiskDecision(approved=True, quantity=quantity)
+
+
+MIN_VOLUME_SAMPLES = 5  # with fewer recent candles the average volume is not trusted
+
+
+def average_quote_volume(quote_volumes: Sequence[Decimal]) -> Decimal | None:
+    """Average traded value (volume x close) of the recent candles, or None if too few."""
+    if len(quote_volumes) < MIN_VOLUME_SAMPLES:
+        return None
+    return sum(quote_volumes, Decimal(0)) / len(quote_volumes)
 
 
 def _assess_exit(
@@ -197,3 +232,36 @@ def consecutive_losses_breached(round_trip_pnls: Sequence[Decimal], limits: Risk
     if n is None or len(round_trip_pnls) < n:
         return False
     return all(pnl < 0 for pnl in round_trip_pnls[-n:])
+
+
+_LIMIT_DECIMALS = (
+    "max_position_fraction",
+    "max_order_notional",
+    "max_daily_loss_pct",
+    "max_drawdown_pct",
+    "max_risk_per_trade_pct",
+    "max_candle_range_pct",
+    "max_order_pct_of_volume",
+)
+
+
+def limits_to_dict(limits: RiskLimits) -> dict[str, object]:
+    out: dict[str, object] = {
+        name: None if getattr(limits, name) is None else str(getattr(limits, name))
+        for name in _LIMIT_DECIMALS
+    }
+    out["max_consecutive_losses"] = limits.max_consecutive_losses
+    out["require_stop_loss"] = limits.require_stop_loss
+    return out
+
+
+def limits_from_dict(raw: dict[str, object]) -> RiskLimits:
+    values: dict[str, object] = {
+        name: None if raw.get(name) is None else Decimal(str(raw[name]))
+        for name in _LIMIT_DECIMALS
+        if name in raw
+    }
+    if raw.get("max_consecutive_losses") is not None:
+        values["max_consecutive_losses"] = int(str(raw["max_consecutive_losses"]))
+    values["require_stop_loss"] = bool(raw.get("require_stop_loss", False))
+    return RiskLimits(**values)  # type: ignore[arg-type]

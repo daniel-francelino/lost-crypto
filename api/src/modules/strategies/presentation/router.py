@@ -1,7 +1,7 @@
 from typing import Any
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from container import Container
 
@@ -21,6 +21,13 @@ class StrategyOut(BaseModel):
     name: str
     description: str
     parameters: list[ParamOut]
+    parameter_count: int = Field(
+        description="Configurable parameters. Chan's rule of thumb: at most 5 (book 1 ch. 3)."
+    )
+    too_many_parameters: bool
+
+
+MAX_PARAMETERS = 5
 
 
 @router.get("", response_model=list[StrategyOut])
@@ -42,6 +49,8 @@ async def list_strategies(request: Request) -> list[StrategyOut]:
                 )
                 for p in d.PARAMETERS
             ],
+            parameter_count=len(d.PARAMETERS),
+            too_many_parameters=len(d.PARAMETERS) > MAX_PARAMETERS,
         )
         for d in container.registry.list()
     ]

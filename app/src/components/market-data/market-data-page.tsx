@@ -13,7 +13,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "lost-
 import { toast } from "lost-ui/ui/sonner";
 import { ErrorBlock, QueryBoundary } from "@/components/shared/feedback/query-boundary";
 import { CoverageNotice } from "@/components/shared/market-data/coverage-notice";
+import { ListingStatusLine } from "@/components/market-data/listing-status";
+import { OutliersCard } from "@/components/market-data/outliers-card";
+import { RejectedCell } from "@/components/market-data/rejected-cell";
 import { JobStatusBadge } from "@/components/shared/status/badges";
+import type { MarketDataSearch } from "@/lib/shared/market-data/search";
 import { useSessionUser } from "@/hooks/shared/use-session";
 import { useCapabilities } from "@/hooks/shared/use-system";
 import { closeChartRows } from "@/lib/market-data/candle-chart-rows";
@@ -65,6 +69,18 @@ const importColumns: DataTableColumn<ImportJob>[] = [
     cell: (row) => formatInteger(row.candles_imported),
   },
   {
+    id: "rejected",
+    header: "Rejeitados",
+    align: "right",
+    cell: (row) => <RejectedCell job={row} />,
+  },
+  {
+    id: "changed",
+    header: "Alterados",
+    align: "right",
+    cell: (row) => formatInteger(row.candles_changed ?? 0),
+  },
+  {
     id: "created",
     header: "Criada em",
     accessor: "created_at",
@@ -73,16 +89,16 @@ const importColumns: DataTableColumn<ImportJob>[] = [
   { id: "error", header: "Erro", accessor: "error" },
 ];
 
-export function MarketDataPage() {
+export function MarketDataPage({ initial = {} }: { initial?: MarketDataSearch }) {
   const user = useSessionUser();
   const client = useQueryClient();
   const capabilities = useCapabilities();
   const exchanges = capabilities.data?.exchanges ?? ["binance"];
   const [exchange, setExchange] = useState("binance");
-  const [symbol, setSymbol] = useState("BTC/USDT");
-  const [timeframe, setTimeframe] = useState<string>(Timeframe.H1);
-  const [start, setStart] = useState(daysAgoString(30));
-  const [end, setEnd] = useState(daysAgoString(0));
+  const [symbol, setSymbol] = useState(initial.symbol ?? "BTC/USDT");
+  const [timeframe, setTimeframe] = useState<string>(initial.timeframe ?? Timeframe.H1);
+  const [start, setStart] = useState(initial.start ?? daysAgoString(30));
+  const [end, setEnd] = useState(initial.end ?? daysAgoString(0));
   const [error, setError] = useState<string | null>(null);
 
   const imports = useQuery({
@@ -207,6 +223,9 @@ export function MarketDataPage() {
           end={end}
         />
       ) : null}
+      {symbol.trim() === "" ? null : (
+        <ListingStatusLine exchange={exchange} symbol={symbol.trim().toUpperCase()} />
+      )}
 
       <Card>
         <CardHeader>
@@ -238,6 +257,16 @@ export function MarketDataPage() {
           </QueryBoundary>
         </CardContent>
       </Card>
+
+      {validRange && symbol.trim() !== "" ? (
+        <OutliersCard
+          exchange={exchange}
+          symbol={symbol.trim().toUpperCase()}
+          timeframe={timeframe}
+          start={start}
+          end={end}
+        />
+      ) : null}
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold">Importações</h2>

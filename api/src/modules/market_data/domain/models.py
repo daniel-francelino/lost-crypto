@@ -83,3 +83,60 @@ def find_gaps(open_times: Sequence[datetime], timeframe: Timeframe) -> list[Gap]
         if missing > 0:
             gaps.append(Gap(start=previous + delta, end=current - delta, missing=missing))
     return gaps
+
+
+def ceil_to_timeframe(moment: datetime, timeframe: Timeframe) -> datetime:
+    floored = floor_to_timeframe(moment, timeframe)
+    return floored if floored == moment else floored + timeframe.delta
+
+
+@dataclass(frozen=True, slots=True)
+class RangeCoverage:
+    """Expected vs present candles in ``[start, end)``, gaps at the edges included."""
+
+    expected: int
+    present: int
+    gaps: list[Gap]
+
+    @property
+    def missing(self) -> int:
+        return self.expected - self.present
+
+    @property
+    def largest_gap(self) -> int:
+        return max((g.missing for g in self.gaps), default=0)
+
+
+def range_coverage(
+    open_times: Sequence[datetime],
+    timeframe: Timeframe,
+    start: datetime,
+    end: datetime,
+    now: datetime,
+) -> RangeCoverage:
+    """Gaps of a series inside a requested range; only candles closed by ``now`` are expected."""
+    delta = timeframe.delta
+    first = ceil_to_timeframe(start, timeframe)
+    stop = min(end, floor_to_timeframe(now, timeframe))
+    if stop <= first:
+        return RangeCoverage(0, 0, [])
+    expected = -(-(stop - first) // delta)
+    inside = [t for t in open_times if first <= t < stop]
+    sentinels = [first - delta, *inside, first + expected * delta]
+    return RangeCoverage(expected, len(inside), find_gaps(sentinels, timeframe))
+
+
+@dataclass(frozen=True, slots=True)
+class ListedMarket:
+    symbol: str
+    active: bool  # listed but halted (e.g. Binance "BREAK") is inactive
+
+
+@dataclass(frozen=True, slots=True)
+class Listing:
+    exchange: str
+    symbol: str
+    status: str  # "active" | "inactive" | "delisted"
+    first_seen: datetime
+    last_seen: datetime
+    delisted_at: datetime | None

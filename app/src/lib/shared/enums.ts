@@ -21,6 +21,92 @@ export const Role = {
 } as const;
 export type Role = ValueOf<typeof Role>;
 
+export const SweepRankBy = {
+  TotalReturn: "total_return_pct",
+  TrainReturn: "train_return_pct",
+  TestReturn: "test_return_pct",
+  Sharpe: "sharpe_ratio",
+  TrainSharpe: "train_sharpe_ratio",
+  TestSharpe: "test_sharpe_ratio",
+} as const;
+export type SweepRankBy = ValueOf<typeof SweepRankBy>;
+
+export const BreakEvenStatus = {
+  Found: "found",
+  NeverProfitable: "never_profitable",
+  AboveMax: "above_max",
+} as const;
+export type BreakEvenStatus = ValueOf<typeof BreakEvenStatus>;
+
+export const PeriodGranularity = {
+  Year: "year",
+  Quarter: "quarter",
+} as const;
+export type PeriodGranularity = ValueOf<typeof PeriodGranularity>;
+
+export const CandleProblem = {
+  NonPositivePrice: "non_positive_price",
+  NegativeVolume: "negative_volume",
+  HighBelowBody: "high_below_body",
+  LowAboveBody: "low_above_body",
+  MisalignedTime: "misaligned_time",
+} as const;
+export type CandleProblem = ValueOf<typeof CandleProblem>;
+
+export const ListingStatus = {
+  Active: "active",
+  Inactive: "inactive",
+  Delisted: "delisted",
+} as const;
+export type ListingStatus = ValueOf<typeof ListingStatus>;
+
+export const RobustnessVerdict = {
+  Plateau: "plateau",
+  Peak: "peak",
+  Unprofitable: "unprofitable",
+  Insufficient: "insufficient",
+} as const;
+export type RobustnessVerdict = ValueOf<typeof RobustnessVerdict>;
+
+export const ParityClass = {
+  Match: "match",
+  Cost: "cost",
+  Risk: "risk",
+  Operational: "operational",
+  Data: "data",
+  Unexplained: "unexplained",
+} as const;
+export type ParityClass = ValueOf<typeof ParityClass>;
+
+export const ParityVerdict = {
+  Consistent: "consistent",
+  Differences: "differences",
+} as const;
+export type ParityVerdict = ValueOf<typeof ParityVerdict>;
+
+export const DivergenceStep = {
+  Bugs: "bugs",
+  Trades: "trades",
+  Costs: "costs",
+  Liquidity: "liquidity",
+  Snooping: "snooping",
+  Regime: "regime",
+} as const;
+export type DivergenceStep = ValueOf<typeof DivergenceStep>;
+
+export const StepState = {
+  Ok: "ok",
+  Attention: "attention",
+  NoData: "no_data",
+} as const;
+export type StepState = ValueOf<typeof StepState>;
+
+export const FillTiming = {
+  NextOpen: "next_open",
+  SignalClose: "signal_close",
+} as const;
+export type FillTiming = ValueOf<typeof FillTiming>;
+
 export const JobStatus = {
   Queued: "queued",
   Running: "running",

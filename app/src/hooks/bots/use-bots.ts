@@ -2,7 +2,10 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import {
   getBot,
   getBotEquity,
+  getDivergence,
+  getExecutionQuality,
   getOverview,
+  getParity,
   getPerformance,
   getPortfolio,
   getReadiness,
@@ -17,7 +20,7 @@ import {
 } from "@/lib/bots/bots.api";
 import { QueryKey } from "@/lib/shared/api/query-keys";
 import { BotState } from "@/lib/shared/enums";
-import { Poll } from "@/lib/shared/polling";
+import { Poll, isJobFinished } from "@/lib/shared/polling";
 
 export const EQUITY_LIMIT = 500;
 
@@ -119,3 +122,28 @@ export const useBotCommand = (id: string) => {
 
 export const isConverging = (desired: string, observed: string): boolean =>
   desired !== observed && !(desired === BotState.Stopped && observed === BotState.Error);
+
+export const useExecutionQuality = (id: string) =>
+  useQuery({
+    queryKey: QueryKey.Bots.executionQuality(id),
+    queryFn: ({ signal }) => getExecutionQuality(id, signal),
+    refetchInterval: Poll.Detail,
+  });
+
+export const useParity = (id: string) =>
+  useQuery({
+    queryKey: QueryKey.Bots.parity(id),
+    queryFn: ({ signal }) => getParity(id, signal),
+    refetchInterval: (query) =>
+      query.state.data !== null &&
+      query.state.data !== undefined &&
+      !isJobFinished(query.state.data.status)
+        ? Poll.Fast
+        : false,
+  });
+
+export const useDivergence = (id: string) =>
+  useQuery({
+    queryKey: QueryKey.Bots.divergence(id),
+    queryFn: ({ signal }) => getDivergence(id, signal),
+  });

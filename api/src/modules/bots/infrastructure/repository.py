@@ -34,6 +34,7 @@ def _to_bot(row: BotRow) -> Bot:
                 max_risk_per_trade_pct=row.max_risk_per_trade_pct,
                 require_stop_loss=row.require_stop_loss,
                 max_candle_range_pct=row.max_candle_range_pct,
+                max_order_pct_of_volume=row.max_order_pct_of_volume,
             ),
             mode=ExecutionMode(row.mode),
             connection_id=row.exchange_connection_id,
@@ -69,6 +70,7 @@ def _config_values(config: BotConfig) -> dict[str, object]:
         "max_risk_per_trade_pct": config.risk.max_risk_per_trade_pct,
         "require_stop_loss": config.risk.require_stop_loss,
         "max_candle_range_pct": config.risk.max_candle_range_pct,
+        "max_order_pct_of_volume": config.risk.max_order_pct_of_volume,
         "mode": config.mode.value,
         "exchange_connection_id": config.connection_id,
     }

@@ -14,7 +14,7 @@ PostgreSQL is the source of truth. This is a **conceptual** model: no ORM models
 | Transactions | One use case = one transaction (Unit of Work). Rule: *order intent + capital reservation + signal consumption* commit atomically; *fill + order update + ledger entries + position update* commit atomically. **Network calls never happen inside a DB transaction** |
 | Concurrency | Optimistic `version` on aggregates (`bots`, `orders`); `SELECT … FOR UPDATE` on balance rows for reservations; advisory locks for bot ownership |
 | Consistency | `CHECK` constraints: `filled_qty <= quantity`, `free >= 0`, `locked >= 0`; status ↔ field consistency (e.g. `FILLED` ⇒ `filled_qty = quantity`) enforced in domain and constraints where feasible |
-| Sensitive data | Only `exchange_connections.credentials_encrypted`; app DB role cannot `UPDATE/DELETE` on `audit_events`; backups encrypted |
+| Sensitive data | Only `exchange_connections.credentials_encrypted`; app DB role cannot `UPDATE/DELETE` on `audit_events`; backups (`python -m manage backup`, see `docs/operations/runbook.md`) hold those credentials encrypted with the master key, which is kept apart from the dumps |
 | Historical data | Config versions, signals, snapshots and metrics are retained so any decision can be explained and any backtest reproduced |
 | Migrations | Alembic, linear history, reviewed; destructive migrations need a backup step |
 

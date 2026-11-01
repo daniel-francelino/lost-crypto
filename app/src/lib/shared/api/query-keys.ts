@@ -17,6 +17,9 @@ export const QueryKey = {
     signals: (id: string, limit: number, offset: number) =>
       ["bots", id, "signals", limit, offset] as const,
     readiness: (id: string) => ["bots", id, "live-readiness"] as const,
+    executionQuality: (id: string) => ["bots", id, "execution-quality"] as const,
+    parity: (id: string) => ["bots", id, "parity"] as const,
+    divergence: (id: string) => ["bots", id, "divergence"] as const,
   },
   Backtests: {
     all: () => ["backtests"] as const,
@@ -29,8 +32,12 @@ export const QueryKey = {
   },
   MarketData: {
     all: () => ["market-data"] as const,
-    coverage: (exchange: string, symbol: string, timeframe: string) =>
-      ["market-data", "coverage", exchange, symbol, timeframe] as const,
+    coverage: (exchange: string, symbol: string, timeframe: string, start = "", end = "") =>
+      ["market-data", "coverage", exchange, symbol, timeframe, start, end] as const,
+    outliers: (exchange: string, symbol: string, timeframe: string, start: string, end: string) =>
+      ["market-data", "outliers", exchange, symbol, timeframe, start, end] as const,
+    listings: (exchange: string, symbol: string) =>
+      ["market-data", "listings", exchange, symbol] as const,
     imports: (limit: number) => ["market-data", "imports", limit] as const,
     candles: (exchange: string, symbol: string, timeframe: string, start: string, end: string) =>
       ["market-data", "candles", exchange, symbol, timeframe, start, end] as const,

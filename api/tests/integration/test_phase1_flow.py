@@ -205,9 +205,23 @@ async def test_parameter_sweep_ranks_runs_and_skips_invalid_combinations(
     await _drain(runner)
 
     sweep = (await client.get(f"/api/v1/backtests/sweeps/{resp.json()['id']}")).json()
-    assert (sweep["completed"], sweep["failed"], sweep["ranked_by"]) == (3, 0, "test_return_pct")
-    scores = [Decimal(r["test_return_pct"]) for r in sweep["runs"]]
-    assert scores == sorted(scores, reverse=True)  # best out-of-sample result first
+    # With a split the train part chooses and the test part checks (it is not used to rank).
+    assert (sweep["completed"], sweep["failed"], sweep["ranked_by"]) == (3, 0, "train_return_pct")
+    assert (sweep["trials"], sweep["prior_trials"]) == (6, 0)  # 3 run + 3 skipped
+    scores = [Decimal(r["train_return_pct"]) for r in sweep["runs"]]
+    assert scores == sorted(scores, reverse=True)
+    for row in sweep["runs"]:  # train and total are different numbers (the old UI mixed them)
+        assert row["train_return_pct"] is not None and row["test_return_pct"] is not None
+        assert "train_sharpe_ratio" in row and "test_sharpe_ratio" in row
+
+    by_test = await client.get(
+        f"/api/v1/backtests/sweeps/{sweep['id']}", params={"rank_by": "test_return_pct"}
+    )
+    assert (
+        by_test.json()["ranked_by"] == "test_return_pct" and "uses it up" in by_test.json()["note"]
+    )
+    test_scores = [Decimal(r["test_return_pct"]) for r in by_test.json()["runs"]]
+    assert test_scores == sorted(test_scores, reverse=True)
     assert all(
         r["strategy_params"]["fast_period"] < r["strategy_params"]["slow_period"]
         for r in sweep["runs"]
@@ -221,6 +235,57 @@ async def test_parameter_sweep_ranks_runs_and_skips_invalid_combinations(
     without_split = {k: v for k, v in spec.items() if k != "test_fraction"}
     plain = (await client.post("/api/v1/backtests/sweeps", json=without_split)).json()
     assert plain["ranked_by"] == "total_return_pct" and "overfit" in plain["note"]
+    assert plain["prior_trials"] == 3  # the first sweep's runs on the same data
+    bad_rank = await client.get(
+        f"/api/v1/backtests/sweeps/{plain['id']}", params={"rank_by": "test_return_pct"}
+    )
+    assert bad_rank.status_code == 422  # no test part to rank by
+
+
+async def test_risk_metrics_periods_cost_ladder_and_tolerance(
+    stack: tuple[httpx.AsyncClient, JobRunner],
+) -> None:
+    client, runner = stack
+    body = await _import_candles(client, runner)
+    spec = {
+        **body,
+        "strategy_type": "ema_crossover",
+        "fee_rate": "0.001",
+        "cost_sensitivity": True,
+        "max_drawdown_tolerance_pct": "0.01",
+        "max_drawdown_tolerance_days": 3650,
+    }
+    resp = await client.post("/api/v1/backtests", json=spec)
+    assert resp.status_code == 202, resp.text
+    await _drain(runner)
+    run = (await client.get(f"/api/v1/backtests/{resp.json()['id']}")).json()
+    assert run["status"] == "completed", run["error"]
+
+    metrics = run["metrics"]
+    assert metrics["sharpe_ratio"] is not None and metrics["return_periods"] == 599
+    assert Decimal(metrics["annualization_factor"]) == 8760
+    assert metrics["max_drawdown_duration_seconds"] > 0
+    assert isinstance(metrics["drawdown_open"], bool)
+    assert 0 < Decimal(metrics["exposure_pct"]) < 100
+
+    assert run["periods"]["granularity"] == "quarter"
+    assert sum(p["candles"] for p in run["periods"]["periods"]) == run["candles_count"]
+
+    ladder = run["cost_ladder"]
+    assert [Decimal(level["multiplier"]) for level in ladder["levels"]] == [
+        Decimal(m) for m in ("0", "0.5", "1", "1.5", "2", "3")
+    ]
+    level_one = next(lv for lv in ladder["levels"] if Decimal(lv["multiplier"]) == 1)
+    assert Decimal(level_one["net_pnl"]) == Decimal(metrics["net_pnl"])
+    assert ladder["break_even_status"] in {"found", "never_profitable", "above_max"}
+
+    tolerance = run["tolerance"]
+    assert tolerance["exceeded_depth"] is True  # any drawdown beats 0.01%
+    assert tolerance["exceeded_duration"] is False  # nothing lasts ten years here
+    assert run["cost_sensitivity"] is True
+
+    as_sweep = {**spec, "grid": {"fast_period": [3, 5]}}
+    assert (await client.post("/api/v1/backtests/sweeps", json=as_sweep)).status_code == 422
 
 
 async def test_sweep_input_is_validated(stack: tuple[httpx.AsyncClient, JobRunner]) -> None:
