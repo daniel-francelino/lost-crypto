@@ -52,7 +52,7 @@ O livro não discute cripto, mercados 24/7 nem taxas de corretora. Tudo sobre cr
 * **O worker não consegue avisar que ele mesmo parou.** O alerta "worker parado" precisa ser calculado no processo da **API** (por exemplo ao listar/contar alertas, ou numa tarefa na própria API); os demais (bot parado, divergência na reconciliação, ordem rejeitada, limite diário, kill switch, cobertura de candles defasada) podem ser emitidos pelo worker. **Decisão tomada na implementação (ver abaixo):** onde avaliar "worker parado".
 * O módulo `audit` (`models.py`, `orm.py`, `repository.py`, `service.py`, `router.py`) é o molde mais próximo: tabela com `BigInteger` autoincremento, `occurred_at` com `server_default=func.now()`, `bot_id` sem FK, `payload` JSONB, listagem mais recente primeiro com `limit`/`offset` e total em `X-Total-Count` (`core.pagination`). O módulo `bots` usa o layout `domain/application/infrastructure/presentation`; como o de alertas tem regras (episódios, deduplicação), seguir o layout maior.
 * Rotas protegidas em `api_router.py`: `require_access` libera leitura para qualquer papel e exige `admin` para alterar estado. Marcar como lido é uma alteração; **decisão tomada:** só o `admin` marca como lido (o `viewer` cairia em 403).
-* A última migração é `0007_live_trading.py`; a nova seria a `0008`. O ORM novo precisa ser importado em `orm_models.py`.
+* A última migração era a `0007_live_trading.py`; a das alertas foi criada como `0008` e, depois do merge com as migrações `0008` a `0011` dos capítulos 2 a 5, renumerada para `0012_alerts`. O ORM novo precisa ser importado em `orm_models.py`.
 
 **Backend**
 1. **Domínio** (`modules/notifications/domain`): `Alert` (id, `kind`, `severity`, `bot_id` opcional, `dedupe_key`, mensagem, `payload`, `opened_at`, `resolved_at` opcional, `read_at` opcional), enums `AlertKind` e `AlertSeverity`, e a regra de episódio: existe no máximo um alerta **aberto** por `dedupe_key`; reemitir enquanto aberto não cria outro; a recuperação preenche `resolved_at`.
@@ -82,7 +82,7 @@ O livro não discute cripto, mercados 24/7 nem taxas de corretora. Tudo sobre cr
 
 #### Estado da implementação (2026-10-31)
 
-**O que foi feito.** Backend: módulo `api/src/modules/notifications` (domínio, avaliador de episódios, condições puras, serviço e monitor, ORM e repositório, router), migração `0008_alerts`, atualizador de candles `market_data/application/updater.py`, tratamento de 429/418 no cliente CCXT, novas configurações em `core/config.py` (documentadas em `api/.env.example`) e `docs/openapi.json` atualizado. Frontend: enums, rota, chaves de consulta, camada compartilhada (`lib/shared/alerts`, `hooks/shared/use-alerts.ts`), indicador na barra de segurança, tela `/alerts` e entrada "Alertas" no menu "Sistema".
+**O que foi feito.** Backend: módulo `api/src/modules/notifications` (domínio, avaliador de episódios, condições puras, serviço e monitor, ORM e repositório, router), migração `0012_alerts`, atualizador de candles `market_data/application/updater.py`, tratamento de 429/418 no cliente CCXT, novas configurações em `core/config.py` (documentadas em `api/.env.example`) e `docs/openapi.json` atualizado. Frontend: enums, rota, chaves de consulta, camada compartilhada (`lib/shared/alerts`, `hooks/shared/use-alerts.ts`), indicador na barra de segurança, tela `/alerts` e entrada "Alertas" no menu "Sistema".
 
 **Decisões que eu tomei no lugar das pendentes** (padrões conservadores, fáceis de mudar):
 * **Worker parado** é calculado no processo da **API** (tarefa em segundo plano iniciada no `lifespan`, a cada 15 s). As demais condições são avaliadas pelo **worker**.
@@ -102,7 +102,7 @@ O livro não discute cripto, mercados 24/7 nem taxas de corretora. Tudo sobre cr
 
 **Verificação:** `ruff` e `mypy` (strict) limpos; backend com 323 testes passando contra o banco de teste (26 novos: episódios, condições, atualizador, 429, API e worker); app com `lint`, `typecheck`, `format:check`, `check:consistency`, 52 testes `vitest` e `build` passando. A tela foi aberta em um Chromium real (desktop e 360 px) contra uma API descartável: listagem, marcar como lido e o indicador funcionaram. **Não rodei** os testes Playwright do projeto (`npm run e2e`) nem testei contra a Binance real. Na barra do topo a 360 px sobra um estouro de ~3 px quando o worker está parado; ele já existia antes dos alertas e não foi tratado aqui.
 
-**Para usar no ambiente de desenvolvimento** (nada disso foi feito por mim): reconstruir as imagens `api` e `worker` e rodar `alembic upgrade head` no banco de desenvolvimento (a migração `0008` só foi aplicada no banco de teste). Alertas só avisam quem abre o app.
+**Para usar no ambiente de desenvolvimento** (nada disso foi feito por mim): reconstruir as imagens `api` e `worker` e rodar `alembic upgrade head` no banco de desenvolvimento (a migração `0012_alerts` e as `0008` a `0011` só foram aplicadas no banco de teste). Alertas só avisam quem abre o app.
 
 ### O2 — Importação incremental automática de dados *(livro: C6, pp. 6–7 · adaptação)*
 * **Problema:** lacunas nos candles armazenados só são reparadas por jobs manuais.
@@ -189,14 +189,14 @@ Apoia-se em uma frase de opinião. Capítulos posteriores dão critérios concre
 | – | O4, O5 | adiados | | | | |
 
 ## 5. Arquivos afetados
-* O1 backend: novo módulo `api/src/modules/notifications` (domínio, porta `Notifier` + `in_app`, avaliador, ORM e repositório, router), migração `0008`, `orm_models.py`, `api_router.py`, `container.py`, `core/config.py`, `api/docs/openapi.json`, testes em `api/tests`.
+* O1 backend: novo módulo `api/src/modules/notifications` (domínio, porta `Notifier` + `in_app`, avaliador, ORM e repositório, router), migração `0012_alerts`, `orm_models.py`, `api_router.py`, `container.py`, `core/config.py`, `api/docs/openapi.json`, testes em `api/tests`.
 * O1 frontend: `lib/shared/enums.ts`, `lib/shared/routes.ts`, `lib/shared/api/query-keys.ts`, `lib/shared/alerts/alerts.api.ts`, `hooks/shared/use-alerts.ts`, indicador em `components/shared/layout` (ao lado de `safety-strip.tsx`), `components/shared/layout/nav-config.tsx` e `breadcrumbs.ts`, `routes/_app/alerts/index.tsx`, `components/alerts/alerts-page.tsx`, dashboard e `/system`, testes (vitest e Playwright), `app/AGENTS.md` e `app/docs/` (06, 02, 09) se o módulo `alerts` for criado.
 * O2: `modules/market_data/application/service.py`, `container.py` (etapa no `JobRunner`), `exchanges/infrastructure/ccxt_exchange.py`, `core/config.py`; frontend opcional (horário do último candle por par).
 * O3: `modules/bots/application/service.py`, router de bots, payload de auditoria, formulários de controle do app.
 
 ## 6. Plano incremental
 1. O1a (backend): domínio do alerta, porta `Notifier`, notifier falso, avaliador de condições com deduplicação, cooldown e recuperação (sem persistência).
-2. O1b (backend): canal `in_app`: migração `0008`, tabela e repositório, endpoints (listar, contar não lidos, marcar como lido), integração ao `JobRunner`/`container.py`, retenção, atualização do OpenAPI.
+2. O1b (backend): canal `in_app`: migração `0012_alerts` (criada como `0008`), tabela e repositório, endpoints (listar, contar não lidos, marcar como lido), integração ao `JobRunner`/`container.py`, retenção, atualização do OpenAPI.
 3. O1c (frontend): `api:types`, enums, rota e chaves de consulta, camada compartilhada (`alerts.api.ts` e hook), indicador de não lidos no layout, tela `/alerts`, entrada de navegação, resumos no dashboard e em `/system`, testes e atualização dos documentos do app.
 4. (Opcional, depois) canal externo (webhook/chat) pela mesma porta, se o operador sentir falta de aviso com o app fechado.
 5. O2: importação incremental periódica.

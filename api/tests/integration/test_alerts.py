@@ -102,8 +102,15 @@ async def test_a_stopped_worker_makes_the_running_bot_stale_and_alerts_on_it(env
     assert [(a["kind"], a["bot_id"]) for a in alerts] == [("bot_stale", bot_id)]
 
 
+async def _forget_series(env: Env) -> None:
+    async with env.containers[-1].engine.begin() as conn:
+        for table in ("candle_import_jobs", "candles"):
+            await conn.execute(text(f"DELETE FROM {table} WHERE symbol = :s"), {"s": SYMBOL})
+
+
 async def test_stored_candles_follow_the_exchange_when_the_update_is_on(env: Env) -> None:
     runner = env.make_runner(candle_update_enabled=True)
+    await _forget_series(env)  # other scenarios leave candles of the same symbol behind
     body = {
         "symbol": SYMBOL,
         "timeframe": "1h",
@@ -129,6 +136,4 @@ async def test_stored_candles_follow_the_exchange_when_the_update_is_on(env: Env
         )
         assert coverage.json()["count"] == 21
     finally:
-        async with env.containers[-1].engine.begin() as conn:
-            for table in ("candle_import_jobs", "candles"):
-                await conn.execute(text(f"DELETE FROM {table} WHERE symbol = :s"), {"s": SYMBOL})
+        await _forget_series(env)
