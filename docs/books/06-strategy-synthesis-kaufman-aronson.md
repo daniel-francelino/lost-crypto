@@ -1,6 +1,6 @@
 # Síntese de estratégia · Kaufman (livro 4) + Aronson (livro 3)
 
-Status: **Fases 1 e 2 implementadas (2026-11-01); Fases 0, 3, 4 e 5 dependem de dados e de rodar a validação.** Ver "Estado da implementação" ao final. Escrita em 2026-11-01 a partir dos relatórios de capítulo já feitos ([livro 4](04-trading-systems-and-methods-kaufman), [livro 3](03-evidence-based-technical-analysis-aronson)) e do código verificado nesta data. Páginas citadas são as dos livros, como nos relatórios. Tudo que é cripto é **adaptação nossa**: nenhum dos dois livros trata de cripto, e os resultados citados são de futuros e ações.
+Status: **Fases 1 e 2 implementadas (2026-11-01); Fases 0, 3, 4 e 5 dependem de dados e de rodar a validação.** Ver "Estado da implementação" (seção 9) e "Resultado do backtest" (seção 10). Escrita em 2026-11-01 a partir dos relatórios de capítulo já feitos ([livro 4](04-trading-systems-and-methods-kaufman), [livro 3](03-evidence-based-technical-analysis-aronson)) e do código verificado nesta data. Páginas citadas são as dos livros, como nos relatórios. Tudo que é cripto é **adaptação nossa**: nenhum dos dois livros trata de cripto, e os resultados citados são de futuros e ações.
 
 ## 1. A ideia em uma frase
 
@@ -116,7 +116,76 @@ Cada fase só avança se a anterior passar. Nenhuma altera salvaguarda live.
 * **O padrão de `er_min` é 0 de propósito:** a faixa 0,15–0,25 da seção 3 é palpite a calibrar nos dados (Fase 0), sem olhar PnL. Com 0, a estratégia é o baseline da Fase 2 (Donchian + stop em ATR).
 * **Front-end:** nada a fazer; os formulários leem os parâmetros de `GET /strategies` e a família `trend` já tem as dicas existentes.
 * **Não feito:**
-  * **Fase 0** (diagnóstico de BTC/ETH em 4h e 1d): precisa de candles importados, que não existem nesta máquina. É o próximo passo antes de qualquer varredura.
+  * **Fase 0 e a grade foram executadas** fora do banco, com candles da API pública da Binance: ver seção 10.
   * **Métricas de perfil de tendência, sensibilidade a atraso, ablação de um clique** (Fase 1/5): propostas do Kaufman cap. 8 O1, O2 e O7, ainda não construídas.
   * **Teste de permutação Monte Carlo do melhor de N** (Fase 4, item 4): não construído; sem ele não se afirma significância do melhor da grade, só a dispersão.
   * **Filtro de volatilidade** (Fase 3b) e a validação pré-registrada (Fase 4): dependem dos dados.
+
+## 10. Resultado do backtest (2026-11-01)
+
+**Método.** Candles de BTC/USDT e ETH/USDT em 1d e 4h baixados da API pública da Binance (2017-08-17 a 2026-11-01), executados com o **próprio motor do sistema** (`run_backtest`, preenchimento na abertura seguinte, taxa 0,1%, slippage 5 bps, caixa todo investido, sem o módulo de risco). O script de pesquisa ficou fora do repositório (descartável). Os candles não foram gravados no banco: para ver estes números na interface, é preciso reconstruir a imagem da API (`make up`), aplicar as migrações (`make migrate`) e importar os candles pela tela de dados.
+
+* **Desenvolvimento:** 2017-08 a 2022-12. **Avaliação, consumida uma vez:** 2023-01 a 2026-11. A grade de 27 configurações da seção 3 foi rodada nos dois trechos, 4 séries (108 execuções por trecho). Nada foi ajustado depois de olhar a avaliação.
+
+### Fase 0: a hipótese tem chão?
+
+| Série (desenvolvimento) | Hurst | Razão de variâncias (lags 2/4/8) | Estacionária (5%) | ER de 40 (p25/p50/p75) |
+|---|---|---|---|---|
+| BTC 1d | 0,54 | 0,95 / 0,97 / 1,02 | não | 0,09 / 0,19 / 0,29 |
+| BTC 4h | 0,50 | 0,95 / 0,94 / 0,96 | não | 0,07 / 0,16 / 0,27 |
+| ETH 1d | 0,54 | 0,93 / 0,96 / 1,03 | não | 0,09 / 0,18 / 0,30 |
+| ETH 4h | 0,51 | 0,95 / 0,96 / 0,97 | não | 0,07 / 0,16 / 0,26 |
+
+Nenhuma série reverte à média. Em 1d há persistência fraca (Hurst 0,54); em 4h a série é indistinguível de passeio aleatório, com leve reversão nos lags curtos. A hipótese **não caiu**, mas é fraca, e mais fraca em 4h. O ER de 40 candles tem mediana perto de 0,18, então `er_min` de 0,15 e 0,25 correspondem a cortar cerca de 45% e 68% das barras.
+
+### Desenvolvimento (2017–2022): parece ótimo
+
+As 108 execuções foram lucrativas (retorno mediano de ~420% a ~970% contra ~290% de comprar-e-segurar), com Sharpe mediano de 0,8 a 1,2 e exposição de ~30% a 38% do tempo. Isso é exatamente o que o Aronson diz para desconfiar: o trecho tem o ciclo de 2020–21, e o melhor da grade é enviesado para cima.
+
+### Avaliação (2023–2026): o que sobrou
+
+| Série | Comprar-e-segurar (retorno / Sharpe / DD) | Baseline 40/20/3/0 (retorno / Sharpe / DD) | Entradas aleatórias: fração tão boa ou melhor |
+|---|---|---|---|
+| BTC 1d | 371% / 1,10 / 53% | 12% / 0,25 / 34% | 0,70 (nada melhor que o acaso) |
+| BTC 4h | 371% / 1,12 / 53% | 209% / 1,24 / 30% | 0,09 |
+| ETH 1d | 89% / 0,57 / 68% | 104% / 0,69 / 37% | 0,22 |
+| ETH 4h | 89% / 0,58 / 68% | 33% / 0,39 / 46% | 0,44 |
+
+* **A mediana da grade de 27 configurações na avaliação** teve Sharpe de 0,41 (BTC 1d), 1,04 (BTC 4h), 0,38 (ETH 1d) e 0,52 (ETH 4h). Lucrativas: 23, 27, 21 e 21 de 27.
+* **O melhor do desenvolvimento não é o melhor na avaliação**: ficou nas posições 11, 16, 21 e 6 de 27. Mediana ~13,5, isto é, **a seleção do topo da grade não tem habilidade fora da amostra**. É o viés de seleção do Aronson, medido. A regressão foi forte: o melhor de BTC 1d fez 1.764% no desenvolvimento e 55% na avaliação.
+* **O que a estratégia entrega de verdade é menos drawdown, não mais retorno**: drawdown de 30% a 46% contra 53% a 68% do ativo, ficando fora do mercado ~65% do tempo. Em BTC 1d ela perdeu feio para comprar-e-segurar (12% contra 371%); em BTC 4h e ETH 1d ficou à frente em Sharpe; em ETH 4h ficou atrás.
+
+### Decisões que a grade já força
+
+| Pergunta | Resultado | Decisão (critério da seção 6) |
+|---|---|---|
+| O filtro de ER (`er_min`) ajuda? | No desenvolvimento, `er_min` 0 ≥ 0,15 ≥ 0,25 em todas as séries (mediana de retorno e Sharpe). Na avaliação, **piora em 1d e melhora em 4h**: nenhum padrão consistente. | **Não entra.** Padrão continua `er_min = 0`. Fica como parâmetro, desligado. |
+| Qual `atr_multiple`? | Pouca diferença no Sharpe mediano; 2 reduz drawdown em 1d, 4 piora em 4h. | Manter 3 (valor do livro); não há evidência para ajustar. |
+| Qual `entry_period`? | 20 foi o melhor em 1d no desenvolvimento, 80 em 4h; **nenhum padrão se repete na avaliação**. | Manter 40/20 como referência. |
+| Sobrevive à escada de custos? | Sim. BTC 1d, de custo zero a 3×: retorno de 1.512% a 1.142%, Sharpe 0,91 a 0,85. BTC 4h cai mais (5.025% → 1.241%) por ter 149 operações. | Passa; 4h é muito mais sensível ao custo. |
+| Depende da data inicial? | BTC 1d, deslocando o início em 0–270 dias: retorno de 640% a 1.378%. | **Sensível:** o resultado de uma data inicial não representa a estratégia. |
+
+### O perfil bate com o do Kaufman
+
+Baseline 40/20/3/0, período todo: BTC 1d tem 29 operações, 45% de acerto, razão ganho/perda média de 2,43 (necessária para empatar: 1,23), vencedoras mantidas 82 barras e perdedoras 23, e no máximo 4 perdas seguidas. Em 4h: 36% de acerto, ganho/perda 2,76, até 8 perdas seguidas. É um perfil de seguidor de tendência (acerta pouco, ganha mais por acerto, segura vencedoras 3,5 a 4 vezes mais), como o livro descreve (pp. 317–320). Cuidado: com 27–29 operações em 1d, cada número tem muito ruído.
+
+### Veredito
+
+* **Não aprovada para dinheiro real.** Fora da amostra, a vantagem **não está demonstrada**: em BTC 1d ela não distingue de entradas aleatórias (p ≈ 0,70) e perdeu para comprar-e-segurar; em ETH 4h também ficou atrás; só BTC 4h e ETH 1d mostram Sharpe acima do ativo, e com 8% a 22% de chance de acaso. O desenvolvimento enganava.
+* **O que parece real e robusto:** corte de drawdown (~35 a 40% menor), perfil de tendência saudável, custo suportável em 1d.
+* **O que fica como evidência para o Aronson:** a dispersão entre os dois trechos, a falta de habilidade na seleção da grade e a sensibilidade à data inicial.
+* **Próximos passos honestos:** paper de pelo menos o prazo exigido pelo sistema, em 1d (menos custo, menos ruído); rodar com o módulo de risco (`max_risk_per_trade_pct`) em vez de caixa todo investido, que é como o bot opera; e só então discutir testnet. Resultados de 2017–2022 não devem ser citados como expectativa.
+
+### Com o módulo de risco (como o bot opera)
+
+Baseline 40/20/3/0 com `max_risk_per_trade_pct` e stop obrigatório (a posição é dimensionada pelo stop em ATR, em vez de caixa todo investido):
+
+| Série | Risco por operação | Desenvolvimento (retorno / Sharpe / DD) | Avaliação (retorno / Sharpe / DD) |
+|---|---|---|---|
+| BTC 1d | 1% | 62% / 0,85 / 16% | 2% / 0,17 / 5% |
+| ETH 1d | 1% | 26% / 0,31 / 42% | 11% / 0,69 / 7% |
+| BTC 4h | 1% | 123% / 1,33 / 14% | 68% / 1,52 / 11% |
+| ETH 4h | 1% | 66% / 0,99 / 8% | 22% / 0,64 / 12% |
+| BTC 4h | 2% | 261% / 0,87 / 56% | 132% / 1,42 / 20% |
+
+Com 1% por operação o drawdown cai para 5%–16% na maioria dos casos, e o Sharpe fica na mesma ordem do caixa todo investido: o dimensionamento muda o **tamanho** do risco, não a existência da vantagem. A conclusão do veredito não muda: BTC 1d segue sem vantagem na avaliação (Sharpe 0,17). O drawdown de 42% de ETH 1d no desenvolvimento com 1% (e 56% de BTC 4h com 2%) parece alto para esse dimensionamento e **não foi investigado**; pode vir de mais de uma entrada consecutiva ou de saída por canal depois de queda longa, e deve ser olhado antes de qualquer decisão sobre o limite de risco.
