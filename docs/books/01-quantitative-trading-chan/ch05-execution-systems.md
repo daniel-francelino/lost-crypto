@@ -1,6 +1,6 @@
 # Livro 1 · Capítulo 5 — Sistemas de execução
 
-*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: **apenas análise**; nada implementado por este relatório. Diagnóstico revisado contra o código em 2026-10-31, depois dos Caps. 2–4 (ver §2.1).
+*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: **implementado** (O1–O7) em 2026-11-01; ver §8. As tabelas §2 descrevem o código **antes** desta implementação.
 
 ## 1. Resumo do capítulo (pp. 79–94)
 
@@ -142,6 +142,40 @@ O1 e O2 primeiro: são baratos e sem eles a paridade não tem com o que comparar
 * Com `max_order_pct_of_volume` ligado, uma entrada grande demais é reduzida ou recusada com motivo; desligado, nada muda.
 * A prontidão live exige uma paridade recente sem `unexplained`.
 * Nenhuma salvaguarda do live enfraquecida; `make check`, integração, `npm run lint`, `typecheck`, `test`, `build` verdes; telas novas conferidas em 1366 px e 360 px.
+
+## 8. Implementação (2026-11-01)
+
+Implementado na branch `docs/ch02-fishing-for-ideas-review`, back-end e front-end.
+
+**Back-end (`api/`)**
+* **O1:** `orders` ganhou `reference_price` (fechamento do sinal ou gatilho do stop), `submitted_at` (quando saiu para a exchange; no paper, no mesmo passo) e `first_fill_at`. `realized_slippage_bps` e `latency_ms` (`execution/domain/orders.py`) aparecem em cada ordem; `GET /bots/{id}/execution-quality` agrega por tipo de ordem contra o `slippage_bps` configurado.
+* **O2:** o trader grava na tabela `candles` cada candle válido que processa (inclusive o aquecimento); um candle já guardado que a exchange devolve diferente é sobrescrito e auditado (`data.candle_changed`).
+* **O4:** `BacktestConfig.fill_timing` (`next_open` padrão, `signal_close` como os bots) e `risk` (limites do bot). Com limites, o motor usa o mesmo `assess_signal` e as mesmas pausas (perda diária, drawdown, perdas seguidas); pausado, só os stops funcionam. `risk_report` no resultado (dimensionamento, pausa, recusas por motivo). **O caminho padrão ficou idêntico** (todos os testes antigos, incluindo o de truncamento, passam sem mudança).
+* **O5:** `RiskLimits.max_order_pct_of_volume` (média do valor negociado dos últimos 20 candles, ignorada com menos de 5) no trader e no backtest com risco; recusa com motivo quando o tamanho limitado fica abaixo do mínimo da exchange.
+* **O3:** `POST /bots/{id}/parity` enfileira; o worker (`ParityExecutor`) refaz a última sessão nos candles guardados, com aquecimento, `signal_close` e o risco do bot, e classifica cada sinal (`trading/domain/parity.py`): `match`, `cost`, `risk`, `operational`, `data`, `unexplained`. Também roda um replay com os parâmetros padrão (para o passo de snooping). Resultado em `parity_runs`; `GET /bots/{id}/parity`.
+* **O6:** `GET /bots/{id}/divergence`: os seis passos do livro (bugs, operações, custo, liquidez, snooping, regime), cada um com estado e os valores numéricos; regime compara o retorno do bot com o pior período do último backtest comparável.
+* **O7:** a prontidão live exige uma paridade concluída nos últimos 7 dias **sem** diferenças `unexplained`.
+* Migração `0011_execution_parity.py` (`alembic check` limpo; downgrade testado); `parity_runs` apaga em cascata com o bot.
+
+**Front-end (`app/`)**
+* Ordens do bot com referência, slippage (destacado acima do assumido) e latência; card "Qualidade de execução" no resumo com link para um backtest usando o slippage medido.
+* Abas novas no bot: "Paridade" (comparar, veredito, contagem por classe, retornos, curvas sobrepostas, tabela de diferenças) e "Diagnóstico" (checklist em português montado a partir dos valores da API; nunca conclui "azar").
+* "Rodar backtest com esta configuração": `/backtests/new` aceita pré-preenchimento (estratégia, parâmetros, custos, momento da execução, limites de risco).
+* Formulário de backtest: card "Execução e risco como no bot"; resultado com card "Como foi dimensionado".
+* Formulário de bot: "Máximo da ordem (% do volume médio)".
+
+**Diferenças em relação ao plano**
+* A paridade roda no **worker** (fila), não na API: o replay precisa das regras de mercado da exchange, que só o worker acessa.
+* Classe nova `operational` (sinal atrasado, ordem pendente, kill switch, avisos de chave/relógio, hard caps), separada de `risk`.
+* A comparação é por sinal (candle + lado), com preço; a quantidade não é comparada (o capital da sessão pode diferir do replay quando havia posição antes dela).
+* O texto do diagnóstico em português é montado no app; a API devolve o detalhe em inglês e os números (`values`).
+* Ajustes de tela achados na conferência em 360 px: o JSON de parâmetros do backtest agora quebra linha e as tabelas de períodos/custos rolam dentro do card.
+
+**Verificação**
+* API: `make check` (ruff, mypy strict, 276 testes de unidade) e 86 testes de integração em Postgres 16, todos passando. Destaque: os 15 testes de live agora rodam a paridade de verdade na sessão paper antes da promoção, e todos dão **zero** diferenças sem explicação; o novo `test_phase7_execution.py` cobre candles guardados, slippage medido = configurado no paper, paridade consistente, uma divergência semeada detectada e um backtest com o risco do bot sobre os candles que o bot guardou.
+* Sessão paper sintética de 130 h com stop: 11 sinais idênticos, 0 sem explicação; retorno do bot = retorno do replay.
+* App: `lint`, `typecheck`, `test` (81), `format:check`, `check:consistency`, `build`; telas conferidas em 1366 px e 360 px sem erros no console.
+* **Problema existente, não tratado:** em 360 px a tela do bot rola ~400 px na horizontal por causa da fileira de botões do cabeçalho (Iniciar/Pausar/Parar/Resetar/Promover/Editar), que não foi alterada nesta branch.
 
 ## Ressalva
 A regra de 1% do volume médio diário é regra prática de Chan para ações e não foi calibrada para cripto. Os fills do paper trading simulam o mercado e não reproduzem a liquidez real nem a posição na fila.

@@ -15,7 +15,8 @@ Verified in the code on 2026-10-31. Every chapter report compares the book again
 | Timeline | Signal after candle *i−1* closes is filled at the **open** of candle *i*; no look-ahead in the loop (`engine.py`). |
 | Costs | Fixed `fee_rate` and fixed `slippage_bps` per run, applied on every fill. Same fill code as the paper trader (`execution/domain/fills.py`). |
 | Stops | Stop/target checked against the candle low/high; stop wins when both are inside the candle; a gap through the stop fills at the open (`risk_management/domain/stops.py`). |
-| Sizing | Trivial: all cash in, whole position out. Real sizing lives in the risk module and is **not** used by the backtester. |
+| Sizing | All cash in by default. Optionally (`risk`) the backtester uses the bot's risk module (`assess_signal` sizing and the daily-loss / drawdown / consecutive-loss pauses) and `fill_timing=signal_close`, as the bots do. |
+| Parity | Bots store every candle they process; `POST /bots/{id}/parity` replays the latest session through the backtester and classifies differences; live readiness needs a recent parity with none unexplained. Orders keep the reference price and times (realized slippage, latency). |
 | Out-of-sample | One chronological split (`test_fraction`), strategy runs once over all data, metrics reported for train and test (`segments.py`). |
 | Parameter search | Sweeps exist (API/UI). With a split they rank by the **train** part and show the test part as a check (`rank_by` overrides); they report `trials`, an approximate `prior_trials` count and a neighbour-based robustness verdict (plateau / peak). No statistical correction for the number of trials (no PSR/DSR/PBO). |
 | Robustness | Optional cost ladder (fee + slippage × 0–3, break-even), metrics by calendar year/quarter (`periods.py`), operator drawdown tolerance flag. |
