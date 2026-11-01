@@ -188,4 +188,19 @@ Baseline 40/20/3/0 com `max_risk_per_trade_pct` e stop obrigatório (a posição
 | ETH 4h | 1% | 66% / 0,99 / 8% | 22% / 0,64 / 12% |
 | BTC 4h | 2% | 261% / 0,87 / 56% | 132% / 1,42 / 20% |
 
-Com 1% por operação o drawdown cai para 5%–16% na maioria dos casos, e o Sharpe fica na mesma ordem do caixa todo investido: o dimensionamento muda o **tamanho** do risco, não a existência da vantagem. A conclusão do veredito não muda: BTC 1d segue sem vantagem na avaliação (Sharpe 0,17). O drawdown de 42% de ETH 1d no desenvolvimento com 1% (e 56% de BTC 4h com 2%) parece alto para esse dimensionamento e **não foi investigado**; pode vir de mais de uma entrada consecutiva ou de saída por canal depois de queda longa, e deve ser olhado antes de qualquer decisão sobre o limite de risco.
+Com 1% por operação o drawdown cai para 5%–16% na maioria dos casos, e o Sharpe fica na mesma ordem do caixa todo investido: o dimensionamento muda o **tamanho** do risco, não a existência da vantagem. A conclusão do veredito não muda: BTC 1d segue sem vantagem na avaliação (Sharpe 0,17). O drawdown de 42% de ETH 1d com 1% no desenvolvimento tem causa conhecida (investigada em 2026-11-01): o módulo de risco **pausou a execução em 2021-05-20 por "limite de perda diária" e, no backtest, a pausa nunca é retomada**; as 74 entradas seguintes foram recusadas e uma terceira por candle suspeito (amplitude de 26%). O resultado de ETH com risco de 1% é, portanto, só o trecho até a pausa mais uma posição aberta, e **não é comparável** com as outras linhas. Antes de usar o limite de perda diária num backtest longo, convém decidir se a pausa deve expirar no dia seguinte (como num bot real em que o operador retoma).
+
+## 11. Bot e backtests no banco (2026-11-01)
+
+* Imagens reconstruídas (`docker compose up -d --build`), migração `0020` aplicada, candles diários de BTC/USDT e ETH/USDT importados pela API (3.363 cada, 2017-08-17 a 2026-10-31).
+* **Bot** `Trend quality BTC 1d (paper)` (id `500979eb-0c1a-4674-ac59-a97fcf1aa142`): `trend_quality_breakout` 40/20/3/0, BTC/USDT 1d, paper, risco de 1% por operação com stop obrigatório. **Criado parado**; nada foi iniciado.
+* **Backtests** (BTC e ETH, 1d, período todo, capital de 10.000, taxa de 0,1%, slippage de 5 bps, divisão de teste em 2023-01-22, escada de custos ligada): um com caixa todo investido e um com risco de 1%. Estão na tela de backtests.
+
+| Execução | Retorno | Comprar-e-segurar | Drawdown | Operações | Sharpe |
+|---|---|---|---|---|---|
+| BTC, caixa todo investido | 1.378% | 1.721% | 60% | 29 | 0,89 |
+| BTC, risco 1% | 71% | 1.721% | 16% | 29 | 0,68 |
+| ETH, caixa todo investido | 2.256% | 649% | 72% | 27 | 0,91 |
+| ETH, risco 1% (pausado em 2021) | 50% | 649% | 42% | 8 | 0,31 |
+
+Teste de entradas aleatórias do BTC (1.000 simulações): 10,8% das aleatórias fizeram tão bem ou melhor no período todo, o que não é significativo a 5%.

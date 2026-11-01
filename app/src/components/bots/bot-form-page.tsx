@@ -5,6 +5,8 @@ import { Bot as BotIcon, Brain, Radio, Shield, Wallet } from "lucide-react";
 import { PageHeader } from "lost-ui/app/page-header";
 import { Form } from "lost-ui/forms/form";
 import { FormInput } from "lost-ui/forms/form-input";
+import { FormInputMoney } from "lost-ui/forms/form-input-money";
+import { FormInputNumber } from "lost-ui/forms/form-input-number";
 import { FormSelect } from "lost-ui/forms/form-select";
 import { FormSwitch } from "lost-ui/forms/form-switch";
 import { rules } from "lost-ui/forms/rules";
@@ -45,6 +47,16 @@ const MODE_ITEMS = [
 ];
 const TIMEFRAME_ITEMS = Object.values(Timeframe).map((value) => ({ label: value, value }));
 const MAX_NAME = 60;
+const numberValue = (value: string): number | null => (value.trim() === "" ? null : Number(value));
+const numberText = (value: number | null): string => (value === null ? "" : String(value));
+const quoteCurrency = (symbol: string): string | undefined => {
+  const quote = symbol.split("/")[1]?.trim().toUpperCase();
+  return quote !== undefined && /^[A-Z]{3}$/.test(quote) ? quote : undefined;
+};
+const quoteCurrencyProps = (symbol: string): { currency?: string } => {
+  const currency = quoteCurrency(symbol);
+  return currency === undefined ? {} : { currency };
+};
 const CHANGE_LABELS: Record<string, string> = {
   name: "Nome",
   exchange: "Exchange",
@@ -247,32 +259,35 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
             </IconCardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-3">
-            <FormInput
+            <FormInputMoney
               label="Capital inicial"
               required
-              inputMode="decimal"
-              value={values.initialCapital}
-              onValueChange={(value) => set("initialCapital", value)}
+              {...quoteCurrencyProps(values.symbol)}
+              locale="pt-PT"
+              fractionDigits={8}
+              min={0}
+              value={numberValue(values.initialCapital)}
+              onValueChange={(value) => set("initialCapital", numberText(value))}
               errorMessage={err("initial_capital") ?? ""}
-              rules={[(value) => decimalError(value ?? "", true)]}
+              rules={[(value) => decimalError(numberText(value), true)]}
             />
-            <FormInput
+            <FormInputNumber
               label="Taxa (fração)"
-              inputMode="decimal"
+              showControls={false}
               description="Vazio usa a taxa da exchange. Ex.: 0.001 = 0,1%."
-              value={values.feeRate}
-              onValueChange={(value) => set("feeRate", value)}
+              value={numberValue(values.feeRate)}
+              onValueChange={(value) => set("feeRate", numberText(value))}
               errorMessage={err("fee_rate") ?? ""}
-              rules={[(value) => decimalError(value ?? "", false)]}
+              rules={[(value) => decimalError(numberText(value), false)]}
             />
-            <FormInput
+            <FormInputNumber
               label="Slippage (bps)"
               required
-              inputMode="decimal"
-              value={values.slippageBps}
-              onValueChange={(value) => set("slippageBps", value)}
+              showControls={false}
+              value={numberValue(values.slippageBps)}
+              onValueChange={(value) => set("slippageBps", numberText(value))}
               errorMessage={err("slippage_bps") ?? ""}
-              rules={[(value) => decimalError(value ?? "", true)]}
+              rules={[(value) => decimalError(numberText(value), true)]}
             />
           </CardContent>
         </Card>
@@ -287,68 +302,76 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <FormInput
+            <FormInputNumber
               label="Fração máxima por posição"
               required
-              inputMode="decimal"
+              showControls={false}
+              step={0.01}
+              min={0}
+              max={1}
               description={
                 prefill.maxPositionFraction === undefined
                   ? "De 0 a 1 do capital."
                   : "Pré-preenchida pela referência histórica do backtest; revise antes de criar."
               }
-              value={values.maxPositionFraction}
-              onValueChange={(value) => set("maxPositionFraction", value)}
-              rules={[(value) => decimalError(value ?? "", true)]}
+              value={numberValue(values.maxPositionFraction)}
+              onValueChange={(value) => set("maxPositionFraction", numberText(value))}
+              rules={[(value) => decimalError(numberText(value), true)]}
             />
-            <FormInput
+            <FormInputMoney
               label="Valor máximo por ordem"
-              inputMode="decimal"
-              value={values.maxOrderNotional}
-              onValueChange={(value) => set("maxOrderNotional", value)}
-              rules={[(value) => decimalError(value ?? "", false)]}
+              {...quoteCurrencyProps(values.symbol)}
+              locale="pt-PT"
+              fractionDigits={8}
+              min={0}
+              value={numberValue(values.maxOrderNotional)}
+              onValueChange={(value) => set("maxOrderNotional", numberText(value))}
+              rules={[(value) => decimalError(numberText(value), false)]}
             />
-            <FormInput
+            <FormInputNumber
               label="Perda diária máxima (%)"
-              inputMode="decimal"
-              value={values.maxDailyLossPct}
-              onValueChange={(value) => set("maxDailyLossPct", value)}
-              rules={[(value) => decimalError(value ?? "", false)]}
+              showControls={false}
+              value={numberValue(values.maxDailyLossPct)}
+              onValueChange={(value) => set("maxDailyLossPct", numberText(value))}
+              rules={[(value) => decimalError(numberText(value), false)]}
             />
-            <FormInput
+            <FormInputNumber
               label="Drawdown máximo (%)"
-              inputMode="decimal"
-              value={values.maxDrawdownPct}
-              onValueChange={(value) => set("maxDrawdownPct", value)}
-              rules={[(value) => decimalError(value ?? "", false)]}
+              showControls={false}
+              value={numberValue(values.maxDrawdownPct)}
+              onValueChange={(value) => set("maxDrawdownPct", numberText(value))}
+              rules={[(value) => decimalError(numberText(value), false)]}
             />
-            <FormInput
+            <FormInputNumber
               label="Perdas consecutivas máximas"
-              inputMode="numeric"
-              value={values.maxConsecutiveLosses}
-              onValueChange={(value) => set("maxConsecutiveLosses", value)}
-              rules={[(value) => integerError(value ?? "")]}
+              showControls={false}
+              step={1}
+              min={0}
+              value={numberValue(values.maxConsecutiveLosses)}
+              onValueChange={(value) => set("maxConsecutiveLosses", numberText(value))}
+              rules={[(value) => integerError(numberText(value))]}
             />
-            <FormInput
+            <FormInputNumber
               label="Risco máximo por operação (%)"
-              inputMode="decimal"
-              value={values.maxRiskPerTradePct}
-              onValueChange={(value) => set("maxRiskPerTradePct", value)}
-              rules={[(value) => decimalError(value ?? "", false)]}
+              showControls={false}
+              value={numberValue(values.maxRiskPerTradePct)}
+              onValueChange={(value) => set("maxRiskPerTradePct", numberText(value))}
+              rules={[(value) => decimalError(numberText(value), false)]}
             />
-            <FormInput
+            <FormInputNumber
               label="Amplitude máxima do candle (%)"
-              inputMode="decimal"
-              value={values.maxCandleRangePct}
-              onValueChange={(value) => set("maxCandleRangePct", value)}
-              rules={[(value) => decimalError(value ?? "", false)]}
+              showControls={false}
+              value={numberValue(values.maxCandleRangePct)}
+              onValueChange={(value) => set("maxCandleRangePct", numberText(value))}
+              rules={[(value) => decimalError(numberText(value), false)]}
             />
-            <FormInput
+            <FormInputNumber
               label="Máximo da ordem (% do volume médio)"
-              inputMode="decimal"
+              showControls={false}
               description="Média do valor negociado nos últimos 20 candles. Vazio desliga. O livro sugere ~1% do volume diário (em ações)."
-              value={values.maxOrderPctOfVolume}
-              onValueChange={(value) => set("maxOrderPctOfVolume", value)}
-              rules={[(value) => decimalError(value ?? "", false)]}
+              value={numberValue(values.maxOrderPctOfVolume)}
+              onValueChange={(value) => set("maxOrderPctOfVolume", numberText(value))}
+              rules={[(value) => decimalError(numberText(value), false)]}
             />
             <FormSelect
               label="Ao atingir o drawdown máximo"
@@ -359,13 +382,13 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
               value={values.drawdownAction}
               onValueChange={(value) => set("drawdownAction", value)}
             />
-            <FormInput
+            <FormInputNumber
               label="Salto máximo do fechamento (%)"
-              inputMode="decimal"
+              showControls={false}
               description="Recusa entradas (nunca saídas) quando o fechamento se moveu mais que isso contra o fechamento anterior: um tick errado costuma aparecer como salto. Vazio desliga. Calibre com cuidado: quedas legítimas de cripto também são grandes."
-              value={values.maxCloseJumpPct}
-              onValueChange={(value) => set("maxCloseJumpPct", value)}
-              rules={[(value) => decimalError(value ?? "", false)]}
+              value={numberValue(values.maxCloseJumpPct)}
+              onValueChange={(value) => set("maxCloseJumpPct", numberText(value))}
+              rules={[(value) => decimalError(numberText(value), false)]}
             />
             <FormSwitch
               label="Exigir stop-loss"

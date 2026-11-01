@@ -1,4 +1,4 @@
-import { FormInput } from "lost-ui/forms/form-input";
+import { FormInputNumber } from "lost-ui/forms/form-input-number";
 import { type ParamValues, validateParam } from "@/lib/shared/strategies/params";
 import { stopHints } from "@/lib/shared/strategies/stop-hint";
 import type { Strategy } from "@/lib/shared/strategies/strategies.api";
@@ -21,16 +21,18 @@ export function StrategyFields({
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {strategy.parameters.map((param) => (
-        <FormInput
+        <FormInputNumber
           key={`${strategy.type_key}-${param.name}`}
           label={param.name}
           description={param.description}
-          inputMode="decimal"
+          showControls={false}
+          step={param.type === "integer" ? 1 : 0.1}
+          {...(param.minimum === null ? {} : { min: param.minimum })}
           disabled={disabled}
           required={param.default !== null}
-          value={values[param.name] ?? ""}
-          onValueChange={(value) => onChange(param.name, value)}
-          rules={[(value) => validateParam(param, value ?? "")]}
+          value={values[param.name]?.trim() === "" ? null : Number(values[param.name])}
+          onValueChange={(value) => onChange(param.name, value === null ? "" : String(value))}
+          rules={[(value) => validateParam(param, value === null ? "" : String(value))]}
         />
       ))}
       {hints.map((hint) => (
