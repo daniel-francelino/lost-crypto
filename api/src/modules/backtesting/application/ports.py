@@ -27,6 +27,8 @@ class BacktestRun:
     cost_ladder: dict[str, Any] | None = None  # when config.cost_sensitivity is set
     data_quality: dict[str, Any] | None = None  # gaps (at creation), invalid candles, outliers
     risk_report: dict[str, Any] | None = None  # sizing used, pause, refusals by reason
+    tail_risk: dict[str, Any] | None = None
+    regime: dict[str, Any] | None = None
     sweep_id: UUID | None = None
     error: str | None = None
 
@@ -76,6 +78,8 @@ class BacktestStore(Protocol):
         cost_ladder: dict[str, Any] | None,
         data_quality: dict[str, Any] | None,
         risk_report: dict[str, Any] | None,
+        tail_risk: dict[str, Any] | None,
+        regime: dict[str, Any] | None,
         equity_curve: list[EquityPoint],
         fills: list[Fill],
     ) -> None: ...

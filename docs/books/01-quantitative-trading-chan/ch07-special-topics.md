@@ -1,6 +1,6 @@
 # Livro 1 · Capítulo 7 — Tópicos especiais em trading quantitativo
 
-*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: **análise + plano de implementação detalhado (2026-11-01); nada foi implementado**. O diagnóstico foi revisado contra o código depois dos Caps. 2–5 (ver §2.1). Quem for implementar deve ler o §8.
+*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: **implementação parcial (2026-11-01)**. As Fases 1, 3 e 4 do §8 foram implementadas. A Fase 2 depende dos metadados de estilo do Cap. 6 e da adaptação do contrato de estratégia; a Fase 5 permanece adiada.
 
 Nota de leitura: as pp. 115–156 foram lidas por inteiro. As listagens em MATLAB (Exemplos 7.4, 7.6, 7.7) e o Exemplo 7.1 de ferramenta de fornecedor foram lidos pelas suas afirmações, não reproduzidos.
 
@@ -104,7 +104,7 @@ Cripto tem padrões de dia da semana e de horário de funding que o livro não d
 `strategies/domain/` (novo arquivo de estratégia, entrada no registro, parâmetro opcional de saída em `base.py`), `strategies/catalog.py`, `backtesting/domain/engine.py` (saída por tempo), `analytics/domain/` (meia-vida, regime de volatilidade), formulários de estratégia do app (`lib/shared/strategies/params.ts`), `check:consistency`, testes.
 
 ## 6. Plano incremental
-Substituído pelo plano detalhado do §8 (fases 1 a 5, com ordem, arquivos, contratos e testes).
+Implementação parcial conforme o plano do §8: saída por tempo (Fase 1), estimador de meia-vida (Fase 3) e descritores de regime (Fase 4).
 
 ## 7. Critérios de aceite e testes
 * Qualquer estratégia nova passa no teste de truncamento e tem validação de parâmetros como as existentes.
@@ -114,7 +114,7 @@ Substituído pelo plano detalhado do §8 (fases 1 a 5, com ordem, arquivos, cont
 
 ## 8. Plano de implementação detalhado (back-end e front-end)
 
-Escrito em 2026-11-01 **sem alterar código**. Convenções do projeto: `Decimal` no domínio (sem `float`), números e dinheiro como **strings decimais** na API e no app, `api/src` é a raiz de imports, sem `__init__.py` vazio, texto de tela em português do Brasil. Próxima migração livre: **`0013`** (a última é `0012_alerts`); se o [Cap. 6, Fase A](ch06-money-and-risk-management.md) já tiver criado `0013_tail_risk`, a desta fase é a seguinte.
+Atualizado em 2026-11-01: Fases 1, 3 e 4 implementadas. Convenções do projeto: `Decimal` no domínio (sem `float`), números e dinheiro como **strings decimais** na API e no app, `api/src` é a raiz de imports, sem `__init__.py` vazio, texto de tela em português do Brasil. Migrações adicionadas: `0013_tail_risk` (Cap. 6) e `0014_backtest_regime` (Fase 4).
 
 ### Fase 1 — Saída por tempo dentro das estratégias (O2) · prioridade 1
 

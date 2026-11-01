@@ -1,6 +1,6 @@
 # Livro 1 · Capítulo 1 — O quê, quem e por quê do trading quantitativo
 
-*Quantitative Trading*, Ernest P. Chan (Wiley, 2009). As páginas são **páginas do livro** (página do PDF = página do livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: **O1 (alertas no app) e O2 (atualização incremental de candles) implementados em 2026-10-31**; O3 a O5 não implementados. Ver "Estado da implementação" abaixo.
+*Quantitative Trading*, Ernest P. Chan (Wiley, 2009). As páginas são **páginas do livro** (página do PDF = página do livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: **O1, O2 e O3 implementados em 2026-11-01**; O4 e O5 seguem fora do escopo atual. Ver "Estado da implementação" abaixo.
 
 ## 1. Resumo do capítulo (pp. 1–8)
 
@@ -27,7 +27,7 @@ O livro não discute cripto, mercados 24/7 nem taxas de corretora. Tudo sobre cr
 | C2 | ⚠️ | Catálogo pequeno; não há medida comparando estratégias simples e complexas. |
 | C3/C8 | ✅ | Paper → testnet → live, limites no live, mínimo de dias em paper, aprovação digitando o nome. |
 | C4 | n/a | Apenas spot; sem alavancagem. Existem limites de exposição, mas não uma política de alavancagem. |
-| C5 | ⚠️ | `pause`/`stop`/`reset` são auditados, mas nenhum motivo é registrado e não existe métrica de intervenção. |
+| C5 | feito | `pause`/`stop`/`reset` registram autor e motivo; o app resume intervenções e o drawdown associado. |
 | C6 dados | ✅ parcial (O2) | O worker agora estende os candles gravados até o último candle fechado; a importação histórica segue manual e os bots ainda buscam candles direto da exchange. |
 | C6 **alertas** | ✅ in-app (O1) | Antes: nenhum canal de notificação (busca por `alert`, `notif`, `webhook`, `telegram`, `email`, `smtp` em `api/src` não achou nada). Agora: módulo `notifications`, endpoints `/alerts` e indicador no app. Não há canal externo. |
 | C7 | ✅ | Backtest, sweep e comparação existem. |
@@ -169,7 +169,7 @@ O livro não discute cripto, mercados 24/7 nem taxas de corretora. Tudo sobre cr
 
 ### O3 — Motivo das intervenções manuais *(livro: C5, pp. 5–6 · adaptação)*
 * **Problema:** não dá para saber se um stop/pause/reset foi reação a oscilações de P&L.
-* **Proposta:** motivo opcional nesses comandos, guardado no payload de auditoria, mais um indicador de "intervenções por bot".
+* **Implementação (2026-11-01):** pausa, parada e reset aceitam motivo opcional de até 200 caracteres; autor autenticado, motivo e contagem por bot aparecem na auditoria e na tela de intervenções. O endpoint sinaliza eventos com drawdown de pelo menos 5%.
 * **Benefício:** dados sobre o nosso próprio comportamento. **Complexidade:** baixa. **Risco:** um campo ignorado.
 * **Validação:** teste de que o motivo chega ao evento de auditoria.
 

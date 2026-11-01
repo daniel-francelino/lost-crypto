@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
@@ -11,6 +12,8 @@ from core.clock import Clock
 from core.errors import DomainError
 from core.ids import IdGenerator
 from core.jobs import JobStatus
+from modules.analytics.domain.mean_reversion import HalfLife
+from modules.analytics.domain.mean_reversion import half_life as estimate_half_life
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.market_data.application.ports import ImportJob, ImportQuality, ImportStore
 from modules.market_data.domain.models import (
@@ -39,6 +42,7 @@ BATCH_SIZE = 1000
 MAX_REJECTION_SAMPLES = 20
 REFERENCE_SYMBOL = "BTC/USDT"  # "did the whole market move?" (our adaptation of Chan p. 43)
 MAX_OUTLIER_CANDLES = 200_000
+MAX_ANALYSIS_CANDLES = 200_000
 
 
 class InvalidImportRequest(DomainError):
@@ -163,6 +167,27 @@ class MarketDataService:
                     exchange, REFERENCE_SYMBOL, timeframe, start, end
                 )
         return find_outliers(candles, k, returns_by_time(reference) if reference else None)
+
+    async def half_life(
+        self,
+        exchange: str,
+        symbol: str,
+        timeframe: Timeframe,
+        start: datetime,
+        end: datetime,
+        *,
+        log: bool = True,
+    ) -> tuple[HalfLife | None, int, int]:
+        self._exchanges.profile(exchange)
+        async with self._stores() as store:
+            count = await store.candles.count_range(exchange, symbol, timeframe, start, end)
+            if count > MAX_ANALYSIS_CANDLES:
+                raise InvalidImportRequest(
+                    f"at most {MAX_ANALYSIS_CANDLES} candles per half-life request"
+                )
+            candles = await store.candles.get_range(exchange, symbol, timeframe, start, end)
+        estimate = await asyncio.to_thread(estimate_half_life, [c.close for c in candles], log=log)
+        return estimate, len(candles), len(find_gaps([c.open_time for c in candles], timeframe))
 
 
 class CandleImporter:

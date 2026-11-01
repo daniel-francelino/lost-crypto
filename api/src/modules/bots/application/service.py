@@ -1,6 +1,7 @@
 from collections.abc import Callable, Mapping
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, replace
+from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -14,6 +15,15 @@ from modules.backtesting.domain.models import EquityPoint
 from modules.bots.application.errors import BotNameTaken, BotNotFound, InvalidBotConnection
 from modules.bots.application.live import IssuedApproval, LiveService, Readiness
 from modules.bots.application.ports import BotStore
+from modules.bots.domain.changes import config_changes
+from modules.bots.domain.interventions import (
+    AFTER_DRAWDOWN_PCT,
+    INTERVENTION_EVENTS,
+    SYSTEM_INTERVENTION_EVENTS,
+)
+from modules.bots.domain.interventions import (
+    summarize as summarize_interventions,
+)
 from modules.bots.domain.models import Bot, BotConfig, BotState, ExecutionMode
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.exchanges.domain.connections import ConnectionStatus, Environment
@@ -53,6 +63,7 @@ class BotOverview:
     fees_paid: Decimal
     in_position: bool
     last_price: Decimal | None
+    interventions_30d: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,14 +157,21 @@ class BotService:
         return bot
 
     async def update(
-        self, bot_id: UUID, changes: Mapping[str, Any], *, allow_live: bool = False
+        self,
+        bot_id: UUID,
+        changes: Mapping[str, Any],
+        *,
+        allow_live: bool = False,
+        actor: str = "api",
+        reason: str | None = None,
     ) -> Bot:
         if changes.get("mode") is ExecutionMode.LIVE and not allow_live:
             raise ConflictError("use POST /bots/{id}/promote-to-live to switch a bot to live")
         async with self._stores() as store:
             bot = await self._get(store, bot_id)
             bot.ensure_editable()
-            config = replace(bot.config, **changes)
+            old_config = bot.config
+            config = replace(old_config, **changes)
             self._exchanges.require(config.exchange, config.timeframe)
             self._registry.create(config.strategy_type, config.strategy_params)
             await self._check_connection(store, config)
@@ -163,7 +181,15 @@ class BotService:
             await store.bots.set_live_approval(bot_id, None, None)  # a new version is unapproved
             await store.audit.add(
                 self._event(
-                    "bot.config_updated", bot, {"fields": sorted(changes), "version": version}
+                    "bot.config_updated",
+                    bot,
+                    {
+                        "fields": sorted(changes),
+                        "version": version,
+                        "changes": config_changes(old_config, config),
+                        **({"reason": reason.strip()} if reason and reason.strip() else {}),
+                    },
+                    actor,
                 )
             )
             await store.commit()
@@ -208,7 +234,7 @@ class BotService:
                 await self._live.consume(store, bot, confirmation_token, actor)
             bot.request_start()
             await store.bots.set_desired(bot_id, bot.desired_state)
-            await store.audit.add(self._event("bot.start_requested", bot, {}))
+            await store.audit.add(self._event("bot.start_requested", bot, {}, actor))
             await store.commit()
         return bot
 
@@ -242,23 +268,26 @@ class BotService:
             await store.commit()
         return bot
 
-    async def pause(self, bot_id: UUID) -> Bot:
-        return await self._command(bot_id, "pause", Bot.request_pause)
+    async def pause(self, bot_id: UUID, *, reason: str | None = None, actor: str = "api") -> Bot:
+        return await self._command(bot_id, "pause", Bot.request_pause, reason=reason, actor=actor)
 
-    async def stop(self, bot_id: UUID) -> Bot:
-        bot = await self._command(bot_id, "stop", Bot.request_stop)
+    async def stop(self, bot_id: UUID, *, reason: str | None = None, actor: str = "api") -> Bot:
+        bot = await self._command(bot_id, "stop", Bot.request_stop, reason=reason, actor=actor)
         async with self._stores() as store:  # stopping ends the live approval, whatever the mode
             await store.bots.set_live_approval(bot_id, None, None)
             await store.commit()
         return bot
 
-    async def reset_portfolio(self, bot_id: UUID) -> None:
+    async def reset_portfolio(
+        self, bot_id: UUID, *, reason: str | None = None, actor: str = "api"
+    ) -> None:
         """Restart the virtual portfolio from the initial capital (stopped bots only)."""
         async with self._stores() as store:
             bot = await self._get(store, bot_id)
             bot.ensure_editable()
             await store.portfolio.reset(bot_id, bot.config.initial_capital)
-            await store.audit.add(self._event("bot.portfolio_reset", bot, {}))
+            payload = {"reason": reason.strip()} if reason and reason.strip() else {}
+            await store.audit.add(self._event("bot.portfolio_reset", bot, payload, actor))
             await store.commit()
 
     async def orders(
@@ -319,6 +348,7 @@ class BotService:
                     fees_paid=view.fees_paid,
                     in_position=view.quantity > 0,
                     last_price=view.last_price,
+                    interventions_30d=await self._intervention_count(bot.id),
                 )
             )
         return rows
@@ -357,12 +387,21 @@ class BotService:
             snapshots = await store.portfolio.list_snapshots(bot_id, limit=limit)
         return [EquityPoint(s.taken_at, s.equity) for s in snapshots]
 
-    async def _command(self, bot_id: UUID, name: str, transition: Callable[[Bot], None]) -> Bot:
+    async def _command(
+        self,
+        bot_id: UUID,
+        name: str,
+        transition: Callable[[Bot], None],
+        *,
+        reason: str | None = None,
+        actor: str = "api",
+    ) -> Bot:
         async with self._stores() as store:
             bot = await self._get(store, bot_id)
             transition(bot)
             await store.bots.set_desired(bot_id, bot.desired_state)
-            await store.audit.add(self._event(f"bot.{name}_requested", bot, {}))
+            payload = {"reason": reason.strip()} if reason and reason.strip() else {}
+            await store.audit.add(self._event(f"bot.{name}_requested", bot, payload, actor))
             await store.commit()
         return bot
 
@@ -373,8 +412,50 @@ class BotService:
             raise BotNotFound(str(bot_id))
         return bot
 
+    async def _intervention_count(self, bot_id: UUID) -> int:
+        async with self._stores() as store:
+            return await store.audit.count_events(
+                bot_id, INTERVENTION_EVENTS, since=self._clock.now() - timedelta(days=30)
+            )
+
+    async def interventions(self, bot_id: UUID, days: int = 30) -> dict[str, Any]:
+        since = self._clock.now() - timedelta(days=days)
+        async with self._stores() as store:
+            await self._get(store, bot_id)
+            events = await store.audit.list_events_since(bot_id, INTERVENTION_EVENTS, since, 100)
+            contexts = {
+                event.occurred_at: await store.portfolio.equity_context_at(
+                    bot_id, event.occurred_at
+                )
+                for event in events
+                if event.occurred_at is not None
+            }
+            system = {
+                "kill_switch_activated": await store.audit.count_all(
+                    None, SYSTEM_INTERVENTION_EVENTS[0], since
+                ),
+                "kill_switch_released": await store.audit.count_all(
+                    None, SYSTEM_INTERVENTION_EVENTS[1], since
+                ),
+            }
+            counts = {
+                event_type: await store.audit.count_events(bot_id, (event_type,), since=since)
+                for event_type in INTERVENTION_EVENTS
+            }
+        totals = summarize_interventions(events, contexts, AFTER_DRAWDOWN_PCT)
+        totals["total"] = sum(counts.values())
+        totals["by_type"] = counts
+        return {
+            "days": days,
+            **totals,
+            "drawdown_threshold_pct": str(AFTER_DRAWDOWN_PCT),
+            "system": system,
+        }
+
     @staticmethod
-    def _event(event_type: str, bot: Bot, payload: dict[str, Any]) -> AuditEvent:
+    def _event(
+        event_type: str, bot: Bot, payload: dict[str, Any], actor: str = "api"
+    ) -> AuditEvent:
         return AuditEvent(
-            event_type, "bot", str(bot.id), actor="api", bot_id=bot.id, payload=payload
+            event_type, "bot", str(bot.id), actor=actor, bot_id=bot.id, payload=payload
         )

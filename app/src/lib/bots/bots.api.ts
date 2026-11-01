@@ -80,6 +80,7 @@ const overviewSchema = z.object({
   in_position: z.boolean(),
   last_price: nullableDecimalSchema,
   last_heartbeat_at: nullableTimestampSchema,
+  interventions_30d: z.number(),
 });
 export type BotOverview = z.infer<typeof overviewSchema>;
 
@@ -198,7 +199,7 @@ export const getBot = (id: string, signal?: AbortSignal) =>
 export const createBot = (body: BotInput) =>
   request({ method: HttpMethod.Post, path: "/bots", schema: botSchema, body });
 
-export const updateBot = (id: string, body: Partial<BotInput>) =>
+export const updateBot = (id: string, body: Partial<BotInput> & { change_reason?: string }) =>
   request({ method: HttpMethod.Patch, path: `/bots/${id}`, schema: botSchema, body });
 
 const command = (id: string, name: string, body?: unknown) =>
@@ -216,11 +217,41 @@ export const startBot = (id: string, confirmationToken: string | null) =>
     confirmationToken === null ? undefined : { confirmation_token: confirmationToken },
   );
 
-export const pauseBot = (id: string) => command(id, "pause");
+export const pauseBot = (id: string, reason?: string) =>
+  command(id, "pause", reason?.trim() ? { reason: reason.trim() } : undefined);
 
-export const stopBot = (id: string) => command(id, "stop");
+export const stopBot = (id: string, reason?: string) =>
+  command(id, "stop", reason?.trim() ? { reason: reason.trim() } : undefined);
 
-export const resetPortfolio = (id: string) => command(id, "reset-portfolio");
+export const resetPortfolio = (id: string, reason?: string) =>
+  command(id, "reset-portfolio", reason?.trim() ? { reason: reason.trim() } : undefined);
+
+const interventionsSchema = z.object({
+  days: z.number(),
+  total: z.number(),
+  after_drawdown: z.number(),
+  drawdown_threshold_pct: decimalSchema,
+  by_type: z.record(z.string(), z.number()),
+  items: z.array(
+    z.object({
+      at: z.string(),
+      type: z.string(),
+      actor: z.string(),
+      reason: z.string().nullable(),
+      drawdown_pct: nullableDecimalSchema,
+    }),
+  ),
+  system: z.object({ kill_switch_activated: z.number(), kill_switch_released: z.number() }),
+});
+export type Interventions = z.infer<typeof interventionsSchema>;
+
+export const getInterventions = (id: string, days = 30, signal?: AbortSignal) =>
+  request({
+    path: `/bots/${id}/interventions`,
+    schema: interventionsSchema,
+    query: { days },
+    signal,
+  });
 
 export const getPortfolio = (id: string, signal?: AbortSignal) =>
   request({ path: `/bots/${id}/portfolio`, schema: portfolioSchema, signal });

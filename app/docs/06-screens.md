@@ -82,11 +82,14 @@ Since book 1 ch. 5 the bot detail has two more tabs: **Paridade** (`POST/GET /bo
 * **Sweep** `POST /backtests/sweeps`: the same form with a **grid** (list of values per parameter). Result page `/backtests/sweeps/$sweepId`: headline "Melhor de N tentativas (mais ~M anteriores)" from `trials`/`prior_trials`, the overfitting warning with the ranking criterion (`SweepRankBy`, explained in Portuguese by `lib/backtests/sweep.ts`), a winner check (positive in the test part and at least buy-and-hold), a "Robustez: platô ou pico?" card (`robustness`, with a cross table for 2-parameter grids until lost-ui has a heatmap), ranked runs with separate train / test / total return and train / test Sharpe columns, and `skipped` combinations.
 * **Run detail** `GET /backtests/{id}` polled every 2 s until `completed|failed`: tolerance notice (`tolerance`), "Triagem rápida" panel (Chan's rules of thumb, `lib/backtests/screening.ts`; never says "approved"; also flags outliers, invalid candles, gaps, small samples and a small test part), "Qualidade dos dados" card (`data_quality`), metrics (incl. Sharpe/Sortino/IR, annualised return/volatility, sample size and exposure, drawdown duration and open drawdown), **train vs test segments** (`SegmentsOut`) side by side, equity `AreaChart` (`/equity`) plus the "abaixo do pico" underwater chart, "Por período" table (`periods`), "Sensibilidade a custos" (`cost_ladder`, when requested), trades table (`/trades`), `data_hash` and `seed` for reproducibility, `error` when failed. A "Criar bot com estes parâmetros" action (admin) opens the new-bot form pre-filled (route state, not a module import), including the drawdown tolerance as the bot's `max_drawdown_pct`. Charts thin long series keeping each bucket's minimum and maximum, so the drawn trough matches the drawdown metric. Compare: Sharpe and drawdown-duration columns, and a survivorship warning when the runs use different symbols.
 * The page always labels results "histórico simulado — não garante resultado futuro" near the headline numbers; out-of-sample numbers are shown with equal weight to in-sample.
+* The completed run detail also calls `GET /backtests/{id}/sizing` for the advisory "Referência de dimensionamento" card. It defaults to 10% tolerable loss per UTC day, accepts per-bar scope, shows sample size and warnings, and never applies the suggested fraction automatically. Older runs explain that the backtest must be rerun.
+* Completed runs with at least 60 candles also show "Resultados por regime" (`regime`): returns and exposure grouped by realized-volatility and trend-efficiency terciles. The view states that full-sample cutoffs are descriptive, not predictive.
 
 ## 8. Market data — `/market-data`
 
 * The screen accepts `symbol`, `timeframe`, `start`, `end` in the URL (the backtest "Qualidade dos dados" card links here pre-filled).
 * Coverage (`GET /market-data/coverage` with `start`/`end`): `CoverageNotice` speaks only about the chosen range (`in_range`: missing candles, largest hole, over-limit); the listing status line (`GET /market-data/listings`) says when the pair was first seen or delisted.
+* The selected range also feeds "Meia-vida estimada" (`GET /market-data/half-life`): a descriptive OU estimate with an indicative 5% stationarity result and gap warning, never a forecast.
 * Candles preview (`GET /market-data/candles`, bounded by `limit`) as a close-price line.
 * "Movimentos fora do comum" (`GET /market-data/outliers`): candles beyond 4σ with the BTC/USDT move of the same candle; flags only, nothing is deleted.
 * Imports: `POST /market-data/imports` (202) with symbol/timeframe/range; list `GET /market-data/imports` with `JobStatus`, `candles_imported`, "Rejeitados" (expandable samples with the problem in Portuguese), "Alterados", `error`; polling per row until finished. Admin only for the form.
@@ -102,11 +105,15 @@ Also: permission badges written as states ("Sem saque", "PODE SACAR"…), last c
 
 `GET /system/status`, `GET/PUT /system/kill-switch`. Worker (alive, last heartbeat, age), bots by state, stale bots, the registered exchange ids, and the kill switch with its reason and `changed_at`. This is also the page the safety strip links to. The kill switch control is described in [07](07-ux-rules.md#kill-switch).
 
-Since book 1 ch. 4: tiles "Posições sem stop na exchange" (`unprotected_positions`, listed with links to the bots), "Relógio × exchange" (`clock`: warning > 1 s, new live entries blocked > 5 s) and "Backup" (`backup`: em dia / atrasado, last restore check); a "Monitoramento externo" card with the `GET /health/worker` URL to give an outside monitor. The bot summary warns "Sem stop na exchange" for exchange positions without a native stop and when its connection has `permission_warning`.
+Since book 1 ch. 4: tiles "Posições sem stop na exchange" (`unprotected_positions`, listed with links to the bots), "Relógio × exchange" (`clock`: warning > 1 s, new live entries blocked > 5 s) and "Backup" (`backup`: em dia / atrasado, last restore check); a "Monitoramento externo" card with the `GET /health/worker` URL to give an outside monitor. The bot summary warns "Sem stop na exchange" for exchange positions without a native stop and when its connection has `permission_warning`.
 
-### Alerts indicator and screen — `/alerts`
-
-`GET /alerts/summary` (5 s) feeds a badge in the safety strip (bell + unread count, "crítico" when a critical alert is still open; on screens under `sm` it sits below the top bar so the strip does not overflow). It links to `/alerts`: `GET /alerts?unread&severity&limit&offset` (`X-Total-Count`), a `DataTable` of severity, kind, message, opened at, situation (open or resolved at) and read state, filters by severity and unread, and pagination. Admins get "Marcar como lido" per row and "Marcar todos como lidos" (`POST /alerts/{id}/read`, `POST /alerts/read-all`); viewers read only. The screen lives in the `system` module; the data layer (`lib/shared/alerts`, `hooks/shared/use-alerts.ts`) is in `shared` because the indicator is part of the layout. Alert messages come from the backend verbatim; kind and severity labels are in Portuguese in `lib/shared/labels.ts`.
+
+### Alerts indicator and screen — `/alerts`
+
+
+
+`GET /alerts/summary` (5 s) feeds a badge in the safety strip (bell + unread count, "crítico" when a critical alert is still open; on screens under `sm` it sits below the top bar so the strip does not overflow). It links to `/alerts`: `GET /alerts?unread&severity&limit&offset` (`X-Total-Count`), a `DataTable` of severity, kind, message, opened at, situation (open or resolved at) and read state, filters by severity and unread, and pagination. Admins get "Marcar como lido" per row and "Marcar todos como lidos" (`POST /alerts/{id}/read`, `POST /alerts/read-all`); viewers read only. The screen lives in the `system` module; the data layer (`lib/shared/alerts`, `hooks/shared/use-alerts.ts`) is in `shared` because the indicator is part of the layout. Alert messages come from the backend verbatim; kind and severity labels are in Portuguese in `lib/shared/labels.ts`.
+
 
 ## 11. Audit — `/audit`
 
@@ -127,3 +134,8 @@ Since book 1 ch. 4: tiles "Posições sem stop na exchange" (`unprotected_positi
 | R4 | Permissions in the user object | `can_write` in `UserOut` (`/auth/me`, login, users list) |
 
 Still not available: server-side sorting and text search on lists, "today's PnL", a portfolio-wide daily-loss figure. Ask the backend and record it in its docs; the frontend does not work around the gap silently.
+
+
+## Bot interventions
+
+The bot summary shows interventions from the last 30 days: totals, event types, items after a 5% drawdown, actor, reason and drawdown at the time. Pause, stop and reset ask for an optional reason. Editing shows configuration differences and requires a reason when the bot has orders; edits invalidate a live approval.

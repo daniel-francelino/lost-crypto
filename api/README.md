@@ -41,7 +41,15 @@ curl -X POST $B/backtests -H 'content-type: application/json' -d '{
 curl $B/backtests/<run_id>            # métricas (líquidas de taxas) + benchmark buy & hold
 curl $B/backtests/<run_id>/trades     # fills simulados
 curl $B/backtests/<run_id>/equity     # curva de capital
+curl "$B/backtests/<run_id>/sizing?tolerable_loss_pct=10&scope=day"  # referência consultiva de sizing
+curl "$B/market-data/half-life?symbol=BTC%2FUSDT&timeframe=1h&start=2024-01-01T00:00:00Z&end=2024-07-01T00:00:00Z" # meia-vida descritiva
 ```
+
+O endpoint `GET /backtests/{run_id}/sizing` aceita `tolerable_loss_pct` em `(0, 100]` e `scope=day|bar`. Ele calcula Kelly, meio Kelly e limites da pior perda observada. O resultado é apenas orientação histórica; não modifica posições ou ordens. Backtests anteriores à inclusão dos dados de cauda retornam `409` e precisam ser executados novamente.
+
+Bots que já estavam posicionados ao ativar `max_holding_candles` iniciam a contagem persistida em zero; podem permanecer posicionados até N candles adicionais.
+
+`GET /market-data/half-life` estima a meia-vida por OLS sobre os fechamentos armazenados. A resposta inclui um teste indicativo de estacionariedade, lacunas e avisos; não é previsão de preço. O limite é 200.000 candles.
 
 ### Modelo da simulação
 
@@ -79,6 +87,7 @@ curl $B/bots/<id>/signals           # sinais e a decisão do risco (approved/rej
 curl $B/bots/<id>/portfolio         # caixa, posição, PnL realizado/não realizado
 curl $B/bots/<id>/performance       # mesmas métricas do backtest, líquidas de taxas
 curl $B/bots/<id>/equity            # curva de capital (1 ponto por candle)
+curl "$B/bots/<id>/interventions?days=30"  # interventions, reasons and drawdown (1 to 365 days)
 curl "$B/audit-events?bot_id=<id>"  # trilha de auditoria
 curl "$B/alerts?unread=true"        # alertas de falha (worker parado, bot com erro, candles atrasados...)
 curl $B/alerts/summary               # não lidos / em aberto / críticos em aberto
@@ -88,7 +97,7 @@ curl -X POST $B/alerts/<id>/read     # marca como lido (admin); POST /alerts/rea
 curl -X PUT $B/system/kill-switch -H 'content-type: application/json' -d '{"active": true, "reason": "teste"}'
 ```
 
-Configuração (`PATCH /bots/{id}`) e `POST /bots/{id}/reset-portfolio` só funcionam com o bot parado.
+Configuração (`PATCH /bots/{id}`) e `POST /bots/{id}/reset-portfolio` só funcionam com o bot parado. Pause, stop e reset aceitam `{"reason":"..."}` (até 200 caracteres); `PATCH /bots/{id}` aceita `change_reason` e registra diferenças `from`/`to`. O motivo enviado pela API é opcional. `GET /bots/{id}/interventions?days=30` apresenta contagens, até 100 eventos recentes, drawdown no momento e contagem de kill switch; `days` aceita 1 a 365.
 
 ### Como o paper trading funciona
 

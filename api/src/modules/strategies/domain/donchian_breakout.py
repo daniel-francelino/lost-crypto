@@ -15,6 +15,7 @@ from modules.strategies.domain.base import (
     InvalidStrategyParams,
     ParamSpec,
     Strategy,
+    next_bars_held,
     parse_numeric_params,
     percent_below_above,
     validate_percent,
@@ -34,6 +35,7 @@ class DonchianParams:
     exit_period: int = 10
     stop_loss_pct: Decimal | None = None
     take_profit_pct: Decimal | None = None
+    max_holding_candles: int | None = None
 
     def __post_init__(self) -> None:
         validate_percent("stop_loss_pct", self.stop_loss_pct)
@@ -42,12 +44,15 @@ class DonchianParams:
             raise InvalidStrategyParams("entry_period and exit_period must be >= 2")
         if self.exit_period > self.entry_period:
             raise InvalidStrategyParams("exit_period must not exceed entry_period")
+        if self.max_holding_candles is not None and self.max_holding_candles < 1:
+            raise InvalidStrategyParams("max_holding_candles must be >= 1")
 
 
 @dataclass(frozen=True, slots=True)
 class DonchianState:
     # (high, low) of the most recent candles, oldest first, current candle excluded.
     history: tuple[tuple[Decimal, Decimal], ...] = ()
+    bars_held: int = 0
 
 
 class DonchianBreakoutStrategy(Strategy[DonchianState]):
@@ -63,6 +68,7 @@ class DonchianBreakoutStrategy(Strategy[DonchianState]):
         ParamSpec(
             "stop_loss_pct", "number", None, "Optional stop-loss, % below the entry price (0-100)"
         ),
+        ParamSpec("max_holding_candles", "integer", None, "Optional: exit after N held candles", 1),
         ParamSpec(
             "take_profit_pct",
             "number",
@@ -80,6 +86,7 @@ class DonchianBreakoutStrategy(Strategy[DonchianState]):
             params,
             integers=frozenset({"entry_period", "exit_period"}),
             numbers=frozenset({"stop_loss_pct", "take_profit_pct"}),
+            optional_integers=frozenset({"max_holding_candles"}),
         )
         return cls(DonchianParams(**values))
 
@@ -87,15 +94,22 @@ class DonchianBreakoutStrategy(Strategy[DonchianState]):
         return DonchianState()
 
     def serialize_state(self, state: DonchianState) -> dict[str, Any]:
-        return {"history": [[str(high), str(low)] for high, low in state.history]}
+        return {
+            "history": [[str(high), str(low)] for high, low in state.history],
+            "bars_held": state.bars_held,
+        }
 
     def deserialize_state(self, raw: dict[str, Any]) -> DonchianState:
-        return DonchianState(tuple((Decimal(h), Decimal(low)) for h, low in raw["history"]))
+        return DonchianState(
+            tuple((Decimal(h), Decimal(low)) for h, low in raw["history"]),
+            int(raw.get("bars_held", 0)),
+        )
 
     def evaluate(self, ctx: StrategyContext, state: DonchianState) -> StrategyResult[DonchianState]:
         candle = ctx.candle
         p = self.params
         history = state.history
+        bars_held = next_bars_held(ctx.position_quantity, state.bars_held)
         signals: tuple[Signal, ...] = ()
 
         if len(history) >= p.entry_period:
@@ -123,6 +137,21 @@ class DonchianBreakoutStrategy(Strategy[DonchianState]):
                     ),
                 )
 
+        if (
+            not signals
+            and ctx.position_quantity > 0
+            and p.max_holding_candles is not None
+            and bars_held >= p.max_holding_candles
+        ):
+            signals = (
+                Signal(
+                    Side.SELL,
+                    ctx.symbol,
+                    SignalKind.EXIT,
+                    f"holding limit of {p.max_holding_candles} candles reached",
+                ),
+            )
+
         keep = max(p.entry_period, p.exit_period)
         new_history = (*history, (candle.high, candle.low))[-keep:]
-        return StrategyResult(signals, DonchianState(new_history))
+        return StrategyResult(signals, DonchianState(new_history, bars_held))

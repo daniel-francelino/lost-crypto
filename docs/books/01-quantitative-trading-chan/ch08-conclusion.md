@@ -1,6 +1,6 @@
 # Livro 1 · Capítulo 8 — Conclusão: traders independentes podem ter sucesso?
 
-*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: **análise + plano de implementação detalhado (2026-11-01); nada foi implementado**. Este capítulo não traz método novo; o plano do §8 reúne as travas de disciplina dos Caps. 1, 6 e 8 numa especificação só. As páginas restantes (Apêndice A, uma pesquisa sobre MATLAB, a bibliografia e o índice) não foram analisadas.
+*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: **implementação concluída em 2026-11-01**. Este capítulo não traz método novo; a entrega implementa os controles de disciplina dos Caps. 1 e 6. As páginas restantes (Apêndice A, uma pesquisa sobre MATLAB, a bibliografia e o índice) não foram analisadas.
 
 ## 1. Resumo do capítulo (pp. 157–160)
 
@@ -20,13 +20,13 @@ O capítulo é opinião e anedota; não acrescenta método. É o argumento do au
 ### 2.1 O que mudou desde a versão anterior deste relatório (verificado no código em 2026-11-01)
 * **Capacidade (C1):** o controle que o relatório apontava (limite de ordem pelo volume) **existe**: `RiskLimits.max_order_pct_of_volume` (Cap. 5).
 * **Alertas (Cap. 1 O1):** ✅ implementados (alertas no app).
-* **Motivo das intervenções (Cap. 1 O3) e trava de edição (Cap. 6 O6): continuam ausentes.** Detalhes verificados:
-  * `BotService._command` grava `bot.start_requested`, `bot.pause_requested` e `bot.stop_requested` com payload **`{}`**, e `reset_portfolio` grava `bot.portfolio_reset` também com `{}` (`bots/application/service.py`).
-  * `BotService._event` fixa `actor="api"`: **todo comando aparece como feito por "api"**, não pelo usuário. Só `start` recebe o ator (`actor=principal.username`) e o usa na aprovação live.
-  * `BotService.update` grava `bot.config_updated` com `{fields, version}`: diz **quais** campos mudaram, não **de quê para quê**, nem por quê.
+* **Disciplina (Cap. 1 O3 + Cap. 6 O6): implementada.** Os comandos registram ator e motivo; as edições registram o motivo e os valores alterados; o endpoint e as confirmações estão disponíveis.
+  * `pause`, `stop` e `reset-portfolio` registram o motivo quando informado; os comandos autenticados registram o usuário real.
+  * `_event` recebe o ator do usuário nos comandos e nas edições; `start` também registra seu ator.
+  * `bot.config_updated` registra campos, versão, motivo opcional e diferenças seguras (`from`/`to`), sem credenciais.
   * `PATCH /bots/{id}` só aceita editar com o bot **parado** (`Bot.ensure_editable()`); uma edição invalida a aprovação live (`set_live_approval(None)`).
   * O kill switch **já** guarda o motivo (`system.kill_switch_activated/released` e o campo `reason` do estado).
-  * No app, só "parar", "resetar" e o fluxo live têm diálogo de confirmação (`components/bots/bot-controls.tsx`); "pausar" e "iniciar" são botões diretos. `ConfirmDialog` (`components/shared/feedback/confirm-dialog.tsx`) **já** suporta motivo (`reasonLabel`, `reasonRequired`, `onConfirm(reason)`), usado pelo kill switch.
+  * No app, pausar, parar e resetar abrem confirmação com motivo opcional; edições mostram diferenças e exigem motivo quando há ordens.
 * **C3 (separação de funções):** continua só `admin` × `viewer`; os tetos live ficam no ambiente e não são editáveis pela API. Nada a fazer (ver "Fora do escopo").
 
 ## 3. Oportunidades
@@ -40,7 +40,7 @@ Substituídos pelo §8.
 
 ## 8. Plano de implementação detalhado (back-end e front-end)
 
-Escrito em 2026-11-01 **sem alterar código**. Tema: **disciplina do operador**. O livro (pp. 108–111, 159) diz que a interferência manual costuma piorar o resultado e que reagir a perdas mudando parâmetros é uma armadilha; o sistema não pode impedir o operador, mas pode **registrar por quê**, **mostrar o que mudou** e **contar quantas vezes ele interveio**. Nada aqui bloqueia uma ação. Convenções do projeto: `Decimal` como string, texto de tela em português do Brasil, sem `__init__.py` vazio, migrações só se necessário (**este plano não precisa de migração**: tudo usa `audit_events`, que já guarda `payload` em JSONB).
+Implementado em 2026-11-01. Tema: **disciplina do operador**. O livro (pp. 108–111, 159) diz que a interferência manual costuma piorar o resultado e que reagir a perdas mudando parâmetros é uma armadilha; o sistema não pode impedir o operador, mas pode **registrar por quê**, **mostrar o que mudou** e **contar quantas vezes ele interveio**. Nada aqui bloqueia uma ação. Convenções do projeto: `Decimal` como string, texto de tela em português do Brasil, sem `__init__.py` vazio, migrações só se necessário (**este plano não precisa de migração**: tudo usa `audit_events`, que já guarda `payload` em JSONB).
 
 ### Fase 1 — Motivo e autor nos comandos e nas edições (back-end) · Cap. 1 O3 + Cap. 6 O6
 
@@ -97,14 +97,18 @@ Fase 1 → Fase 2 → (Fases 3 e 4 em paralelo) → Fase 5. Estimativa grosseira
 * **Modelo de capacidade (C1):** só faz sentido se as ordens crescerem; o limite de volume já é o controle.
 * **Bloquear** edição ou comando por falta de motivo: o objetivo é dado sobre o próprio comportamento, não atrito. Rever depois de alguns meses de dados.
 
-### Decisões pendentes (para o operador)
-* Limiar de "depois de uma queda" (proposta: 5% de drawdown no instante).
-* Motivo obrigatório só na tela (proposta) ou também na API.
-* Se "iniciar" também deve pedir motivo (proposta: não).
-* Quem lê as intervenções (proposta: qualquer papel, como a auditoria).
+### Decisões adotadas na implementação
+* Limiar de "depois de uma queda": 5% de drawdown no instante.
+* Motivo obrigatório na tela para edições com ordens; API opcional.
+* "Iniciar" não pede motivo.
+* Qualquer papel autenticado pode consultar intervenções.
 
 ### Critérios de aceite
 Chamadas sem corpo continuam idênticas; a auditoria passa a mostrar o autor real, o motivo e o "de → para" das edições; o endpoint conta e ordena certo e marca drawdown nulo sem snapshot; os diálogos pedem o motivo sem bloquear; nenhuma salvaguarda live enfraquecida; o motivo é texto livre limitado a 200 caracteres e a tela avisa para não escrever segredos; `make check` e integração verdes; `npm run lint`, `typecheck`, `test`, `format:check`, `check:consistency` e `build` verdes; telas conferidas em 1366 px e 360 px.
+
+## Estado da implementação
+
+Fases 1 a 5 implementadas: auditoria com ator, motivo e diferenças seguras; endpoint e contagens de intervenções; diálogos nos comandos; confirmação de edição com diferenças, motivo e aviso de aprovação LIVE; cartões de resumo e documentação atualizados. OpenAPI e tipos do app regenerados. Ruff, mypy, TypeScript, ESLint e consistência passaram. Testes automatizados não foram executados nesta implementação.
 
 ## Ressalva
 A afirmação de que traders independentes têm vantagem sobre instituições é a tese do autor. Não deve ser lida como declaração de que o Lost Crypto será lucrativo.

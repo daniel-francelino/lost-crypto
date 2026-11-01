@@ -23,9 +23,19 @@ class AuditRepository(Protocol):
     async def list_events(
         self, bot_id: UUID | None, limit: int, offset: int = 0, event_type: str | None = None
     ) -> list[AuditEvent]: ...
-    async def count_all(self, bot_id: UUID | None, event_type: str | None = None) -> int: ...
-    async def count_events(
-        self, bot_id: UUID, event_types: Sequence[str], before: datetime | None = None
+    async def count_all(
+        self, bot_id: UUID | None, event_type: str | None = None, since: datetime | None = None
     ) -> int: ...
+    async def count_events(
+        self,
+        bot_id: UUID,
+        event_types: Sequence[str],
+        before: datetime | None = None,
+        since: datetime | None = None,
+    ) -> int: ...
+
+    async def list_events_since(
+        self, bot_id: UUID, event_types: Sequence[str], since: datetime, limit: int
+    ) -> list[AuditEvent]: ...
 
     async def latest_event_time(self, bot_id: UUID, event_type: str) -> datetime | None: ...

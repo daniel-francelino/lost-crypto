@@ -10,6 +10,8 @@ import {
   JobStatus,
   PeriodGranularity,
   RobustnessVerdict,
+  SizingBinding,
+  SizingScope,
   SweepRankBy,
 } from "@/lib/shared/enums";
 
@@ -63,6 +65,27 @@ const toleranceSchema = z.object({
   exceeded_duration: z.boolean().nullable(),
 });
 export type Tolerance = z.infer<typeof toleranceSchema>;
+
+const regimeBandSchema = z.object({
+  label: z.string(),
+  bars: z.number(),
+  share_pct: decimalSchema,
+  strategy_return_pct: nullableDecimalSchema,
+  asset_return_pct: nullableDecimalSchema,
+  in_market_pct: nullableDecimalSchema,
+});
+const regimeDimensionSchema = z.object({
+  cut_low: nullableDecimalSchema,
+  cut_high: nullableDecimalSchema,
+  bands: z.array(regimeBandSchema),
+});
+const regimeSchema = z.object({
+  window: z.number(),
+  method: z.string(),
+  volatility: regimeDimensionSchema,
+  efficiency: regimeDimensionSchema,
+});
+export type Regime = z.infer<typeof regimeSchema>;
 
 const dataQualitySchema = z.object({
   gaps: z
@@ -130,6 +153,8 @@ export const backtestSchema = z.object({
       refusals: z.record(z.string(), z.number()),
     })
     .nullish(),
+  tail_risk: z.record(z.string(), z.unknown()).nullish(),
+  regime: regimeSchema.nullish(),
   sweep_id: z.string().nullable(),
   data_hash: z.string().nullable(),
   candles_count: z.number().nullable(),
@@ -238,6 +263,51 @@ export const listBacktests = (limit: number, offset: number, signal?: AbortSigna
 
 export const getBacktest = (id: string, signal?: AbortSignal) =>
   request({ path: `/backtests/${id}`, schema: backtestSchema, signal });
+
+export const sizingSchema = z.object({
+  run_id: z.string(),
+  scope: lenientEnum(SizingScope),
+  tolerable_loss_pct: decimalSchema,
+  sample: z.object({ returns: z.number(), gaps: z.number(), min_required: z.number() }),
+  kelly: z
+    .object({
+      full: decimalSchema,
+      half: decimalSchema,
+      growth_full: decimalSchema,
+      growth_half: decimalSchema,
+      mean: nullableDecimalSchema,
+      variance: nullableDecimalSchema,
+    })
+    .nullable(),
+  tail: z
+    .object({
+      strategy_worst_loss_pct: nullableDecimalSchema,
+      asset_worst_loss_pct: nullableDecimalSchema,
+      cap_strategy: nullableDecimalSchema,
+      cap_asset: nullableDecimalSchema,
+      strategy_at: z.string().nullable(),
+      asset_at: z.string().nullable(),
+    })
+    .nullable(),
+  configured_fraction: decimalSchema,
+  suggested_max_position_fraction: decimalSchema,
+  binding: lenientEnum(SizingBinding),
+  above_reference: z.boolean(),
+  warnings: z.array(z.string()),
+});
+export type SizingAdvice = z.infer<typeof sizingSchema>;
+export const getSizing = (
+  id: string,
+  tolerableLossPct: string,
+  scope: "day" | "bar",
+  signal?: AbortSignal,
+) =>
+  request({
+    path: `/backtests/${id}/sizing`,
+    schema: sizingSchema,
+    query: { tolerable_loss_pct: tolerableLossPct, scope },
+    signal,
+  });
 
 export const createBacktest = (body: BacktestInput) =>
   request({ method: HttpMethod.Post, path: "/backtests", schema: backtestSchema, body });

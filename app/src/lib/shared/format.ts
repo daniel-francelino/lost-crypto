@@ -94,6 +94,11 @@ export const formatDuration = (seconds: number | null | undefined): string => {
   return days === 1 ? "1 dia" : `${text} dias`;
 };
 
+export const formatDecimalDuration = (seconds: string | null | undefined): string => {
+  if (seconds === null || seconds === undefined || !isDecimal(seconds)) return EMPTY;
+  return formatDuration(Number(seconds));
+};
+
 export const formatFractionAsPercent = (value: string | null | undefined): string => {
   if (value === null || value === undefined || !isDecimal(value)) return EMPTY;
   return new Intl.NumberFormat(LOCALE, { style: "percent", maximumFractionDigits: 0 }).format(

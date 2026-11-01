@@ -15,6 +15,7 @@ from modules.strategies.domain.base import (
     InvalidStrategyParams,
     ParamSpec,
     Strategy,
+    next_bars_held,
     parse_numeric_params,
     percent_below_above,
     validate_percent,
@@ -34,6 +35,7 @@ class EmaCrossoverParams:
     slow_period: int = 21
     stop_loss_pct: Decimal | None = None  # % below the entry candle's close
     take_profit_pct: Decimal | None = None  # % above the entry candle's close
+    max_holding_candles: int | None = None
 
     def __post_init__(self) -> None:
         validate_percent("stop_loss_pct", self.stop_loss_pct)
@@ -42,6 +44,8 @@ class EmaCrossoverParams:
             raise InvalidStrategyParams("fast_period must be >= 2")
         if self.fast_period >= self.slow_period:
             raise InvalidStrategyParams("fast_period must be smaller than slow_period")
+        if self.max_holding_candles is not None and self.max_holding_candles < 1:
+            raise InvalidStrategyParams("max_holding_candles must be >= 1")
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +53,7 @@ class EmaCrossoverState:
     closes: tuple[Decimal, ...] = ()  # warm-up buffer; unused once EMAs exist
     fast: Decimal | None = None
     slow: Decimal | None = None
+    bars_held: int = 0
 
 
 def _sma(values: Sequence[Decimal]) -> Decimal:
@@ -76,6 +81,7 @@ class EmaCrossoverStrategy(Strategy[EmaCrossoverState]):
         ParamSpec(
             "stop_loss_pct", "number", None, "Optional stop-loss, % below the entry price (0-100)"
         ),
+        ParamSpec("max_holding_candles", "integer", None, "Optional: exit after N held candles", 1),
         ParamSpec(
             "take_profit_pct",
             "number",
@@ -95,6 +101,7 @@ class EmaCrossoverStrategy(Strategy[EmaCrossoverState]):
             params,
             integers=frozenset({"fast_period", "slow_period"}),
             numbers=frozenset({"stop_loss_pct", "take_profit_pct"}),
+            optional_integers=frozenset({"max_holding_candles"}),
         )
         return cls(EmaCrossoverParams(**values))
 
@@ -106,6 +113,7 @@ class EmaCrossoverStrategy(Strategy[EmaCrossoverState]):
             "closes": [str(c) for c in state.closes],
             "fast": None if state.fast is None else str(state.fast),
             "slow": None if state.slow is None else str(state.slow),
+            "bars_held": state.bars_held,
         }
 
     def deserialize_state(self, raw: dict[str, Any]) -> EmaCrossoverState:
@@ -113,6 +121,7 @@ class EmaCrossoverStrategy(Strategy[EmaCrossoverState]):
             closes=tuple(Decimal(c) for c in raw["closes"]),
             fast=None if raw["fast"] is None else Decimal(raw["fast"]),
             slow=None if raw["slow"] is None else Decimal(raw["slow"]),
+            bars_held=int(raw.get("bars_held", 0)),
         )
 
     def evaluate(
@@ -134,6 +143,7 @@ class EmaCrossoverStrategy(Strategy[EmaCrossoverState]):
         diff = fast - slow
 
         signals: tuple[Signal, ...] = ()
+        bars_held = next_bars_held(ctx.position_quantity, state.bars_held)
         if previous_diff <= 0 < diff and ctx.position_quantity <= 0:
             stop, target = percent_below_above(
                 close, self.params.stop_loss_pct, self.params.take_profit_pct
@@ -157,4 +167,18 @@ class EmaCrossoverStrategy(Strategy[EmaCrossoverState]):
                     f"EMA{self.params.fast_period} crossed below EMA{self.params.slow_period}",
                 ),
             )
-        return StrategyResult(signals, EmaCrossoverState(fast=fast, slow=slow))
+        if (
+            not signals
+            and ctx.position_quantity > 0
+            and self.params.max_holding_candles is not None
+            and bars_held >= self.params.max_holding_candles
+        ):
+            signals = (
+                Signal(
+                    Side.SELL,
+                    ctx.symbol,
+                    SignalKind.EXIT,
+                    f"holding limit of {self.params.max_holding_candles} candles reached",
+                ),
+            )
+        return StrategyResult(signals, EmaCrossoverState(fast=fast, slow=slow, bars_held=bars_held))

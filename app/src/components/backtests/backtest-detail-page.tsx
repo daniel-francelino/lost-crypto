@@ -13,6 +13,8 @@ import {
 import { CostLadderCard } from "@/components/backtests/cost-ladder-card";
 import { DataQualityCard } from "@/components/backtests/data-quality-card";
 import { RiskReportCard } from "@/components/backtests/risk-report-card";
+import { SizingCard } from "@/components/backtests/sizing-card";
+import { RegimeCard } from "@/components/backtests/regime-card";
 import { PeriodsCard } from "@/components/backtests/periods-card";
 import { ScreeningPanel } from "@/components/backtests/screening-panel";
 import { EquityChart } from "@/components/shared/metrics/equity-chart";
@@ -143,6 +145,7 @@ export function BacktestDetailPage({ runId }: { runId: string }) {
         <DataQualityCard run={run} quality={run.data_quality} />
       )}
       <RiskReportCard run={run} />
+      {completed ? <SizingCard run={run} /> : null}
       {run.metrics === null ? null : (
         <section className="space-y-3" aria-label="Métricas">
           <h2 className="text-base font-semibold">Resultado completo</h2>
@@ -191,6 +194,7 @@ export function BacktestDetailPage({ runId }: { runId: string }) {
           {run.periods === null || run.periods === undefined || run.metrics === null ? null : (
             <PeriodsCard periods={run.periods} totalReturnPct={run.metrics.total_return_pct} />
           )}
+          {run.regime ? <RegimeCard regime={run.regime} /> : null}
           {run.cost_ladder === null || run.cost_ladder === undefined ? null : (
             <CostLadderCard ladder={run.cost_ladder} />
           )}

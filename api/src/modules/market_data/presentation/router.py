@@ -99,6 +99,18 @@ class OutlierOut(BaseModel):
     )
 
 
+class HalfLifeOut(BaseModel):
+    n: int
+    slope: Decimal | None
+    t_stat: Decimal | None
+    stationary_at_5pct: bool | None
+    half_life_bars: Decimal | None
+    half_life_seconds: Decimal | None
+    log_prices: bool
+    gaps: int
+    warning: str
+
+
 def _job_out(job: ImportJob) -> ImportJobOut:
     return ImportJobOut(
         id=job.id,
@@ -243,6 +255,46 @@ async def get_outliers(
         )
         for o in found
     ]
+
+
+@router.get("/half-life", response_model=HalfLifeOut)
+async def get_half_life(
+    request: Request,
+    symbol: Symbol,
+    timeframe: Timeframe,
+    start: AwareDatetime,
+    end: AwareDatetime,
+    log_prices: bool = True,
+    exchange: str = "binance",
+) -> HalfLifeOut:
+    """Estimate mean-reversion half-life from stored close prices; descriptive only."""
+    if start >= end:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "start must be before end")
+    container: Container = request.app.state.container
+    try:
+        estimate, n, gaps = await container.market_data.half_life(
+            exchange, symbol, timeframe, start, end, log=log_prices
+        )
+    except InvalidImportRequest as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    return HalfLifeOut(
+        n=n,
+        slope=None if estimate is None else estimate.slope,
+        t_stat=None if estimate is None else estimate.t_stat,
+        stationary_at_5pct=None if estimate is None else estimate.stationary,
+        half_life_bars=None if estimate is None else estimate.half_life_bars,
+        half_life_seconds=(
+            None
+            if estimate is None
+            else estimate.half_life_bars * int(timeframe.delta.total_seconds())
+        ),
+        log_prices=log_prices,
+        gaps=gaps,
+        warning=(
+            "Estimativa descritiva, não é previsão. A meia-vida só é interpretável quando "
+            "a série é estacionária; dados com lacunas foram usados como estão."
+        ),
+    )
 
 
 class ListingOut(BaseModel):

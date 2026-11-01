@@ -8,6 +8,7 @@ export const QueryKey = {
     list: () => ["bots", "list"] as const,
     summary: () => ["bots", "summary"] as const,
     overview: () => ["bots", "overview"] as const,
+    interventions: (id: string, days: number) => ["bots", id, "interventions", days] as const,
     detail: (id: string) => ["bots", "detail", id] as const,
     portfolio: (id: string) => ["bots", id, "portfolio"] as const,
     performance: (id: string) => ["bots", id, "performance"] as const,
@@ -27,6 +28,8 @@ export const QueryKey = {
     detail: (id: string) => ["backtests", "detail", id] as const,
     trades: (id: string) => ["backtests", id, "trades"] as const,
     equity: (id: string) => ["backtests", id, "equity"] as const,
+    sizing: (id: string, tolerable: string, scope: string) =>
+      ["backtests", id, "sizing", tolerable, scope] as const,
     compare: (ids: string[]) => ["backtests", "compare", ...ids] as const,
     sweep: (id: string) => ["backtests", "sweep", id] as const,
   },
@@ -36,6 +39,8 @@ export const QueryKey = {
       ["market-data", "coverage", exchange, symbol, timeframe, start, end] as const,
     outliers: (exchange: string, symbol: string, timeframe: string, start: string, end: string) =>
       ["market-data", "outliers", exchange, symbol, timeframe, start, end] as const,
+    halfLife: (exchange: string, symbol: string, timeframe: string, start: string, end: string) =>
+      ["market-data", "half-life", exchange, symbol, timeframe, start, end] as const,
     listings: (exchange: string, symbol: string) =>
       ["market-data", "listings", exchange, symbol] as const,
     imports: (limit: number) => ["market-data", "imports", limit] as const,

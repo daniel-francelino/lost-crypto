@@ -4,6 +4,7 @@ import {
   getBotEquity,
   getDivergence,
   getExecutionQuality,
+  getInterventions,
   getOverview,
   getParity,
   getPerformance,
@@ -34,6 +35,13 @@ export const useOverview = () =>
     refetchInterval: Poll.Overview,
   });
 
+export const useInterventions = (id: string, days = 30) =>
+  useQuery({
+    queryKey: QueryKey.Bots.interventions(id, days),
+    queryFn: ({ signal }) => getInterventions(id, days, signal),
+    refetchInterval: Poll.Slow,
+  });
+
 export const useSummary = () =>
   useQuery({
     queryKey: QueryKey.Bots.summary(),
@@ -60,9 +68,10 @@ export const usePortfolio = (id: string) =>
     refetchInterval: Poll.Detail,
   });
 
-export const usePerformance = (id: string) =>
+export const usePerformance = (id: string, enabled = true) =>
   useQuery({
     queryKey: QueryKey.Bots.performance(id),
+    enabled,
     queryFn: ({ signal }) => getPerformance(id, signal),
     refetchInterval: Poll.Slow,
   });
@@ -74,9 +83,10 @@ export const useBotEquity = (id: string) =>
     refetchInterval: Poll.Slow,
   });
 
-export const useOrders = (id: string, limit: number, offset: number) =>
+export const useOrders = (id: string, limit: number, offset: number, enabled = true) =>
   useQuery({
     queryKey: QueryKey.Bots.orders(id, limit, offset),
+    enabled,
     queryFn: ({ signal }) => listOrders(id, limit, offset, signal),
     placeholderData: keepPreviousData,
     refetchInterval: Poll.Detail,
@@ -108,11 +118,19 @@ export type BotCommand = (typeof BotCommand)[keyof typeof BotCommand];
 export const useBotCommand = (id: string) => {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ command, token }: { command: BotCommand; token?: string | null }) => {
+    mutationFn: ({
+      command,
+      token,
+      reason,
+    }: {
+      command: BotCommand;
+      token?: string | null;
+      reason?: string;
+    }) => {
       if (command === BotCommand.Start) return startBot(id, token ?? null);
-      if (command === BotCommand.Pause) return pauseBot(id);
-      if (command === BotCommand.Stop) return stopBot(id);
-      return resetPortfolio(id);
+      if (command === BotCommand.Pause) return pauseBot(id, reason);
+      if (command === BotCommand.Stop) return stopBot(id, reason);
+      return resetPortfolio(id, reason);
     },
     onSettled: async () => {
       await client.invalidateQueries({ queryKey: QueryKey.Bots.all() });

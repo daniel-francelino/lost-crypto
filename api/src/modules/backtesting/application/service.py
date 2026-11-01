@@ -14,6 +14,8 @@ from core.errors import DomainError, NotFoundError
 from core.ids import IdGenerator
 from core.jobs import JobStatus
 from modules.analytics.domain.metrics import compute_metrics
+from modules.analytics.domain.regime import regime_report
+from modules.analytics.domain.tail_risk import tail_risk
 from modules.backtesting.application.ports import BacktestRun, BacktestStore, BacktestSweep
 from modules.backtesting.domain import cost_ladder
 from modules.backtesting.domain.data_quality import (
@@ -296,6 +298,10 @@ class BacktestExecutor:
                 cost_ladder=ladder,
                 data_quality=quality,
                 risk_report=risk_report(outcome),
+                tail_risk=tail_risk(outcome.equity_curve, candles, config.timeframe.delta),
+                regime=await asyncio.to_thread(
+                    regime_report, candles, outcome.equity_curve, outcome.in_market
+                ),
                 equity_curve=outcome.equity_curve,
                 fills=outcome.fills,
             )

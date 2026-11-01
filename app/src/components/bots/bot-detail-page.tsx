@@ -4,6 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from "lost-ui/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "lost-ui/ui/tabs";
 import { DiagnosisTab, ParityTab } from "@/components/bots/bot-execution";
 import { BotControls } from "@/components/bots/bot-controls";
+import { BotInterventions } from "@/components/bots/bot-interventions";
 import {
   ConfigTab,
   OrdersTab,
@@ -90,6 +91,7 @@ export function BotDetailPage({ botId, tab, onTabChange }: BotDetailPageProps) {
           </AlertDescription>
         </Alert>
       ) : null}
+      <BotInterventions botId={bot.id} />
       <div className="text-xs text-muted-foreground">
         Heartbeat {formatAge(heartbeat)} ·{" "}
         <UpdatedAt updatedAtMs={query.dataUpdatedAt} failed={query.isError} />

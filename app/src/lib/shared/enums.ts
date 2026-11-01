@@ -107,6 +107,17 @@ export const FillTiming = {
 } as const;
 export type FillTiming = ValueOf<typeof FillTiming>;
 
+export const SizingScope = { Day: "day", Bar: "bar" } as const;
+export type SizingScope = ValueOf<typeof SizingScope>;
+
+export const SizingBinding = {
+  HalfKelly: "half_kelly",
+  TailStrategy: "tail_strategy",
+  TailAsset: "tail_asset",
+  SpotLimit: "spot_limit",
+} as const;
+export type SizingBinding = ValueOf<typeof SizingBinding>;
+
 export const JobStatus = {
   Queued: "queued",
   Running: "running",

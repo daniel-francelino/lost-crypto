@@ -27,7 +27,11 @@ class SqlAlchemyAuditRepository:
         await self._session.flush()
 
     async def count_events(
-        self, bot_id: UUID, event_types: Sequence[str], before: datetime | None = None
+        self,
+        bot_id: UUID,
+        event_types: Sequence[str],
+        before: datetime | None = None,
+        since: datetime | None = None,
     ) -> int:
         query = (
             select(func.count())
@@ -36,7 +40,35 @@ class SqlAlchemyAuditRepository:
         )
         if before is not None:
             query = query.where(AuditEventRow.occurred_at < before)
+        if since is not None:
+            query = query.where(AuditEventRow.occurred_at >= since)
         return int((await self._session.execute(query)).scalar_one())
+
+    async def list_events_since(
+        self, bot_id: UUID, event_types: Sequence[str], since: datetime, limit: int
+    ) -> list[AuditEvent]:
+        query = (
+            select(AuditEventRow)
+            .where(
+                AuditEventRow.bot_id == bot_id,
+                AuditEventRow.event_type.in_(event_types),
+                AuditEventRow.occurred_at >= since,
+            )
+            .order_by(AuditEventRow.occurred_at.desc())
+            .limit(limit)
+        )
+        return [
+            AuditEvent(
+                r.event_type,
+                r.entity_type,
+                r.entity_id,
+                r.actor,
+                r.bot_id,
+                r.payload,
+                r.occurred_at,
+            )
+            for r in (await self._session.execute(query)).scalars()
+        ]
 
     async def latest_event_time(self, bot_id: UUID, event_type: str) -> datetime | None:
         result = await self._session.execute(
@@ -46,12 +78,16 @@ class SqlAlchemyAuditRepository:
         )
         return result.scalar_one_or_none()
 
-    async def count_all(self, bot_id: UUID | None, event_type: str | None = None) -> int:
+    async def count_all(
+        self, bot_id: UUID | None, event_type: str | None = None, since: datetime | None = None
+    ) -> int:
         query = select(func.count()).select_from(AuditEventRow)
         if bot_id is not None:
             query = query.where(AuditEventRow.bot_id == bot_id)
         if event_type is not None:
             query = query.where(AuditEventRow.event_type == event_type)
+        if since is not None:
+            query = query.where(AuditEventRow.occurred_at >= since)
         return int((await self._session.execute(query)).scalar_one())
 
     async def list_events(

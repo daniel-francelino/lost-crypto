@@ -32,6 +32,10 @@ class StartIn(BaseModel):
     )
 
 
+class ReasonIn(BaseModel):
+    reason: str | None = Field(default=None, max_length=200)
+
+
 class CheckOut(BaseModel):
     name: str
     ok: bool
@@ -93,6 +97,7 @@ class BotUpdate(BaseModel):
     risk: RiskIn | None = None
     mode: Literal["paper", "testnet"] | None = None  # live has its own endpoint
     connection_id: UUID | None = None
+    change_reason: str | None = Field(default=None, max_length=200)
 
 
 class BotOut(BaseModel):
@@ -189,6 +194,25 @@ class BotOverviewOut(BaseModel):
     in_position: bool
     last_price: Decimal | None
     last_heartbeat_at: datetime | None
+    interventions_30d: int
+
+
+class InterventionItemOut(BaseModel):
+    at: datetime
+    type: str
+    actor: str
+    reason: str | None
+    drawdown_pct: Decimal | None
+
+
+class InterventionsOut(BaseModel):
+    days: int
+    total: int
+    after_drawdown: int
+    drawdown_threshold_pct: Decimal
+    by_type: dict[str, int]
+    items: list[InterventionItemOut]
+    system: dict[str, int]
 
 
 class EquityPointOut(BaseModel):
@@ -317,6 +341,7 @@ async def get_overview(request: Request) -> list[BotOverviewOut]:
             in_position=r.in_position,
             last_price=r.last_price,
             last_heartbeat_at=r.bot.last_heartbeat_at,
+            interventions_30d=r.interventions_30d,
         )
         for r in rows
     ]
@@ -328,9 +353,11 @@ async def get_bot(bot_id: UUID, request: Request) -> BotOut:
 
 
 @router.patch("/{bot_id}", response_model=BotOut)
-async def update_bot(bot_id: UUID, body: BotUpdate, request: Request) -> BotOut:
+async def update_bot(
+    bot_id: UUID, body: BotUpdate, request: Request, principal: Principal = Depends(require_auth)
+) -> BotOut:
     """Change the configuration of a stopped bot (creates a new config version)."""
-    changes: dict[str, Any] = body.model_dump(exclude_unset=True, exclude={"risk"})
+    changes: dict[str, Any] = body.model_dump(exclude_unset=True, exclude={"risk", "change_reason"})
     changes = {k: v for k, v in changes.items() if v is not None}
     if body.risk is not None:
         changes["risk"] = _risk(body.risk)
@@ -338,7 +365,11 @@ async def update_bot(bot_id: UUID, body: BotUpdate, request: Request) -> BotOut:
         changes["mode"] = ExecutionMode(body.mode)
         if body.mode == "paper":
             changes["connection_id"] = None  # a paper bot uses no exchange account
-    return _out(await _container(request).bots.update(bot_id, changes))
+    return _out(
+        await _container(request).bots.update(
+            bot_id, changes, actor=principal.username, reason=body.change_reason
+        )
+    )
 
 
 @router.post("/{bot_id}/start", response_model=BotOut, status_code=status.HTTP_202_ACCEPTED)
@@ -393,22 +424,56 @@ async def request_live_approval(
 
 
 @router.post("/{bot_id}/pause", response_model=BotOut, status_code=status.HTTP_202_ACCEPTED)
-async def pause_bot(bot_id: UUID, request: Request) -> BotOut:
+async def pause_bot(
+    bot_id: UUID,
+    request: Request,
+    body: ReasonIn | None = None,
+    principal: Principal = Depends(require_auth),
+) -> BotOut:
     """Stop evaluating the strategy; the session and its state are kept."""
-    return _out(await _container(request).bots.pause(bot_id))
+    return _out(
+        await _container(request).bots.pause(
+            bot_id, reason=body.reason if body else None, actor=principal.username
+        )
+    )
 
 
 @router.post("/{bot_id}/stop", response_model=BotOut, status_code=status.HTTP_202_ACCEPTED)
-async def stop_bot(bot_id: UUID, request: Request) -> BotOut:
+async def stop_bot(
+    bot_id: UUID,
+    request: Request,
+    body: ReasonIn | None = None,
+    principal: Principal = Depends(require_auth),
+) -> BotOut:
     """End the session. The virtual portfolio (including any open position) is kept."""
-    return _out(await _container(request).bots.stop(bot_id))
+    return _out(
+        await _container(request).bots.stop(
+            bot_id, reason=body.reason if body else None, actor=principal.username
+        )
+    )
 
 
 @router.post("/{bot_id}/reset-portfolio", status_code=status.HTTP_204_NO_CONTENT)
-async def reset_portfolio(bot_id: UUID, request: Request) -> Response:
+async def reset_portfolio(
+    bot_id: UUID,
+    request: Request,
+    body: ReasonIn | None = None,
+    principal: Principal = Depends(require_auth),
+) -> Response:
     """Restart the virtual portfolio from the initial capital (stopped bots only)."""
-    await _container(request).bots.reset_portfolio(bot_id)
+    await _container(request).bots.reset_portfolio(
+        bot_id, reason=body.reason if body else None, actor=principal.username
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/{bot_id}/interventions", response_model=InterventionsOut)
+async def get_interventions(
+    bot_id: UUID, request: Request, days: int = Query(default=30, ge=1, le=365)
+) -> InterventionsOut:
+    return InterventionsOut.model_validate(
+        await _container(request).bots.interventions(bot_id, days)
+    )
 
 
 @router.get("/{bot_id}/orders", response_model=list[OrderOut])

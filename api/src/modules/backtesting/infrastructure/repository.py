@@ -77,6 +77,8 @@ def _to_run(row: BacktestRunRow) -> BacktestRun:
         cost_ladder=row.cost_ladder,
         data_quality=row.data_quality,
         risk_report=row.risk_report,
+        tail_risk=row.tail_risk,
+        regime=row.regime,
         sweep_id=row.sweep_id,
         error=row.error,
     )
@@ -225,6 +227,8 @@ class SqlAlchemyBacktestStore:
         cost_ladder: dict[str, Any] | None,
         data_quality: dict[str, Any] | None,
         risk_report: dict[str, Any] | None,
+        tail_risk: dict[str, Any] | None,
+        regime: dict[str, Any] | None,
         equity_curve: list[EquityPoint],
         fills: list[Fill],
     ) -> None:
@@ -242,6 +246,8 @@ class SqlAlchemyBacktestStore:
                 cost_ladder=cost_ladder,
                 data_quality=data_quality,
                 risk_report=risk_report,
+                tail_risk=tail_risk,
+                regime=regime,
                 equity_curve=[[p.time.isoformat(), str(p.equity)] for p in equity_curve],
                 finished_at=func.now(),
             )

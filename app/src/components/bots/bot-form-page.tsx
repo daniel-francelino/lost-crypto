@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "lost-ui/app/page-header";
 import { Form } from "lost-ui/forms/form";
@@ -11,9 +11,11 @@ import { Alert, AlertDescription, AlertTitle } from "lost-ui/ui/alert";
 import { Button } from "lost-ui/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "lost-ui/ui/card";
 import { toast } from "lost-ui/ui/sonner";
+import { ConfirmDialog } from "@/components/shared/feedback/confirm-dialog";
+import { backtestPrefillFromBot } from "@/lib/bots/execution";
 import { ErrorBlock, SkeletonBlock } from "@/components/shared/feedback/query-boundary";
 import { StrategyFields } from "@/components/shared/strategy/strategy-fields";
-import { useBot } from "@/hooks/bots/use-bots";
+import { useBot, useOrders, useOverview, usePerformance } from "@/hooks/bots/use-bots";
 import { useConnections, useStrategies } from "@/hooks/shared/use-catalog";
 import { useCapabilities } from "@/hooks/shared/use-system";
 import { type Bot, createBot, updateBot } from "@/lib/bots/bots.api";
@@ -24,6 +26,7 @@ import { QueryKey } from "@/lib/shared/api/query-keys";
 import { decimalError, integerError, symbolError } from "@/lib/shared/validators";
 import { type BotPrefill, prefillParams } from "@/lib/shared/bot-prefill";
 import { ConnectionStatus, Environment, ExecutionMode, Timeframe } from "@/lib/shared/enums";
+import { AppRoute } from "@/lib/shared/routes";
 import { defaultParamValues, paramsFromRecord } from "@/lib/shared/strategies/params";
 import type { Strategy } from "@/lib/shared/strategies/strategies.api";
 
@@ -33,6 +36,20 @@ const MODE_ITEMS = [
 ];
 const TIMEFRAME_ITEMS = Object.values(Timeframe).map((value) => ({ label: value, value }));
 const MAX_NAME = 60;
+const CHANGE_LABELS: Record<string, string> = {
+  name: "Nome",
+  exchange: "Exchange",
+  strategy_type: "Estratégia",
+  strategy_params: "Parâmetros",
+  symbol: "Símbolo",
+  timeframe: "Intervalo",
+  initial_capital: "Capital inicial",
+  fee_rate: "Taxa",
+  slippage_bps: "Slippage",
+  risk: "Limites de risco",
+  mode: "Modo",
+  connection_id: "Conexão",
+};
 
 const prefilledValues = (strategies: Strategy[], prefill: BotPrefill): BotFormValues => {
   const strategy = strategies.find((item) => item.type_key === prefill.strategy) ?? strategies[0];
@@ -43,6 +60,7 @@ const prefilledValues = (strategies: Strategy[], prefill: BotPrefill): BotFormVa
     timeframe: prefill.timeframe ?? base.timeframe,
     params: paramsFromRecord(strategy, prefillParams(prefill)),
     maxDrawdownPct: prefill.maxDrawdownPct ?? base.maxDrawdownPct,
+    maxPositionFraction: prefill.maxPositionFraction ?? base.maxPositionFraction,
   };
 };
 
@@ -68,8 +86,30 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
   );
   const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [confirmEdit, setConfirmEdit] = useState(false);
+  const orderHistory = useOrders(bot?.id ?? "", 1, 0, bot !== null);
+  const overview = useOverview();
+  const performance = usePerformance(bot?.id ?? "", bot !== null);
 
   const strategy = strategies.find((item) => item.type_key === values.strategyType);
+  const originalStrategy = strategies.find((item) => item.type_key === bot?.strategy_type);
+  const currentInput = bot === null ? null : toBotInput(values, strategy);
+  const originalInput =
+    bot === null ? null : toBotInput(formFromBot(bot, originalStrategy), originalStrategy);
+  const pendingChanges =
+    currentInput === null || originalInput === null
+      ? []
+      : Object.entries(currentInput)
+          .filter(
+            ([key, value]) =>
+              JSON.stringify(value) !==
+              JSON.stringify(originalInput[key as keyof typeof originalInput]),
+          )
+          .map(([key, after]) => ({
+            key,
+            before: originalInput[key as keyof typeof originalInput],
+            after,
+          }));
   const set = <K extends keyof BotFormValues>(key: K, value: BotFormValues[K]) =>
     setValues((current) => ({ ...current, [key]: value }));
   const testnetConnections = (connections.data ?? []).filter(
@@ -77,12 +117,19 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
   );
 
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (reason?: string) => {
       const input = toBotInput(values, strategy);
       if (bot === null) return createBot(input);
-      if (!isLive) return updateBot(bot.id, input);
+      if (!isLive)
+        return updateBot(bot.id, {
+          ...input,
+          ...(reason === undefined ? {} : { change_reason: reason }),
+        });
       const { mode: _mode, connection_id: _connection, ...rest } = input;
-      return updateBot(bot.id, rest);
+      return updateBot(bot.id, {
+        ...rest,
+        ...(reason === undefined ? {} : { change_reason: reason }),
+      });
     },
     onSuccess: async (saved) => {
       await client.invalidateQueries({ queryKey: QueryKey.Bots.all() });
@@ -98,252 +145,322 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
   const submit = () => {
     setServerErrors({});
     setFormError(null);
-    mutation.mutate();
+    if (bot === null) mutation.mutate(undefined);
+    else setConfirmEdit(true);
   };
 
   const err = (field: string) => serverErrors[field];
 
   return (
-    <Form onSubmit={submit} className="space-y-6">
-      {isLive ? (
-        <Alert className="border-live/60">
-          <AlertTitle>Bot LIVE</AlertTitle>
-          <AlertDescription>
-            Qualquer alteração invalida a aprovação atual: será preciso aprovar de novo antes de
-            iniciar.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Identificação</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <FormInput
-            label="Nome"
-            required
-            maxLength={MAX_NAME}
-            value={values.name}
-            onValueChange={(value) => set("name", value)}
-            errorMessage={err("name") ?? ""}
-            rules={[rules.required("Informe o nome.")]}
-          />
-          <FormSelect
-            label="Exchange"
-            items={exchanges.map((value) => ({ label: value, value }))}
-            value={values.exchange}
-            onValueChange={(value) => set("exchange", value)}
-          />
-          <FormInput
-            label="Símbolo"
-            required
-            value={values.symbol}
-            onValueChange={(value) => set("symbol", value)}
-            errorMessage={err("symbol") ?? ""}
-            rules={[(value) => symbolError(value ?? "")]}
-          />
-          <FormSelect
-            label="Intervalo"
-            items={TIMEFRAME_ITEMS}
-            value={values.timeframe}
-            onValueChange={(value) => set("timeframe", value)}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Estratégia</CardTitle>
-          <CardDescription>{strategy?.description}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <FormSelect
-            label="Estratégia"
-            items={strategies.map((item) => ({ label: item.name, value: item.type_key }))}
-            value={values.strategyType}
-            onValueChange={(value) => {
-              const next = strategies.find((item) => item.type_key === value);
-              setValues((current) => ({
-                ...current,
-                strategyType: value,
-                params: defaultParamValues(next),
-              }));
-            }}
-          />
-          <StrategyFields
-            strategy={strategy}
-            values={values.params}
-            onChange={(name, value) => set("params", { ...values.params, [name]: value })}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Capital e custos</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-3">
-          <FormInput
-            label="Capital inicial"
-            required
-            inputMode="decimal"
-            value={values.initialCapital}
-            onValueChange={(value) => set("initialCapital", value)}
-            errorMessage={err("initial_capital") ?? ""}
-            rules={[(value) => decimalError(value ?? "", true)]}
-          />
-          <FormInput
-            label="Taxa (fração)"
-            inputMode="decimal"
-            description="Vazio usa a taxa da exchange. Ex.: 0.001 = 0,1%."
-            value={values.feeRate}
-            onValueChange={(value) => set("feeRate", value)}
-            errorMessage={err("fee_rate") ?? ""}
-            rules={[(value) => decimalError(value ?? "", false)]}
-          />
-          <FormInput
-            label="Slippage (bps)"
-            required
-            inputMode="decimal"
-            value={values.slippageBps}
-            onValueChange={(value) => set("slippageBps", value)}
-            errorMessage={err("slippage_bps") ?? ""}
-            rules={[(value) => decimalError(value ?? "", true)]}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Limites de risco</CardTitle>
-          <CardDescription>
-            Os limites do servidor valem sempre; no live os tetos globais valem ainda mais.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <FormInput
-            label="Fração máxima por posição"
-            required
-            inputMode="decimal"
-            description="De 0 a 1 do capital."
-            value={values.maxPositionFraction}
-            onValueChange={(value) => set("maxPositionFraction", value)}
-            rules={[(value) => decimalError(value ?? "", true)]}
-          />
-          <FormInput
-            label="Valor máximo por ordem"
-            inputMode="decimal"
-            value={values.maxOrderNotional}
-            onValueChange={(value) => set("maxOrderNotional", value)}
-            rules={[(value) => decimalError(value ?? "", false)]}
-          />
-          <FormInput
-            label="Perda diária máxima (%)"
-            inputMode="decimal"
-            value={values.maxDailyLossPct}
-            onValueChange={(value) => set("maxDailyLossPct", value)}
-            rules={[(value) => decimalError(value ?? "", false)]}
-          />
-          <FormInput
-            label="Drawdown máximo (%)"
-            inputMode="decimal"
-            value={values.maxDrawdownPct}
-            onValueChange={(value) => set("maxDrawdownPct", value)}
-            rules={[(value) => decimalError(value ?? "", false)]}
-          />
-          <FormInput
-            label="Perdas consecutivas máximas"
-            inputMode="numeric"
-            value={values.maxConsecutiveLosses}
-            onValueChange={(value) => set("maxConsecutiveLosses", value)}
-            rules={[(value) => integerError(value ?? "")]}
-          />
-          <FormInput
-            label="Risco máximo por operação (%)"
-            inputMode="decimal"
-            value={values.maxRiskPerTradePct}
-            onValueChange={(value) => set("maxRiskPerTradePct", value)}
-            rules={[(value) => decimalError(value ?? "", false)]}
-          />
-          <FormInput
-            label="Amplitude máxima do candle (%)"
-            inputMode="decimal"
-            value={values.maxCandleRangePct}
-            onValueChange={(value) => set("maxCandleRangePct", value)}
-            rules={[(value) => decimalError(value ?? "", false)]}
-          />
-          <FormInput
-            label="Máximo da ordem (% do volume médio)"
-            inputMode="decimal"
-            description="Média do valor negociado nos últimos 20 candles. Vazio desliga. O livro sugere ~1% do volume diário (em ações)."
-            value={values.maxOrderPctOfVolume}
-            onValueChange={(value) => set("maxOrderPctOfVolume", value)}
-            rules={[(value) => decimalError(value ?? "", false)]}
-          />
-          <FormSwitch
-            label="Exigir stop-loss"
-            value={values.requireStopLoss}
-            onValueChange={(value) => set("requireStopLoss", value)}
-          />
-        </CardContent>
-      </Card>
-
-      {isLive ? null : (
+    <>
+      <Form onSubmit={submit} className="space-y-6">
+        {isLive ? (
+          <Alert className="border-live/60">
+            <AlertTitle>Bot LIVE</AlertTitle>
+            <AlertDescription>
+              Qualquer alteração invalida a aprovação atual: será preciso aprovar de novo antes de
+              iniciar.
+            </AlertDescription>
+          </Alert>
+        ) : null}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Modo de execução</CardTitle>
-            <CardDescription>
-              Bots LIVE não são criados aqui: use “Promover para LIVE” no detalhe de um bot parado.
-            </CardDescription>
+            <CardTitle className="text-base">Identificação</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
-            <FormSelect
-              label="Modo"
-              items={MODE_ITEMS}
-              value={values.mode}
-              onValueChange={(value) => set("mode", value)}
+            <FormInput
+              label="Nome"
+              required
+              maxLength={MAX_NAME}
+              value={values.name}
+              onValueChange={(value) => set("name", value)}
+              errorMessage={err("name") ?? ""}
+              rules={[rules.required("Informe o nome.")]}
             />
-            {values.mode === ExecutionMode.Paper ? null : (
-              <FormSelect
-                label="Conexão testnet ativa"
-                placeholder={testnetConnections.length === 0 ? "Nenhuma conexão ativa" : "Escolha"}
-                items={testnetConnections.map((item) => ({
-                  label: `${item.label} (${item.api_key_hint})`,
-                  value: item.id,
-                }))}
-                value={values.connectionId}
-                onValueChange={(value) => set("connectionId", value)}
-                rules={[rules.required("Escolha a conexão.")]}
-              />
-            )}
+            <FormSelect
+              label="Exchange"
+              items={exchanges.map((value) => ({ label: value, value }))}
+              value={values.exchange}
+              onValueChange={(value) => set("exchange", value)}
+            />
+            <FormInput
+              label="Símbolo"
+              required
+              value={values.symbol}
+              onValueChange={(value) => set("symbol", value)}
+              errorMessage={err("symbol") ?? ""}
+              rules={[(value) => symbolError(value ?? "")]}
+            />
+            <FormSelect
+              label="Intervalo"
+              items={TIMEFRAME_ITEMS}
+              value={values.timeframe}
+              onValueChange={(value) => set("timeframe", value)}
+            />
           </CardContent>
         </Card>
-      )}
 
-      {formError === null ? null : (
-        <p role="alert" className="text-sm text-destructive">
-          {formError}
-        </p>
-      )}
-      <div className="flex gap-2">
-        <Button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? "Salvando…" : bot === null ? "Criar bot" : "Salvar alterações"}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() =>
-            void navigate({
-              to: bot === null ? "/bots" : "/bots/$botId",
-              params: bot === null ? {} : { botId: bot.id },
-              search: {},
-            })
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Estratégia</CardTitle>
+            <CardDescription>{strategy?.description}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <FormSelect
+              label="Estratégia"
+              items={strategies.map((item) => ({ label: item.name, value: item.type_key }))}
+              value={values.strategyType}
+              onValueChange={(value) => {
+                const next = strategies.find((item) => item.type_key === value);
+                setValues((current) => ({
+                  ...current,
+                  strategyType: value,
+                  params: defaultParamValues(next),
+                }));
+              }}
+            />
+            <StrategyFields
+              strategy={strategy}
+              values={values.params}
+              onChange={(name, value) => set("params", { ...values.params, [name]: value })}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Capital e custos</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-3">
+            <FormInput
+              label="Capital inicial"
+              required
+              inputMode="decimal"
+              value={values.initialCapital}
+              onValueChange={(value) => set("initialCapital", value)}
+              errorMessage={err("initial_capital") ?? ""}
+              rules={[(value) => decimalError(value ?? "", true)]}
+            />
+            <FormInput
+              label="Taxa (fração)"
+              inputMode="decimal"
+              description="Vazio usa a taxa da exchange. Ex.: 0.001 = 0,1%."
+              value={values.feeRate}
+              onValueChange={(value) => set("feeRate", value)}
+              errorMessage={err("fee_rate") ?? ""}
+              rules={[(value) => decimalError(value ?? "", false)]}
+            />
+            <FormInput
+              label="Slippage (bps)"
+              required
+              inputMode="decimal"
+              value={values.slippageBps}
+              onValueChange={(value) => set("slippageBps", value)}
+              errorMessage={err("slippage_bps") ?? ""}
+              rules={[(value) => decimalError(value ?? "", true)]}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Limites de risco</CardTitle>
+            <CardDescription>
+              Os limites do servidor valem sempre; no live os tetos globais valem ainda mais.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <FormInput
+              label="Fração máxima por posição"
+              required
+              inputMode="decimal"
+              description={
+                prefill.maxPositionFraction === undefined
+                  ? "De 0 a 1 do capital."
+                  : "Pré-preenchida pela referência histórica do backtest; revise antes de criar."
+              }
+              value={values.maxPositionFraction}
+              onValueChange={(value) => set("maxPositionFraction", value)}
+              rules={[(value) => decimalError(value ?? "", true)]}
+            />
+            <FormInput
+              label="Valor máximo por ordem"
+              inputMode="decimal"
+              value={values.maxOrderNotional}
+              onValueChange={(value) => set("maxOrderNotional", value)}
+              rules={[(value) => decimalError(value ?? "", false)]}
+            />
+            <FormInput
+              label="Perda diária máxima (%)"
+              inputMode="decimal"
+              value={values.maxDailyLossPct}
+              onValueChange={(value) => set("maxDailyLossPct", value)}
+              rules={[(value) => decimalError(value ?? "", false)]}
+            />
+            <FormInput
+              label="Drawdown máximo (%)"
+              inputMode="decimal"
+              value={values.maxDrawdownPct}
+              onValueChange={(value) => set("maxDrawdownPct", value)}
+              rules={[(value) => decimalError(value ?? "", false)]}
+            />
+            <FormInput
+              label="Perdas consecutivas máximas"
+              inputMode="numeric"
+              value={values.maxConsecutiveLosses}
+              onValueChange={(value) => set("maxConsecutiveLosses", value)}
+              rules={[(value) => integerError(value ?? "")]}
+            />
+            <FormInput
+              label="Risco máximo por operação (%)"
+              inputMode="decimal"
+              value={values.maxRiskPerTradePct}
+              onValueChange={(value) => set("maxRiskPerTradePct", value)}
+              rules={[(value) => decimalError(value ?? "", false)]}
+            />
+            <FormInput
+              label="Amplitude máxima do candle (%)"
+              inputMode="decimal"
+              value={values.maxCandleRangePct}
+              onValueChange={(value) => set("maxCandleRangePct", value)}
+              rules={[(value) => decimalError(value ?? "", false)]}
+            />
+            <FormInput
+              label="Máximo da ordem (% do volume médio)"
+              inputMode="decimal"
+              description="Média do valor negociado nos últimos 20 candles. Vazio desliga. O livro sugere ~1% do volume diário (em ações)."
+              value={values.maxOrderPctOfVolume}
+              onValueChange={(value) => set("maxOrderPctOfVolume", value)}
+              rules={[(value) => decimalError(value ?? "", false)]}
+            />
+            <FormSwitch
+              label="Exigir stop-loss"
+              value={values.requireStopLoss}
+              onValueChange={(value) => set("requireStopLoss", value)}
+            />
+          </CardContent>
+        </Card>
+
+        {isLive ? null : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Modo de execução</CardTitle>
+              <CardDescription>
+                Bots LIVE não são criados aqui: use “Promover para LIVE” no detalhe de um bot
+                parado.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <FormSelect
+                label="Modo"
+                items={MODE_ITEMS}
+                value={values.mode}
+                onValueChange={(value) => set("mode", value)}
+              />
+              {values.mode === ExecutionMode.Paper ? null : (
+                <FormSelect
+                  label="Conexão testnet ativa"
+                  placeholder={
+                    testnetConnections.length === 0 ? "Nenhuma conexão ativa" : "Escolha"
+                  }
+                  items={testnetConnections.map((item) => ({
+                    label: `${item.label} (${item.api_key_hint})`,
+                    value: item.id,
+                  }))}
+                  value={values.connectionId}
+                  onValueChange={(value) => set("connectionId", value)}
+                  rules={[rules.required("Escolha a conexão.")]}
+                />
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {formError === null ? null : (
+          <p role="alert" className="text-sm text-destructive">
+            {formError}
+          </p>
+        )}
+        <div className="flex gap-2">
+          <Button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? "Salvando…" : bot === null ? "Criar bot" : "Salvar alterações"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              void navigate({
+                to: bot === null ? "/bots" : "/bots/$botId",
+                params: bot === null ? {} : { botId: bot.id },
+                search: {},
+              })
+            }
+          >
+            Cancelar
+          </Button>
+        </div>
+      </Form>
+      {bot === null ? null : (
+        <ConfirmDialog
+          open={confirmEdit}
+          onOpenChange={setConfirmEdit}
+          title="Confirmar alterações"
+          description={
+            <div className="space-y-3">
+              <p>
+                Alterar parâmetros depois de perdas pode ser uma armadilha de representatividade.
+                Teste a mudança em um período longo antes de operar.
+              </p>
+              <p>
+                Retorno atual:{" "}
+                {overview.data?.find((item) => item.id === bot.id)?.return_pct ?? "sem dados"}% |
+                drawdown atual: {performance.data?.current_drawdown_pct ?? "sem dados"}%
+              </p>
+              {isLive ? (
+                <p>
+                  A aprovação LIVE atual será invalidada; será necessária uma nova aprovação para
+                  iniciar.
+                </p>
+              ) : null}
+              {currentInput === null ? null : (
+                <Link
+                  to={AppRoute.BacktestsNew}
+                  search={backtestPrefillFromBot({
+                    ...bot,
+                    strategy_type: currentInput.strategy_type,
+                    strategy_params: currentInput.strategy_params,
+                    symbol: currentInput.symbol,
+                    timeframe: currentInput.timeframe,
+                    fee_rate: currentInput.fee_rate ?? bot.fee_rate,
+                    slippage_bps: currentInput.slippage_bps,
+                    risk: currentInput.risk,
+                  })}
+                  className="inline-block underline-offset-4 hover:underline"
+                >
+                  Rodar backtest com esta configuração
+                </Link>
+              )}
+              <ul className="max-h-48 space-y-1 overflow-y-auto rounded border p-3 text-sm">
+                {pendingChanges.length === 0 ? <li>Nenhuma diferença detectada.</li> : null}
+                {pendingChanges.map(({ key, before, after }) => (
+                  <li key={key}>
+                    <strong>{CHANGE_LABELS[key] ?? key}:</strong> {JSON.stringify(before)} →{" "}
+                    {JSON.stringify(after)}
+                  </li>
+                ))}
+              </ul>
+            </div>
           }
-        >
-          Cancelar
-        </Button>
-      </div>
-    </Form>
+          confirmLabel="Salvar alterações"
+          reasonLabel="Motivo da alteração"
+          reasonDescription="Não escreva senhas nem chaves."
+          reasonRequired={(orderHistory.data?.total ?? 1) > 0}
+          onConfirm={async (reason) => {
+            await mutation.mutateAsync(reason);
+          }}
+        />
+      )}
+    </>
   );
 }
 

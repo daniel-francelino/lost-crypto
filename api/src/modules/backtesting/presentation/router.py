@@ -11,6 +11,14 @@ from container import Container
 from core.errors import DomainError
 from core.jobs import JobStatus
 from core.pagination import Offset, set_total
+from modules.analytics.domain.sizing import (
+    MIN_KELLY_RETURNS,
+    growth_rate,
+    half_kelly,
+    kelly_fraction,
+    suggest_fraction,
+    tail_cap,
+)
 from modules.analytics.presentation.schemas import MetricsOut
 from modules.backtesting.application.ports import BacktestRun
 from modules.backtesting.application.service import BacktestNotFound
@@ -171,6 +179,78 @@ class RiskReportOut(BaseModel):
     refusals: dict[str, int] = Field(description="Refused signals by reason.")
 
 
+class SizingScope(StrEnum):
+    DAY = "day"
+    BAR = "bar"
+
+
+class SizingBinding(StrEnum):
+    HALF_KELLY = "half_kelly"
+    TAIL_STRATEGY = "tail_strategy"
+    TAIL_ASSET = "tail_asset"
+    SPOT_LIMIT = "spot_limit"
+
+
+class SizingSampleOut(BaseModel):
+    returns: int
+    gaps: int
+    min_required: int
+
+
+class KellyOut(BaseModel):
+    full: Decimal
+    half: Decimal
+    growth_full: Decimal
+    growth_half: Decimal
+    mean: Decimal | None
+    variance: Decimal | None
+
+
+class TailOut(BaseModel):
+    strategy_worst_loss_pct: Decimal | None
+    asset_worst_loss_pct: Decimal | None
+    cap_strategy: Decimal | None
+    cap_asset: Decimal | None
+    strategy_at: datetime | None
+    asset_at: datetime | None
+
+
+class SizingAdviceOut(BaseModel):
+    run_id: UUID
+    scope: SizingScope
+    tolerable_loss_pct: Decimal
+    sample: SizingSampleOut
+    kelly: KellyOut | None
+    tail: TailOut | None
+    configured_fraction: Decimal
+    suggested_max_position_fraction: Decimal
+    binding: SizingBinding
+    above_reference: bool
+    warnings: list[str]
+
+
+class RegimeBandOut(BaseModel):
+    label: str
+    bars: int
+    share_pct: Decimal
+    strategy_return_pct: Decimal | None
+    asset_return_pct: Decimal | None
+    in_market_pct: Decimal | None
+
+
+class RegimeDimensionOut(BaseModel):
+    cut_low: Decimal | None
+    cut_high: Decimal | None
+    bands: list[RegimeBandOut]
+
+
+class RegimeOut(BaseModel):
+    window: int
+    method: str
+    volatility: RegimeDimensionOut
+    efficiency: RegimeDimensionOut
+
+
 class GapItemOut(BaseModel):
     start: datetime
     end: datetime
@@ -276,6 +356,8 @@ class BacktestOut(BaseModel):
     tolerance: ToleranceOut | None
     data_quality: DataQualityOut | None
     risk_report: RiskReportOut | None
+    tail_risk: dict[str, Any] | None = None
+    regime: RegimeOut | None = None
     error: str | None
     created_at: datetime
     started_at: datetime | None
@@ -367,6 +449,8 @@ def _out(run: BacktestRun) -> BacktestOut:
         tolerance=_tolerance(run),
         data_quality=DataQualityOut.model_validate(run.data_quality) if run.data_quality else None,
         risk_report=RiskReportOut.model_validate(run.risk_report) if run.risk_report else None,
+        tail_risk=run.tail_risk,
+        regime=RegimeOut.model_validate(run.regime) if run.regime else None,
         error=run.error,
         created_at=run.created_at,
         started_at=run.started_at,
@@ -603,6 +687,104 @@ async def get_backtest(run_id: UUID, request: Request) -> BacktestOut:
         return _out(await container.backtests.get(run_id))
     except BacktestNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "backtest not found") from exc
+
+
+@router.get("/{run_id}/sizing", response_model=SizingAdviceOut)
+async def get_sizing_advice(
+    run_id: UUID,
+    request: Request,
+    tolerable_loss_pct: Annotated[Decimal, Query(gt=0, le=100)] = Decimal("10"),
+    scope: SizingScope = SizingScope.DAY,
+) -> dict[str, Any]:
+    container: Container = request.app.state.container
+    try:
+        run = await container.backtests.get(run_id)
+    except BacktestNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "backtest not found") from exc
+    if run.status is not JobStatus.COMPLETED or run.tail_risk is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "run the backtest again to calculate sizing advice"
+        )
+    raw = run.tail_risk
+    series = raw["strategy"]
+    asset = raw["asset"]
+    inputs = raw["kelly_inputs"]
+    count = int(inputs["returns"])
+    mean = _decimal(inputs.get("mean"))
+    variance = _decimal(inputs.get("variance"))
+    full = (
+        None
+        if count < MIN_KELLY_RETURNS
+        else Decimal(0)
+        if mean is not None and mean <= 0
+        else kelly_fraction(mean, variance)
+        if mean is not None and variance is not None
+        else None
+    )
+    half = half_kelly(full) if full is not None else None
+    is_day = scope is SizingScope.DAY
+    strategy_loss = _decimal(series.get("worst_day_loss_pct" if is_day else "worst_bar_loss_pct"))
+    asset_return = _decimal(asset.get("worst_day_return_pct" if is_day else "worst_bar_return_pct"))
+    asset_loss = -asset_return if asset_return is not None and asset_return < 0 else None
+    cap_strategy = tail_cap(tolerable_loss_pct, strategy_loss)
+    cap_asset = tail_cap(tolerable_loss_pct, asset_loss)
+    configured = run.config.risk.max_position_fraction if run.config.risk else Decimal(1)
+    advice = suggest_fraction(
+        configured, half, [("tail_strategy", cap_strategy), ("tail_asset", cap_asset)]
+    )
+    warnings = [
+        "Kelly pressupõe retornos estáveis e aproximadamente gaussianos; cripto tem caudas gordas.",
+        "Estimativas dentro da amostra compartilham o viés de sobreajuste do backtest.",
+        "Esta sugestão é consultiva e não altera o tamanho das ordens.",
+    ]
+    if count < MIN_KELLY_RETURNS:
+        warnings.append(
+            f"Amostra insuficiente para Kelly: são necessários {MIN_KELLY_RETURNS} retornos."
+        )
+    if mean is not None and mean <= 0:
+        warnings.append("A simulação não mostrou vantagem positiva.")
+    if run.config.risk and run.config.risk.max_risk_per_trade_pct is not None:
+        warnings.append("O risco por operação limita ainda mais a exposição efetiva configurada.")
+    tail = (
+        None
+        if strategy_loss is None and asset_loss is None
+        else {
+            "strategy_worst_loss_pct": strategy_loss,
+            "asset_worst_loss_pct": asset_loss,
+            "cap_strategy": cap_strategy,
+            "cap_asset": cap_asset,
+            "strategy_at": series.get("worst_day_at" if is_day else "worst_bar_at"),
+            "asset_at": asset.get("worst_day_at" if is_day else "worst_bar_at"),
+        }
+    )
+    return {
+        "run_id": run_id,
+        "scope": scope,
+        "tolerable_loss_pct": tolerable_loss_pct,
+        "sample": {
+            "returns": count,
+            "gaps": int(inputs["gaps"]),
+            "min_required": MIN_KELLY_RETURNS,
+        },
+        "kelly": None
+        if full is None
+        else {
+            "full": full,
+            "half": half,
+            "growth_full": growth_rate(full, mean or Decimal(0), variance or Decimal(0)),
+            "growth_half": growth_rate(
+                half or Decimal(0), mean or Decimal(0), variance or Decimal(0)
+            ),
+            "mean": mean,
+            "variance": variance,
+        },
+        "tail": tail,
+        "configured_fraction": configured,
+        "suggested_max_position_fraction": advice.value,
+        "binding": SizingBinding(advice.binding),
+        "above_reference": half is not None and configured > advice.value,
+        "warnings": warnings,
+    }
 
 
 @router.get("/{run_id}/trades", response_model=list[TradeOut])

@@ -15,6 +15,7 @@ import { ErrorBlock, QueryBoundary } from "@/components/shared/feedback/query-bo
 import { CoverageNotice } from "@/components/shared/market-data/coverage-notice";
 import { ListingStatusLine } from "@/components/market-data/listing-status";
 import { OutliersCard } from "@/components/market-data/outliers-card";
+import { HalfLifeCard } from "@/components/market-data/half-life-card";
 import { RejectedCell } from "@/components/market-data/rejected-cell";
 import { JobStatusBadge } from "@/components/shared/status/badges";
 import type { MarketDataSearch } from "@/lib/shared/market-data/search";
@@ -108,7 +109,7 @@ export function MarketDataPage({ initial = {} }: { initial?: MarketDataSearch })
       (query.state.data ?? []).some((job) => !isJobFinished(job.status)) ? Poll.Fast : false,
   });
 
-  const validRange = isDayString(start) && isDayString(end) && start <= end;
+  const validRange = isDayString(start) && isDayString(end) && start < end;
   const preview = useQuery({
     queryKey: QueryKey.MarketData.candles(exchange, symbol, timeframe, start, end),
     queryFn: ({ signal }) =>
@@ -260,6 +261,15 @@ export function MarketDataPage({ initial = {} }: { initial?: MarketDataSearch })
 
       {validRange && symbol.trim() !== "" ? (
         <OutliersCard
+          exchange={exchange}
+          symbol={symbol.trim().toUpperCase()}
+          timeframe={timeframe}
+          start={start}
+          end={end}
+        />
+      ) : null}
+      {validRange && symbol.trim() !== "" ? (
+        <HalfLifeCard
           exchange={exchange}
           symbol={symbol.trim().toUpperCase()}
           timeframe={timeframe}

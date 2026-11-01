@@ -92,6 +92,8 @@ function BotCard({ bot }: { bot: BotOverview }) {
         <span className="text-right tabular-nums">{formatPrice(bot.last_price)}</span>
         <span className="text-muted-foreground">Heartbeat</span>
         <span className="text-right">{formatAge(ageSeconds(bot.last_heartbeat_at))}</span>
+        <span className="text-muted-foreground">Intervenções (30 d)</span>
+        <span className="text-right tabular-nums">{formatInteger(bot.interventions_30d)}</span>
       </CardContent>
     </Card>
   );

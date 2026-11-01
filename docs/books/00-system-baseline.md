@@ -38,10 +38,13 @@ Per bot: position fraction, max order notional, daily loss %, drawdown %, consec
 ## Operations
 
 * Worker supervises bots, reconciles every 60 s, writes a heartbeat. The API exposes worker liveness and stale bots; `GET /health/worker` (200/503, no login) serves an external monitor and the worker's Docker healthcheck.
-* Live keys are verified at creation and re-checked daily; a key that turns unacceptable blocks new entries (exits continue). The status lists exchange positions without a native stop, the clock skew with the exchange (> 5 s blocks new live entries) and the backup state (`manage backup` / `restore-check`). Runbook: `api/docs/operations/runbook.md`.
-* The trader fetches recent candles itself each cycle. Since the Chapter 1 work, the worker also **extends stored candles** (closed candles only, series already stored and recent, or used by a bot) and **historical import stays manual**.
-* **Alerts are in-app only** (`notifications` module, `/alerts`, indicator in the top bar): worker down (raised by the API process), bot stale/error, kill switch, stale candles and exchange rate limiting. No external channel (webhook, email, chat) exists.
-* Audit log for state changes, orders and approvals.
+* Live keys are verified at creation and re-checked daily; a key that turns unacceptable blocks new entries (exits continue). The status lists exchange positions without a native stop, the clock skew with the exchange (> 5 s blocks new live entries) and the backup state (`manage backup` / `restore-check`). Runbook: `api/docs/operations/runbook.md`.
+
+* The trader fetches recent candles itself each cycle. Since the Chapter 1 work, the worker also **extends stored candles** (closed candles only, series already stored and recent, or used by a bot) and **historical import stays manual**.
+
+* **Alerts are in-app only** (`notifications` module, `/alerts`, indicator in the top bar): worker down (raised by the API process), bot stale/error, kill switch, stale candles and exchange rate limiting. No external channel (webhook, email, chat) exists.
+
+* Audit log for state changes, orders and approvals. Bot pause/stop/reset commands and config edits record the authenticated actor and optional reason; edits record safe before/after values. `GET /api/v1/bots/{id}/interventions?days=30` reports intervention counts, recent items and drawdown context (5% threshold); overview cards show the 30-day count. The UI confirms edits and requests a reason when the bot has orders.
 
 ## Frontend
 
@@ -49,4 +52,4 @@ Per bot: position fraction, max order notional, daily loss %, drawdown %, consec
 
 ## Known absences worth remembering when reading the books
 
-Portfolio-level optimisation (Kelly, covariance), multiple concurrent strategies per capital pool, regime detection, cross-validation beyond one split, cost models that depend on size or volatility, funding/borrow costs, short selling, mean-reversion/pairs/stat-arb strategies, machine-learning pipelines, labelling and meta-labelling.
+Portfolio-level optimisation (covariance; Kelly remains an advisory backtest reference), multiple concurrent strategies per capital pool, cross-validation beyond one split, cost models that depend on size or volatility, funding/borrow costs, short selling, mean-reversion/pairs/stat-arb strategies, machine-learning pipelines, labelling and meta-labelling. Historical regime descriptors and tail-loss sizing are available for backtests; they are descriptive advisories and no sizing suggestion is applied to orders.

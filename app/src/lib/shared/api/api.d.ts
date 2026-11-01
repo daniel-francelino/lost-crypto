@@ -346,6 +346,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/market-data/half-life": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Half Life
+         * @description Estimate mean-reversion half-life from stored close prices; descriptive only.
+         */
+        get: operations["get_half_life_api_v1_market_data_half_life_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/market-data/listings": {
         parameters: {
             query?: never;
@@ -464,6 +484,23 @@ export interface paths {
         };
         /** Get Backtest */
         get: operations["get_backtest_api_v1_backtests__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backtests/{run_id}/sizing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Sizing Advice */
+        get: operations["get_sizing_advice_api_v1_backtests__run_id__sizing_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -732,6 +769,23 @@ export interface paths {
          * @description Restart the virtual portfolio from the initial capital (stopped bots only).
          */
         post: operations["reset_portfolio_api_v1_bots__bot_id__reset_portfolio_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bots/{bot_id}/interventions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Interventions */
+        get: operations["get_interventions_api_v1_bots__bot_id__interventions_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1382,6 +1436,11 @@ export interface components {
             tolerance: components["schemas"]["ToleranceOut"] | null;
             data_quality: components["schemas"]["DataQualityOut"] | null;
             risk_report: components["schemas"]["RiskReportOut"] | null;
+            /** Tail Risk */
+            tail_risk?: {
+                [key: string]: unknown;
+            } | null;
+            regime?: components["schemas"]["RegimeOut"] | null;
             /** Error */
             error: string | null;
             /**
@@ -1563,6 +1622,8 @@ export interface components {
             last_price: string | null;
             /** Last Heartbeat At */
             last_heartbeat_at: string | null;
+            /** Interventions 30D */
+            interventions_30d: number;
         };
         /**
          * BotState
@@ -1598,6 +1659,8 @@ export interface components {
             mode?: ("paper" | "testnet") | null;
             /** Connection Id */
             connection_id?: string | null;
+            /** Change Reason */
+            change_reason?: string | null;
         };
         /** CandleOut */
         CandleOut: {
@@ -1952,6 +2015,27 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HalfLifeOut */
+        HalfLifeOut: {
+            /** N */
+            n: number;
+            /** Slope */
+            slope: string | null;
+            /** T Stat */
+            t_stat: string | null;
+            /** Stationary At 5Pct */
+            stationary_at_5pct: boolean | null;
+            /** Half Life Bars */
+            half_life_bars: string | null;
+            /** Half Life Seconds */
+            half_life_seconds: string | null;
+            /** Log Prices */
+            log_prices: boolean;
+            /** Gaps */
+            gaps: number;
+            /** Warning */
+            warning: string;
+        };
         /** HealthResponse */
         HealthResponse: {
             /**
@@ -2046,12 +2130,64 @@ export interface components {
              */
             end: string;
         };
+        /** InterventionItemOut */
+        InterventionItemOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Type */
+            type: string;
+            /** Actor */
+            actor: string;
+            /** Reason */
+            reason: string | null;
+            /** Drawdown Pct */
+            drawdown_pct: string | null;
+        };
+        /** InterventionsOut */
+        InterventionsOut: {
+            /** Days */
+            days: number;
+            /** Total */
+            total: number;
+            /** After Drawdown */
+            after_drawdown: number;
+            /** Drawdown Threshold Pct */
+            drawdown_threshold_pct: string;
+            /** By Type */
+            by_type: {
+                [key: string]: number;
+            };
+            /** Items */
+            items: components["schemas"]["InterventionItemOut"][];
+            /** System */
+            system: {
+                [key: string]: number;
+            };
+        };
         /**
          * JobStatus
          * @description Lifecycle shared by the DB-backed jobs the worker executes.
          * @enum {string}
          */
         JobStatus: "queued" | "running" | "completed" | "failed";
+        /** KellyOut */
+        KellyOut: {
+            /** Full */
+            full: string;
+            /** Half */
+            half: string;
+            /** Growth Full */
+            growth_full: string;
+            /** Growth Half */
+            growth_half: string;
+            /** Mean */
+            mean: string | null;
+            /** Variance */
+            variance: string | null;
+        };
         /** KillSwitchIn */
         KillSwitchIn: {
             /** Active */
@@ -2467,6 +2603,44 @@ export interface components {
             /** Checks */
             checks: components["schemas"]["CheckOut"][];
         };
+        /** ReasonIn */
+        ReasonIn: {
+            /** Reason */
+            reason?: string | null;
+        };
+        /** RegimeBandOut */
+        RegimeBandOut: {
+            /** Label */
+            label: string;
+            /** Bars */
+            bars: number;
+            /** Share Pct */
+            share_pct: string;
+            /** Strategy Return Pct */
+            strategy_return_pct: string | null;
+            /** Asset Return Pct */
+            asset_return_pct: string | null;
+            /** In Market Pct */
+            in_market_pct: string | null;
+        };
+        /** RegimeDimensionOut */
+        RegimeDimensionOut: {
+            /** Cut Low */
+            cut_low: string | null;
+            /** Cut High */
+            cut_high: string | null;
+            /** Bands */
+            bands: components["schemas"]["RegimeBandOut"][];
+        };
+        /** RegimeOut */
+        RegimeOut: {
+            /** Window */
+            window: number;
+            /** Method */
+            method: string;
+            volatility: components["schemas"]["RegimeDimensionOut"];
+            efficiency: components["schemas"]["RegimeDimensionOut"];
+        };
         /**
          * RiskLimitsIn
          * @description A bot's risk limits; also accepted by backtests to size and pause exactly like the bot.
@@ -2665,6 +2839,48 @@ export interface components {
              */
             created_at: string;
         };
+        /** SizingAdviceOut */
+        SizingAdviceOut: {
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            scope: components["schemas"]["SizingScope"];
+            /** Tolerable Loss Pct */
+            tolerable_loss_pct: string;
+            sample: components["schemas"]["SizingSampleOut"];
+            kelly: components["schemas"]["KellyOut"] | null;
+            tail: components["schemas"]["TailOut"] | null;
+            /** Configured Fraction */
+            configured_fraction: string;
+            /** Suggested Max Position Fraction */
+            suggested_max_position_fraction: string;
+            binding: components["schemas"]["SizingBinding"];
+            /** Above Reference */
+            above_reference: boolean;
+            /** Warnings */
+            warnings: string[];
+        };
+        /**
+         * SizingBinding
+         * @enum {string}
+         */
+        SizingBinding: "half_kelly" | "tail_strategy" | "tail_asset" | "spot_limit";
+        /** SizingSampleOut */
+        SizingSampleOut: {
+            /** Returns */
+            returns: number;
+            /** Gaps */
+            gaps: number;
+            /** Min Required */
+            min_required: number;
+        };
+        /**
+         * SizingScope
+         * @enum {string}
+         */
+        SizingScope: "day" | "bar";
         /** StaleBotOut */
         StaleBotOut: {
             /** Bot Id */
@@ -2942,6 +3158,21 @@ export interface components {
             unprotected_positions?: components["schemas"]["UnprotectedPositionOut"][];
             clock?: components["schemas"]["ClockOut"] | null;
             backup?: components["schemas"]["BackupOut"] | null;
+        };
+        /** TailOut */
+        TailOut: {
+            /** Strategy Worst Loss Pct */
+            strategy_worst_loss_pct: string | null;
+            /** Asset Worst Loss Pct */
+            asset_worst_loss_pct: string | null;
+            /** Cap Strategy */
+            cap_strategy: string | null;
+            /** Cap Asset */
+            cap_asset: string | null;
+            /** Strategy At */
+            strategy_at: string | null;
+            /** Asset At */
+            asset_at: string | null;
         };
         /**
          * Timeframe
@@ -3616,6 +3847,42 @@ export interface operations {
             };
         };
     };
+    get_half_life_api_v1_market_data_half_life_get: {
+        parameters: {
+            query: {
+                symbol: string;
+                timeframe: components["schemas"]["Timeframe"];
+                start: string;
+                end: string;
+                log_prices?: boolean;
+                exchange?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HalfLifeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_listings_api_v1_market_data_listings_get: {
         parameters: {
             query?: {
@@ -3830,6 +4097,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BacktestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sizing_advice_api_v1_backtests__run_id__sizing_get: {
+        parameters: {
+            query?: {
+                tolerable_loss_pct?: number | string;
+                scope?: components["schemas"]["SizingScope"];
+            };
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SizingAdviceOut"];
                 };
             };
             /** @description Validation Error */
@@ -4220,7 +4521,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReasonIn"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             202: {
@@ -4251,7 +4556,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReasonIn"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             202: {
@@ -4282,7 +4591,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReasonIn"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             204: {
@@ -4290,6 +4603,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_interventions_api_v1_bots__bot_id__interventions_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterventionsOut"];
+                };
             };
             /** @description Validation Error */
             422: {

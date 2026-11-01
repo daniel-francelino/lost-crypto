@@ -104,6 +104,20 @@ class SqlAlchemyPortfolioRepository:
         )
         return result.scalar_one_or_none()
 
+    async def equity_context_at(
+        self, bot_id: UUID, moment: datetime
+    ) -> tuple[Decimal, Decimal] | None:
+        equity = await self.equity_at_or_before(bot_id, moment)
+        if equity is None:
+            return None
+        result = await self._session.execute(
+            select(func.max(PortfolioSnapshotRow.equity)).where(
+                PortfolioSnapshotRow.bot_id == bot_id, PortfolioSnapshotRow.taken_at <= moment
+            )
+        )
+        peak = result.scalar_one_or_none()
+        return None if peak is None else (equity, peak)
+
     async def first_snapshot_equity(self, bot_id: UUID) -> Decimal | None:
         result = await self._session.execute(
             select(PortfolioSnapshotRow.equity)

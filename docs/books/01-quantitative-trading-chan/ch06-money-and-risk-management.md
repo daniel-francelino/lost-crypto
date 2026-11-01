@@ -1,6 +1,6 @@
 # Livro 1 · Capítulo 6 — Gestão de dinheiro e de risco
 
-*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: **análise + plano de implementação detalhado (2026-11-01); nada foi implementado**. O diagnóstico foi revisado contra o código depois da implementação dos Caps. 2–5 e dos alertas (ver §2.1). Quem for implementar deve ler o §8.
+*Quantitative Trading*, Chan (2009). Páginas do livro (PDF = livro + 22). Linha de base: [00-system-baseline](../00-system-baseline.md). Status: **análise e implementação do plano de disciplina concluídas em 2026-11-01**; confira o §8. O diagnóstico foi revisado contra o código depois da implementação dos Caps. 2–5 e dos alertas (ver §2.1).
 
 ## 1. Resumo do capítulo (pp. 95–113)
 
@@ -37,7 +37,7 @@ O capítulo assume ações, futuros e alavancagem de corretora. As observações
 | C10 risco de modelo: replicação independente | ❌ | Os backtests são reproduzíveis (`seed`, SHA-256 dos candles), mas não há segunda implementação independente nem checagem cruzada. |
 | C10 risco de software | ❌ | Mesma lacuna do capítulo 5 (sem relatório de paridade). |
 | C10 risco de desastre | ⚠️ | O reconciler trata quedas; sem plano de continuidade documentado (capítulo 4). |
-| C11 disciplina de intervenção | ⚠️ | O kill switch e os controles são auditados; nenhum motivo registrado (capítulo 1). Edições de estratégia após perdas não têm trava; os parâmetros de estratégia de um bot podem ser editados (o app tem uma página de edição), mas nada exige antes uma comparação por backtest. |
+| C11 disciplina de intervenção | ⚠️ | O kill switch e os controles são auditados. Comandos e edições registram autor e motivo; a interface confirma mudanças e exibe suas diferenças. A confirmação recomenda um backtest em período longo, mas não bloqueia a edição. |
 | C11 "sair de posições erradas" | ✅ | Saídas são sempre permitidas, mesmo com o kill switch ligado. |
 | Proteção contra excesso de alavancagem | ✅ | Limites live definidos pelo operador (`LiveLimits`), exposição global e limites de posições abertas. |
 
@@ -118,7 +118,7 @@ Substituído pelo plano detalhado do §8 (fases A a G, com ordem, arquivos, cont
 
 ## 8. Plano de implementação detalhado (back-end e front-end)
 
-Escrito em 2026-11-01 **sem alterar código**. As fases são independentes, salvo onde a dependência está dita. Convenções do projeto que valem para tudo abaixo: `Decimal` no domínio (nunca `float`), valores monetários e razões como **strings decimais** na API e no app, `api/src` é a raiz de imports, sem `__init__.py` vazio, comentários só onde explicam um porquê, texto de tela em português do Brasil, código e documentos em inglês no código (estes relatórios de livro estão em português por pedido do operador). Próxima migração livre: **`0013`** (a última é `0012_alerts`).
+Atualizado em 2026-11-01: Fase A implementada como referência consultiva. As fases são independentes, salvo onde a dependência está dita. Convenções do projeto que valem para tudo abaixo: `Decimal` no domínio (nunca `float`), valores monetários e razões como **strings decimais** na API e no app, `api/src` é a raiz de imports, sem `__init__.py` vazio, comentários só onde explicam um porquê, texto de tela em português do Brasil, código e documentos em inglês no código (estes relatórios de livro estão em português por pedido do operador). Migração adicionada: **`0013_tail_risk`**.
 
 ### Fase A — Dimensionamento de referência e perda de cauda (O1 + O2) · prioridade 1
 

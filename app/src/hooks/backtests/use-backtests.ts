@@ -5,6 +5,7 @@ import {
   getBacktestEquity,
   getSweep,
   getTrades,
+  getSizing,
   listBacktests,
 } from "@/lib/backtests/backtests.api";
 import { QueryKey } from "@/lib/shared/api/query-keys";
@@ -37,6 +38,13 @@ export const useBacktestEquity = (id: string, enabled: boolean) =>
   useQuery({
     queryKey: QueryKey.Backtests.equity(id),
     queryFn: ({ signal }) => getBacktestEquity(id, signal),
+    enabled,
+  });
+
+export const useSizing = (id: string, tolerable: string, scope: "day" | "bar", enabled: boolean) =>
+  useQuery({
+    queryKey: QueryKey.Backtests.sizing(id, tolerable, scope),
+    queryFn: ({ signal }) => getSizing(id, tolerable, scope, signal),
     enabled,
   });
 

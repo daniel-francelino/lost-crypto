@@ -16,6 +16,7 @@ type ConfirmDialogProps = {
   onConfirm: (reason: string) => Promise<unknown>;
   destructive?: boolean;
   reasonLabel?: string;
+  reasonDescription?: string;
   reasonRequired?: boolean;
   typedText?: string;
   typedLabel?: string;
@@ -30,6 +31,7 @@ export function ConfirmDialog({
   onConfirm,
   destructive = false,
   reasonLabel,
+  reasonDescription,
   reasonRequired = false,
   typedText,
   typedLabel,
@@ -74,13 +76,18 @@ export function ConfirmDialog({
     >
       <Form onSubmit={() => void submit()} className="space-y-4">
         {reasonLabel === undefined ? null : (
-          <FormInput
-            label={reasonLabel}
-            value={reason}
-            onValueChange={setReason}
-            maxLength={200}
-            rules={reasonRequired ? [rules.required("Informe o motivo.")] : []}
-          />
+          <>
+            <FormInput
+              label={reasonLabel}
+              value={reason}
+              onValueChange={setReason}
+              maxLength={200}
+              rules={reasonRequired ? [rules.required("Informe o motivo.")] : []}
+            />
+            {reasonDescription === undefined ? null : (
+              <p className="-mt-2 text-xs text-muted-foreground">{reasonDescription}</p>
+            )}
+          </>
         )}
         {typedText === undefined ? null : (
           <FormInput

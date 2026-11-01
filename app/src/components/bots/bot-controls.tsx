@@ -16,7 +16,7 @@ import { BotState, ExecutionMode } from "@/lib/shared/enums";
 const KILL_SWITCH_REASON = "Kill switch ativo.";
 const SENT = "Comando enviado: aguardando o worker confirmar.";
 
-const DialogKind = { Stop: "stop", Reset: "reset", Live: "live" } as const;
+const DialogKind = { Pause: "pause", Stop: "stop", Reset: "reset", Live: "live" } as const;
 type Dialog = (typeof DialogKind)[keyof typeof DialogKind] | null;
 
 export function BotControls({ bot }: { bot: Bot }) {
@@ -64,7 +64,7 @@ export function BotControls({ bot }: { bot: Bot }) {
       </Button>
       <Button
         variant="outline"
-        onClick={() => send(BotCommand.Pause)}
+        onClick={() => setDialog(DialogKind.Pause)}
         disabled={!wantsRunning || busy}
         className="gap-1.5"
       >
@@ -114,14 +114,29 @@ export function BotControls({ bot }: { bot: Bot }) {
       ) : null}
 
       <ConfirmDialog
+        open={dialog === DialogKind.Pause}
+        onOpenChange={(open) => setDialog(open ? DialogKind.Pause : null)}
+        title={`Pausar bot ${bot.name}?`}
+        description="Interferir no plano pode piorar o resultado. Anote por que está pausando; não escreva senhas nem chaves."
+        confirmLabel="Pausar bot"
+        reasonLabel="Motivo (opcional)"
+        reasonDescription="Não escreva senhas nem chaves."
+        onConfirm={async (reason) => {
+          await command.mutateAsync({ command: BotCommand.Pause, reason });
+          toast(SENT);
+        }}
+      />
+      <ConfirmDialog
         open={dialog === DialogKind.Stop}
         onOpenChange={(open) => setDialog(open ? DialogKind.Stop : null)}
         destructive
         title={`Parar bot ${bot.name}?`}
         description="O bot deixa de operar. Uma posição aberta é mantida; stops nativos continuam na exchange."
         confirmLabel="Parar bot"
-        onConfirm={async () => {
-          await command.mutateAsync({ command: BotCommand.Stop });
+        reasonLabel="Motivo (opcional)"
+        reasonDescription="Não escreva senhas nem chaves."
+        onConfirm={async (reason) => {
+          await command.mutateAsync({ command: BotCommand.Stop, reason });
           toast(SENT);
         }}
       />
@@ -132,8 +147,10 @@ export function BotControls({ bot }: { bot: Bot }) {
         title={`Resetar o portfólio de ${bot.name}?`}
         description="O portfólio virtual volta ao capital inicial. O histórico de ordens é mantido na auditoria."
         confirmLabel="Resetar portfólio"
-        onConfirm={async () => {
-          await command.mutateAsync({ command: BotCommand.Reset });
+        reasonLabel="Motivo (opcional)"
+        reasonDescription="Não escreva senhas nem chaves."
+        onConfirm={async (reason) => {
+          await command.mutateAsync({ command: BotCommand.Reset, reason });
           toast.success("Portfólio resetado.");
         }}
       />

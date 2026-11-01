@@ -33,7 +33,7 @@ class ParamSpec:
     type: str  # "integer" | "number"
     default: Any
     description: str
-    minimum: int | None = None
+    minimum: Decimal | int | None = None
 
 
 class Strategy[StateT](ABC):
@@ -79,18 +79,22 @@ class Strategy[StateT](ABC):
 
 
 def parse_numeric_params(
-    raw: Mapping[str, Any], *, integers: frozenset[str], numbers: frozenset[str]
+    raw: Mapping[str, Any],
+    *,
+    integers: frozenset[str],
+    numbers: frozenset[str],
+    optional_integers: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     """Validate the shape of raw params: known keys only, integers as ``int``, numbers as
     ``Decimal`` (or None). Range checks stay in the strategy's own params class."""
-    unknown = set(raw) - integers - numbers
+    unknown = set(raw) - integers - numbers - optional_integers
     if unknown:
         raise InvalidStrategyParams(f"unknown parameters: {sorted(unknown)}")
     values: dict[str, Any] = {}
     for key, value in raw.items():
         if isinstance(value, bool):
             raise InvalidStrategyParams(f"{key} must be a number")
-        if key in integers:
+        if key in integers or (key in optional_integers and value is not None):
             if not isinstance(value, int):
                 raise InvalidStrategyParams(f"{key} must be an integer")
             values[key] = value
@@ -102,6 +106,11 @@ def parse_numeric_params(
             except ArithmeticError:
                 raise InvalidStrategyParams(f"{key} must be a number") from None
     return values
+
+
+def next_bars_held(position_quantity: Decimal, previous: int) -> int:
+    """Count closed candles observed while a position is open, including the first."""
+    return previous + 1 if position_quantity > 0 else 0
 
 
 def percent_below_above(

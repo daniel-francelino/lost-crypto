@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Lost Crypto API",
-    "description": "Backend da plataforma Lost Crypto: dados de mercado, estrat\u00e9gias, backtests e paper trading.",
+    "description": "Backend da plataforma Lost Crypto: dados de mercado, estratégias, backtests e paper trading.",
     "version": "0.3.0"
   },
   "paths": {
@@ -826,6 +826,101 @@
         }
       }
     },
+    "/api/v1/market-data/half-life": {
+      "get": {
+        "tags": [
+          "market-data"
+        ],
+        "summary": "Get Half Life",
+        "description": "Estimate mean-reversion half-life from stored close prices; descriptive only.",
+        "operationId": "get_half_life_api_v1_market_data_half_life_get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z0-9]{2,15}/[A-Z0-9]{2,15}$",
+              "examples": [
+                "BTC/USDT"
+              ],
+              "title": "Symbol"
+            }
+          },
+          {
+            "name": "timeframe",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Timeframe"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "End"
+            }
+          },
+          {
+            "name": "log_prices",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Log Prices"
+            }
+          },
+          {
+            "name": "exchange",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "binance",
+              "title": "Exchange"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HalfLifeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/market-data/listings": {
       "get": {
         "tags": [
@@ -1179,6 +1274,77 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BacktestOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/backtests/{run_id}/sizing": {
+      "get": {
+        "tags": [
+          "backtests"
+        ],
+        "summary": "Get Sizing Advice",
+        "operationId": "get_sizing_advice_api_v1_backtests__run_id__sizing_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "tolerable_loss_pct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 100.0,
+                  "exclusiveMinimum": 0.0
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "default": "10",
+              "title": "Tolerable Loss Pct"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SizingScope",
+              "default": "day"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SizingAdviceOut"
                 }
               }
             }
@@ -1761,6 +1927,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReasonIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "202": {
             "description": "Successful Response",
@@ -1805,6 +1988,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReasonIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "202": {
             "description": "Successful Response",
@@ -1849,9 +2049,81 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReasonIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bots/{bot_id}/interventions": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Get Interventions",
+        "operationId": "get_interventions_api_v1_bots__bot_id__interventions_get",
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bot Id"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "default": 30,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterventionsOut"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -3552,6 +3824,28 @@
               }
             ]
           },
+          "tail_risk": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tail Risk"
+          },
+          "regime": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegimeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "error": {
             "anyOf": [
               {
@@ -4065,6 +4359,10 @@
               }
             ],
             "title": "Last Heartbeat At"
+          },
+          "interventions_30d": {
+            "type": "integer",
+            "title": "Interventions 30D"
           }
         },
         "type": "object",
@@ -4085,7 +4383,8 @@
           "fees_paid",
           "in_position",
           "last_price",
-          "last_heartbeat_at"
+          "last_heartbeat_at",
+          "interventions_30d"
         ],
         "title": "BotOverviewOut"
       },
@@ -4253,6 +4552,18 @@
               }
             ],
             "title": "Connection Id"
+          },
+          "change_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Reason"
           }
         },
         "type": "object",
@@ -5088,6 +5399,94 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HalfLifeOut": {
+        "properties": {
+          "n": {
+            "type": "integer",
+            "title": "N"
+          },
+          "slope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slope"
+          },
+          "t_stat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "T Stat"
+          },
+          "stationary_at_5pct": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stationary At 5Pct"
+          },
+          "half_life_bars": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Half Life Bars"
+          },
+          "half_life_seconds": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Half Life Seconds"
+          },
+          "log_prices": {
+            "type": "boolean",
+            "title": "Log Prices"
+          },
+          "gaps": {
+            "type": "integer",
+            "title": "Gaps"
+          },
+          "warning": {
+            "type": "string",
+            "title": "Warning"
+          }
+        },
+        "type": "object",
+        "required": [
+          "n",
+          "slope",
+          "t_stat",
+          "stationary_at_5pct",
+          "half_life_bars",
+          "half_life_seconds",
+          "log_prices",
+          "gaps",
+          "warning"
+        ],
+        "title": "HalfLifeOut"
+      },
       "HealthResponse": {
         "properties": {
           "status": {
@@ -5274,6 +5673,106 @@
         ],
         "title": "ImportRequest"
       },
+      "InterventionItemOut": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "actor": {
+            "type": "string",
+            "title": "Actor"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "drawdown_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drawdown Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "at",
+          "type",
+          "actor",
+          "reason",
+          "drawdown_pct"
+        ],
+        "title": "InterventionItemOut"
+      },
+      "InterventionsOut": {
+        "properties": {
+          "days": {
+            "type": "integer",
+            "title": "Days"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "after_drawdown": {
+            "type": "integer",
+            "title": "After Drawdown"
+          },
+          "drawdown_threshold_pct": {
+            "type": "string",
+            "title": "Drawdown Threshold Pct"
+          },
+          "by_type": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Type"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InterventionItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "system": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "System"
+          }
+        },
+        "type": "object",
+        "required": [
+          "days",
+          "total",
+          "after_drawdown",
+          "drawdown_threshold_pct",
+          "by_type",
+          "items",
+          "system"
+        ],
+        "title": "InterventionsOut"
+      },
       "JobStatus": {
         "type": "string",
         "enum": [
@@ -5284,6 +5783,58 @@
         ],
         "title": "JobStatus",
         "description": "Lifecycle shared by the DB-backed jobs the worker executes."
+      },
+      "KellyOut": {
+        "properties": {
+          "full": {
+            "type": "string",
+            "title": "Full"
+          },
+          "half": {
+            "type": "string",
+            "title": "Half"
+          },
+          "growth_full": {
+            "type": "string",
+            "title": "Growth Full"
+          },
+          "growth_half": {
+            "type": "string",
+            "title": "Growth Half"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "variance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "full",
+          "half",
+          "growth_full",
+          "growth_half",
+          "mean",
+          "variance"
+        ],
+        "title": "KellyOut"
       },
       "KillSwitchIn": {
         "properties": {
@@ -6399,6 +6950,149 @@
         ],
         "title": "ReadinessOut"
       },
+      "ReasonIn": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "title": "ReasonIn"
+      },
+      "RegimeBandOut": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "bars": {
+            "type": "integer",
+            "title": "Bars"
+          },
+          "share_pct": {
+            "type": "string",
+            "title": "Share Pct"
+          },
+          "strategy_return_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Return Pct"
+          },
+          "asset_return_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Return Pct"
+          },
+          "in_market_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "In Market Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "bars",
+          "share_pct",
+          "strategy_return_pct",
+          "asset_return_pct",
+          "in_market_pct"
+        ],
+        "title": "RegimeBandOut"
+      },
+      "RegimeDimensionOut": {
+        "properties": {
+          "cut_low": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cut Low"
+          },
+          "cut_high": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cut High"
+          },
+          "bands": {
+            "items": {
+              "$ref": "#/components/schemas/RegimeBandOut"
+            },
+            "type": "array",
+            "title": "Bands"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cut_low",
+          "cut_high",
+          "bands"
+        ],
+        "title": "RegimeDimensionOut"
+      },
+      "RegimeOut": {
+        "properties": {
+          "window": {
+            "type": "integer",
+            "title": "Window"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "volatility": {
+            "$ref": "#/components/schemas/RegimeDimensionOut"
+          },
+          "efficiency": {
+            "$ref": "#/components/schemas/RegimeDimensionOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "window",
+          "method",
+          "volatility",
+          "efficiency"
+        ],
+        "title": "RegimeOut"
+      },
       "RiskLimitsIn-Input": {
         "properties": {
           "max_position_fraction": {
@@ -6938,6 +7632,123 @@
           "created_at"
         ],
         "title": "SignalOut"
+      },
+      "SizingAdviceOut": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Run Id"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/SizingScope"
+          },
+          "tolerable_loss_pct": {
+            "type": "string",
+            "title": "Tolerable Loss Pct"
+          },
+          "sample": {
+            "$ref": "#/components/schemas/SizingSampleOut"
+          },
+          "kelly": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KellyOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tail": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TailOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "configured_fraction": {
+            "type": "string",
+            "title": "Configured Fraction"
+          },
+          "suggested_max_position_fraction": {
+            "type": "string",
+            "title": "Suggested Max Position Fraction"
+          },
+          "binding": {
+            "$ref": "#/components/schemas/SizingBinding"
+          },
+          "above_reference": {
+            "type": "boolean",
+            "title": "Above Reference"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "scope",
+          "tolerable_loss_pct",
+          "sample",
+          "kelly",
+          "tail",
+          "configured_fraction",
+          "suggested_max_position_fraction",
+          "binding",
+          "above_reference",
+          "warnings"
+        ],
+        "title": "SizingAdviceOut"
+      },
+      "SizingBinding": {
+        "type": "string",
+        "enum": [
+          "half_kelly",
+          "tail_strategy",
+          "tail_asset",
+          "spot_limit"
+        ],
+        "title": "SizingBinding"
+      },
+      "SizingSampleOut": {
+        "properties": {
+          "returns": {
+            "type": "integer",
+            "title": "Returns"
+          },
+          "gaps": {
+            "type": "integer",
+            "title": "Gaps"
+          },
+          "min_required": {
+            "type": "integer",
+            "title": "Min Required"
+          }
+        },
+        "type": "object",
+        "required": [
+          "returns",
+          "gaps",
+          "min_required"
+        ],
+        "title": "SizingSampleOut"
+      },
+      "SizingScope": {
+        "type": "string",
+        "enum": [
+          "day",
+          "bar"
+        ],
+        "title": "SizingScope"
       },
       "StaleBotOut": {
         "properties": {
@@ -7612,6 +8423,88 @@
         ],
         "title": "SystemStatusOut"
       },
+      "TailOut": {
+        "properties": {
+          "strategy_worst_loss_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Worst Loss Pct"
+          },
+          "asset_worst_loss_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Worst Loss Pct"
+          },
+          "cap_strategy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cap Strategy"
+          },
+          "cap_asset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cap Asset"
+          },
+          "strategy_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy At"
+          },
+          "asset_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "strategy_worst_loss_pct",
+          "asset_worst_loss_pct",
+          "cap_strategy",
+          "cap_asset",
+          "strategy_at",
+          "asset_at"
+        ],
+        "title": "TailOut"
+      },
       "Timeframe": {
         "type": "string",
         "enum": [
@@ -8005,19 +8898,19 @@
     },
     {
       "name": "strategies",
-      "description": "Estrat\u00e9gias dispon\u00edveis e seus par\u00e2metros."
+      "description": "Estratégias disponíveis e seus parâmetros."
     },
     {
       "name": "market-data",
-      "description": "Importa\u00e7\u00e3o (ass\u00edncrona, via worker) e consulta de candles hist\u00f3ricos."
+      "description": "Importação (assíncrona, via worker) e consulta de candles históricos."
     },
     {
       "name": "backtests",
-      "description": "Execu\u00e7\u00e3o (ass\u00edncrona, via worker) e resultados de backtests. Simula\u00e7\u00f5es em dados hist\u00f3ricos \u2014 n\u00e3o s\u00e3o previs\u00e3o de retorno."
+      "description": "Execução (assíncrona, via worker) e resultados de backtests. Simulações em dados históricos — não são previsão de retorno."
     },
     {
       "name": "bots",
-      "description": "Bots de paper trading: configura\u00e7\u00e3o, comandos (start/pause/stop, executados pelo worker), ordens, portf\u00f3lio virtual e performance. Sem dinheiro real."
+      "description": "Bots de paper trading: configuração, comandos (start/pause/stop, executados pelo worker), ordens, portfólio virtual e performance. Sem dinheiro real."
     },
     {
       "name": "system",
@@ -8033,7 +8926,7 @@
     },
     {
       "name": "auth",
-      "description": "Login, sess\u00f5es (refresh token em cookie httpOnly) e usu\u00e1rios."
+      "description": "Login, sessões (refresh token em cookie httpOnly) e usuários."
     },
     {
       "name": "exchange-connections",
