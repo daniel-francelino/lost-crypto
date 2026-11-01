@@ -71,6 +71,66 @@ Mecânica de moeda base/cotação, cruzamentos sintéticos, juros de rolagem, sp
 * Uma execução que atravessa quebra registrada mostra aviso, sem alterar o comportamento de negociação.
 * Ruff, mypy e testes existentes passam.
 
+## 8. Plano de implementação detalhado (back-end e front-end)
+
+Escrito em 2026-11-01, com o código verificado nessa data. Convenções do projeto: `Decimal` no domínio (sem `float`), números como **strings decimais** na API e no app, `api/src` é a raiz de imports, sem `__init__.py` vazio, texto de tela em português do Brasil. A última migração é `0014_backtest_regime`. **Nada aqui foi aprovado nem implementado.**
+
+### 8.1 O que mudou desde a análise (verificado no código em 2026-11-01)
+
+| Item | Antes | Agora |
+|---|---|---|
+| Métricas por subperíodo (pré-requisito do O1) | ❌ | ✅ `backtesting/domain/periods.py` (métricas por ano e trimestre, livro 1, cap. 2) e `components/backtests/periods-card.tsx`. |
+| Regimes misturados num único ajuste | ❌ | ⚠️ `analytics/domain/regime.py` descreve a execução por tercis de volatilidade e de eficiência (migração `0014_backtest_regime`, `regime-card.tsx`). É **automático e descritivo**: não há datas de quebra nomeadas pelo operador, que é o que este capítulo pede. |
+| O2 stops: execução na abertura após lacuna | ✅ | ✅ coberto: `test_gap_through_the_stop_fills_at_the_worse_open`, `test_stop_wins_when_both_levels_are_inside_the_candle` e os dois testes de backtest com stop e alvo em `tests/unit/test_risk_and_stops.py`. Falta só o caso de **slippage em saída protetora** (ver Fase C). |
+| O3 derivativos | n/a | n/a (`exchanges` só tem spot). |
+
+**Achados que moldam o plano:**
+* Uma quebra é **conhecimento do operador**, não dado do mercado, e escolher datas depois de ver os resultados é liberdade de pesquisa. Por isso cada quebra guarda `created_at`, e as telas mostram quando ela foi criada **depois** do backtest em exame.
+* Execuções guardam o que foi usado em colunas JSONB (`risk_limits`, `regime`, `periods`...). Gravar um **instantâneo das quebras no momento da execução** mantém o resultado reproduzível mesmo se as quebras mudarem depois.
+
+### Fase A — Quebras de regime nomeadas (O1, parte 1: cadastro) · prioridade 1 · migração própria
+
+* **A.1 Modelo e tabela:** módulo novo `modules/regimes` seria demais para uma tabela pequena; colocar em `market_data` (os dados descrevem o mercado). Migração `NNNN_regime_breaks`: tabela `regime_breaks(id uuid pk, name text not null, occurred_at timestamptz not null, exchange text null, symbol text null, note text null, created_by text not null, created_at timestamptz not null)`; `exchange` e `symbol` nulos significam "global". Domínio: `RegimeBreak` em `market_data/domain/models.py`; porta `RegimeBreakStore` em `market_data/application/ports.py`; ORM e repositório em `market_data/infrastructure/`; ligar no `Container` (`container.py`) e no `orm_models.py` (importação para o Alembic ver a tabela).
+* **A.2 API (todas sob `/api/v1/market-data/regime-breaks`):** `GET` (lista, filtros `exchange`, `symbol`), `POST` (`require_admin`; `name` 1–60, `occurred_at` com fuso, `note` ≤ 500; duplicata de nome+data → 409), `DELETE /{id}` (`require_admin`, grava auditoria `regime_break.deleted`). Cada criação grava auditoria `regime_break.created` com o autor. Sem `PATCH`: corrigir uma data é apagar e recriar, o que deixa rastro, coerente com o objetivo anti-seleção.
+* **A.3 Testes:** integração (admin cria, viewer 403, filtro por símbolo, duplicata 409, `DELETE` audita); unitário do validador (`occurred_at` sem fuso é 422).
+* **A.4 Front-end:** `lib/market-data/market-data.api.ts` (schema e funções), `QueryKey.MarketData.regimeBreaks()`, componente `components/market-data/regime-breaks-card.tsx` na página de dados de mercado: lista (nome, data UTC, escopo, quem criou e quando) e formulário de criação (admin). Esqueleto, erro com nova tentativa, vazio ("Nenhuma quebra cadastrada: marque as datas **antes** de rodar os experimentos"), dados; 360 px; `vitest` do schema.
+
+### Fase B — Métricas por regime e aviso de travessia (O1, parte 2) · prioridade 2 · migração própria
+
+* **B.1 Função pura** `backtesting/domain/break_segments.py` (reaproveita `compute_metrics`, como `periods.py` e `segments.py`): dada a curva de patrimônio, os fills e a lista de quebras que caem **dentro** de `[start, end]`, devolve uma lista de trechos `{from, to, label, bars, metrics}` entre quebras consecutivas, mais o trecho "tudo". Trechos com menos de `MIN_RETURNS` retornos saem com `metrics = None` (herdam a regra de `risk_ratios.py`). Nenhuma quebra no intervalo → `None`.
+* **B.2 Execução e persistência:** em `BacktestExecutor._execute` (`backtesting/application/service.py`), ao lado de `regime_report`, ler as quebras aplicáveis (globais ou do símbolo/exchange da execução) e gravar `break_metrics` JSONB com **o instantâneo das quebras usadas** (id, nome, data, `created_at`). Migração `NNNN_backtest_breaks` (`ADD COLUMN break_metrics JSONB NULL`; `downgrade` remove; `alembic check`), pelo caminho do `regime` (`ports.py`, `orm.py`, `repository.py`, `service.py`, `router.py` com `BreakMetricsOut` em `BacktestOut`, OpenAPI). Execuções antigas ficam `null`. Se as migrações A e B couberem juntas, melhor uma só.
+* **B.3 Aviso de travessia, sem bloquear:** `POST /backtests` e `POST /backtests/sweeps` passam a devolver, em campo aditivo `warnings: list[str]`, "o período atravessa a quebra X (data)". Nunca recusam. O mesmo vale para `GET /market-data/half-life`, que ganha `crosses_breaks: list[...]` (aditivo), porque a meia-vida calculada através de uma quebra pode ser inválida (VX/ES do livro).
+* **B.4 Front-end:** `lib/backtests/backtests.api.ts` (schema nullish); em `backtest-detail-page.tsx` um `BreaksCard` depois de `RegimeCard` com a tabela por trecho; selo "quebra criada depois deste backtest" quando `created_at` da quebra é posterior à execução. Em `backtest-form-page.tsx` e `half-life-card.tsx`: aviso inline quando o intervalo escolhido cruza uma quebra e botão **"limitar a este regime"** que só **ajusta as datas do formulário** (início e fim) para o trecho clicado; nada é aplicado sem clique. `vitest` da função que acha as quebras dentro do intervalo.
+* **B.5 Testes:** `tests/unit/test_break_segments.py`: série sintética com uma quebra no meio, cujo trecho da esquerda e da direita têm métricas **iguais ao cálculo direto na mesma sub-série**; duas quebras → três trechos; quebra fora do intervalo ignorada; trecho curto → `None`; os trechos cobrem todo o período sem sobrepor. Integração: execução com quebra cadastrada grava o bloco e o aviso; sem quebras, `null`.
+* **Aceite:** nenhuma execução existente muda de resultado; o aviso não bloqueia; o instantâneo mantém o resultado de uma execução antiga estável quando uma quebra é apagada.
+
+### Fase C — Teste de slippage em saída protetora (O2) · prioridade 3 · só testes
+
+Conferir em `execution/domain/fills.py` e `risk_management/domain/stops.py` se a saída protetora passa por `slipped_price` (a escolha de **não** aplicar slippage a stop seria um otimismo a registrar). Acrescentar a `tests/unit/test_risk_and_stops.py`: (a) stop atravessado por lacuna preenche na abertura **pior** que o nível e depois leva o slippage adverso; (b) com `max_order_pct_of_volume` ligado, uma saída protetora **não é recusada** (saídas sempre são permitidas). Se o teste (a) revelar que stop não leva slippage, abrir item no relatório em vez de mudar o comportamento neste corte.
+
+### Fase D — Derivativos (O3): backlog · sem trabalho
+
+Registrar **B-DERIVATIVES**. Qualquer suporte a perpétuos reabriria alavancagem, venda a descoberto, liquidação e financiamento no retorno, nada coberto pelas salvaguardas atuais.
+
+### Ordem, dependências e estimativa
+
+A → B (B depende de A para ler as quebras); C é independente e barata. Estimativa grosseira: A ≈ 2 dias (1,5 back, 0,5 front); B ≈ 3 (2 back, 1 front); C ≈ 0,5. A e B somam duas migrações, ou uma só se feitas juntas.
+
+### Decisões pendentes (para o operador)
+
+* Quebras globais, por símbolo ou ambas (proposta: ambas, `NULL` = global).
+* Se a quebra pode ser editada (proposta: não, só apagar e recriar, para deixar rastro).
+* Se o aviso de travessia vira bloqueio com confirmação (proposta: só aviso).
+* Se o selo "criada depois do backtest" deve esconder o trecho da leitura padrão (proposta: só marcar).
+
+### Fora do escopo (decidido)
+
+Detecção automática de quebra estrutural (o livro 1, cap. 7 explica por que prever regimes não é confiável), ajuste por regime em varreduras (fica para depois da Fase B), e qualquer derivativo.
+
+### Critérios de aceite gerais
+
+Nenhum comportamento de negociação, risco ou ordem muda; execuções antigas continuam abrindo; nenhum `float` no domínio; `make check`, integração com `alembic upgrade head` e `downgrade -1` em banco com dados, `npm run lint`, `typecheck`, `test`, `format:check`, `check:consistency` e `build` verdes; telas em 1366 px e 360 px. Os números do livro (6,2% a 17,7% ao ano, Sharpe 0,54 a 1,6) são de moedas e futuros de 2002–2012, sem custos, e não valem para cripto à vista.
+
 ## Ressalvas
 
 Os números citados (retorno anual de 6,2% a 17,7%, Sharpe de 0,54 a 1,6 e retornos de rolagem) são exemplos de moedas e futuros de 2002–2012, sem custos e parcialmente dentro da amostra; não dizem nada sobre cripto à vista.

@@ -88,6 +88,78 @@ Novo módulo puro em `analytics/domain/` (estatísticas de séries), `market_dat
 * Nenhuma mudança nas estratégias, sinais, risco ou operação real existentes; Ruff, mypy e testes atuais passam.
 * O texto da interface informa que um resultado estatístico favorável não garante lucro.
 
+## 8. Plano de implementação detalhado (back-end e front-end)
+
+Escrito em 2026-11-01, com o código verificado nessa data. Convenções do projeto: `Decimal` no domínio (sem `float`), números como **strings decimais** na API e no app, `api/src` é a raiz de imports, sem `__init__.py` vazio, texto de tela em português do Brasil. A última migração é `0014_backtest_regime`. **Nada aqui foi aprovado nem implementado.**
+
+### 8.1 O que mudou desde a análise (verificado no código em 2026-11-01)
+
+| Item | Antes | Agora |
+|---|---|---|
+| C5 meia-vida | ❌ | ✅ `analytics/domain/mean_reversion.py` (`half_life`: regressão `Δy = a + b·y₋₁`, só `Decimal`, mínimo de 100 pontos, `t` contra −2,86 de Dickey–Fuller **sem defasagens**), endpoint `GET /api/v1/market-data/half-life` (limite de 200.000 candles) e `components/market-data/half-life-card.tsx` na página de dados de mercado. |
+| C2–C4 ADF completo, Hurst, razão de variâncias | ❌ | ❌ continuam. O teste atual é o ADF mais simples (sem termos defasados) e não há `H` nem `VR`. |
+| O2 meia-vida como escala de janela | ❌ | ❌ continua: nenhum formulário usa a meia-vida. |
+| O3 estratégia de reversão | ❌ | ❌ continua; o catálogo tem só `ema_crossover` e `donchian_breakout`. O desenho da estratégia de z-score está no [livro 1, cap. 7, Fase 2](../01-quantitative-trading-chan/ch07-special-topics.md). |
+| O4 metadado de família | ❌ | ❌ continua (`STYLE`/`StrategyStyle` não existem); planejado no [livro 1, cap. 6, Fase C](../01-quantitative-trading-chan/ch06-money-and-risk-management.md). |
+| Regime | ❌ | ⚠️ `analytics/domain/regime.py` descreve volatilidade e eficiência por tercis em cada backtest (migração 0014); é descritivo. |
+
+**Achado importante sobre testes:** uma busca em `api/tests` (2026-11-01) **não encontra nenhum teste** de `half_life`, `regime_report`, `kelly`/`sizing`, `tail_risk` nem de `max_holding_candles`, embora os planos do livro 1 os descrevam. Qualquer critério de aceite abaixo que dependa desses módulos pressupõe a Fase 0.
+
+### Fase 0 — Testes que faltam nos módulos já implementados · prioridade 0 · só testes
+
+Antes de estender `mean_reversion.py`, cobrir o que existe, porque as fases seguintes mudam a mesma função.
+
+* `tests/unit/test_half_life.py`: série AR(1) sintética com semente fixa e `φ = 0,95` (meia-vida teórica ≈ 13,5 barras) em 5.000 pontos, estimada dentro de uma tolerância declarada no teste; passeio aleatório → `stationary = False`; série em tendência (`b ≥ 0`) → `None`; menos de 100 pontos → `None`; série constante → `None`; preço ≤ 0 com `log=True` → `None`; sem `float` em código de produção (o ruído do teste pode nascer em `float` e ser convertido).
+* `tests/unit/test_regime.py`, `test_sizing.py`, `test_tail_risk.py`, `test_time_exit.py`: os casos já listados nos planos do livro 1 (cap. 6 Fase A, cap. 7 Fases 1 e 4). Esta fase só **cria os arquivos**; o conteúdo está lá.
+* `tests/integration/test_half_life.py`: endpoint com candles importados, 422 acima do limite, 422 com `start >= end`.
+* **Aceite:** os testes passam sem alterar código de produção; se algum falhar, é bug encontrado e vai para o relatório do capítulo correspondente.
+
+### Fase A — Razão de variâncias e expoente de Hurst (completa O1) · prioridade 1 · sem migração
+
+* **A.1 Funções puras** em `analytics/domain/mean_reversion.py` (mesma convenção: `Decimal`, contexto de 40 dígitos, `None` com motivo): `variance_ratio(series, lag) -> VarianceRatio | None` (`VR(q) = Var(y_t − y_{t−q}) ÷ (q · Var(y_t − y_{t−1}))`, com a estatística `z` sob homocedasticidade e o aviso de que cripto tem volatilidade agrupada) e `hurst(series, lags) -> Decimal | None` (inclinação da regressão de `ln Var(y_{t+τ} − y_t)` contra `ln τ`, dividida por 2; livro p. 45). `lags` fixo e curto (proposta: 2, 4, 8, 16, 32). `H < 0,5` reverte, `H = 0,5` passeio, `H > 0,5` tendência.
+* **A.2 Amostragem no horizonte da estratégia:** parâmetro `sample_every >= 1` (padrão 1) que toma um fechamento a cada *k* candles, porque candles de 1 minuto sobrepostos não são observações independentes (livro p. 43). A meia-vida existente passa a respeitá-lo também.
+* **A.3 API:** campos **aditivos** em `HalfLifeOut` (`hurst`, `variance_ratio`, `sample_every`) e `sample_every` na consulta de `GET /market-data/half-life` (`market_data/presentation/router.py`, `MarketDataService.half_life`). O caminho continua `half-life` por compatibilidade; **decisão pendente** se vale criar `/series-diagnostics` e manter o antigo como atalho.
+* **A.4 Front-end:** `lib/shared/market-data/market-data.api.ts` (schema com os campos novos nullish), `half-life-card.tsx` ganha duas linhas ("Hurst ≈ 0,47: tende a reverter" / "razão de variâncias") e um campo "amostrar a cada N candles"; texto "um resultado estatístico favorável não garante lucro". Esqueleto, erro com nova tentativa, vazio, dados; 360 px; `vitest` do schema e da frase.
+* **A.5 Testes:** `tests/unit/test_mean_reversion_stats.py`: OU sintética → `H < 0,5` e `VR < 1`; passeio aleatório → `H ≈ 0,5` e `VR ≈ 1` dentro da tolerância; tendência → `H > 0,5`; série curta ou constante → `None` sem `NaN` nem infinito; `sample_every` reduz `n` como esperado.
+* **Aceite:** o resultado atual da meia-vida não muda quando os campos novos não são lidos; mypy estrito e testes antigos passam.
+
+### Fase B — Meia-vida como escala nos formulários (O2) · prioridade 2 · só front-end
+
+* `lib/shared/strategies/half-life-hint.ts` (função pura, com teste): dado `half_life_bars` e o nome do parâmetro de janela, devolve a faixa sugerida (proposta: 0,5×, 1× e 2× a meia-vida, arredondada para inteiro ≥ o mínimo do `ParamSpec`) ou `null` quando não há reversão estimada.
+* `components/backtests/backtest-form-page.tsx` e `sweep-page.tsx`: ao escolher símbolo, intervalo e datas, chamar o hook que o card de meia-vida já usa (`getHalfLife`; criar `useHalfLife` em `hooks/shared/` se ainda não houver) e mostrar **uma dica sob o campo de janela** ("meia-vida ≈ 14 barras; faixa sugerida 7–28") com botão "usar na varredura" que preenche a grade (`parseGridList` já aceita listas).
+* Regra de honestidade da interface: se a série não é estacionária (`stationary_at_5pct = false`) ou a meia-vida é `null`, a dica diz isso e **não sugere faixa**. Para estratégias de tendência, a dica não aparece (depende do `STYLE` do livro 1, cap. 6, Fase C; sem ele, mostrar apenas no sweep de uma estratégia de reversão quando existir).
+* **Testes:** `vitest` da função e do componente (sem meia-vida, não estacionária, faixa válida). **Aceite:** nenhuma chamada nova ao salvar o backtest; a dica nunca altera valores sem clique.
+
+### Fase C — Estratégia de reversão (O3): fazer o que já está desenhado, não duplicar · prioridade 3
+
+O desenho da estratégia de z-score (`mean_reversion_zscore`, cinco parâmetros, saída por tempo, teste de contrato por estilo) está pronto no [livro 1, cap. 7, Fase 2](../01-quantitative-trading-chan/ch07-special-topics.md) e no [livro 2, cap. 3](ch03-implementing-mean-reversion.md). **Este capítulo não cria outra estratégia.** A versão **linear** do livro (posição proporcional a `−z`) continua **adiada**, e o que ela exigiria fica registrado aqui para a decisão:
+
+* `Signal` ganharia um `target_fraction` opcional (`strategies/domain/types.py`); o motor (`backtesting/domain/engine.py`) hoje rejeita COMPRA com posição aberta (`"already in position"`), então precisaria de ordens parciais; o trader (`trading/application/trader.py`) e o replay de paridade (`trading/application/parity.py`) precisariam do mesmo; `assess_signal` (`risk_management/domain/models.py`) teria de limitar o tamanho-alvo. É a mudança mais invasiva do catálogo e **só se justifica se a Fase A mostrar reversão real em algum par**.
+* **Decisão pendente:** abrir esse trabalho só depois de `H < 0,5` e meia-vida estacionária em pelo menos um par e intervalo de interesse.
+
+### Fase D — Aviso de família (O4) · prioridade 4 · já planejado
+
+É exatamente o `StrategyStyle` e a dica de stop do [livro 1, cap. 6, Fase C](../01-quantitative-trading-chan/ch06-money-and-risk-management.md). Não há trabalho extra aqui além de conferir que o texto para `MEAN_REVERSION` cobre o alerta do livro (p. 61): *"escalonar sem limite e usar stop curto sai no pior momento; prefira o teto de risco"*.
+
+### Ordem, dependências e estimativa
+
+0 → A → B; C e D seguem os planos do livro 1. Estimativa grosseira: Fase 0 ≈ 1,5 dia (só testes); A ≈ 2 (1,5 back, 0,5 front); B ≈ 1 (front). Nenhuma fase deste capítulo mexe no banco.
+
+### Decisões pendentes (para o operador)
+
+* Se Hurst e razão de variâncias entram no mesmo endpoint (proposta) ou em um novo.
+* Lags do Hurst (proposta: 2, 4, 8, 16, 32) e o padrão de `sample_every`.
+* Faixa sugerida da janela (proposta: 0,5×, 1× e 2× a meia-vida).
+* Se o valor crítico de −2,86 (5%, constante, sem defasagens) é conferido na fonte antes de ser exibido como veredito; hoje ele é só **indicativo**.
+
+### Fora do escopo (decidido)
+
+ADF com termos defasados e Johansen/CADF (exigem carteira de vários ativos e posição vendida), estratégia linear de reversão enquanto a Fase A não mostrar evidência, qualquer sugestão automática aplicada a bot.
+
+### Critérios de aceite gerais
+
+Nenhum comportamento de ordem, de risco ou de estratégia existente muda; nenhum `float` no domínio; as respostas atuais de `/market-data/half-life` continuam válidas; `make check` e a suíte de integração verdes; `npm run lint`, `typecheck`, `test`, `format:check`, `check:consistency` e `build` verdes; telas conferidas em 1366 px e 360 px. Um resultado estatístico favorável não prova lucro em cripto.
+
 ## Ressalvas
 
 Todos os números de desempenho (retorno anual de 12,6%, Sharpe 1,4 e meias-vidas de 115 e 23 dias) vêm de exemplos anteriores a 2013 com moedas e ETFs, **sem custos de transação** (p. 49), parcialmente dentro da amostra, e não dizem nada sobre criptoativos. O próprio autor considera a estratégia-exemplo impraticável (p. 50).

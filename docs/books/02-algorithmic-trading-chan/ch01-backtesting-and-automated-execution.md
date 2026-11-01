@@ -111,6 +111,79 @@ Desdobramentos e dividendos, preços primários e consolidados, dependência da 
 * Execuções antigas, sem os novos campos, continuam sendo exibidas; Ruff, mypy e os testes existentes passam.
 * O texto da interface deixa claro que valor-p não é garantia.
 
+## 8. Plano de implementação detalhado (back-end e front-end)
+
+Escrito em 2026-11-01, com o código verificado nessa data. Convenções do projeto: `Decimal` no domínio (sem `float`; qualquer exceção é declarada na fase), números e dinheiro como **strings decimais** na API e no app, `api/src` é a raiz de imports, sem `__init__.py` vazio, texto de tela em português do Brasil, fronteiras entre módulos protegidas por `tests/unit/test_architecture.py`. A última migração existente é `0014_backtest_regime`; cada fase que mexe no banco usa a **próxima livre** no momento de implementar. **Nada aqui foi aprovado nem implementado.**
+
+### 8.1 O que mudou desde a análise (verificado no código em 2026-11-01)
+
+| Item | Antes | Agora |
+|---|---|---|
+| C2 viés de antecipação | ❌ sem teste | ✅ `tests/unit/test_lookahead.py` roda o teste de truncamento em toda estratégia do catálogo. |
+| C5 sobrevivência | ❌ | ⚠️ o worker grava um snapshot diário das listagens (`/market-data/listings`); deslistagens anteriores continuam desconhecidas. |
+| C6 significância | ❌ | ❌ continua: `Metrics` tem Sharpe, mas nenhum `t`, valor-p ou teste de acaso. |
+| C7 / O3 triagem de sinais de alerta | ❌ | ✅ **no app**: `lib/backtests/screening.ts` (limiares em `CHAN_THRESHOLDS`: Sharpe < 1, profundidade e duração do drawdown, poucas operações por ano, exposição, comparação com comprar e manter, fração de teste, amostra) mostrada por `screening-panel.tsx`. É só front: não há campo na API e os limiares não são configuráveis. |
+| O6 índice de informação | ⚠️ | ✅ `information_ratio` já está em `Metrics` (livro 1, cap. 2). **O6 está feito.** |
+| C3 validação cruzada | ❌ | ❌ continua: uma divisão treino/teste, `periods.py` (métricas por ano/trimestre) e a robustez de vizinhos nas varreduras. |
+| C4 Sharpe real × backtest | ❌ | ❌ continua, mas `BotService.performance` já devolve as **mesmas métricas** (inclusive Sharpe) para um bot; falta escolher o backtest equivalente. |
+| O5 contador de reutilização | ❌ | ⚠️ `count_prior_trials` já conta execuções anteriores, mas só para varreduras (`SweepOut.prior_trials`); uma execução simples não mostra nada. |
+
+**Achado novo que molda o plano:** `Metrics` é gravada como JSON e os campos novos entram como opcionais com valor `None` (é assim que os índices do livro 1, cap. 2 entraram). Logo, **a estatística gaussiana (Fase A) não exige migração**; as demais, só quando há bloco novo por execução.
+
+### Fase A — Significância gaussiana (O1, etapa 1) · prioridade 1 · sem migração
+
+Objetivo: dizer "este Sharpe é distinguível de acaso a p < X?", pela tabela do livro (`média/desvio × √n`, valores críticos 1,282 / 1,645 / 2,326 / 3,091).
+
+* **A.1 Back-end, função pura** `api/src/modules/analytics/domain/significance.py` (sem frameworks, contexto de 40 dígitos como `risk_ratios.py`): `sharpe_t_stat(annual_sharpe, annualization_factor, periods)` = `Sharpe_por_barra × √n = Sharpe_anual × √(n ÷ N_T)` (o Sharpe de `risk_ratios.py` usa 365 dias; `Metrics.annualization_factor` e `return_periods` já trazem `N_T` e `n`). `significance_level(t) -> Decimal | None` devolve o **menor p da tabela** que `t` supera (0,10; 0,05; 0,01; 0,001) ou `None`. Sem amostra mínima própria: herda os `None` de `risk_ratios` (menos de 30 retornos ou 30 dias).
+* **A.2 Campos aditivos em `Metrics`** (`analytics/domain/metrics.py`): `sharpe_t_stat: Decimal | None = None` e `significance_p: Decimal | None = None`, preenchidos em `compute_metrics`. Entram automaticamente em backtests, em cada segmento (treino/teste), nos períodos e nos **bots** (`BotService.performance`). Atualizar `MetricsOut` (`analytics/presentation/schemas.py`), `api/docs/openapi.json` e rodar `npm run api:types`.
+* **A.3 Front-end:** `metricsSchema` em `lib/shared/analytics.ts` ganha os dois campos como `nullish`; em `components/shared/metrics/metrics-grid.tsx` um tile "Significância do Sharpe" com **texto** ("p < 0,05" / "não distinguível de acaso"), nunca só cor; o aviso fixo "valor-p não é a chance de a estratégia funcionar". Em `lib/backtests/screening.ts` uma flag `significance` (`Warning` quando `t < 1,645`, ou seja, não passa a 5%) com limiar novo em `CHAN_THRESHOLDS` (`minTStat: "1.645"`) e teste `vitest`.
+* **A.4 Testes:** `tests/unit/test_significance.py`: os quatro valores críticos classificam corretamente (`t` logo abaixo e logo acima de cada limite); série sintética com vantagem inserida → `p` pequeno e série de ruído puro → `None` na maioria das sementes; `t` cresce com `√n` para o mesmo Sharpe anual; amostra curta → `None`. Em `test_risk_ratios.py`, nada muda.
+* **Aceite:** execuções antigas continuam abrindo (campos `null`, tile mostra "—"); nenhum número existente muda; `make check` e `npm run lint/typecheck/test/build/check:consistency` verdes.
+
+### Fase B — Contador de reutilização do teste (O5) · prioridade 2 · sem migração
+
+* **B.1 Back-end:** `BacktestStore.count_prior_runs(config) -> int` (`backtesting/application/ports.py` e `infrastructure/repository.py`, ao lado de `count_prior_trials`): execuções com mesma exchange, símbolo, intervalo e `strategy_type` cujo período **se sobrepõe** ao da execução, excluída ela mesma. `BacktestService.get` chama e `BacktestOut.prior_runs: int` (`presentation/router.py`) carrega o valor. É consultado na leitura, não gravado: execuções antigas funcionam sem migração. Custo: um `COUNT` por detalhe; aceitável.
+* **B.2 Front-end:** `lib/backtests/backtests.api.ts` (campo nullish). Em `backtest-detail-page.tsx`, junto às métricas de treino/teste, o texto "Esta janela já foi usada em N execuções" e, em `screening.ts`, a flag `reuse` (`Warning` a partir de `CHAN_THRESHOLDS.maxWindowReuse`, proposta 10; **decisão pendente**). Só aparece quando há divisão treino/teste.
+* **B.3 Testes:** integração em `tests/integration` (três execuções na mesma janela → `prior_runs = 2` na terceira; janelas disjuntas não contam; outro símbolo não conta) e `vitest` da flag.
+
+### Fase C — Teste de entradas aleatórias (O1, etapa 2) · prioridade 3 · migração própria
+
+* **C.1 Back-end, função pura** `api/src/modules/backtesting/domain/random_entries.py`: recebe os fechamentos alinhados à curva, as durações em barras de cada operação completa (derivadas dos fills já gravados), o custo por operação (`fee_rate` e `slippage_bps` dos dois lados), `seed` e `simulations`. Para cada simulação sorteia as barras de entrada com `random.Random(seed)` mantendo número de operações e durações; o retorno é a soma dos retornos por operação **menos o mesmo custo**. Prefixos de `ln(fechamento)` calculados uma vez em `Decimal`, de modo que cada simulação só soma. Resultado: `{simulations, as_good_or_better, fraction, trades, seed, overlap_allowed: true, note}`. Menos de 10 operações → `None` com motivo. Limites fixos no módulo (`MAX_SIMULATIONS = 2_000`, `MIN_TRADES = 10`) para o tempo ficar previsível; roda em `asyncio.to_thread`.
+* **C.2 Persistência:** migração `NNNN_backtest_significance` (`ALTER TABLE backtest_runs ADD COLUMN significance JSONB NULL`, `downgrade` remove; rodar `alembic check`) pelo mesmo caminho do `regime` (migração 0014): `backtesting/application/ports.py`, `infrastructure/orm.py`, `infrastructure/repository.py`, `application/service.py` (`_execute`, junto de `regime_report`), `presentation/router.py` (`SignificanceOut` em `BacktestOut`), OpenAPI. A `seed` da execução (hoje `0` por padrão e "decorativa" porque o modelo de preenchimento é determinístico) passa a ser usada de fato; atualizar o comentário em `backtesting/domain/models.py`.
+* **C.3 Front-end:** schema nullish em `backtests.api.ts`; `components/backtests/significance-card.tsx` em `backtest-detail-page.tsx` depois de `RiskReportCard`: "X de N simulações com entradas aleatórias igualaram ou superaram este resultado", a semente, o número de operações, **a explicação de que este teste e o da Fase A podem discordar** (cada um define "acaso" de um jeito, livro p. 22) e o aviso de que valor-p não é garantia. Esqueleto, erro, vazio ("operações insuficientes"), dados; 360 px.
+* **C.4 Testes:** `tests/unit/test_random_entries.py`: determinismo com semente fixa; durações e número de operações preservados; série de passeio aleatório → `fraction` próxima de 0,5 dentro de tolerância declarada; série com vantagem inserida → `fraction` baixa; menos de 10 operações → `None`; tempo limitado (`MAX_SIMULATIONS`). Integração: execução completa grava o bloco; execução antiga abre com `null`.
+* **Aceite:** com a mesma semente, o resultado é idêntico entre execuções; nenhuma métrica existente muda; `alembic upgrade head` e `downgrade -1` funcionam em banco com dados.
+
+### Fase D — Sharpe real × backtest (O4) · prioridade 4 · sem migração
+
+* **D.1 Back-end:** `GET /api/v1/bots/{bot_id}/backtest-comparison?run_id=<opcional>`. O serviço mora em `trading/application/` (ao lado de `parity.py`, que já combina bot e backtester; o teste de arquitetura impede `bots` de importar `backtesting`). Sem `run_id`, usa a execução concluída **mais recente equivalente**: mesma exchange, símbolo, intervalo, `strategy_type`, parâmetros e limites de risco, achada por `BacktestStore.find_matching(config)` (método novo). Resposta `RealizedVsBacktestOut`: `{run_id | null, realized: {sharpe, return_periods, days}, backtest: {sharpe}, ratio, min_periods, hint}`; `ratio = realizado ÷ backtest`, `None` quando algum Sharpe é `None` ou o do backtest é ≤ 0. `hint` cita a regra prática de Chan (≥ 0,5; **observação do autor, não norma**). Sem backtest equivalente → corpo com `run_id: null` e o motivo, não erro. Leitura para qualquer papel.
+* **D.2 Front-end:** `getBacktestComparison` e schema em `lib/bots/bots.api.ts`, `QueryKey.Bots.backtestComparison(id)`, hook em `hooks/bots/use-bots.ts`; card na aba "Desempenho" (`BotTab.Performance`) com os dois Sharpes, a razão, o **tamanho da amostra real** e o seletor "comparar com outro backtest". Esqueleto, erro, vazio ("nenhum backtest equivalente: rode um com esta configuração", com link que pré-preenche via `backtest-prefill.ts`), dados.
+* **D.3 Testes:** unitário da razão (backtest ≤ 0 → `None`, amostra curta → `None`); integração com um bot paper com snapshots e um backtest equivalente; 404 para bot inexistente.
+* **Depende de** nada novo (usa `BotService.performance`); alimenta o monitor de deterioração do [cap. 4, Fase B](ch04-mean-reversion-stocks-etfs.md).
+
+### Fase E — Walk-forward e validação cruzada (O2) · **só desenho; depois do livro 5**
+
+Não codar antes de analisar a validação com purga e embargo do livro 5. Desenho mínimo para quando chegar a hora: generalizar `backtesting/domain/segments.py` de "uma divisão" para *k* janelas cronológicas; para cada janela, ajustar na anterior e avaliar na seguinte; mostrar a dispersão (mínimo, mediana, máximo) por métrica. O custo cresce com *k*; reaproveitar a fila de execuções das varreduras.
+
+### Ordem, dependências e estimativa
+
+A → B → D → C → E. A e B são independentes e pequenas; D alimenta o cap. 4; C é a única com migração e a mais cara de testar. Estimativa grosseira: A ≈ 1,5 dia (1 back, 0,5 front); B ≈ 1; D ≈ 2 (1,5 back, 0,5 front); C ≈ 3; E fora do corte.
+
+### Decisões pendentes (para o operador)
+
+* Valor-p contínuo, além da faixa da tabela: exigiria `erfc` e portanto **uma** conversão para `float` isolada em `significance.py` (a regra "dinheiro nunca é `float`" não vale para estatística, mas o domínio hoje é só `Decimal`). Proposta: ficar com a faixa da tabela, sem `float`.
+* Limite de reutilização da janela (proposta: 10 execuções) e se a flag bloqueia algo (proposta: não, só avisa).
+* Entradas aleatórias com sobreposição permitida (proposta, mais simples) ou posições sem sobrepor.
+* Quantas simulações por execução (proposta: 1.000, teto 2.000).
+
+### Fora do escopo (decidido)
+
+Monte Carlo sobre preços simulados com os quatro momentos (sistema de Pearson), correção por testes múltiplos (livros 3 e 5), qualquer bloqueio de execução por falta de significância, e as plataformas de software do capítulo.
+
+### Critérios de aceite gerais
+
+Nenhuma execução antiga deixa de abrir; nenhum número existente muda; nenhum `float` no domínio (salvo a decisão acima, se aprovada); `make check`, suíte de integração em Postgres, `npm run lint`, `typecheck`, `test`, `format:check`, `check:consistency` e `build` verdes; telas novas conferidas em 1366 px e 360 px; o texto da interface deixa claro que significância estatística não garante retorno.
+
 ## Ressalvas
 
 Todos os limites (exceto os valores críticos) são heurísticas práticas de Chan. Os exemplos de Monte Carlo e entradas aleatórias referem-se a uma estratégia de momentum em futuros e não são generalizáveis. A significância estatística do backtest não garante retornos futuros; mudanças de regime podem anulá-la (p. 24).

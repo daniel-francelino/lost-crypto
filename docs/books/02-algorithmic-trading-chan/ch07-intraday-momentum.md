@@ -89,6 +89,78 @@ O livro descreve táticas enganosas de ordens (ignição de momentum, inversão 
 * Nova coluna de candle é anulável; candles existentes e hashes (`hash_candles`) não mudam, salvo adesão explícita à coluna.
 * Ruff, mypy e testes existentes passam.
 
+## 8. Plano de implementação detalhado (back-end e front-end)
+
+Escrito em 2026-11-01, com o código verificado nessa data. Convenções do projeto: `Decimal` no domínio (sem `float`), números como **strings decimais** na API e no app, `api/src` é a raiz de imports, sem `__init__.py` vazio, texto de tela em português do Brasil. A última migração é `0014_backtest_regime`. **Nada aqui foi aprovado nem implementado.**
+
+### 8.1 O que mudou desde a análise (verificado no código em 2026-11-01)
+
+| Item | Antes | Agora |
+|---|---|---|
+| Registro de slippage realizado (pré-requisito do O2) | ❌ | ✅ livro 1, cap. 5: `execution/domain/orders.py` (`realized_slippage_bps`, `latency_ms`), `GET /bots/{id}/execution-quality` (por tipo de ordem: média, mediana e pior slippage, latência) e a aba de execução do bot (`components/bots/bot-execution.tsx`). Falta usar esses números para **calibrar** o modelo do backtest. |
+| Slippage do backtest | fixo | fixo: `slipped_price(side, reference_price, slippage_bps)` em `execution/domain/fills.py`, um número por execução (`slippage_bps`, padrão 5). |
+| Teto de ordem por volume | ❌ | ✅ `RiskLimits.max_order_pct_of_volume` (livro 1, cap. 5): recusa entrada acima de % do volume médio recente. Cobre o **tamanho**, não o custo. |
+| Intervalos de 1m a 1d | ✅ | ✅ (`Timeframe`: 1m, 5m, 15m, 1h, 4h, 1d). |
+| Comparação de execuções | ✅ | ✅ `/backtests/compare` e `compare-page.tsx`, com Sharpe, número de operações e as demais colunas lado a lado. |
+| Volume agressor | ❌ | ❌ continua: `Candle` tem só `open/high/low/close/volume` (`market_data/domain/models.py`). `ccxt_exchange.py` obtém candles por `fetch_ohlcv`, que devolve seis campos. |
+
+**Achados que moldam o plano:**
+* Os parâmetros de um backtest são colunas em `backtest_runs` (a `seed` e o `slippage_bps` são exemplos); um modelo de slippage novo precisa de colunas e de migração.
+* A paridade (`trading/application/parity.py`) reexecuta o bot com os limites **e o slippage** do bot. Se o modelo do backtest mudar sem o do bot mudar, a paridade passa a acusar `cost`. A solução é **manter o modelo fixo como padrão** e só aplicar o novo em pesquisa.
+
+### Fase A — Comparar horizontes de tempo (O1) · prioridade 1 · só front-end, sem migração
+
+Objetivo: mostrar, lado a lado, o compromisso entre mais operações independentes e mais custo, sem inventar função nova.
+
+* **A.1 Front-end:** em `backtest-detail-page.tsx`, botão "Comparar em outros intervalos" que, para cada intervalo escolhido (5m, 15m, 1h), cria uma execução **idêntica** à atual trocando só o `timeframe` e abre `/backtests/compare?ids=...`. Antes de criar, checar a cobertura com o que a página de dados de mercado já usa (`useCoverage`, `coverage-notice.tsx`): intervalo sem candles armazenados fica desabilitado com o motivo e o atalho para importar. A criação reaproveita `backtest-prefill.ts` e `POST /backtests`; **nada novo no backend**.
+* **A.2 Colunas que valem aqui** em `compare-page.tsx`: número de operações (já existe como `round_trips`), taxas pagas, retorno líquido e **Sharpe**; quando o [cap. 1, Fase A](ch01-backtesting-and-automated-execution.md) existir, a coluna de significância (`t`). Frase fixa: "intervalos curtos fazem mais operações, mas o custo e o slippage dominam; confira a escada de custos de cada execução".
+* **A.3 Testes:** `vitest` do montador de configurações (só o `timeframe` muda, tudo o mais é igual) e do bloqueio por falta de cobertura; teste manual a 360 px.
+* **Aceite:** nenhuma execução existente muda; criar as comparações é uma ação explícita do operador.
+
+### Fase B — Modelo opcional de slippage por volatilidade e tamanho (O2) · prioridade 2 · migração própria
+
+* **B.1 Domínio:** em `execution/domain/fills.py`, `slippage_bps_for(model, candle, order_notional, base_bps) -> Decimal`. Modelo `fixed` devolve `base_bps` (**comportamento atual, bit a bit**). Modelo `volatility_size`: `base_bps + k_range × amplitude_do_candle_em_bps + k_size × (notional ÷ volume_em_cotação_do_candle) × 10.000`, com `k_range` e `k_size` ≥ 0 dados pela execução; **nunca menor que `base_bps`** (o custo extra só pode piorar). A amplitude é `(high − low) ÷ open`, de dado já armazenado; o volume em cotação é `volume × close` (aproximação a registrar). `slipped_price` passa a receber o número já calculado, de modo que o preenchimento continue puro.
+* **B.2 Motor e paridade:** `backtesting/domain/engine.py` chama `slippage_bps_for` com o candle e o notional de cada fill; **o trader e o replay de paridade continuam com `fixed`** neste corte (o paper trader usa `slippage_bps` fixo em `execution/venues/paper.py`); a diferença fica explícita na tela do backtest ("modelo de custo: volatilidade e tamanho; o bot usa custo fixo").
+* **B.3 Persistência:** migração `NNNN_slippage_model` (`ALTER TABLE backtest_runs ADD COLUMN slippage_model TEXT NOT NULL DEFAULT 'fixed'`, `slippage_k_range NUMERIC NULL`, `slippage_k_size NUMERIC NULL`; `downgrade` remove), mais `backtesting/domain/models.py` (`BacktestConfig`), `infrastructure/orm.py`, `repository.py`, `presentation/router.py` (`BacktestCreate` e `BacktestOut`), OpenAPI. Execuções antigas ficam `fixed`; o `hash` de candles e o resultado delas não mudam.
+* **B.4 Calibração (não é código de negociação):** `GET /bots/{id}/execution-quality` já devolve o slippage realizado por tipo de ordem. No front, a aba de execução ganha uma linha "modelo do backtest previsto × realizado" que **mostra os dois lados**, sem ajustar `k` sozinha: calibrar com o slippage **realizado** (livro 1, cap. 5), nunca por estimativa arbitrária. Os `k` não têm valor padrão, o operador os preenche.
+* **B.5 Front-end:** `lib/backtests/form.ts` e `backtest-form-page.tsx`: seletor "Modelo de custo" (padrão "fixo") e, quando for o outro, os dois campos `k` com texto de apoio; `backtests.api.ts` (campos nullish). Em `cost-ladder-card.tsx`, a nota de que a escada só varia taxa e slippage fixos **não** vale quando o modelo é o novo (mostrar a observação). 360 px.
+* **B.6 Testes:** `tests/unit/test_slippage_model.py`: `fixed` reproduz exatamente os valores atuais (**regressão bit a bit** nos testes de motor existentes); o novo modelo cresce com amplitude e com tamanho e **nunca fica abaixo do base**; valores conferidos à mão em um candle; compra paga mais, venda recebe menos. `tests/unit/test_backtest_engine.py`: com `fixed`, nada muda. Integração: execução com o modelo novo grava as colunas.
+* **Aceite:** com `fixed`, todos os resultados e testes atuais são idênticos; o modelo novo só piora o custo; a tela diz qual modelo foi usado.
+
+### Fase C — Volume do agressor por candle (O3) · **verificar antes de qualquer código**
+
+* **C.0 Verificação (sem implementação):** confirmar, na testnet e na exchange real, se o campo "volume de compras a mercado" do kline está disponível. `fetch_ohlcv` do ccxt devolve só seis valores; o endpoint bruto de klines da Binance traz o volume de compra do agressor, e isso **teria de ser chamado direto** no adaptador (`ccxt_exchange.py`/`binance.py`), o que muda o contrato `Exchange`. Registrar o resultado neste relatório. **Se não estiver disponível de forma confiável, a fase termina aqui.**
+* **C.1 Se estiver:** coluna anulável `taker_buy_volume` em `candles` (migração própria), campo opcional em `Candle`, importação e atualizador (`market_data/application/updater.py`) preenchendo-o; **`hash_candles` não muda** para candles sem o campo (acréscimo opt-in), e candles já gravados ficam `NULL`. Carga retroativa é uma decisão à parte (custa chamadas).
+* **C.2 Diagnóstico e front:** `analytics/domain/` com `flow_imbalance = volume_comprador_agressor ÷ volume_total`, e correlação com o retorno do **candle seguinte** só como diagnóstico, no mesmo padrão do [cap. 6, Fase A](ch06-interday-momentum.md); nenhum sinal de negociação sai daqui.
+* **Aceite do C.0:** um parágrafo no relatório dizendo "disponível" ou "indisponível", com a data e a fonte da verificação.
+
+### Fase D — Eventos (O5): backlog · sem trabalho
+
+Registrar **B-EVENTS**: sem fonte de eventos legíveis por máquina e, segundo o livro, o efeito encolheu até o horizonte intradiário.
+
+### Nota defensiva (interpretação nossa, não recomendação do livro)
+
+Para stops de mercado em níveis conhecidos, o slippage **realizado** de saídas protetoras é o que mostra se a execução é pior que a estimada. Isso é coberto pelo alerta do [cap. 8, Fase D](ch08-risk-management.md); aqui não há trabalho extra.
+
+### Ordem, dependências e estimativa
+
+A é independente e barata; B é a mais cara e só depois de haver slippage realizado suficiente para calibrar; C é uma verificação; D é registro. Estimativa grosseira: A ≈ 1,5 dia (front); B ≈ 4 (2,5 back, 1,5 front); C.0 ≈ 0,5. A única migração é a da Fase B (e a C.1, se a verificação permitir).
+
+### Decisões pendentes (para o operador)
+
+* Fórmula e unidades do modelo (proposta: amplitude em bps e razão notional/volume em bps) e se os `k` têm teto.
+* Se o paper trader deve usar o mesmo modelo depois de calibrado (isso mudaria a paridade; proposta: só depois de comparar previsto × realizado por algumas semanas).
+* Intervalos oferecidos na comparação (proposta: 5m, 15m, 1h).
+* Se vale carregar o histórico do volume agressor (muitas chamadas por par) caso a Fase C.0 seja positiva.
+
+### Fora do escopo (decidido)
+
+Estratégia de lacuna de abertura, deriva pós-resultados, mudanças de índice, ETFs alavancados, ignição de momentum e caça a stops (adversariais), execução de alta frequência e livro de ordens.
+
+### Critérios de aceite gerais
+
+Com o modelo `fixed` (padrão), o resultado de qualquer execução é idêntico ao atual; nenhuma salvaguarda live muda; nenhum `float` no domínio; `make check`, integração com `alembic upgrade head` e `downgrade -1` em banco com dados, `npm run lint`, `typecheck`, `test`, `format:check`, `check:consistency` e `build` verdes; telas em 1366 px e 360 px. Os números do livro (7–15% ao ano, Sharpe 1,3–1,8) são de uma amostra de um ano ou de um único mercado, sem custos, e não sustentam afirmação alguma sobre cripto.
+
 ## Ressalvas
 
 Os números (retorno anual de 7–15%, Sharpe 1,3–1,8) vêm de amostras de um ano ou de um único mercado, excluem custos e dependem de instrumentos/microestrutura diferentes do mercado cripto à vista. O autor diz que a duração do momentum de notícias continua diminuindo. O capítulo não sustenta afirmação alguma sobre rentabilidade em cripto.

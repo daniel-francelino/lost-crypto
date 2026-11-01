@@ -106,6 +106,74 @@ Sinais de retorno de rolagem e arbitragem de futuros/ETFs, VX–ES, feeds de sen
 * Novos parâmetros são opcionais e, por padrão, não alteram o comportamento atual.
 * Ruff, mypy e testes existentes passam.
 
+## 8. Plano de implementação detalhado (back-end e front-end)
+
+Escrito em 2026-11-01, com o código verificado nessa data. Convenções do projeto: `Decimal` no domínio (sem `float`; a exceção do valor-p está na decisão pendente), números como **strings decimais** na API e no app, `api/src` é a raiz de imports, sem `__init__.py` vazio, texto de tela em português do Brasil. A última migração é `0014_backtest_regime`. **Nada aqui foi aprovado nem implementado.**
+
+### 8.1 O que mudou desde a análise (verificado no código em 2026-11-01)
+
+| Item | Antes | Agora |
+|---|---|---|
+| C3/C8 saída por tempo (O2) | ❌ | ✅ `max_holding_candles` existe em `ema_crossover.py` e `donchian_breakout.py` (livro 1, cap. 7, Fase 1). **O2 está feito.** Lembrete: os testes dessa fase não existem em `api/tests` ([cap. 2, Fase 0](ch02-basics-of-mean-reversion.md)). |
+| C7 aviso de poucos sinais (O4) | ⚠️ | ✅ em grande parte, **no app**: `lib/backtests/screening.ts` já tem as flags `few-trades` (operações por ano, `minRoundTripsPerYear = 12`), `sample-trades`, `sample-bars` e `exposure`; o backend registra a checagem de amostra (252 × parâmetros livres) em `data_quality.sample`. Falta só o aviso de **horizonte de manutenção longo** contra o tamanho da amostra. |
+| C7 crashes de momentum (O6) | ❌ | ⚠️ `regime.py` e `periods.py` já descrevem o resultado por faixa de volatilidade e por ano/trimestre; as **quebras nomeadas** ([cap. 5](ch05-mean-reversion-currencies-futures.md)) ainda não existem. |
+| C2 diagnóstico de correlação defasada (O1) | ❌ | ❌ continua. |
+| C3 sensibilidade à data inicial (O3) | ❌ | ❌ continua, mas a infraestrutura serve: `BacktestService.create_sweep` gera uma execução por combinação de uma grade e a página `sweeps/$sweepId` já lista as execuções. |
+| O5 e O7 | ❌ | ❌ continuam (hipótese e pesquisa); O7 é o mesmo relatório do [cap. 4, Fase E](ch04-mean-reversion-stocks-etfs.md). |
+
+**Achados que moldam o plano:**
+* `create_sweep` valida a grade como **parâmetros de estratégia** (`names = sorted(grid)`, teto `MAX_SWEEP_RUNS`), então variar a data inicial exige uma chave especial na grade, não um parâmetro de estratégia.
+* Uma tabela de correlação com *p* valores é uma grade de testes múltiplos: o relatório precisa mostrar o limiar corrigido, senão incentiva escolher a melhor célula.
+
+### Fase A — Grade de correlação defasada (O1) · prioridade 1 · sem migração
+
+* **A.1 Função pura** `analytics/domain/momentum.py`: `lagged_return_grid(closes, lookbacks, holdings) -> list[GridCell]`. Para cada par `(lookback, holding)`: retornos passado (`lookback` candles) e futuro (`holding` candles) em **pares não sobrepostos** (avança `max(lookback, holding)` candles por amostra), correlação de Pearson em `Decimal` (contexto de 40 dígitos, como `risk_ratios.py`), `n` de pares e o *p* valor. Célula com `n < 10` → `correlation = None` (amostra insuficiente) com motivo. Grade fixa e curta (`MAX_CELLS = 100`).
+* **A.2 O valor-p:** exige a distribuição *t* (ou a aproximação normal da transformação de Fisher). **Decisão pendente** (abaixo): ficar sem `float` e entregar a **estatística `t`** com os valores críticos tabelados por `n − 2`, ou isolar uma conversão `float` única em `momentum.py` para `erfc`. A proposta é a primeira: `t` e um selo "passa/não passa a 5% com correção" já informam sem o valor-p exato.
+* **A.3 API:** `GET /api/v1/market-data/momentum-grid?symbol&timeframe&start&end&lookbacks=1,5,10,25&holdings=1,5,10,25&exchange` em `market_data/presentation/router.py`; `MarketDataService.momentum_grid` lê os candles como `half_life` faz (`store.candles.get_range`), calcula em `asyncio.to_thread` e recusa acima de `MAX_ANALYSIS_CANDLES` (422) ou de 100 células. Resposta: `cells: [{lookback, holding, n, correlation, t_stat, significant_corrected}]`, `alpha_corrected = 0,05 ÷ células` e o aviso fixo de testes múltiplos. Candles com lacunas entram como estão, e a resposta traz `gaps`, como a meia-vida.
+* **A.4 Front-end:** `lib/shared/market-data/market-data.api.ts` (schema, `getMomentumGrid`), `QueryKey.MarketData.momentumGrid(...)`, `components/market-data/momentum-grid-card.tsx` ao lado do `HalfLifeCard`, **reaproveitando par, intervalo e datas já escolhidos na página**. Tabela de calor com o **número escrito em cada célula** (correlação, `n`), selo textual "passa a 5% com correção" e nunca só cor; mensagem "momentum não é lucro negociável: correlação não paga custos". Esqueleto, erro com nova tentativa, vazio, dados; 360 px com rolagem dentro do card; `vitest` do schema e do formatador.
+* **A.5 Testes:** `tests/unit/test_momentum.py`: AR(1) sintético com autocorrelação positiva conhecida → correlação positiva e significativa para o par esperado; passeio aleatório → nenhuma célula significativa depois da correção (na maioria das sementes); pares **não sobrepostos** (contagem exata em série curta); `n` pequeno → `None` com motivo; grade acima do limite → erro. `tests/integration/test_momentum_grid.py`: endpoint, 422 acima do limite, 422 com `start >= end`.
+* **Aceite:** determinístico; nenhum `NaN`/infinito; mypy estrito e testes antigos passam.
+
+### Fase B — Sensibilidade à data inicial (O3) · prioridade 2 · sem migração
+
+* **B.1 Back-end:** chave especial `start_offset_days` na grade de `SweepCreate` (`backtesting/presentation/router.py`), com valores inteiros ≥ 0 e **máximo de 25** (o livro usa 25 tranches). Em `BacktestService.create_sweep`, a chave é separada dos parâmetros de estratégia e deslocada em `base.start` (`timedelta(days=...)`); cada execução guarda o próprio `start`. O motor já dá o aquecimento da estratégia a partir do novo início. Combinação com a grade de parâmetros respeita `MAX_SWEEP_RUNS`. Validar que o deslocamento não deixa menos candles do que `MIN` exigido pela checagem de amostra.
+* **B.2 Resposta:** o `SweepOut` já traz as execuções; **nenhum campo novo** é necessário, porque a dispersão é calculada a partir de `metrics` de cada execução. (Se for preferível calcular no servidor, `dispersion: {min, median, max}` aditivo; **decisão pendente**.)
+* **B.3 Front-end:** em `sweep-page.tsx`, quando a grade tem `start_offset_days`, um cartão "Dispersão pela data inicial" com mínimo, mediana e máximo de retorno e drawdown (ordenar com `compareDecimal`; sem aritmética no app, só escolher elementos), mais o texto "interprete como dispersão, não como valor esperado". `backtest-form-page.tsx` ganha o atalho "testar sensibilidade à data inicial" que preenche a grade com 0, 3, 7, ..., 21 dias.
+* **B.4 Testes:** unitário do deslocamento (`create_sweep` gera `N` execuções com `start` esperado, respeita o teto, rejeita negativo ou acima de 25); integração com uma estratégia que tenha **artefato temporal deliberado** (entra só em um dia da semana) → dispersão ampla; `vitest` da escolha de min/mediana/max.
+* **Aceite:** sem a chave, o comportamento de varredura não muda; limite de 200 execuções preservado.
+
+### Fase C — Avisos de amostra e de manutenção longa (O4) · prioridade 3 · só front-end
+
+* `lib/backtests/screening.ts`: nova flag `long-holding`, `Info` quando `max_holding_candles` (de `strategy_params`) ou a duração média da operação supera uma fração configurável da amostra (`CHAN_THRESHOLDS.maxHoldingShareOfSample`, proposta 5%, **decisão pendente**), com teste `vitest` e texto "poucos sinais independentes para este horizonte" (livro p. 151). As demais flags (`few-trades`, `sample-trades`) já existem; **não** duplicar.
+
+### Fase D — Atenção a crashes (O6) · depende do [cap. 5, Fase B](ch05-mean-reversion-currencies-futures.md)
+
+Nenhum código novo aqui: o cartão de métricas por trecho de quebra do cap. 5 é o que mostra se o desempenho caiu depois de crashes gerais. Texto da tela: "as pausas atuais por drawdown e perda diária já protegem a operação real". As pausas existentes não mudam.
+
+### Fase E — Experimentos O5 e O7 · só registro
+
+* **O5 (`H-MOM-REV`):** variante com condição de tendência de longo prazo e recuo de curto prazo; só depois dos controles de integridade, truncamento e custos. **Não é implementada**: mais regras e parâmetros pioram a seleção de dados, e o limite de 5 parâmetros por estratégia (`too_many_parameters`) já pesaria.
+* **O7:** é o relatório do [cap. 4, Fase E](ch04-mean-reversion-stocks-etfs.md) (**B-MULTI-ASSET**); aplica-se o viés de sobrevivência de moedas removidas da listagem.
+
+### Ordem, dependências e estimativa
+
+A e B são independentes; C é pequena e independe de ambas; D espera o cap. 5; E fica registrada. Estimativa grosseira: A ≈ 3 dias (2 back, 1 front); B ≈ 2 (1 back, 1 front); C ≈ 0,5. Nenhuma fase deste capítulo mexe no banco.
+
+### Decisões pendentes (para o operador)
+
+* Valor-p: apenas estatística `t` com corte corrigido, sem `float` (proposta), ou uma única conversão `float` isolada para `erfc`.
+* Grade padrão (proposta: 1, 5, 10, 25 × 1, 5, 10, 25) e o teto de 100 células.
+* Calcular a dispersão da sensibilidade no servidor ou no app (proposta: app, sem campo novo).
+* Limiar do aviso de manutenção longa (proposta: 5% da amostra).
+
+### Fora do escopo (decidido)
+
+Sinais de retorno de rolagem, arbitragem de futuros e ETFs, feeds de notícias, fatores de fluxo de fundos, tranches reais (B-TRANCHES, exigem várias subposições por bot) e qualquer ajuste automático de janela.
+
+### Critérios de aceite gerais
+
+Parâmetros e comportamentos existentes não mudam com os campos novos vazios; nenhum `float` no domínio (salvo a decisão acima, se aprovada); nenhum `NaN` ou infinito; `make check`, integração, `npm run lint`, `typecheck`, `test`, `format:check`, `check:consistency` e `build` verdes; telas em 1366 px e 360 px. Os retornos do livro (Sharpe até 5,3 e retorno anual até 156%) são anteriores a custos e, em geral, de ações ou futuros; tendências de cripto não têm garantia de persistir.
+
 ## Ressalvas
 
 Todos os retornos citados (Sharpe até 5,3, retorno anual até 156%) são anteriores a custos e, em geral, usam dados de ações ou futuros anteriores a 2013; vários (momentum transversal de ações e sentimento de notícias) entraram em colapso ou dependem de dados de fornecedores. Os “crashes de momentum” e a recuperação de 30 anos após 1929 lembram que uma estratégia de tendência pode ficar em drawdown durante anos; isso não implica que tendências de cripto persistirão.

@@ -81,6 +81,76 @@ Notas de bots e backtests: `bots/application/service.py`, `backtesting/applicati
 * O relatório transversal é somente de leitura e identificado como pesquisa.
 * Ruff, mypy e testes existentes passam.
 
+## 8. Plano de implementação detalhado (back-end e front-end)
+
+Escrito em 2026-11-01, com o código verificado nessa data. Convenções do projeto: `Decimal` no domínio (sem `float`), números como **strings decimais** na API e no app, `api/src` é a raiz de imports, sem `__init__.py` vazio, texto de tela em português do Brasil, fronteiras entre módulos protegidas por `tests/unit/test_architecture.py`. A última migração é `0014_backtest_regime`. **Nada aqui foi aprovado nem implementado.**
+
+### 8.1 O que mudou desde a análise (verificado no código em 2026-11-01)
+
+| Item | Antes | Agora |
+|---|---|---|
+| C2 registro de análise (por que um bot saiu, qual hipótese) | ❌ | ⚠️ comandos e edições de bot já gravam **autor e motivo** na auditoria (livro 1, cap. 1 O3 e cap. 6 O6), e `GET /bots/{id}/interventions` conta intervenções. Falta texto livre ligado a um bot ou backtest. |
+| C2 monitor de deterioração | ❌ | ❌ continua; as peças existem: métricas de bot iguais às do backtest (`BotService.performance`), paridade (`/bots/{id}/parity`) e o módulo de alertas (`notifications/application/conditions.py`, com `worker_down`, `kill_switch`, `bots`, `candles`). |
+| C3 filtro de tendência na entrada | ❌ | ❌ continua; depende da estratégia ([cap. 3](ch03-implementing-mean-reversion.md)). |
+| C3 sazonalidade por hora/dia | ❌ | ❌ continua; o desenho está na [Fase 5 do livro 1, cap. 7](../01-quantitative-trading-chan/ch07-special-topics.md) (`analytics/domain/calendar.py`, Bonferroni), adiada. |
+| C5 ordenação transversal | ❌ | ❌ continua (um símbolo por bot). Os dados existem: candles de vários pares podem estar armazenados e `/market-data/listings` registra o que saiu da listagem daqui para a frente. |
+
+**Achados que moldam o plano:**
+* A auditoria já filtra por tipo de evento (`/audit-events?event_type=`) e tem autor; uma nota pode ser **um evento de auditoria** (`note.added`), **sem tabela nova e sem migração**.
+* `AlertKind` e `Condition` (`notifications/domain/models.py`) já modelam um alerta com chave estável; uma condição nova não precisa de infraestrutura nova.
+* Escrever (editar bot) é de admin (`require_admin` em `core/security/auth.py`); leitura é `require_access`.
+
+### Fase A — Notas de análise em bots e backtests (O1a) · prioridade 1 · sem migração
+
+* **A.1 Back-end:** `POST /api/v1/bots/{bot_id}/notes` e `POST /api/v1/backtests/{run_id}/notes` com `{text: 1–2000 caracteres}`, `require_admin`; gravam um evento de auditoria `note.added` com `bot_id` (ou `backtest_id` no *payload*), o autor autenticado e o texto. Leitura: o `GET /audit-events?event_type=note.added&bot_id=` existente, sem endpoint novo. Onde mora cada rota: `bots/presentation/router.py` e `backtesting/presentation/router.py`; o caso de uso chama o serviço de auditoria já injetado em `Container`; **conferir** como `BotService` registra os eventos de intervenção (livro 1, cap. 8, Fase 1) e seguir o mesmo caminho para o autor. O texto é tratado como **texto puro**; nunca vira HTML.
+* **A.2 Front-end:** `components/shared/notes/notes-panel.tsx` (lista de notas com autor e data UTC, campo "Registrar nota" com contador de caracteres, só para admin), usado na aba "Auditoria" do bot (`BotTab.Audit`) e no detalhe do backtest. Schema e funções em `lib/shared/audit/audit.api.ts`, `QueryKey` por bot/backtest. O app não executa nada do texto (regra de `app/AGENTS.md`: sem `dangerouslySetInnerHTML`). Esqueleto, erro, vazio ("Registre por que esta estratégia foi pausada ou aposentada"), dados; 360 px.
+* **A.3 Testes:** integração (admin cria, viewer recebe 403, leitura devolve autor/data, 422 acima de 2.000 caracteres, bot inexistente 404, texto com `<script>` volta como texto); `vitest` do painel.
+* **Aceite:** nenhuma mudança em negociação, risco ou estado de bot; a nota aparece na linha do tempo de auditoria.
+
+### Fase B — Monitor de deterioração (O1b) · prioridade 2 · sem migração · depende do [cap. 1, Fase D](ch01-backtesting-and-automated-execution.md)
+
+Objetivo: avisar, **sem pausar nada**, quando o desempenho recente de um bot ativo (paper ou live) saiu da faixa do backtest equivalente.
+
+* **B.1 Regra pura** em `trading/domain/deterioration.py` (ao lado de `diagnosis.py` e `parity.py`): `deterioration(realized, backtest, min_periods) -> Deterioration | None`. Sinais, todos com a amostra visível: (a) Sharpe real abaixo de metade do Sharpe do backtest (a regra prática de Chan; é observação do autor) e (b) drawdown atual **maior** que o máximo do backtest. Abaixo de `min_periods` retornos reais (proposta: 30, o mesmo de `MIN_RETURNS`), **não alerta**: devolve `None` com o motivo "amostra curta".
+* **B.2 Alerta:** `AlertKind.PERFORMANCE_DEGRADED` e uma função `performance(...)` em `notifications/application/conditions.py` com chave estável por bot (a mensagem não leva contadores que mudem a cada checagem, como a convenção do arquivo exige). A avaliação roda no mesmo ciclo do `evaluator.py`; a comparação reaproveita o serviço de comparação do cap. 1 (que fica em `trading/application/`). Severidade `WARNING`; **nunca** altera o estado do bot.
+* **B.3 Front-end:** o indicador de alertas do topo (`alerts-indicator.tsx`) e `alerts-page.tsx` já listam por `kind`; acrescentar o rótulo em `lib/shared/labels.ts` e o `AlertKind` em `lib/shared/enums.ts` (o `check:consistency` falha se faltar). O card do cap. 1 (Fase D) ganha a frase "deterioração detectada: veja a nota de análise" com atalho para o painel de notas da Fase A.
+* **B.4 Testes:** `tests/unit/test_deterioration.py` (série de patrimônio com semente fixa que piora abaixo da faixa → alerta; dentro da faixa → nada; amostra curta → `None` com motivo; backtest com Sharpe ≤ 0 → sem comparação); integração com o `evaluator` (alerta abre e **fecha** quando volta à faixa, sem duplicar, respeitando `alert_cooldown_seconds`).
+* **Aceite:** nenhum bot muda de estado por causa do alerta; amostra curta nunca alerta; o alerta some sozinho quando a condição some.
+
+### Fase C — Filtro de tendência opcional na estratégia de reversão (O2) · prioridade 3 · espera a estratégia
+
+Depende de `mean_reversion_zscore` existir ([cap. 3, Fase A](ch03-implementing-mean-reversion.md)). O parâmetro seria `trend_filter_period` (inteiro opcional ≥ 2): só entra se o fechamento estiver **acima** da média simples de N candles (a regra 2 de Buy-on-Gap, p. 93). Impacto: o estado da estratégia precisa guardar a janela longa (hoje guarda só `lookback`), e o parâmetro seria o **sexto**, o que estoura `too_many_parameters` (limite 5): **decisão pendente** (ver cap. 3). Testes: com e sem filtro em treino × teste, sensibilidade a N, teste de truncamento (já cobre toda a estratégia do catálogo). Não implementar antes do cap. 3.
+
+### Fase D — Pesquisa por hora do dia e dia da semana (O3) · adiada
+
+É a Fase 5 do [livro 1, cap. 7](../01-quantitative-trading-chan/ch07-special-topics.md): `analytics/domain/calendar.py`, 24 grupos de hora UTC e 7 de dia da semana, **31 testes** com correção de Bonferroni e contagem de tentativas, página de pesquisa somente leitura. Este capítulo não acrescenta nada, só a ressalva: sem confirmação fora da amostra, um efeito de horário é quase certamente acaso.
+
+### Fase E — Relatório de ordenação transversal (O4) · prioridade 4 · só pesquisa, sem migração
+
+* **E.1 Função pura** `analytics/domain/cross_section.py`: entrada, os fechamentos alinhados de ≥ 5 símbolos (todos importados, mesmo intervalo e período); para cada barra de formação, ordena por retorno dos últimos `formation` candles e mede o retorno dos `holding` candles seguintes do **grupo pior** e do **grupo melhor** (quartis, só comprado). Saída: retorno médio por grupo, `n` de formações **não sobrepostas** por grupo e uma linha "comprar o pior grupo × comprar tudo". Sem custos no resultado, e a tela diz isso. Limites fixos (`MAX_SYMBOLS = 20`, `MAX_ANALYSIS_CANDLES` já existente).
+* **E.2 API:** `GET /api/v1/market-data/cross-section?symbols=...&timeframe&start&end&formation&holding` em `market_data/presentation/router.py`; serviço lê os candles de cada par (`store.candles.get_range`) em `asyncio.to_thread`. Resposta marcada `research_only: true`, com o aviso de **viés de sobrevivência** (só pares ainda listados foram importados; `/market-data/listings` mostra o que saiu) e de que a versão só comprada perde a neutralidade do livro.
+* **E.3 Front-end:** card "Ordenação transversal (pesquisa)" na página de dados de mercado, só leitura, com a faixa de data e a lista de pares já importados (`useCoverage`); tabela com os números **escritos**. Nunca oferece "criar bot"; **B-MULTI-ASSET** (negociar uma cesta) fica no backlog, sem motor de carteira.
+* **E.4 Testes:** série sintética de 6 pares em que o pior grupo realmente se recupera (grupo pior > melhor) e a mesma com passeio aleatório (diferença ≈ 0 na tolerância); formações não sobrepostas contadas certo; menos de 5 símbolos → 422.
+
+### Ordem, dependências e estimativa
+
+A → (cap. 1 Fase D) → B; C espera a estratégia; D adiada; E é independente. Estimativa grosseira: A ≈ 1,5 dia (1 back, 0,5 front); B ≈ 2 (1 back, 1 de integração com alertas); E ≈ 2,5; C e D fora do corte. Nenhuma fase mexe no banco.
+
+### Decisões pendentes (para o operador)
+
+* Quem pode escrever notas (proposta: admin) e o tamanho máximo (proposta: 2.000 caracteres).
+* Limites do monitor: metade do Sharpe e 30 retornos (propostas apoiadas no livro e no `MIN_RETURNS`).
+* Se o monitor de deterioração deve, no futuro, sugerir pausa (proposta: **nunca automático**).
+* Se a pesquisa transversal vale o custo antes de existir mais de um punhado de pares importados.
+
+### Fora do escopo (decidido)
+
+Pares de ações e ETFs, arbitragem de índice, venda na lacuna, ordenação por P/L e qualquer negociação transversal (exige motor de carteira e posição vendida).
+
+### Critérios de aceite gerais
+
+Nenhum estado de bot, ordem ou salvaguarda live é alterado por notas, monitor ou relatório; nenhum `float` no domínio; `make check`, integração, `npm run lint`, `typecheck`, `test`, `format:check`, `check:consistency` e `build` verdes; telas em 1366 px e 360 px. Os números de desempenho do livro (8,7%, 13,7%, 46%, 73%) são de ações dos EUA e não valem para cripto.
+
 ## Ressalvas
 
 Os números de desempenho (retornos anuais de 8,7%, 13,7%, 46%, 73%; Sharpe até 4,7) vêm de backtests de ações dos EUA, brutos de custos e sujeitos a viés de sobrevivência. Alguns têm falhas reconhecidas pelo autor (janelas escolhidas retrospectivamente e ruído do preço de abertura). Não são expectativas para cripto. A conclusão de que pares de ETFs superam pares de ações é do autor e refere-se ao mercado americano em 2013.

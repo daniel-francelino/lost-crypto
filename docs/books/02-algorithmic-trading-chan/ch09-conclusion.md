@@ -22,6 +22,38 @@ Os pontos já estão cobertos por recomendações anteriores:
 
 Não há novas oportunidades identificadas.
 
+## 3. Plano de implementação do livro 2 (ordem entre capítulos)
+
+Escrito em 2026-11-01, com o código verificado nessa data. A conclusão não traz oportunidade nova; esta seção só **ordena** o que os capítulos 1 a 8 propõem, para que as dependências entre eles fiquem num lugar só. Cada fase está detalhada (back-end, front-end, testes e aceite) na seção 8 do capítulo indicado. **Nada aqui foi aprovado nem implementado.**
+
+| Ordem | Fase | Capítulo | Migração | Depende de |
+|---|---|---|---|---|
+| 0 | Testes que faltam nos módulos já implementados (`half_life`, `regime`, `sizing`, `tail_risk`, `max_holding_candles`) | [2, Fase 0](ch02-basics-of-mean-reversion.md) | – | – |
+| 1 | Significância gaussiana (campos aditivos em `Metrics`) | [1, Fase A](ch01-backtesting-and-automated-execution.md) | – | – |
+| 2 | Contador de reutilização da janela de teste | [1, Fase B](ch01-backtesting-and-automated-execution.md) | – | – |
+| 3 | Hurst e razão de variâncias; meia-vida como dica nos formulários | [2, Fases A e B](ch02-basics-of-mean-reversion.md) | – | 0 |
+| 4 | Comparar horizontes de tempo (só front) | [7, Fase A](ch07-intraday-momentum.md) | – | 1 (coluna de significância, opcional) |
+| 5 | Sharpe real × backtest do bot | [1, Fase D](ch01-backtesting-and-automated-execution.md) | – | – |
+| 6 | Notas de análise em bots e backtests | [4, Fase A](ch04-mean-reversion-stocks-etfs.md) | – | – |
+| 7 | Excursão adversa e aviso de stop | [8, Fase A](ch08-risk-management.md) | sim | – |
+| 8 | Curvas de crescimento e drawdown por exposição | [8, Fase B](ch08-risk-management.md) | – | `sizing` do livro 1 (já feito) |
+| 9 | Quebras de regime nomeadas e métricas por trecho | [5, Fases A e B](ch05-mean-reversion-currencies-futures.md) | sim (1 ou 2) | – |
+| 10 | Grade de correlação defasada; sensibilidade à data inicial | [6, Fases A e B](ch06-interday-momentum.md) | – | 3 (compartilha a página de dados) |
+| 11 | Defesa contra tick incorreto (`max_close_jump_pct`) | [3, Fase B](ch03-implementing-mean-reversion.md) | sim | – |
+| 12 | Monitor de deterioração e alerta de saída protetora | [4, Fase B](ch04-mean-reversion-stocks-etfs.md), [8, Fase C](ch08-risk-management.md) | – | 5 |
+| 13 | Teste de entradas aleatórias | [1, Fase C](ch01-backtesting-and-automated-execution.md) | sim | 1 |
+| 14 | Estratégia de reversão à média (plano do livro 1, cap. 7, Fase 2) e filtro de tendência | [3, Fase A](ch03-implementing-mean-reversion.md), [4, Fase C](ch04-mean-reversion-stocks-etfs.md) | – | 3 (diagnósticos) e `StrategyStyle` do livro 1, cap. 6, Fase C |
+| 15 | Modelo opcional de slippage | [7, Fase B](ch07-intraday-momentum.md) | sim | slippage realizado de semanas de paper |
+| 16 | Encerrar em vez de pausar (`drawdown_action`), só em paper | [8, Fase D](ch08-risk-management.md) | sim | 7 e 8 |
+| – | Documentar decisões de julgamento | [8, Fase E](ch08-risk-management.md) | – | – |
+| – | Pesquisa transversal e pesquisa por horário | [4, Fases D e E](ch04-mean-reversion-stocks-etfs.md) | – | dados de vários pares |
+| – | Walk-forward e validação cruzada | [1, Fase E](ch01-backtesting-and-automated-execution.md) | – | livro 5 |
+| – | Verificação do volume do agressor | [7, Fase C](ch07-intraday-momentum.md) | só se positiva | – |
+
+**Migrações:** cada uma usa o próximo número livre quando for implementada (hoje a última é `0014_backtest_regime`); as fases 7, 9, 11, 13, 15 e 16 são as que mexem no banco, e 9 pode ser uma migração só. **Nenhuma salvaguarda live é alterada por qualquer fase.**
+
+**Decisões que atravessam capítulos:** o valor-p contínuo exigiria uma conversão `float` isolada (caps. 1 e 6; proposta: não), o limite de 5 parâmetros por estratégia (caps. 3 e 4) e o bootstrap em `Decimal` (cap. 8).
+
 ## Ressalva
 
 O autor afirma que as estratégias do livro não estão livres de armadilhas e podem falhar quando o regime de mercado muda (p. 187). Este relatório não faz afirmações sobre retornos esperados.

@@ -104,6 +104,86 @@ Limites de alavancagem da corretora, exposição vendida e indicadores VIX/TED/H
 * Salvaguardas da operação real, kill switch e aprovações permanecem intactos; Ruff, mypy e testes existentes passam.
 * A interface nunca apresenta exposição “ótima” calculada como recomendação sem ressalvas.
 
+## 8. Plano de implementação detalhado (back-end e front-end)
+
+Escrito em 2026-11-01, com o código verificado nessa data. Convenções do projeto: `Decimal` no domínio (sem `float`; a exceção do bootstrap está na decisão pendente), números e dinheiro como **strings decimais** na API e no app, `api/src` é a raiz de imports, sem `__init__.py` vazio, texto de tela em português do Brasil, fronteiras entre módulos protegidas por `tests/unit/test_architecture.py`. A última migração é `0014_backtest_regime`. **Nada aqui foi aprovado nem implementado.**
+
+### 8.1 O que mudou desde a análise (verificado no código em 2026-11-01)
+
+| Item | Antes | Agora |
+|---|---|---|
+| C3–C5 Kelly e crescimento (O1) | ❌ | ⚠️ **parcial**: `analytics/domain/sizing.py` calcula Kelly cheio e meio, taxa de crescimento `g(f)` **só nesses dois pontos** e o teto pela pior perda; `GET /backtests/{run_id}/sizing` e `components/backtests/sizing-card.tsx` (livro 1, cap. 6, Fase A). Falta a **curva** `g(f)` e o drawdown em função de `f` para `f ∈ (0, 1]`, e o bootstrap. |
+| C6 CPPI (O2) | ⚠️ | ⚠️ continua: `RiskLimits.max_drawdown_pct` **pausa** o bot quando a queda a partir do pico passa do limite (`drawdown_breached`, `trader.py`, motivo `risk.drawdown_breached`), o que já é um *ratchet* implícito (o pico só sobe). A diferença para o livro é **encerrar de vez** em vez de pausar. |
+| C7 stop × excursão adversa (O3) | ❌ | ❌ continua: nenhuma busca por excursão em `api/src` encontra algo. |
+| C7 falha de stop (O4) | ❌ | ⚠️ as peças existem: registro de slippage e latência por ordem (livro 1, cap. 5) e `execution-quality`; falta o **alerta** (`AlertKind` não tem um para execução ruim). |
+| C8 indicadores de risco (O6) | ❌ | ✅ descritivo: `analytics/domain/regime.py` mostra o desempenho por faixa de volatilidade (**H-RISK-INDICATOR**, sem condicionar negociação). Nada a fazer. |
+| C9 julgamento documentado (O7) | ❌ | ❌ continua: `api/docs/operations/runbook.md` cobre servidor, chaves, backups e relógio, mas nada sobre decisões de julgamento. |
+| Intervenções e motivo | ❌ | ✅ comandos e edições gravam autor e motivo; `GET /bots/{id}/interventions` (livro 1, cap. 8). Serve ao reinício de um bot encerrado (Fase D). |
+
+**Achados que moldam o plano:**
+* A excursão adversa **não precisa mudar o motor**: dá para calcular depois da execução com os fills já gravados e os candles armazenados (`min(low)` entre a entrada e a saída), como `periods.py` e `regime.py` são calculados fora do laço de eventos.
+* O `sizing` hoje só lê `tail_risk` (barato, sem reler candles); a curva por exposição precisa dos **retornos por barra**, que dá para refazer a partir da curva de patrimônio já gravada em `backtest_runs.equity_curve` (JSONB).
+* `RiskLimits` do bot são colunas em `bots`; qualquer campo novo (ação do drawdown) exige migração; os limites dos backtests ficam em JSONB e não.
+
+### Fase A — Excursão adversa e aviso de stop (O3) · prioridade 1 · migração própria
+
+* **A.1 Função pura** `analytics/domain/excursion.py`: `adverse_excursions(round_trips, candles) -> ExcursionReport | None`. Para cada operação completa (entrada e saída dos fills), a **maior queda não realizada** `(menor mínima entre entrada e saída ÷ preço de entrada − 1)` em %, como valor positivo; devolve `{trades, worst_pct, p95_pct, median_pct, worst_trades: [{entry_at, exit_at, pct}]}` (as 5 piores). Sem operações → `None`. `Decimal`, contexto de 40 dígitos; cálculo em `asyncio.to_thread` fora do laço.
+* **A.2 Persistência:** coluna `excursion JSONB NULL` em `backtest_runs` (migração `NNNN_backtest_excursion`; `downgrade` remove; `alembic check`) pelo caminho do `regime`: `ports.py`, `orm.py`, `repository.py`, `service.py` (`_execute`), `router.py` (`ExcursionOut` em `BacktestOut`), OpenAPI. Execuções antigas ficam `null`.
+* **A.3 Front-end:** `backtests.api.ts` (schema nullish); `components/backtests/excursion-card.tsx` em `backtest-detail-page.tsx` depois de `RiskReportCard`: a pior excursão, a mediana e as cinco piores operações. Em `lib/backtests/screening.ts`, flag `stop-inside-excursion` (`Warning`) quando `stop_loss_pct` de `strategy_params` é **menor** que a pior excursão (comparar com `compareDecimal`, sem aritmética): "este stop dispararia em oscilações que a própria estratégia já teve". O texto explica as duas famílias: em tendência, o stop faz parte do sinal; em reversão, o stop fica **além** da pior excursão, só contra cisne negro (p. 183–184).
+* **A.4 Testes:** `tests/unit/test_excursion.py`: operações sintéticas com excursões conhecidas (valores à mão); operação que sobe sem cair → 0%; sem operações → `None`; ordem das piores. `vitest` da flag (stop dentro, stop fora, sem stop).
+* **Aceite:** nenhum resultado de backtest muda (só se acrescenta o bloco); execuções antigas abrem sem o card.
+
+### Fase B — Curvas de crescimento e drawdown por exposição (O1) · prioridade 2 · sem migração
+
+* **B.1 Funções puras** em `analytics/domain/exposure.py`: `growth_curve(returns, fractions)` = `g(f) = média(ln(1 + f·r))` em `Decimal` (`ln` do contexto de 40 dígitos); `drawdown_at(returns, f)` refaz a curva com `1 + f·r` por barra e devolve o drawdown máximo; `ruin_fraction(worst_return)` = `1 ÷ |pior retorno|` (acima disso, ruína, p. 172). `fractions` = 20 passos entre 0 e 1 (**spot: nunca acima de 1**). Retornos por barra vêm de `periodic_returns` (`risk_ratios.py`), que já descarta lacunas e as conta.
+* **B.2 Bootstrap com semente (a contraparte "simulada", adaptação nossa):** `bootstrap_drawdown(returns, f, simulations, seed)` reamostra retornos por barra com `random.Random(seed)` (com reposição) e devolve percentis (50º, 95º) do drawdown máximo. Reamostrar **destrói autocorrelação**, o que é dito na tela. Limites fixos no módulo (`MAX_BOOTSTRAP_RETURNS = 20_000`, `MAX_SIMULATIONS = 300`) porque cada simulação percorre a série em `Decimal`: acima disso, a série é **amostrada em blocos** ou a rota recusa (422). **Decisão pendente** (abaixo).
+* **B.3 API:** `GET /api/v1/backtests/{run_id}/exposure-curve?steps=20&bootstrap=false&simulations=200&seed=0` em `backtesting/presentation/router.py`; `BacktestService.exposure_curve` lê a curva de patrimônio (`equity_curve(run_id)` já existe), calcula em `asyncio.to_thread`. Resposta `ExposureCurveOut`: `points: [{f, growth, max_drawdown_pct, bootstrap_p50?, bootstrap_p95?}]`, `kelly_full`, `kelly_half`, `configured_fraction`, `ruin_fraction`, `sample`, `warnings`. Erros: execução inexistente 404; ainda não concluída 409; sem curva (execução antiga) 409; `steps` ou `simulations` fora dos limites 422. Leitura para qualquer papel; sem auditoria.
+* **B.4 Front-end:** `getExposureCurve` e schema em `lib/backtests/backtests.api.ts`, `QueryKey.Backtests.exposureCurve(id, steps, bootstrap, simulations, seed)`, hook em `use-backtests.ts`; dentro de `sizing-card.tsx`, um bloco "Curva por exposição": gráfico `recharts` (`f` × crescimento e `f` × drawdown) **com os números em tabela ao lado**, marcas de Kelly, meio Kelly e da fração configurada do bot; frase fixa "Kelly é um teto a ser descontado, nunca uma recomendação de aumentar a posição" e a faixa do bootstrap, nunca um "ótimo" único. Sem aritmética no app: tudo vem pronto e passa por `lib/shared/format.ts`. Esqueleto, erro com nova tentativa, vazio ("rode de novo para ver a curva"), dados; 360 px.
+* **B.5 Testes:** `tests/unit/test_exposure.py`: retornos gaussianos sintéticos cujo `g(f)` máximo cai no Kelly analítico dentro de tolerância; reproduzir o **Exemplo 8.2** do livro com os dados declarados; `drawdown_at` cresce com `f`; `f` acima de `ruin_fraction` leva a perda total; bootstrap determinístico com a mesma semente; série curta → vazio com motivo. `tests/integration/test_exposure_curve.py`: forma da resposta, 404, 409 (execução sem curva), 422.
+* **Aceite:** nenhum cálculo existente do `sizing` muda; a interface nunca apresenta um ponto "ótimo" como recomendação; tempo de resposta limitado pelos tetos.
+
+### Fase C — Alerta de saída protetora muito pior que o plano (O4) · prioridade 3 · sem migração
+
+* **C.1 Regra pura** em `notifications/application/conditions.py`: `protective_slippage(orders, limits)` → `Condition`s por bot quando uma saída protetora recente (ordem de stop ou take-profit já preenchida) tem slippage realizado acima de `alert_protective_slippage_multiple × slippage_bps configurado` do bot. Usa os campos que o registro de execução já grava (preço de referência, preço médio, slippage em bps). Chave estável por bot (sem contadores na mensagem).
+* **C.2 Integração:** `AlertKind.PROTECTIVE_EXIT_SLIPPAGE`; o `evaluator.py` fornece as ordens recentes; novo `Settings.alert_protective_slippage_multiple` (padrão 3, **decisão pendente**) e `alert_protective_window_hours`. Severidade `WARNING`; nunca altera o bot.
+* **C.3 Front-end:** rótulo em `lib/shared/labels.ts` e `AlertKind` em `lib/shared/enums.ts` (o `check:consistency` falha se faltar); nada além disso, porque `alerts-page.tsx` e `alerts-indicator.tsx` já listam por tipo.
+* **C.4 Documentação (parte de O4):** em `api/docs/architecture/13-live-trading.md`, a política de **stop-market versus stop-limit** e o que cada um troca (garantia de saída × garantia de preço).
+* **C.5 Testes:** `tests/unit/test_alert_conditions.py` (nome a conferir; ver `test_alert_episodes.py`): saída protetora dentro do múltiplo → nada; acima → condição; entrada ou saída sem ser protetora ignoradas; ordens antigas fora da janela; mensagem estável. Integração: o alerta abre e fecha.
+* **Aceite:** nenhum bot muda de estado; o alerta fecha sozinho quando a condição some.
+
+### Fase D — Encerrar em vez de pausar (O2, CPPI simplificado) · prioridade 4 · migração própria · **só em paper até comprovar**
+
+Antes de codar, registrar a honestidade do desenho: o *ratchet* do CPPI **já existe** em `max_drawdown_pct` (queda a partir do pico, e o pico só sobe). O que falta é a ação **encerrar** e uma regra clara de reinício.
+
+* **D.1 Domínio:** `RiskLimits.drawdown_action: DrawdownAction = PAUSE` (`StrEnum`: `pause`, `stop`) em `risk_management/domain/models.py`. `drawdown_breached` continua igual; o que muda é o que o trader faz com `risk.drawdown_breached`: com `stop`, leva o bot a `STOPPED` (`BotService.stop`, sem retomada automática) e grava a auditoria `risk.budget_exhausted` com o motivo. Hoje `risk.drawdown_breached` só impede novas entradas; **conferir em `trader.py` e `supervisor.py` o que acontece com o bot nesse caso** antes de escolher onde aplicar o `stop`.
+* **D.2 Persistência e reinício:** coluna `drawdown_action TEXT NOT NULL DEFAULT 'pause'` em `bots` (migração `NNNN_drawdown_action`), mais `orm.py`, `repository.py`, `schemas.py`, OpenAPI. Reiniciar um bot encerrado por orçamento usa o `BotService.start` existente, mas **com motivo obrigatório** nesse caso (livro 1, cap. 8, Fase 1 já grava motivo e autor) e **recalibra o pico** para o patrimônio atual (novo orçamento); isso é uma intervenção contada. **Bots live:** a ação `stop` vale também, mas **nada nesta fase enfraquece as salvaguardas live**; aprovação e kill switch ficam como estão.
+* **D.3 Front-end:** campo "Ao atingir o drawdown máximo" (Pausar / Encerrar) no bloco de risco de `lib/bots/form.ts` e `bot-form-page.tsx`, texto de apoio ("encerrar exige reinício manual com motivo; lacunas podem ultrapassar o limite, p. 182"); `bots.api.ts`; o estado `stopped` já existe no enum `BotState`. `api:types` e `check:consistency`.
+* **D.4 Testes:** `tests/unit/test_risk_and_stops.py` e novo `test_drawdown_action.py`: com `pause`, tudo igual ao atual (regressão); com `stop`, o bot termina e audita; o pico só sobe; sem lacuna, a perda realizada não passa do orçamento; reinício recalibra o pico e exige motivo. Integração em `test_phase2_paper.py`-style com bot paper.
+* **Aceite:** com o padrão `pause`, nenhum teste existente muda; só ativável por escolha explícita; **não ativar em live até ter rodado em paper por um tempo**.
+
+### Fase E — Documentar decisões de julgamento (O7) · prioridade 5 · só documentação
+
+Nova seção em `api/docs/operations/runbook.md` ("Decisões de julgamento do operador"): (1) reduzir tamanho antes de eventos conhecidos, **só se o modelo não resistiu a estresse parecido** (o autor recomenda não fazer se resistiu; postura inicial conservadora); (2) dimensionar por estratégia, não em conjunto (por isso os bots são independentes); (3) quando encerrar um modelo (monitor do [cap. 4, Fase B](ch04-mean-reversion-stocks-etfs.md) e a nota de análise da Fase A); (4) a deterioração costuma ser **mudança de regime**, não erro de backtest. Referenciar `app/docs/07-ux-rules.md` quando tocar a UI. Mesmo texto resumido na tela de Status? **Decisão pendente.**
+
+### Ordem, dependências e estimativa
+
+A → B (a mesma tela de execução); C depende do registro de execução (já existe); D só depois de A e B (para escolher o limite com base) e **só em paper**; E é independente. Estimativa grosseira: A ≈ 2,5 dias (1,5 back, 1 front); B ≈ 4 (2,5 back, 1,5 front); C ≈ 1,5; D ≈ 3 (2 back, 1 front); E ≈ 0,5. Migrações: A e D (duas), B e C não mexem no banco.
+
+### Decisões pendentes (para o operador)
+
+* Bootstrap: aceitar os tetos (20.000 retornos, 300 simulações) ou amostrar em blocos; e se vale **uma** conversão `float` isolada para acelerar (proposta: ficar em `Decimal` e recusar acima do teto).
+* Múltiplo do alerta de slippage de saída protetora (proposta: 3×) e a janela (proposta: 24 h).
+* Se `drawdown_action = stop` pode ser usado em live depois de comprovado em paper (proposta: sim, por escolha explícita e com motivo no reinício).
+* Se a seção de julgamento também aparece na tela de Status.
+
+### Fora do escopo (decidido)
+
+Kelly agrupado por covariância (**B-PORTFOLIO**, só se bots passarem a dividir capital), indicadores VIX/TED/HYG/ONN, limites de alavancagem da corretora, exposição vendida e qualquer condicionamento da negociação por indicador de risco antes de validar fora da amostra (**H-RISK-INDICATOR** continua descritivo).
+
+### Critérios de aceite gerais
+
+Nenhuma salvaguarda live, kill switch ou aprovação é enfraquecida; nada é aplicado automaticamente; o app nunca mostra "exposição ótima" sem ressalva; nenhum `float` no domínio (salvo a decisão acima, se aprovada); `make check`, integração com `alembic upgrade head` e `downgrade -1` em banco com dados, `npm run lint`, `typecheck`, `test`, `format:check`, `check:consistency` e `build` verdes; telas em 1366 px e 360 px. Os números de Kelly e drawdown do livro são de uma estratégia semelhante a futuros com exposição de 18× e não descrevem cripto à vista.
+
 ## Ressalvas
 
 Todos os números de Kelly, Monte Carlo e drawdown referem-se a uma estratégia semelhante a futuros com exposição de 18× (estratégia do Exemplo 5.1) e não descrevem cripto à vista. O autor afirma que Kelly é limite superior, a hipótese gaussiana não é confiável, limites de alavancagem não garantem drawdown futuro e CPPI não protege contra lacunas (pp. 172, 179, 182). Retornos passados não garantem comportamento futuro.
