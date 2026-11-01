@@ -6,6 +6,7 @@ import { equityPointSchema, metricsSchema, tradeSchema } from "@/lib/shared/anal
 import {
   BreakEvenStatus,
   CandleProblem,
+  FillTiming,
   JobStatus,
   PeriodGranularity,
   RobustnessVerdict,
@@ -119,6 +120,16 @@ export const backtestSchema = z.object({
   max_drawdown_tolerance_pct: nullableDecimalSchema.optional(),
   max_drawdown_tolerance_days: z.number().nullish(),
   allow_gaps: z.boolean().optional(),
+  fill_timing: lenientEnum(FillTiming).optional(),
+  risk: z.record(z.string(), z.unknown()).nullish(),
+  risk_report: z
+    .object({
+      sizing: z.string(),
+      paused_at: z.string().nullable(),
+      paused_reason: z.string().nullable(),
+      refusals: z.record(z.string(), z.number()),
+    })
+    .nullish(),
   sweep_id: z.string().nullable(),
   data_hash: z.string().nullable(),
   candles_count: z.number().nullable(),
@@ -201,6 +212,20 @@ export type BacktestInput = {
   max_drawdown_tolerance_pct: string | null;
   max_drawdown_tolerance_days: number | null;
   allow_gaps: boolean;
+  fill_timing: string;
+  risk: RiskInput | null;
+};
+
+export type RiskInput = {
+  max_position_fraction: string;
+  max_order_notional: string | null;
+  max_daily_loss_pct: string | null;
+  max_drawdown_pct: string | null;
+  max_consecutive_losses: number | null;
+  max_risk_per_trade_pct: string | null;
+  require_stop_loss: boolean;
+  max_candle_range_pct: string | null;
+  max_order_pct_of_volume: string | null;
 };
 
 export const listBacktests = (limit: number, offset: number, signal?: AbortSignal) =>

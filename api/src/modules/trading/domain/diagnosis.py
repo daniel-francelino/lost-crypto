@@ -7,7 +7,7 @@ Bad luck can never be proven, so the checklist never concludes it.
 
 import statistics
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any
@@ -30,6 +30,7 @@ class Step:
     key: str
     state: StepState
     detail: str
+    values: dict[str, str | int | None] = field(default_factory=dict)  # for the UI's own text
 
 
 def _stats(values: Sequence[Decimal]) -> dict[str, str | None]:
@@ -90,6 +91,7 @@ def checklist(
                 "bugs",
                 StepState.OK if unexplained == 0 else StepState.ATTENTION,
                 f"{unexplained} unexplained difference(s) with the replay",
+                {"unexplained": unexplained},
             )
         )
         other = sum(int(counts.get(k, 0)) for k in ("cost", "risk", "operational", "data"))
@@ -98,6 +100,7 @@ def checklist(
                 "trades",
                 StepState.OK if other == 0 else StepState.ATTENTION,
                 f"{counts.get('match', 0)} identical, {other} explained difference(s)",
+                {"match": int(counts.get("match", 0)), "explained": other},
             )
         )
     market = (quality.get("by_type") or {}).get("market") or {}
@@ -110,6 +113,7 @@ def checklist(
                 "costs",
                 StepState.ATTENTION if quality.get("above_configured") else StepState.OK,
                 f"realized {mean} bps vs {quality['configured_slippage_bps']} bps assumed",
+                {"realized_bps": mean, "assumed_bps": str(quality["configured_slippage_bps"])},
             )
         )
     steps.append(
@@ -117,6 +121,7 @@ def checklist(
             "liquidity",
             StepState.ATTENTION if volume_refusals > 0 else StepState.OK,
             f"{volume_refusals} entry(ies) limited or refused by the volume cap",
+            {"refusals": volume_refusals},
         )
     )
     simplified = (parity or {}).get("simplified_return_pct")
@@ -132,6 +137,7 @@ def checklist(
                 "snooping",
                 StepState.ATTENTION if collapses else StepState.OK,
                 f"tuned {replay}% vs default parameters {simplified}% on the same candles",
+                {"tuned_pct": str(replay), "default_pct": str(simplified)},
             )
         )
     if regime is None:
@@ -145,6 +151,7 @@ def checklist(
                 "regime",
                 StepState.ATTENTION if bot_return < worst else StepState.OK,
                 f"bot {bot_return}% vs worst backtest period {worst}%",
+                {"bot_pct": str(bot_return), "worst_period_pct": str(worst)},
             )
         )
     return steps

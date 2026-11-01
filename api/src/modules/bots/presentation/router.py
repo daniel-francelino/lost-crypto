@@ -564,6 +564,9 @@ class StepOut(BaseModel):
     key: str = Field(description="bugs | trades | costs | liquidity | snooping | regime")
     state: str = Field(description="ok | attention | no_data")
     detail: str
+    values: dict[str, str | int | None] = Field(
+        default_factory=dict, description="The numbers behind the detail."
+    )
 
 
 @router.get("/{bot_id}/divergence", response_model=list[StepOut])
@@ -583,7 +586,9 @@ async def get_divergence(bot_id: UUID, request: Request) -> list[StepOut]:
         volume_refusals,
         await _regime(container, bot, summary),
     )
-    return [StepOut(key=s.key, state=s.state.value, detail=s.detail) for s in steps]
+    return [
+        StepOut(key=s.key, state=s.state.value, detail=s.detail, values=s.values) for s in steps
+    ]
 
 
 async def _regime(

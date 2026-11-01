@@ -2,6 +2,7 @@ import { Zap } from "lucide-react";
 import { PageHeader } from "lost-ui/app/page-header";
 import { Alert, AlertDescription, AlertTitle } from "lost-ui/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "lost-ui/ui/tabs";
+import { DiagnosisTab, ParityTab } from "@/components/bots/bot-execution";
 import { BotControls } from "@/components/bots/bot-controls";
 import {
   ConfigTab,
@@ -112,6 +113,12 @@ export function BotDetailPage({ botId, tab, onTabChange }: BotDetailPageProps) {
         </TabsContent>
         <TabsContent value={BotTab.Performance} className="pt-4">
           <PerformanceTab bot={bot} />
+        </TabsContent>
+        <TabsContent value={BotTab.Parity} className="pt-4">
+          <ParityTab bot={bot} />
+        </TabsContent>
+        <TabsContent value={BotTab.Diagnosis} className="pt-4">
+          <DiagnosisTab bot={bot} />
         </TabsContent>
         <TabsContent value={BotTab.Config} className="pt-4">
           <ConfigTab bot={bot} />

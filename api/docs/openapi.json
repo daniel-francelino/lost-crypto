@@ -6698,6 +6698,24 @@
           "detail": {
             "type": "string",
             "title": "Detail"
+          },
+          "values": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Values",
+            "description": "The numbers behind the detail."
           }
         },
         "type": "object",

@@ -829,6 +829,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bots/{bot_id}/execution-quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Execution Quality
+         * @description Realized slippage and latency of the bot's filled orders against its assumption.
+         */
+        get: operations["get_execution_quality_api_v1_bots__bot_id__execution_quality_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bots/{bot_id}/parity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Parity */
+        get: operations["get_parity_api_v1_bots__bot_id__parity_get"];
+        put?: never;
+        /**
+         * Request Parity
+         * @description Queue a replay of the bot's latest session through the backtester (the worker runs it)
+         *     and a comparison of signals and trades. Read-only: the bot is not affected.
+         */
+        post: operations["request_parity_api_v1_bots__bot_id__parity_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bots/{bot_id}/divergence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Divergence
+         * @description Chan's checklist for "why does it differ from the backtest?", in his order. Never
+         *     concludes bad luck: it cannot be proven.
+         */
+        get: operations["get_divergence_api_v1_bots__bot_id__divergence_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/kill-switch": {
         parameters: {
             query?: never;
@@ -1126,6 +1189,13 @@ export interface components {
              */
             max_drawdown_tolerance_days?: number | null;
             /**
+             * @description `next_open`: fill at the next candle's open (default). `signal_close`: fill at the close of the signal candle, like the bots do (use it to compare with a bot).
+             * @default next_open
+             */
+            fill_timing: components["schemas"]["FillTiming"];
+            /** @description Size and pause exactly like a bot with these limits (the bot's risk module). Null keeps the all-in sizing. */
+            risk?: components["schemas"]["RiskLimitsIn-Input"] | null;
+            /**
              * Allow Gaps
              * @description Run even when the range misses more than 1% of its candles or has a hole longer than 24 h (otherwise 422). The gaps are reported in `data_quality.gaps`.
              * @default false
@@ -1179,6 +1249,8 @@ export interface components {
             max_drawdown_tolerance_days: number | null;
             /** Allow Gaps */
             allow_gaps: boolean;
+            fill_timing: components["schemas"]["FillTiming"];
+            risk: components["schemas"]["RiskLimitsIn-Output"] | null;
             /** Sweep Id */
             sweep_id: string | null;
             /** Data Hash */
@@ -1191,6 +1263,7 @@ export interface components {
             cost_ladder: components["schemas"]["CostLadderOut"] | null;
             tolerance: components["schemas"]["ToleranceOut"] | null;
             data_quality: components["schemas"]["DataQualityOut"] | null;
+            risk_report: components["schemas"]["RiskReportOut"] | null;
             /** Error */
             error: string | null;
             /**
@@ -1269,7 +1342,7 @@ export interface components {
              * @default 5
              */
             slippage_bps: number | string;
-            risk?: components["schemas"]["RiskIn-Input"];
+            risk?: components["schemas"]["RiskLimitsIn-Input"];
             /**
              * Mode
              * @default paper
@@ -1308,7 +1381,7 @@ export interface components {
             fee_rate: string;
             /** Slippage Bps */
             slippage_bps: string;
-            risk: components["schemas"]["RiskIn-Output"];
+            risk: components["schemas"]["RiskLimitsIn-Output"];
             mode: components["schemas"]["ExecutionMode"];
             /** Connection Id */
             connection_id: string | null;
@@ -1402,7 +1475,7 @@ export interface components {
             fee_rate?: number | string | null;
             /** Slippage Bps */
             slippage_bps?: number | string | null;
-            risk?: components["schemas"]["RiskIn-Input"] | null;
+            risk?: components["schemas"]["RiskLimitsIn-Input"] | null;
             /** Mode */
             mode?: ("paper" | "testnet") | null;
             /** Connection Id */
@@ -1678,6 +1751,30 @@ export interface components {
          * @enum {string}
          */
         ExecutionMode: "paper" | "testnet" | "live";
+        /** ExecutionQualityOut */
+        ExecutionQualityOut: {
+            /** Configured Slippage Bps */
+            configured_slippage_bps: string;
+            /**
+             * By Type
+             * @description Per order type: orders, slippage_bps {mean, median, worst}, latency_ms {mean, max}.
+             */
+            by_type: {
+                [key: string]: unknown;
+            };
+            /**
+             * Above Configured
+             * @description Realized market-order slippage above the assumption (+1 bps tolerance).
+             */
+            above_configured: boolean;
+        };
+        /**
+         * FillTiming
+         * @description When a signal is filled (book 1 ch. 5): at the next candle's open (the backtest's
+         *     default), or at the close of the signal candle, which is what the bots do.
+         * @enum {string}
+         */
+        FillTiming: "next_open" | "signal_close";
         /** GapItemOut */
         GapItemOut: {
             /**
@@ -2008,6 +2105,25 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Reference Price
+             * @description Price of the decision: signal candle close or stop trigger.
+             */
+            reference_price?: string | null;
+            /** Submitted At */
+            submitted_at?: string | null;
+            /** First Fill At */
+            first_fill_at?: string | null;
+            /**
+             * Slippage Bps
+             * @description Adverse move from the reference to the fill (bps).
+             */
+            slippage_bps?: string | null;
+            /**
+             * Latency Ms
+             * @description Decision to first fill.
+             */
+            latency_ms?: number | null;
         };
         /**
          * OrderStatus
@@ -2059,6 +2175,37 @@ export interface components {
             minimum: number | null;
             /** Description */
             description: string;
+        };
+        /** ParityOut */
+        ParityOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Status
+             * @description queued | running | completed | failed
+             */
+            status: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Finished At */
+            finished_at: string | null;
+            /** Unexplained */
+            unexplained: number | null;
+            /**
+             * Summary
+             * @description counts by class, verdict, differences, returns, replay_equity.
+             */
+            summary: {
+                [key: string]: unknown;
+            } | null;
+            /** Error */
+            error: string | null;
         };
         /** PeriodOut */
         PeriodOut: {
@@ -2197,8 +2344,11 @@ export interface components {
             /** Checks */
             checks: components["schemas"]["CheckOut"][];
         };
-        /** RiskIn */
-        "RiskIn-Input": {
+        /**
+         * RiskLimitsIn
+         * @description A bot's risk limits; also accepted by backtests to size and pause exactly like the bot.
+         */
+        "RiskLimitsIn-Input": {
             /**
              * Max Position Fraction
              * @default 1
@@ -2227,9 +2377,17 @@ export interface components {
              * @default 25
              */
             max_candle_range_pct: number | string | null;
+            /**
+             * Max Order Pct Of Volume
+             * @description Cap an order at this % of the average traded value of the last 20 candles (Chan's rule of thumb: ~1% of daily volume, for stocks). Null = off.
+             */
+            max_order_pct_of_volume?: number | string | null;
         };
-        /** RiskIn */
-        "RiskIn-Output": {
+        /**
+         * RiskLimitsIn
+         * @description A bot's risk limits; also accepted by backtests to size and pause exactly like the bot.
+         */
+        "RiskLimitsIn-Output": {
             /**
              * Max Position Fraction
              * @default 1
@@ -2258,6 +2416,30 @@ export interface components {
              * @default 25
              */
             max_candle_range_pct: string | null;
+            /**
+             * Max Order Pct Of Volume
+             * @description Cap an order at this % of the average traded value of the last 20 candles (Chan's rule of thumb: ~1% of daily volume, for stocks). Null = off.
+             */
+            max_order_pct_of_volume?: string | null;
+        };
+        /** RiskReportOut */
+        RiskReportOut: {
+            /**
+             * Sizing
+             * @description `all_in` or `risk_limits`.
+             */
+            sizing: string;
+            /** Paused At */
+            paused_at: string | null;
+            /** Paused Reason */
+            paused_reason: string | null;
+            /**
+             * Refusals
+             * @description Refused signals by reason.
+             */
+            refusals: {
+                [key: string]: number;
+            };
         };
         /** RobustnessOut */
         RobustnessOut: {
@@ -2379,6 +2561,28 @@ export interface components {
              */
             confirmation_token?: string | null;
         };
+        /** StepOut */
+        StepOut: {
+            /**
+             * Key
+             * @description bugs | trades | costs | liquidity | snooping | regime
+             */
+            key: string;
+            /**
+             * State
+             * @description ok | attention | no_data
+             */
+            state: string;
+            /** Detail */
+            detail: string;
+            /**
+             * Values
+             * @description The numbers behind the detail.
+             */
+            values?: {
+                [key: string]: string | number | null;
+            };
+        };
         /** StrategyOut */
         StrategyOut: {
             /** Type Key */
@@ -2478,6 +2682,13 @@ export interface components {
              * @description Longest drawdown (days below the peak) the operator accepts.
              */
             max_drawdown_tolerance_days?: number | null;
+            /**
+             * @description `next_open`: fill at the next candle's open (default). `signal_close`: fill at the close of the signal candle, like the bots do (use it to compare with a bot).
+             * @default next_open
+             */
+            fill_timing: components["schemas"]["FillTiming"];
+            /** @description Size and pause exactly like a bot with these limits (the bot's risk module). Null keeps the all-in sizing. */
+            risk?: components["schemas"]["RiskLimitsIn-Input"] | null;
             /**
              * Allow Gaps
              * @description Run even when the range misses more than 1% of its candles or has a hole longer than 24 h (otherwise 422). The gaps are reported in `data_quality.gaps`.
@@ -4120,6 +4331,130 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EquityPointOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_execution_quality_api_v1_bots__bot_id__execution_quality_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecutionQualityOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_parity_api_v1_bots__bot_id__parity_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParityOut"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_parity_api_v1_bots__bot_id__parity_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParityOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_divergence_api_v1_bots__bot_id__divergence_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepOut"][];
                 };
             };
             /** @description Validation Error */

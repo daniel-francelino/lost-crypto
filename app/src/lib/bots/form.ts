@@ -29,6 +29,7 @@ export type BotFormValues = {
   maxRiskPerTradePct: string;
   requireStopLoss: boolean;
   maxCandleRangePct: string;
+  maxOrderPctOfVolume: string;
   mode: string;
   connectionId: string;
 };
@@ -51,6 +52,7 @@ export const defaultFormValues = (strategy: Strategy | undefined): BotFormValues
   maxRiskPerTradePct: "",
   requireStopLoss: false,
   maxCandleRangePct: "25",
+  maxOrderPctOfVolume: "",
   mode: ExecutionMode.Paper,
   connectionId: "",
 });
@@ -75,6 +77,7 @@ export const formFromBot = (bot: Bot, strategy: Strategy | undefined): BotFormVa
   maxRiskPerTradePct: text(bot.risk.max_risk_per_trade_pct),
   requireStopLoss: bot.risk.require_stop_loss,
   maxCandleRangePct: text(bot.risk.max_candle_range_pct),
+  maxOrderPctOfVolume: text(bot.risk.max_order_pct_of_volume ?? null),
   mode: bot.mode,
   connectionId: bot.connection_id ?? "",
 });
@@ -103,6 +106,7 @@ export const toBotInput = (values: BotFormValues, strategy: Strategy | undefined
     max_risk_per_trade_pct: nullable(values.maxRiskPerTradePct),
     require_stop_loss: values.requireStopLoss,
     max_candle_range_pct: nullable(values.maxCandleRangePct),
+    max_order_pct_of_volume: nullable(values.maxOrderPctOfVolume),
   },
   mode: values.mode,
   connection_id: values.mode === ExecutionMode.Paper ? null : nullable(values.connectionId),

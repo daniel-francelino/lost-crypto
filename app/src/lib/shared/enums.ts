@@ -68,6 +68,45 @@ export const RobustnessVerdict = {
 } as const;
 export type RobustnessVerdict = ValueOf<typeof RobustnessVerdict>;
 
+export const ParityClass = {
+  Match: "match",
+  Cost: "cost",
+  Risk: "risk",
+  Operational: "operational",
+  Data: "data",
+  Unexplained: "unexplained",
+} as const;
+export type ParityClass = ValueOf<typeof ParityClass>;
+
+export const ParityVerdict = {
+  Consistent: "consistent",
+  Differences: "differences",
+} as const;
+export type ParityVerdict = ValueOf<typeof ParityVerdict>;
+
+export const DivergenceStep = {
+  Bugs: "bugs",
+  Trades: "trades",
+  Costs: "costs",
+  Liquidity: "liquidity",
+  Snooping: "snooping",
+  Regime: "regime",
+} as const;
+export type DivergenceStep = ValueOf<typeof DivergenceStep>;
+
+export const StepState = {
+  Ok: "ok",
+  Attention: "attention",
+  NoData: "no_data",
+} as const;
+export type StepState = ValueOf<typeof StepState>;
+
+export const FillTiming = {
+  NextOpen: "next_open",
+  SignalClose: "signal_close",
+} as const;
+export type FillTiming = ValueOf<typeof FillTiming>;
+
 export const JobStatus = {
   Queued: "queued",
   Running: "running",

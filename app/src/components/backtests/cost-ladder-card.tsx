@@ -77,13 +77,15 @@ export function CostLadderCard({ ladder }: { ladder: CostLadder }) {
         ) : (
           <p className="text-lg font-semibold">{headline(ladder)}</p>
         )}
-        <DataTable
-          data={ladder.levels}
-          columns={columns}
-          getRowId={(row) => row.multiplier}
-          rowLabel={(row) => `${row.multiplier}x`}
-          caption="Resultado por nível de custo"
-        />
+        <div className="min-w-0 overflow-x-auto">
+          <DataTable
+            data={ladder.levels}
+            columns={columns}
+            getRowId={(row) => row.multiplier}
+            rowLabel={(row) => `${row.multiplier}x`}
+            caption="Resultado por nível de custo"
+          />
+        </div>
         <p className="text-xs text-muted-foreground">
           Muda só taxa e slippage; impacto de mercado e ordens limitadas não executadas não são
           simulados.

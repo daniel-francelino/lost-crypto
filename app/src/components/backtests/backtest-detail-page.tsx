@@ -12,6 +12,7 @@ import {
 } from "@/components/shared/feedback/query-boundary";
 import { CostLadderCard } from "@/components/backtests/cost-ladder-card";
 import { DataQualityCard } from "@/components/backtests/data-quality-card";
+import { RiskReportCard } from "@/components/backtests/risk-report-card";
 import { PeriodsCard } from "@/components/backtests/periods-card";
 import { ScreeningPanel } from "@/components/backtests/screening-panel";
 import { EquityChart } from "@/components/shared/metrics/equity-chart";
@@ -141,6 +142,7 @@ export function BacktestDetailPage({ runId }: { runId: string }) {
       {run.data_quality === null || run.data_quality === undefined ? null : (
         <DataQualityCard run={run} quality={run.data_quality} />
       )}
+      <RiskReportCard run={run} />
       {run.metrics === null ? null : (
         <section className="space-y-3" aria-label="Métricas">
           <h2 className="text-base font-semibold">Resultado completo</h2>
@@ -223,7 +225,7 @@ export function BacktestDetailPage({ runId }: { runId: string }) {
         <CardContent>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
             <dt className="text-muted-foreground">Parâmetros</dt>
-            <dd>{JSON.stringify(run.strategy_params)}</dd>
+            <dd className="break-all font-mono text-xs">{JSON.stringify(run.strategy_params)}</dd>
             <dt className="text-muted-foreground">Semente</dt>
             <dd>{run.seed}</dd>
             <dt className="text-muted-foreground">Candles usados</dt>

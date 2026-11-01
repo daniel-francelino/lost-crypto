@@ -14,7 +14,10 @@ import { ErrorBlock, SkeletonBlock } from "@/components/shared/feedback/query-bo
 import { CoverageNotice } from "@/components/shared/market-data/coverage-notice";
 import { StrategyFields } from "@/components/shared/strategy/strategy-fields";
 import { createBacktest, createSweep } from "@/lib/backtests/backtests.api";
+import { BotLikeCard } from "@/components/backtests/bot-like-card";
+import type { BacktestPrefill } from "@/lib/shared/backtest-prefill";
 import {
+  applyBacktestPrefill,
   type BacktestFormValues,
   MAX_PARAMETERS,
   buildGrid,
@@ -40,11 +43,17 @@ import type { Strategy } from "@/lib/shared/strategies/strategies.api";
 
 const TIMEFRAMES = Object.values(Timeframe).map((value) => ({ label: value, value }));
 
-function BacktestForm({ strategies, exchanges }: { strategies: Strategy[]; exchanges: string[] }) {
+type BacktestFormProps = {
+  strategies: Strategy[];
+  exchanges: string[];
+  prefill: BacktestPrefill;
+};
+
+function BacktestForm({ strategies, exchanges, prefill }: BacktestFormProps) {
   const navigate = useNavigate();
   const client = useQueryClient();
   const [values, setValues] = useState<BacktestFormValues>(() =>
-    defaultBacktestValues(strategies[0]),
+    applyBacktestPrefill(defaultBacktestValues(strategies[0]), prefill, strategies),
   );
   const [error, setError] = useState<string | null>(null);
   const strategy = strategies.find((item) => item.type_key === values.strategyType);
@@ -304,6 +313,11 @@ function BacktestForm({ strategies, exchanges }: { strategies: Strategy[]; excha
         </CardContent>
       </Card>
 
+      <BotLikeCard
+        values={values}
+        onChange={(next) => setValues((current) => ({ ...current, ...next }))}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Robustez e tolerância</CardTitle>
@@ -361,7 +375,7 @@ function BacktestForm({ strategies, exchanges }: { strategies: Strategy[]; excha
   );
 }
 
-export function BacktestFormPage() {
+export function BacktestFormPage({ prefill = {} }: { prefill?: BacktestPrefill }) {
   const strategies = useStrategies();
   const capabilities = useCapabilities();
   return (
@@ -378,6 +392,7 @@ export function BacktestFormPage() {
         <BacktestForm
           strategies={strategies.data}
           exchanges={capabilities.data?.exchanges ?? ["binance"]}
+          prefill={prefill}
         />
       )}
     </div>

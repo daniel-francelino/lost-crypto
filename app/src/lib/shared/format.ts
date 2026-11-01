@@ -103,3 +103,6 @@ export const formatFractionAsPercent = (value: string | null | undefined): strin
 
 export const formatFraction = (value: string | null | undefined): string =>
   decimal(value, { min: 0, max: 4 });
+
+export const trimDecimalZeros = (value: string): string =>
+  isDecimal(value) && value.includes(".") ? value.replace(/0+$/, "").replace(/\.$/, "") : value;

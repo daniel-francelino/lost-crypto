@@ -4,6 +4,7 @@ import {
   combinationCount,
   defaultBacktestValues,
   gridError,
+  applyBacktestPrefill,
   sampleAdvice,
   testFractionWarning,
   toBacktestInput,
@@ -100,5 +101,35 @@ describe("backtest form", () => {
     const withStop = { ...values.params, stop_loss_pct: "3" };
     expect(sampleAdvice(STRATEGY, withStop, 2000).freeParameters).toBe(3);
     expect(toBacktestInput({ ...values, allowGaps: true }, STRATEGY).allow_gaps).toBe(true);
+  });
+
+  it("fills the form from a bot and sends its risk limits and timing", () => {
+    const values = applyBacktestPrefill(
+      defaultBacktestValues(STRATEGY, NOW),
+      {
+        strategy: "ema_crossover",
+        symbol: "ETH/USDT",
+        params: '{"fast_period":5,"slow_period":13}',
+        slippageBps: "7.500000000000000000",
+        fillTiming: "signal_close",
+        risk: '{"max_position_fraction":"0.500000000000000000","max_daily_loss_pct":null,"max_consecutive_losses":3,"require_stop_loss":true}',
+      },
+      [STRATEGY],
+    );
+    expect(values.symbol).toBe("ETH/USDT");
+    expect(values.params["fast_period"]).toBe("5");
+    expect(values.riskEnabled).toBe(true);
+    const input = toBacktestInput(values, STRATEGY);
+    expect(input.fill_timing).toBe("signal_close");
+    expect(input.slippage_bps).toBe("7.5");
+    expect(input.risk).toMatchObject({
+      max_position_fraction: "0.5",
+      max_daily_loss_pct: null,
+      max_consecutive_losses: 3,
+      require_stop_loss: true,
+    });
+    const plain = toBacktestInput(defaultBacktestValues(STRATEGY, NOW), STRATEGY);
+    expect(plain.risk).toBeNull();
+    expect(plain.fill_timing).toBe("next_open");
   });
 });

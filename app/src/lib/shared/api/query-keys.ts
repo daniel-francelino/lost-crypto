@@ -17,6 +17,9 @@ export const QueryKey = {
     signals: (id: string, limit: number, offset: number) =>
       ["bots", id, "signals", limit, offset] as const,
     readiness: (id: string) => ["bots", id, "live-readiness"] as const,
+    executionQuality: (id: string) => ["bots", id, "execution-quality"] as const,
+    parity: (id: string) => ["bots", id, "parity"] as const,
+    divergence: (id: string) => ["bots", id, "divergence"] as const,
   },
   Backtests: {
     all: () => ["backtests"] as const,

@@ -21,8 +21,11 @@ import {
 import type { Bot, Order, Signal } from "@/lib/bots/bots.api";
 import { formatDateTime, formatUtcShort } from "@/lib/shared/dates";
 import { ExecutionMode } from "@/lib/shared/enums";
+import { ExecutionQualityCard } from "@/components/bots/bot-execution";
 import {
   compareDecimal,
+  formatInteger,
+  formatRatio,
   formatMoney,
   formatPrice,
   formatQuantity,
@@ -68,6 +71,7 @@ export function SummaryTab({ bot }: { bot: Bot }) {
   return (
     <div className="space-y-4">
       <ConnectionWarning bot={bot} />
+      <ExecutionQualityCard bot={bot} />
       {portfolio.data !== undefined &&
       usesExchange(bot.mode) &&
       compareDecimal(portfolio.data.quantity, "0") > 0 &&
@@ -176,6 +180,37 @@ export function OrdersTab({ bot }: { bot: Bot }) {
       accessor: "avg_fill_price",
       align: "right",
       cell: (row) => formatPrice(row.avg_fill_price),
+    },
+    {
+      id: "reference",
+      header: "Referência",
+      align: "right",
+      cell: (row) => formatPrice(row.reference_price),
+    },
+    {
+      id: "slippage",
+      header: "Slippage (bps)",
+      align: "right",
+      cell: (row) => (
+        <span
+          className={
+            compareDecimal(row.slippage_bps ?? null, bot.slippage_bps) > 0
+              ? "font-medium text-warning"
+              : undefined
+          }
+        >
+          {formatRatio(row.slippage_bps)}
+        </span>
+      ),
+    },
+    {
+      id: "latency",
+      header: "Latência",
+      align: "right",
+      cell: (row) =>
+        row.latency_ms === null || row.latency_ms === undefined
+          ? "—"
+          : `${formatInteger(row.latency_ms)} ms`,
     },
     {
       id: "status",

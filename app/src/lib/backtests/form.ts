@@ -1,7 +1,8 @@
-import type { BacktestInput } from "@/lib/backtests/backtests.api";
+import type { BacktestInput, RiskInput } from "@/lib/backtests/backtests.api";
+import { type BacktestPrefill, parseJsonRecord } from "@/lib/shared/backtest-prefill";
 import { dayEndUtcIso, dayStartUtcIso, daysAgoString } from "@/lib/shared/dates";
-import { Timeframe } from "@/lib/shared/enums";
-import { compareDecimal } from "@/lib/shared/format";
+import { FillTiming, Timeframe } from "@/lib/shared/enums";
+import { compareDecimal, trimDecimalZeros } from "@/lib/shared/format";
 import {
   type ParamValues,
   buildStrategyParams,
@@ -33,6 +34,33 @@ export type BacktestFormValues = {
   allowGaps: boolean;
   sweep: boolean;
   grid: Record<string, string>;
+  fillTiming: string;
+  riskEnabled: boolean;
+  risk: RiskValues;
+};
+
+export type RiskValues = {
+  maxPositionFraction: string;
+  maxOrderNotional: string;
+  maxDailyLossPct: string;
+  maxDrawdownPct: string;
+  maxConsecutiveLosses: string;
+  maxRiskPerTradePct: string;
+  requireStopLoss: boolean;
+  maxCandleRangePct: string;
+  maxOrderPctOfVolume: string;
+};
+
+export const DEFAULT_RISK: RiskValues = {
+  maxPositionFraction: "1",
+  maxOrderNotional: "",
+  maxDailyLossPct: "10",
+  maxDrawdownPct: "",
+  maxConsecutiveLosses: "",
+  maxRiskPerTradePct: "",
+  requireStopLoss: false,
+  maxCandleRangePct: "25",
+  maxOrderPctOfVolume: "",
 };
 
 export const defaultBacktestValues = (
@@ -57,6 +85,9 @@ export const defaultBacktestValues = (
   allowGaps: false,
   sweep: false,
   grid: {},
+  fillTiming: FillTiming.NextOpen,
+  riskEnabled: false,
+  risk: DEFAULT_RISK,
 });
 
 export const buildGrid = (
@@ -110,6 +141,8 @@ export const toBacktestInput = (
     max_drawdown_tolerance_pct: tolerancePct === "" ? null : tolerancePct,
     max_drawdown_tolerance_days: toleranceDays === "" ? null : Number.parseInt(toleranceDays, 10),
     allow_gaps: values.allowGaps,
+    fill_timing: values.fillTiming,
+    risk: values.riskEnabled ? riskInput(values.risk) : null,
   };
 };
 
@@ -137,4 +170,65 @@ export const sampleAdvice = (
   const freeParameters = freeParameterCount(strategy, values);
   const minBars = BARS_PER_PARAMETER * freeParameters;
   return { freeParameters, minBars, enough: expectedBars >= minBars };
+};
+
+const blankToNull = (text: string): string | null => (text.trim() === "" ? null : text.trim());
+
+export const riskInput = (risk: RiskValues): RiskInput => ({
+  max_position_fraction: risk.maxPositionFraction.trim() || "1",
+  max_order_notional: blankToNull(risk.maxOrderNotional),
+  max_daily_loss_pct: blankToNull(risk.maxDailyLossPct),
+  max_drawdown_pct: blankToNull(risk.maxDrawdownPct),
+  max_consecutive_losses:
+    risk.maxConsecutiveLosses.trim() === "" ? null : Number.parseInt(risk.maxConsecutiveLosses, 10),
+  max_risk_per_trade_pct: blankToNull(risk.maxRiskPerTradePct),
+  require_stop_loss: risk.requireStopLoss,
+  max_candle_range_pct: blankToNull(risk.maxCandleRangePct),
+  max_order_pct_of_volume: blankToNull(risk.maxOrderPctOfVolume),
+});
+
+const textOf = (value: unknown): string =>
+  value === null || value === undefined ? "" : trimDecimalZeros(String(value));
+
+export const riskValuesFrom = (raw: Record<string, unknown>): RiskValues => ({
+  maxPositionFraction: textOf(raw["max_position_fraction"]) || "1",
+  maxOrderNotional: textOf(raw["max_order_notional"]),
+  maxDailyLossPct: textOf(raw["max_daily_loss_pct"]),
+  maxDrawdownPct: textOf(raw["max_drawdown_pct"]),
+  maxConsecutiveLosses: textOf(raw["max_consecutive_losses"]),
+  maxRiskPerTradePct: textOf(raw["max_risk_per_trade_pct"]),
+  requireStopLoss: raw["require_stop_loss"] === true,
+  maxCandleRangePct: textOf(raw["max_candle_range_pct"]),
+  maxOrderPctOfVolume: textOf(raw["max_order_pct_of_volume"]),
+});
+
+export const applyBacktestPrefill = (
+  values: BacktestFormValues,
+  prefill: BacktestPrefill,
+  strategies: Strategy[],
+): BacktestFormValues => {
+  const strategy = strategies.find((item) => item.type_key === prefill.strategy);
+  const risk = parseJsonRecord(prefill.risk);
+  const params = parseJsonRecord(prefill.params);
+  return {
+    ...values,
+    symbol: prefill.symbol ?? values.symbol,
+    timeframe: prefill.timeframe ?? values.timeframe,
+    strategyType: strategy?.type_key ?? values.strategyType,
+    params:
+      strategy === undefined
+        ? values.params
+        : {
+            ...defaultParamValues(strategy),
+            ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, textOf(v)])),
+          },
+    feeRate: prefill.feeRate === undefined ? values.feeRate : trimDecimalZeros(prefill.feeRate),
+    slippageBps:
+      prefill.slippageBps === undefined
+        ? values.slippageBps
+        : trimDecimalZeros(prefill.slippageBps),
+    fillTiming: prefill.fillTiming ?? values.fillTiming,
+    riskEnabled: prefill.risk !== undefined,
+    risk: prefill.risk === undefined ? values.risk : riskValuesFrom(risk),
+  };
 };

@@ -11,8 +11,13 @@ import {
 import { type Metrics, equityPointSchema, metricsSchema } from "@/lib/shared/analytics";
 import {
   BotState,
+  DivergenceStep,
   ExecutionMode,
+  JobStatus,
   OrderStatus,
+  ParityClass,
+  ParityVerdict,
+  StepState,
   Side,
   SignalKind,
   type Timeframe,
@@ -27,6 +32,7 @@ const riskSchema = z.object({
   max_risk_per_trade_pct: nullableDecimalSchema,
   require_stop_loss: z.boolean(),
   max_candle_range_pct: nullableDecimalSchema,
+  max_order_pct_of_volume: nullableDecimalSchema.optional(),
 });
 export type Risk = z.infer<typeof riskSchema>;
 
@@ -122,6 +128,11 @@ const orderSchema = z.object({
   reject_reason: z.string().nullable(),
   bar_time: z.string(),
   created_at: z.string(),
+  reference_price: nullableDecimalSchema.optional(),
+  submitted_at: z.string().nullish(),
+  first_fill_at: z.string().nullish(),
+  slippage_bps: nullableDecimalSchema.optional(),
+  latency_ms: z.number().nullish(),
 });
 export type Order = z.infer<typeof orderSchema>;
 
@@ -154,6 +165,7 @@ export type RiskInput = {
   max_risk_per_trade_pct: string | null;
   require_stop_loss: boolean;
   max_candle_range_pct: string | null;
+  max_order_pct_of_volume: string | null;
 };
 
 export type BotInput = {
@@ -258,3 +270,78 @@ export const requestApproval = (id: string, confirmName: string) =>
     schema: approvalSchema,
     body: { confirm_name: confirmName },
   });
+
+const slippageStatsSchema = z.object({
+  mean: nullableDecimalSchema,
+  median: nullableDecimalSchema,
+  worst: nullableDecimalSchema,
+});
+
+const qualityByTypeSchema = z.object({
+  orders: z.number(),
+  slippage_bps: slippageStatsSchema,
+  latency_ms: z.object({ mean: z.number().nullable(), max: z.number().nullable() }),
+});
+
+const executionQualitySchema = z.object({
+  configured_slippage_bps: decimalSchema,
+  by_type: z.record(z.string(), qualityByTypeSchema),
+  above_configured: z.boolean(),
+});
+export type ExecutionQuality = z.infer<typeof executionQualitySchema>;
+
+export const getExecutionQuality = (id: string, signal?: AbortSignal) =>
+  request({ path: `/bots/${id}/execution-quality`, schema: executionQualitySchema, signal });
+
+const paritySummarySchema = z.object({
+  session_id: z.string(),
+  session_mode: z.string(),
+  period_start: z.string(),
+  period_end: z.string().nullable(),
+  candles: z.number(),
+  fill_timing: z.string(),
+  counts: z.record(z.string(), z.number()),
+  verdict: lenientEnum(ParityVerdict),
+  differences: z.array(
+    z.object({
+      bar_time: z.string(),
+      side: lenientEnum(Side),
+      kind: lenientEnum(ParityClass),
+      bot: z.string(),
+      replay: z.string(),
+    }),
+  ),
+  bot_return_pct: nullableDecimalSchema,
+  replay_return_pct: nullableDecimalSchema,
+  simplified_return_pct: nullableDecimalSchema,
+  replay_equity: z.array(z.tuple([z.string(), z.string()])),
+});
+export type ParitySummary = z.infer<typeof paritySummarySchema>;
+
+const paritySchema = z.object({
+  id: z.string(),
+  status: lenientEnum(JobStatus),
+  created_at: z.string(),
+  finished_at: nullableTimestampSchema,
+  unexplained: z.number().nullable(),
+  summary: paritySummarySchema.nullable(),
+  error: z.string().nullable(),
+});
+export type Parity = z.infer<typeof paritySchema>;
+
+export const getParity = (id: string, signal?: AbortSignal) =>
+  request({ path: `/bots/${id}/parity`, schema: paritySchema.nullable(), signal });
+
+export const requestParity = (id: string) =>
+  request({ method: HttpMethod.Post, path: `/bots/${id}/parity`, schema: paritySchema });
+
+const stepSchema = z.object({
+  key: lenientEnum(DivergenceStep),
+  state: lenientEnum(StepState),
+  detail: z.string(),
+  values: z.record(z.string(), z.union([z.string(), z.number(), z.null()])).optional(),
+});
+export type DivergenceStepResult = z.infer<typeof stepSchema>;
+
+export const getDivergence = (id: string, signal?: AbortSignal) =>
+  request({ path: `/bots/${id}/divergence`, schema: z.array(stepSchema), signal });

@@ -104,13 +104,15 @@ export function PeriodsCard({ periods, totalReturnPct }: PeriodsCardProps) {
             </AlertDescription>
           </Alert>
         ) : null}
-        <DataTable
-          data={rows}
-          columns={columns}
-          getRowId={(row) => row.label}
-          rowLabel={(row) => row.label}
-          caption={`Métricas por ${unit}`}
-        />
+        <div className="min-w-0 overflow-x-auto">
+          <DataTable
+            data={rows}
+            columns={columns}
+            getRowId={(row) => row.label}
+            rowLabel={(row) => row.label}
+            caption={`Métricas por ${unit}`}
+          />
+        </div>
       </CardContent>
     </Card>
   );
