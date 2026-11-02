@@ -46,6 +46,7 @@ export const botSchema = z.object({
   strategy_type: z.string(),
   strategy_params: z.record(z.string(), z.unknown()),
   symbol: z.string(),
+  product: z.string().optional(),
   timeframe: z.string(),
   initial_capital: decimalSchema,
   fee_rate: decimalSchema,
@@ -209,6 +210,14 @@ export const pauseBot = (id: string, reason?: string) =>
 
 export const stopBot = (id: string, reason?: string) =>
   command(id, "stop", reason?.trim() ? { reason: reason.trim() } : undefined);
+
+export const closeFuturesPosition = (id: string, reason?: string) =>
+  request({
+    method: HttpMethod.Post,
+    path: `/bots/${id}/close-position`,
+    schema: orderSchema,
+    ...(reason?.trim() ? { body: { reason: reason.trim() } } : {}),
+  });
 
 export const deleteBot = (id: string, reason?: string) =>
   request({

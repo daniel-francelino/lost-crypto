@@ -323,6 +323,7 @@ def build_job_runner(container: Container) -> JobRunner:
         ),
         executor,
         live_limits,
+        container.resolver,
     )
     updater = build_candle_updater(container) if settings.candle_update_enabled else None
     return JobRunner(

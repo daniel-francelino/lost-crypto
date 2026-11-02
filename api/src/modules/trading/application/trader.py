@@ -26,6 +26,7 @@ from modules.analytics.domain.metrics import round_trip_pnls
 from modules.audit.models import AuditEvent
 from modules.bots.domain.models import Bot, BotState, ExecutionMode
 from modules.exchanges.application.ports import ExchangeGateway, MarketOrderRequest
+from modules.exchanges.application.connections import ConnectionResolver
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.exchanges.domain.models import PositionSide, TradingProduct
 from modules.exchanges.errors import ExchangeRejected
@@ -60,6 +61,7 @@ from modules.strategies.domain.base import Strategy
 from modules.strategies.domain.registry import StrategyRegistry
 from modules.strategies.domain.types import Side, Signal, SignalKind, StrategyContext
 from modules.trading.application.orders import OrderExecutor
+from modules.trading.application.perpetual_paper import PerpetualPaperTrader
 from modules.trading.application.ports import TradingStore
 from modules.trading.domain.models import WARMUP_CANDLES, TradingSession, max_signal_age
 
@@ -100,6 +102,7 @@ class BotTrader:
         global_limits: GlobalRiskLimits | None = None,
         executor: OrderExecutor | None = None,
         live_limits: LiveLimits | None = None,
+        resolver: ConnectionResolver | None = None,
     ) -> None:
         self._stores = stores
         self._registry = registry
@@ -111,6 +114,11 @@ class BotTrader:
         self._prices = StaticPriceFeed()
         self._executor = executor
         self._live_limits = live_limits or LiveLimits()
+        self._perpetual_paper = (
+            PerpetualPaperTrader(stores, registry, exchanges, resolver, clock, ids)
+            if resolver is not None
+            else None
+        )
         self._pending: list[UUID] = []  # orders created this candle, sent after the commit
         # Recent traded value (volume x close) per bot, for the volume cap (book 1 ch. 5, O5).
         self._volumes: dict[UUID, deque[Decimal]] = {}
@@ -135,6 +143,12 @@ class BotTrader:
             return  # the supervisor creates the session when it starts the bot
 
         now = self._clock.now()
+        if cfg.product is TradingProduct.LINEAR_PERPETUAL:
+            if self._perpetual_paper is None:
+                raise RuntimeError("Futures paper trading needs a configured Demo data resolver")
+            await self._perpetual_paper.process(bot, session, now)
+            return
+
         last = session.last_processed_bar_time
         if last is not None:
             next_bar = last + cfg.timeframe.delta

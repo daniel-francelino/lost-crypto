@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  closeFuturesPosition,
   deleteBot,
   getBot,
   getBotEquity,
@@ -105,6 +106,7 @@ export const BotCommand = {
   Start: "start",
   Pause: "pause",
   Stop: "stop",
+  ClosePosition: "close-position",
   Reset: "reset",
   Delete: "delete",
 } as const;
@@ -125,6 +127,7 @@ export const useBotCommand = (id: string) => {
       if (command === BotCommand.Start) return startBot(id, token ?? null);
       if (command === BotCommand.Pause) return pauseBot(id, reason);
       if (command === BotCommand.Stop) return stopBot(id, reason);
+      if (command === BotCommand.ClosePosition) return closeFuturesPosition(id, reason);
       if (command === BotCommand.Delete) return deleteBot(id, reason);
       return resetPortfolio(id, reason);
     },

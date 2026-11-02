@@ -1,11 +1,11 @@
-import { Pause, Pencil, Play, RotateCcw, Square, Trash2, Zap } from "lucide-react";
+import { CircleX, Pause, Pencil, Play, RotateCcw, Square, Trash2, Zap } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "lost-ui/ui/button";
 import { toast } from "lost-ui/ui/sonner";
 import { LiveFlow } from "@/components/bots/live-flow";
 import { ConfirmDialog } from "@/components/shared/feedback/confirm-dialog";
-import { BotCommand, isConverging, useBotCommand } from "@/hooks/bots/use-bots";
+import { BotCommand, isConverging, useBotCommand, usePortfolio } from "@/hooks/bots/use-bots";
 import { useSessionUser } from "@/hooks/shared/use-session";
 import { useSystemStatus } from "@/hooks/shared/use-system";
 import type { Bot } from "@/lib/bots/bots.api";
@@ -20,6 +20,7 @@ const DialogKind = {
   Pause: "pause",
   Stop: "stop",
   Reset: "reset",
+  ClosePosition: "close-position",
   Delete: "delete",
   Live: "live",
 } as const;
@@ -29,6 +30,7 @@ export function BotControls({ bot }: { bot: Bot }) {
   const user = useSessionUser();
   const status = useSystemStatus();
   const command = useBotCommand(bot.id);
+  const portfolio = usePortfolio(bot.id);
   const navigate = useNavigate();
   const [dialog, setDialog] = useState<Dialog>(null);
 
@@ -36,6 +38,11 @@ export function BotControls({ bot }: { bot: Bot }) {
 
   const killSwitch = status.data?.kill_switch.active === true;
   const isLive = bot.mode === ExecutionMode.Live;
+  const isDemoFutures =
+    bot.exchange === "binance-usdm" &&
+    bot.product === "linear_perpetual" &&
+    bot.mode === ExecutionMode.Testnet;
+  const hasPosition = Number(portfolio.data?.quantity ?? 0) > 0;
   const wantsRunning = bot.desired_state === BotState.Running;
   const settledStopped =
     bot.desired_state === BotState.Stopped && bot.observed_state !== BotState.Running;
@@ -69,6 +76,17 @@ export function BotControls({ bot }: { bot: Bot }) {
         <Play className="size-4" aria-hidden="true" />
         {isLive ? "Iniciar (LIVE)…" : "Iniciar"}
       </Button>
+      {isDemoFutures && hasPosition ? (
+        <Button
+          variant="outline"
+          onClick={() => setDialog(DialogKind.ClosePosition)}
+          disabled={busy || command.isPending}
+          className="gap-1.5 border-destructive/50 text-destructive"
+        >
+          <CircleX className="size-4" aria-hidden="true" />
+          Fechar posição
+        </Button>
+      ) : null}
       <Button
         variant="outline"
         onClick={() => setDialog(DialogKind.Pause)}
@@ -157,6 +175,23 @@ export function BotControls({ bot }: { bot: Bot }) {
         onConfirm={async (reason) => {
           await command.mutateAsync({ command: BotCommand.Stop, reason });
           toast(SENT);
+        }}
+      />
+      <ConfirmDialog
+        open={dialog === DialogKind.ClosePosition}
+        onOpenChange={(open) => setDialog(open ? DialogKind.ClosePosition : null)}
+        destructive
+        title={`Fechar a posição Futures de ${bot.name}?`}
+        description="Será enviada uma ordem a mercado reduce-only para encerrar a quantidade aberta na Binance Demo. O bot será pausado; confira o status da ordem depois do envio."
+        confirmLabel="Fechar posição"
+        reasonLabel="Motivo (opcional)"
+        reasonDescription="Não escreva senhas nem chaves."
+        onConfirm={async (reason) => {
+          await command.mutateAsync({
+            command: BotCommand.ClosePosition,
+            reason,
+          });
+          toast("Fechamento enviado; confira o status da ordem.");
         }}
       />
       <ConfirmDialog

@@ -1,6 +1,6 @@
 # Lost Crypto — Backend Architecture (`api/`)
 
-Architectural reference for the Lost Crypto backend. **Documentation only** — no code, dependencies, FastAPI scaffolding or migrations exist yet. Scope is strictly `api/`; the frontend (`app/`) is out of scope and only interacts through the documented HTTP API.
+Architectural reference for the Lost Crypto backend. The documents describe the current implementation and planned release gates. Scope is the backend (`api/`); the frontend (`app/`) consumes the documented HTTP API.
 
 > **Disclaimer.** No strategy is assumed to generate profit. The architecture exists to make experimentation safe, observable and reproducible, and to make real-money trading hard to trigger by accident.
 
@@ -25,6 +25,7 @@ Architectural reference for the Lost Crypto backend. **Documentation only** — 
 | 15 | [Derivatives and perpetual futures](15-derivatives.md) | Product and position boundaries, leverage ceiling, and futures rollout requirements |
 | 16 | [Futures delivery plan](16-futures-delivery-plan.md) | Phased implementation plan and release gates for operational Binance USDⓈ-M futures |
 | 17 | [Binance USD-M perpetual v1 decision](17-usdm-v1-adr.md) | Product identity, account invariants, margin mode and release constraints |
+| 18 | [Binance Demo integration](18-binance-demo-integration.md) | Demo credentials, Spot and USDⓈ-M endpoints, setup, safeguards, and troubleshooting |
 
 ## Key decisions (summary)
 
