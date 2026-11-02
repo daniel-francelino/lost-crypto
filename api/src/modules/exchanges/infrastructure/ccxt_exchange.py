@@ -156,6 +156,15 @@ class CcxtExchange(Exchange):
 
     async def create_market_order(self, request: MarketOrderRequest) -> VenueOrder:
         self._require_authentication()
+        if request.product not in self.capabilities.products:
+            raise ExchangeRejected(
+                f"{self.PROFILE.exchange_id} does not support {request.product.value} orders"
+            )
+        if request.leverage > self.capabilities.max_leverage:
+            raise ExchangeRejected(
+                f"leverage {request.leverage}x exceeds this exchange adapter's "
+                f"{self.capabilities.max_leverage}x limit"
+            )
         params = self.client_order_params(request.client_order_id)
         try:
             raw = await self._client.create_order(

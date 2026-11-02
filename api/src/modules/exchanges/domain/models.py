@@ -8,6 +8,24 @@ from core.errors import DomainError
 from modules.market_data.domain.models import Timeframe
 
 
+MAX_PERPETUAL_LEVERAGE = 10
+
+
+class TradingProduct(StrEnum):
+    SPOT = "spot"
+    LINEAR_PERPETUAL = "linear_perpetual"
+
+
+class PositionSide(StrEnum):
+    LONG = "long"
+    SHORT = "short"
+
+
+class MarginMode(StrEnum):
+    ISOLATED = "isolated"
+    CROSS = "cross"
+
+
 class OrderType(StrEnum):
     MARKET = "market"
     LIMIT = "limit"
@@ -26,6 +44,16 @@ class ExchangeCapabilities:
     max_client_order_id_length: int
     has_testnet: bool
     timeframes: frozenset[Timeframe]
+    products: frozenset[TradingProduct] = frozenset({TradingProduct.SPOT})
+    max_leverage: int = 1
+
+    def __post_init__(self) -> None:
+        if not self.products:
+            raise ValueError("an exchange must support at least one trading product")
+        if not 1 <= self.max_leverage <= MAX_PERPETUAL_LEVERAGE:
+            raise ValueError(f"max_leverage must be between 1 and {MAX_PERPETUAL_LEVERAGE}")
+        if TradingProduct.LINEAR_PERPETUAL not in self.products and self.max_leverage != 1:
+            raise ValueError("leverage is only valid for linear perpetual markets")
 
 
 class InvalidFeeSchedule(DomainError):

@@ -2,7 +2,13 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Protocol
 
-from modules.exchanges.domain.models import ExchangeCapabilities
+from modules.exchanges.domain.models import (
+    ExchangeCapabilities,
+    MAX_PERPETUAL_LEVERAGE,
+    MarginMode,
+    PositionSide,
+    TradingProduct,
+)
 from modules.execution.domain.orders import Fill, OrderStatus
 from modules.strategies.domain.types import Side
 
@@ -13,6 +19,35 @@ class MarketOrderRequest:
     symbol: str
     side: Side
     quantity: Decimal
+    product: TradingProduct = TradingProduct.SPOT
+    position_side: PositionSide | None = None
+    leverage: int = 1
+    margin_mode: MarginMode = MarginMode.ISOLATED
+    reduce_only: bool = False
+
+    def __post_init__(self) -> None:
+        if self.quantity <= 0:
+            raise ValueError("order quantity must be positive")
+        if self.product is TradingProduct.SPOT:
+            if self.position_side is not None or self.leverage != 1 or self.reduce_only:
+                raise ValueError("spot orders cannot set position side, leverage or reduce-only")
+            return
+        if self.position_side is None:
+            raise ValueError("perpetual orders must specify long or short position side")
+        if not 1 <= self.leverage <= MAX_PERPETUAL_LEVERAGE:
+            raise ValueError(
+                f"perpetual leverage must be between 1x and {MAX_PERPETUAL_LEVERAGE}x"
+            )
+        expected_side = (
+            (Side.SELL if self.position_side is PositionSide.LONG else Side.BUY)
+            if self.reduce_only
+            else (Side.BUY if self.position_side is PositionSide.LONG else Side.SELL)
+        )
+        if self.side is not expected_side:
+            action = "reduce" if self.reduce_only else "open"
+            raise ValueError(
+                f"{self.side.value} cannot {action} a {self.position_side.value} position"
+            )
 
 
 @dataclass(frozen=True, slots=True)
