@@ -150,3 +150,7 @@ The bot summary shows interventions from the last 30 days: totals, event types, 
 * O par é sempre um **seletor** (`SymbolSelect`), alimentado por `GET /market-data/symbols` (hook `useSupportedPairs`); todos são cotados em USDT. Um par antigo salvo num bot continua aparecendo no seletor, mesmo fora da lista.
 * Ícones: SVG em `public/coins/<base em minúsculas>.svg`, exibidos por `CoinIcon`/`SymbolLabel`; sem o arquivo, aparece a inicial da moeda. Para acrescentar uma moeda: adicione o par em `api/src/modules/market_data/domain/pairs.py` e o SVG correspondente. Os 14 SVGs atuais vêm de `@web3icons/core` 4.0.58 (MIT).
 * No formulário de backtest, o capital inicial é **100 ou 1.000 USDT** (padrão 1.000).
+
+## Excluir bot
+
+No detalhe do bot, "Excluir" (só com o bot parado, nunca em bot live) abre a confirmação com motivo opcional, chama `DELETE /bots/{id}` e volta para a lista. O histórico do bot é apagado; a auditoria guarda o evento `bot.deleted`. Recusas (posição aberta, bot em execução) aparecem dentro do diálogo.

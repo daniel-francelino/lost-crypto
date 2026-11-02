@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -78,6 +78,20 @@ def _config_values(config: BotConfig) -> dict[str, object]:
         "mode": config.mode.value,
         "exchange_connection_id": config.connection_id,
     }
+
+
+_DELETE_STATEMENTS = (
+    "DELETE FROM order_fills WHERE order_id IN (SELECT id FROM orders WHERE bot_id = :bot)",
+    "DELETE FROM orders WHERE bot_id = :bot",
+    "DELETE FROM trading_signals WHERE bot_id = :bot",
+    "DELETE FROM portfolio_snapshots WHERE bot_id = :bot",
+    "DELETE FROM bot_portfolios WHERE bot_id = :bot",
+    "DELETE FROM live_approvals WHERE bot_id = :bot",
+    "DELETE FROM parity_runs WHERE bot_id = :bot",
+    "DELETE FROM trading_sessions WHERE bot_id = :bot",
+    "DELETE FROM alerts WHERE bot_id = :bot",
+    "DELETE FROM bots WHERE id = :bot",
+)
 
 
 class SqlAlchemyBotRepository:
@@ -171,6 +185,10 @@ class SqlAlchemyBotRepository:
             .where(BotRow.id == bot_id)
             .values(mode=mode, exchange_connection_id=connection_id, updated_at=func.now())
         )
+
+    async def delete(self, bot_id: UUID) -> None:
+        for statement in _DELETE_STATEMENTS:
+            await self._session.execute(text(statement), {"bot": bot_id})
 
     async def heartbeat(self, bot_ids: list[UUID], at: datetime) -> None:
         await self._session.execute(

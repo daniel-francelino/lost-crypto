@@ -37,6 +37,11 @@ class BotRepository(Protocol):
 
     async def set_mode(self, bot_id: UUID, mode: str, connection_id: UUID | None) -> None: ...
 
+    async def delete(self, bot_id: UUID) -> None:
+        """Remove the bot with its orders, signals, sessions, portfolio, snapshots, approvals,
+        parity runs and alerts. Audit events stay: they are the record that it existed."""
+        ...
+
 
 @dataclass(frozen=True, slots=True)
 class LiveApproval:

@@ -751,7 +751,12 @@ export interface paths {
         get: operations["get_bot_api_v1_bots__bot_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Bot
+         * @description Delete a stopped bot with its orders, signals, portfolio and history. The audit trail
+         *     keeps a `bot.deleted` event. Live bots and bots with an open position are refused (409).
+         */
+        delete: operations["delete_bot_api_v1_bots__bot_id__delete"];
         options?: never;
         head?: never;
         /**
@@ -1460,7 +1465,7 @@ export interface components {
             exchange: string;
             /**
              * Strategy Type
-             * @example ema_crossover
+             * @example trend_quality_breakout
              */
             strategy_type: string;
             /**
@@ -1706,7 +1711,7 @@ export interface components {
             exchange: string;
             /**
              * Strategy Type
-             * @example ema_crossover
+             * @example trend_quality_breakout
              */
             strategy_type: string;
             /** Strategy Params */
@@ -3562,7 +3567,7 @@ export interface components {
             exchange: string;
             /**
              * Strategy Type
-             * @example ema_crossover
+             * @example trend_quality_breakout
              */
             strategy_type: string;
             /**
@@ -5204,6 +5209,39 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["BotOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_bot_api_v1_bots__bot_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReasonIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

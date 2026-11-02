@@ -455,6 +455,21 @@ async def stop_bot(
     )
 
 
+@router.delete("/{bot_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_bot(
+    bot_id: UUID,
+    request: Request,
+    body: ReasonIn | None = None,
+    principal: Principal = Depends(require_auth),
+) -> Response:
+    """Delete a stopped bot with its orders, signals, portfolio and history. The audit trail
+    keeps a `bot.deleted` event. Live bots and bots with an open position are refused (409)."""
+    await _container(request).bots.delete(
+        bot_id, reason=body.reason if body else None, actor=principal.username
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post("/{bot_id}/reset-portfolio", status_code=status.HTTP_204_NO_CONTENT)
 async def reset_portfolio(
     bot_id: UUID,

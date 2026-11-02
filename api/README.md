@@ -299,3 +299,7 @@ curl -H "$H" $B/bots/<id>/live-readiness
 curl -H "$H" -X POST $B/bots/<id>/live-approvals -H 'content-type: application/json' -d '{"confirm_name":"<nome do bot>"}'
 curl -H "$H" -X POST $B/bots/<id>/start -H 'content-type: application/json' -d '{"confirmation_token":"<token>"}'
 ```
+
+## Excluir um bot
+
+`DELETE /bots/{id}` (corpo opcional `{"reason": "..."}`, resposta 204) apaga um bot **parado** com todo o seu histórico: ordens e execuções, sinais, sessões, portfólio, curva de capital, aprovações, execuções de paridade e alertas dele. A auditoria **não** é apagada: ela guarda um evento `bot.deleted` com nome, estratégia, par, modo, quantidade de ordens, o motivo e quem excluiu. Recusa com 409 um bot em execução ou ainda parando, um bot **live** (as ordens dele são o registro de dinheiro real) e um bot com posição aberta (feche a posição antes). No app, o botão "Excluir" fica no detalhe do bot, com confirmação e motivo opcional.

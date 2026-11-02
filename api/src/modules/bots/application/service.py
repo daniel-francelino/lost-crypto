@@ -278,6 +278,30 @@ class BotService:
             await store.commit()
         return bot
 
+    async def delete(self, bot_id: UUID, *, reason: str | None = None, actor: str = "api") -> None:
+        """Delete a stopped bot and its history. Live bots are never deleted (their orders are
+        the record of real money) and a bot with an open position must close it first."""
+        async with self._stores() as store:
+            bot = await self._get(store, bot_id)
+            bot.ensure_editable()
+            if bot.config.mode is ExecutionMode.LIVE:
+                raise ConflictError("a live bot is kept for the record and cannot be deleted")
+            portfolio = await store.portfolio.get(bot_id)
+            if portfolio is not None and portfolio.quantity > 0:
+                raise ConflictError("close the open position before deleting the bot")
+            payload: dict[str, Any] = {
+                "name": bot.config.name,
+                "strategy_type": bot.config.strategy_type,
+                "symbol": bot.config.symbol,
+                "mode": bot.config.mode.value,
+                "orders": await store.orders.count_by_bot(bot_id),
+            }
+            if reason and reason.strip():
+                payload["reason"] = reason.strip()
+            await store.audit.add(self._event("bot.deleted", bot, payload, actor))
+            await store.bots.delete(bot_id)
+            await store.commit()
+
     async def reset_portfolio(
         self, bot_id: UUID, *, reason: str | None = None, actor: str = "api"
     ) -> None:

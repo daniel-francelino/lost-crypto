@@ -1,6 +1,6 @@
-import { Pause, Pencil, Play, RotateCcw, Square, Zap } from "lucide-react";
+import { Pause, Pencil, Play, RotateCcw, Square, Trash2, Zap } from "lucide-react";
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "lost-ui/ui/button";
 import { toast } from "lost-ui/ui/sonner";
 import { LiveFlow } from "@/components/bots/live-flow";
@@ -16,13 +16,20 @@ import { BotState, ExecutionMode } from "@/lib/shared/enums";
 const KILL_SWITCH_REASON = "Kill switch ativo.";
 const SENT = "Comando enviado: aguardando o worker confirmar.";
 
-const DialogKind = { Pause: "pause", Stop: "stop", Reset: "reset", Live: "live" } as const;
+const DialogKind = {
+  Pause: "pause",
+  Stop: "stop",
+  Reset: "reset",
+  Delete: "delete",
+  Live: "live",
+} as const;
 type Dialog = (typeof DialogKind)[keyof typeof DialogKind] | null;
 
 export function BotControls({ bot }: { bot: Bot }) {
   const user = useSessionUser();
   const status = useSystemStatus();
   const command = useBotCommand(bot.id);
+  const navigate = useNavigate();
   const [dialog, setDialog] = useState<Dialog>(null);
 
   if (!can(user, Capability.BotsControl)) return null;
@@ -92,6 +99,18 @@ export function BotControls({ bot }: { bot: Bot }) {
           Resetar portfólio
         </Button>
       )}
+      {isLive ? null : (
+        <Button
+          variant="outline"
+          onClick={() => setDialog(DialogKind.Delete)}
+          disabled={!settledStopped || busy}
+          title={settledStopped ? undefined : "Pare o bot antes de excluir."}
+          className="gap-1.5 border-destructive/50 text-destructive"
+        >
+          <Trash2 className="size-4" aria-hidden="true" />
+          Excluir
+        </Button>
+      )}
       {isLive || !can(user, Capability.BotsPromoteLive) ? null : (
         <Button
           variant="outline"
@@ -152,6 +171,21 @@ export function BotControls({ bot }: { bot: Bot }) {
         onConfirm={async (reason) => {
           await command.mutateAsync({ command: BotCommand.Reset, reason });
           toast.success("Portfólio resetado.");
+        }}
+      />
+      <ConfirmDialog
+        open={dialog === DialogKind.Delete}
+        onOpenChange={(open) => setDialog(open ? DialogKind.Delete : null)}
+        destructive
+        title={`Excluir o bot ${bot.name}?`}
+        description="O bot e todo o seu histórico (ordens, sinais, portfólio e curva de capital) são apagados e não podem ser recuperados. A auditoria guarda o registro da exclusão. Uma posição aberta precisa ser fechada antes."
+        confirmLabel="Excluir bot"
+        reasonLabel="Motivo (opcional)"
+        reasonDescription="Não escreva senhas nem chaves."
+        onConfirm={async (reason) => {
+          await command.mutateAsync({ command: BotCommand.Delete, reason });
+          toast.success("Bot excluído.");
+          await navigate({ to: "/bots" });
         }}
       />
       <LiveFlow

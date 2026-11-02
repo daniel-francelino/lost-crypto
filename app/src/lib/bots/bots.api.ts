@@ -204,6 +204,14 @@ export const pauseBot = (id: string, reason?: string) =>
 export const stopBot = (id: string, reason?: string) =>
   command(id, "stop", reason?.trim() ? { reason: reason.trim() } : undefined);
 
+export const deleteBot = (id: string, reason?: string) =>
+  request({
+    method: HttpMethod.Delete,
+    path: `/bots/${id}`,
+    schema: emptySchema,
+    ...(reason?.trim() ? { body: { reason: reason.trim() } } : {}),
+  });
+
 export const resetPortfolio = (id: string, reason?: string) =>
   command(id, "reset-portfolio", reason?.trim() ? { reason: reason.trim() } : undefined);
 

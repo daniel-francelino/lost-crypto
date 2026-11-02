@@ -1,6 +1,7 @@
 """What the frontend relies on besides the trading flows: totals, paging, capabilities."""
 
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 from harness import Env
@@ -71,3 +72,27 @@ async def test_capabilities_say_why_live_is_not_available(env: Env) -> None:
     assert "binance" in body["exchanges"] and "ema_crossover" in body["strategies"]
     assert body["live_approval_minutes"] <= 15
     assert "secret" not in response.text.lower()
+
+
+async def test_a_stopped_bot_can_be_deleted_and_the_audit_trail_remembers_it(env: Env) -> None:
+    bot_id = await env.create_bot(name="to-delete")
+
+    assert (await env.http.delete(f"/api/v1/bots/{uuid4()}")).status_code == 404
+
+    assert (await env.command(bot_id, "start")).status_code == 202
+    running = await env.http.delete(f"/api/v1/bots/{bot_id}")
+    assert running.status_code == 409  # stop it first
+
+    assert (await env.command(bot_id, "stop")).status_code == 202
+    gone = await env.http.request(
+        "DELETE", f"/api/v1/bots/{bot_id}", json={"reason": "cleaning up tests"}
+    )
+    assert gone.status_code == 204
+    assert (await env.http.get(f"/api/v1/bots/{bot_id}")).status_code == 404
+    assert bot_id not in {b["id"] for b in (await env.http.get("/api/v1/bots")).json()}
+
+    events = (await env.http.get("/api/v1/audit-events", params={"bot_id": bot_id})).json()
+    deleted = [e for e in events if e["event_type"] == "bot.deleted"]
+    assert len(deleted) == 1
+    assert deleted[0]["payload"]["name"] == "to-delete"
+    assert deleted[0]["payload"]["reason"] == "cleaning up tests"
