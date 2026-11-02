@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Button } from "lost-ui/ui/button";
 import { Modal } from "lost-ui/elements/modal";
 import { FormInput } from "lost-ui/forms/form-input";
+import { FormCheckbox } from "lost-ui/forms/form-checkbox";
 import { Form } from "lost-ui/forms/form";
 import { rules } from "lost-ui/forms/rules";
 import { DangerButton } from "@/components/shared/feedback/danger-button";
@@ -13,13 +14,14 @@ type ConfirmDialogProps = {
   title: string;
   description: ReactNode;
   confirmLabel: string;
-  onConfirm: (reason: string) => Promise<unknown>;
+  onConfirm: (reason: string, optionChecked: boolean) => Promise<unknown>;
   destructive?: boolean;
   reasonLabel?: string;
   reasonDescription?: string;
   reasonRequired?: boolean;
   typedText?: string;
   typedLabel?: string;
+  confirmOption?: { label: string; description: string };
 };
 
 export function ConfirmDialog({
@@ -35,9 +37,11 @@ export function ConfirmDialog({
   reasonRequired = false,
   typedText,
   typedLabel,
+  confirmOption,
 }: ConfirmDialogProps) {
   const [reason, setReason] = useState("");
   const [typed, setTyped] = useState("");
+  const [optionChecked, setOptionChecked] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,6 +50,7 @@ export function ConfirmDialog({
     if (!next) {
       setReason("");
       setTyped("");
+      setOptionChecked(false);
       setError(null);
     }
     onOpenChange(next);
@@ -55,9 +60,10 @@ export function ConfirmDialog({
     setPending(true);
     setError(null);
     try {
-      await onConfirm(reason.trim());
+      await onConfirm(reason.trim(), optionChecked);
       setReason("");
       setTyped("");
+      setOptionChecked(false);
       onOpenChange(false);
     } catch (failure) {
       setError(refusalMessage(failure));
@@ -96,6 +102,14 @@ export function ConfirmDialog({
             onValueChange={setTyped}
             autoComplete="off"
             rules={[rules.matches(() => typedText, "O texto digitado não confere.")]}
+          />
+        )}
+        {confirmOption === undefined ? null : (
+          <FormCheckbox
+            label={confirmOption.label}
+            description={confirmOption.description}
+            value={optionChecked}
+            onValueChange={setOptionChecked}
           />
         )}
         {error === null ? null : (

@@ -95,6 +95,11 @@ def _level(
             liquidation_fee_rate=str(scaled.fee_rate),
             liquidation_count=outcome.liquidation_count,
             maximum_notional=str(outcome.max_notional),
+            minimum_liquidation_distance_pct=(
+                None
+                if outcome.min_liquidation_distance_pct is None
+                else str(outcome.min_liquidation_distance_pct)
+            ),
             leverage=scaled.leverage,
         )
     return level

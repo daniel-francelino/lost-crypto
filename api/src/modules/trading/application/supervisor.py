@@ -16,6 +16,7 @@ from modules.exchanges.errors import AuthenticationFailed
 from modules.risk_management.domain.models import KillSwitchState
 from modules.strategies.domain.registry import StrategyRegistry
 from modules.trading.application.orders import OrderExecutor
+from modules.trading.application.perpetual_close import PerpetualCloseService
 from modules.trading.application.reconciler import Reconciler
 from modules.trading.application.trader import BotTrader, TradingStoreFactory
 from modules.trading.domain.models import MAX_CONSECUTIVE_FAILURES, SessionStatus, TradingSession
@@ -45,6 +46,7 @@ class BotSupervisor:
         resolver: ConnectionResolver | None = None,
         executor: OrderExecutor | None = None,
         reconciler: Reconciler | None = None,
+        perpetual_closer: PerpetualCloseService | None = None,
         testnet_enabled: bool = False,
         futures_paper_enabled: bool = False,
         live_enabled: bool = False,
@@ -64,6 +66,7 @@ class BotSupervisor:
         self._resolver = resolver
         self._executor = executor
         self._reconciler = reconciler
+        self._perpetual_closer = perpetual_closer
         self._testnet_enabled = testnet_enabled
         self._futures_paper_enabled = futures_paper_enabled
         self._live_enabled = live_enabled
@@ -74,12 +77,16 @@ class BotSupervisor:
         self._stop_poll_interval = stop_poll_interval
         self._last_reconcile: datetime | None = None
         self._last_stop_poll: datetime | None = None
+        self._kill_close_retry_at: dict[UUID, datetime] = {}
 
     async def run_once(self) -> None:
         async with self._stores() as store:
             kill_switch = await store.flags.get_kill_switch()
             bots = await store.bots.list_active()
         if kill_switch.active:
+            if kill_switch.close_futures_positions:
+                async with self._stores() as store:
+                    bots = await store.bots.list_bots(500)
             bots = await self._apply_kill_switch(bots, kill_switch)
 
         if self._resolver is not None:
@@ -341,7 +348,83 @@ class BotSupervisor:
                     )
                     bot.desired_state = BotState.PAUSED
             await store.commit()
+        if state.close_futures_positions:
+            for bot in bots:
+                if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
+                    await self._close_futures_for_kill_switch(bot, state)
         return bots
+
+    async def _close_futures_for_kill_switch(self, bot: Bot, state: KillSwitchState) -> None:
+        """Execute the separately opted-in, Demo-only Futures kill policy.
+
+        Opening orders are canceled and their racing fills reconciled before the reduce-only
+        close is submitted. Failures leave the existing exchange stop untouched and are retried.
+        """
+        if bot.config.mode not in (ExecutionMode.PAPER, ExecutionMode.TESTNET):
+            return  # live remains blocked; never turn a global stop into an implicit live order
+        if self._executor is None or self._perpetual_closer is None or self._resolver is None:
+            return
+        retry_at = self._kill_close_retry_at.get(bot.id)
+        if retry_at is not None and self._clock.now() < retry_at:
+            return
+        try:
+            async with self._stores() as store:
+                ledger = await store.perpetual_portfolio.get(bot.id)
+            if ledger is None or ledger.position is None:
+                self._kill_close_retry_at.pop(bot.id, None)
+                return
+            if bot.config.connection_id is None or (
+                await self._resolver.environment_for(bot.config.connection_id)
+            ) is not Environment.DEMO:
+                raise RuntimeError("Futures kill close is restricted to Binance Demo")
+            if bot.config.mode is ExecutionMode.TESTNET:
+                await self._executor.cancel_opening_perpetual_orders(bot)
+            close_order = await self._perpetual_closer.close(
+                bot.id,
+                actor="worker",
+                reason=f"kill switch: {state.reason or 'operator request'}",
+            )
+            if close_order.is_unresolved and bot.config.mode is ExecutionMode.TESTNET:
+                await self._executor.resolve(bot, close_order)
+                async with self._stores() as store:
+                    close_order = await store.orders.get(close_order.id) or close_order
+            if close_order.status.value != "FILLED":
+                raise RuntimeError(
+                    f"Futures kill close is {close_order.status.value}; position remains under review"
+                )
+            async with self._stores() as store:
+                await store.audit.add(
+                    AuditEvent(
+                        "system.kill_switch_futures_closed",
+                        "bot",
+                        str(bot.id),
+                        actor="worker",
+                        bot_id=bot.id,
+                        payload={
+                            "symbol": bot.config.symbol,
+                            "mode": bot.config.mode.value,
+                            "client_order_id": close_order.client_order_id,
+                            "reason": state.reason,
+                        },
+                    )
+                )
+                await store.commit()
+            self._kill_close_retry_at.pop(bot.id, None)
+        except Exception as exc:
+            self._kill_close_retry_at[bot.id] = self._clock.now() + timedelta(seconds=30)
+            logger.exception("kill-switch Futures close failed for bot %s", bot.id)
+            async with self._stores() as store:
+                await store.audit.add(
+                    AuditEvent(
+                        "system.kill_switch_futures_close_failed",
+                        "bot",
+                        str(bot.id),
+                        actor="worker",
+                        bot_id=bot.id,
+                        payload={"error_type": type(exc).__name__},
+                    )
+                )
+                await store.commit()
 
     async def _on_failure(self, bot: Bot, exc: Exception) -> None:
         if isinstance(exc, _FATAL):

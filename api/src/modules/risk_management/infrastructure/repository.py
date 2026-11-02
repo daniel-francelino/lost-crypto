@@ -20,16 +20,36 @@ class SqlAlchemySystemFlagsRepository:
         row = await self._session.get(SystemFlagRow, KILL_SWITCH)
         if row is None:
             return KillSwitchState()
-        return KillSwitchState(active=row.active, reason=row.reason, changed_at=row.changed_at)
+        return KillSwitchState(
+            active=row.active,
+            reason=row.reason,
+            changed_at=row.changed_at,
+            close_futures_positions=row.close_futures_positions,
+        )
 
-    async def set_kill_switch(self, active: bool, reason: str | None) -> KillSwitchState:
+    async def set_kill_switch(
+        self, active: bool, reason: str | None, close_futures_positions: bool | None = None
+    ) -> KillSwitchState:
         stmt = insert(SystemFlagRow).values(
-            key=KILL_SWITCH, active=active, reason=reason, changed_at=func.now()
+            key=KILL_SWITCH,
+            active=active,
+            reason=reason,
+            changed_at=func.now(),
+            close_futures_positions=bool(close_futures_positions),
         )
         await self._session.execute(
             stmt.on_conflict_do_update(
                 index_elements=["key"],
-                set_={"active": active, "reason": reason, "changed_at": func.now()},
+                set_={
+                    "active": active,
+                    "reason": reason,
+                    "changed_at": func.now(),
+                    "close_futures_positions": (
+                        SystemFlagRow.close_futures_positions
+                        if close_futures_positions is None
+                        else close_futures_positions
+                    ),
+                },
             )
         )
         await self._session.flush()

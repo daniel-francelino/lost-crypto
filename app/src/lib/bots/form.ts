@@ -80,7 +80,10 @@ const text = (value: string | number | null): string => (value === null ? "" : S
 export const formFromBot = (bot: Bot, strategy: Strategy | undefined): BotFormValues => ({
   name: bot.name,
   exchange: bot.exchange,
-  product: bot.product ?? TradingProduct.Spot,
+  product:
+    bot.product === TradingProduct.LinearPerpetual
+      ? TradingProduct.LinearPerpetual
+      : TradingProduct.Spot,
   leverage: String(bot.leverage ?? 1),
   allowShort: bot.allow_short ?? false,
   symbol: bot.symbol,

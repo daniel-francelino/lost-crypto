@@ -183,15 +183,30 @@ class OrderExecutor:
             venue = await asyncio.shield(exchange.create_market_order(request))
         except ExchangeRejected as exc:
             await self._reject(bot, order_id, str(exc))
+            if order.product is TradingProduct.LINEAR_PERPETUAL and order.reduce_only:
+                await self._restore_perpetual_stop(bot, order.client_order_id)
         except TransientExchangeError as exc:
             await self._reject(bot, order_id, f"not placed: {exc}")
+            if order.product is TradingProduct.LINEAR_PERPETUAL and order.reduce_only:
+                await self._restore_perpetual_stop(bot, order.client_order_id)
         except AuthenticationFailed as exc:
             await self._reject(bot, order_id, f"credentials rejected: {exc}")
             if bot.config.connection_id is not None:
                 await self._resolver.mark_invalid(bot.config.connection_id, str(exc))
+            if order.product is TradingProduct.LINEAR_PERPETUAL and order.reduce_only:
+                try:
+                    await self._restore_perpetual_stop(bot, order.client_order_id)
+                except Exception:
+                    logger.exception("could not restore the Futures stop after auth failure")
             raise
         except Exception as exc:  # UnknownOutcome and anything unforeseen: it may exist
             await self._mark_unknown(bot, order_id, f"{type(exc).__name__}: {exc}")
+            if order.product is TradingProduct.LINEAR_PERPETUAL and order.reduce_only:
+                try:
+                    await self.resolve(bot, order)
+                    await self._restore_perpetual_stop(bot, order.client_order_id)
+                except Exception:
+                    logger.exception("could not reconcile/restore the Futures stop after timeout")
         else:
             await self._apply(bot, order_id, venue)
             if venue.fills and (
@@ -199,6 +214,10 @@ class OrderExecutor:
                 or (order.product is TradingProduct.SPOT and order.side is Side.BUY)
             ):
                 await self.ensure_native_stop(bot, order.client_order_id)
+        elif self._clock.now() - order.created_at >= self._absent_after:
+            await self._reject(
+                bot, order.id, "never reached the exchange (not found after waiting)"
+            )
 
     async def resolve(self, bot: Bot, order: Order) -> None:
         """Settle an order whose outcome is unknown, by asking the exchange about it."""
@@ -211,10 +230,60 @@ class OrderExecutor:
                 or (order.product is TradingProduct.SPOT and order.side is Side.BUY)
             ):
                 await self.ensure_native_stop(bot, order.client_order_id)
-        elif self._clock.now() - order.created_at >= self._absent_after:
-            await self._reject(
-                bot, order.id, "never reached the exchange (not found after waiting)"
-            )
+
+    async def cancel_opening_perpetual_orders(self, bot: Bot) -> int:
+        """Cancel this bot's non-reduce-only USD-M orders and apply any racing fills.
+
+        A kill path must not close a position while an entry can still add exposure. Unknown
+        order state fails closed; a later worker pass can retry after reconciliation.
+        """
+        if bot.config.product is not TradingProduct.LINEAR_PERPETUAL:
+            return 0
+        async with self._stores() as store:
+            orders = await store.orders.list_by_bot(bot.id, limit=1000)
+        candidates = [
+            order
+            for order in orders
+            if order.product is TradingProduct.LINEAR_PERPETUAL
+            and not order.reduce_only
+            and not order.is_final
+        ]
+        exchange = await self._exchange(bot)
+        canceled = 0
+        for candidate in candidates:
+            async with self._stores() as store:
+                order = await store.orders.get(candidate.id)
+            if order is None or order.is_final:
+                continue
+            if order.is_unresolved:
+                await self.resolve(bot, order)
+                async with self._stores() as store:
+                    order = await store.orders.get(candidate.id)
+                if order is None or order.is_final:
+                    continue
+                if order.is_unresolved:
+                    raise RuntimeError(
+                        f"opening order {order.client_order_id} still has unknown outcome"
+                    )
+            try:
+                venue = await exchange.cancel_order(order.symbol, order.client_order_id)
+            except Exception as cancel_error:
+                venue = await exchange.fetch_order(order.symbol, order.client_order_id)
+                if venue is None:
+                    raise RuntimeError(
+                        f"could not confirm cancellation of opening order {order.client_order_id}"
+                    ) from cancel_error
+            await self._apply(bot, order.id, venue)
+            if venue.fills:
+                await self.ensure_native_stop(bot, order.client_order_id)
+            async with self._stores() as store:
+                settled = await store.orders.get(order.id)
+            if settled is None or not settled.is_final:
+                raise RuntimeError(
+                    f"opening order {order.client_order_id} remains active after cancellation"
+                )
+            canceled += 1
+        return canceled
 
     # --- native stop-loss --------------------------------------------------------------------
 
@@ -331,6 +400,14 @@ class OrderExecutor:
             await self._mark_unknown(bot, stop.id, f"{type(exc).__name__}: {exc}")
         else:
             await self._apply(bot, stop.id, venue)
+
+    async def _restore_perpetual_stop(self, bot: Bot, client_order_id: str) -> None:
+        async with self._stores() as store:
+            ledger = await store.perpetual_portfolio.get(bot.id)
+            has_position = ledger is not None and ledger.position is not None
+            stop_missing = ledger is not None and ledger.stop_order_client_id is None
+        if has_position and stop_missing:
+            await self.ensure_native_stop(bot, client_order_id)
 
     async def sync_native_stop(self, bot: Bot) -> None:
         """Notice a stop that fired (or vanished) while we were not looking."""

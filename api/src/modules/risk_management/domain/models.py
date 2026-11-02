@@ -132,6 +132,7 @@ class KillSwitchState:
     active: bool = False
     reason: str | None = None
     changed_at: datetime | None = None
+    close_futures_positions: bool = False
 
 
 def candle_range_pct(high: Decimal, low: Decimal) -> Decimal:

@@ -19,8 +19,15 @@ export function KillSwitchControl() {
   const [open, setOpen] = useState(false);
 
   const mutation = useMutation({
-    mutationFn: ({ active, reason }: { active: boolean; reason: string }) =>
-      setKillSwitch(active, reason === "" ? null : reason),
+    mutationFn: ({
+      active,
+      reason,
+      closeFuturesPositions,
+    }: {
+      active: boolean;
+      reason: string;
+      closeFuturesPositions: boolean;
+    }) => setKillSwitch(active, reason === "" ? null : reason, closeFuturesPositions),
     onSuccess: async (_state, variables) => {
       await client.invalidateQueries({ queryKey: QueryKey.System.all() });
       toast.success(variables.active ? "Kill switch ativado." : "Kill switch liberado.");
@@ -51,13 +58,24 @@ export function KillSwitchControl() {
         title={active ? "Liberar o kill switch?" : "Ativar o kill switch?"}
         description={
           active
-            ? `Ativado em ${formatDateTime(state.changed_at)}${state.reason === null ? "" : ` — motivo: ${state.reason}`}. Liberar não retoma os bots: inicie cada um de novo.`
-            : "Todos os bots rodando serão pausados e nenhuma ordem nova será enviada. Stops nativos continuam na exchange."
+            ? `Ativado em ${formatDateTime(state.changed_at)}. ${state.close_futures_positions ? "A pol?tica de fechamento Futures foi selecionada." : "As posi??es foram preservadas."} Liberar n?o retoma os bots.`
+            : "Os bots ser?o pausados. Entradas pendentes ser?o fechadas somente se voc? selecionar a op??o abaixo; caso contr?rio, os stops nativos permanecem na exchange."
         }
         confirmLabel={active ? "Liberar" : "Ativar kill switch"}
         reasonLabel={active ? "Motivo da liberação" : "Motivo (opcional)"}
         reasonRequired={active}
-        onConfirm={(reason) => mutation.mutateAsync({ active: !active, reason })}
+        confirmOption={
+          active
+            ? undefined
+            : {
+                label: "Fechar posições Futures rastreadas",
+                description:
+                  "Cancela entradas USD-M pendentes e envia fechamentos reduce-only no Demo. No modo paper, fecha apenas a posição simulada.",
+              }
+        }
+        onConfirm={(reason, closeFuturesPositions) =>
+          mutation.mutateAsync({ active: !active, reason, closeFuturesPositions })
+        }
       />
     </>
   );

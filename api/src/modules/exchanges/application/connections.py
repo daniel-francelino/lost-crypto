@@ -314,6 +314,25 @@ class ConnectionResolver:
         if connection.status is not ConnectionStatus.ACTIVE:
             raise InvalidConnection(f"connection {connection.label!r} is {connection.status.value}")
         exchange = await self.exchange_for(connection_id)
+        if connection.environment is not Environment.LIVE:
+            # Binance Demo/Testnet do not expose the live SAPI key-restrictions endpoint.
+            # Verify the credentials with a read-only account request through the adapter so
+            # the request stays on the environment-specific REST host (Spot or USD-M).
+            await exchange.fetch_balances()
+            now = self._now()
+            async with self._stores() as store:
+                await store.connections.record_check(
+                    connection_id,
+                    checked_at=now,
+                    permissions=None,
+                    reason=None,
+                    warning=None,
+                )
+                await store.commit()
+                updated = await store.connections.get(connection_id)
+            if updated is None:
+                raise ConnectionNotFound(str(connection_id))
+            return updated
         try:
             permissions = await exchange.fetch_api_permissions()
             problem = permission_problem(

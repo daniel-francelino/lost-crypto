@@ -233,10 +233,14 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
               items={PRODUCT_ITEMS}
               value={values.product}
               onValueChange={(value) => {
-                const futures = value === TradingProduct.LinearPerpetual;
+                const product =
+                  value === TradingProduct.LinearPerpetual
+                    ? TradingProduct.LinearPerpetual
+                    : TradingProduct.Spot;
+                const futures = product === TradingProduct.LinearPerpetual;
                 setValues((current) => ({
                   ...current,
-                  product: value,
+                  product,
                   exchange: futures ? "binance-usdm" : "binance",
                   symbol: futures ? "BTC/USDT:USDT" : "BTC/USDT",
                   mode: ExecutionMode.Paper,

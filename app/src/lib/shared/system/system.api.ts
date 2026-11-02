@@ -11,6 +11,7 @@ const killSwitchSchema = z.object({
   active: z.boolean(),
   reason: z.string().nullable(),
   changed_at: nullableTimestampSchema,
+  close_futures_positions: z.boolean().optional().default(false),
 });
 export type KillSwitch = z.infer<typeof killSwitchSchema>;
 
@@ -89,12 +90,16 @@ export const getStatus = (signal?: AbortSignal): Promise<SystemStatus> =>
 export const getCapabilities = (signal?: AbortSignal): Promise<Capabilities> =>
   request({ path: "/system/capabilities", schema: capabilitiesSchema, signal });
 
-export const setKillSwitch = (active: boolean, reason: string | null): Promise<KillSwitch> =>
+export const setKillSwitch = (
+  active: boolean,
+  reason: string | null,
+  closeFuturesPositions = false,
+): Promise<KillSwitch> =>
   request({
     method: HttpMethod.Put,
     path: "/system/kill-switch",
     schema: killSwitchSchema,
-    body: { active, reason },
+    body: { active, reason, close_futures_positions: closeFuturesPositions },
   });
 
 export const WORKER_HEALTH_PATH = "/health/worker";

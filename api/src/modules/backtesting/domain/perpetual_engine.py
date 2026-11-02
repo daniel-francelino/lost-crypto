@@ -60,6 +60,7 @@ class PerpetualBacktestOutcome:
     liquidation_count: int
     liquidation_times: list[str]
     max_notional: Decimal
+    min_liquidation_distance_pct: Decimal | None
     paused: tuple[datetime, str] | None = None
     sizing: str = "futures_all_in"
 
@@ -193,6 +194,7 @@ def run_perpetual_backtest(
     emitted: list[EmittedSignal] = []
     liquidation_times: list[str] = []
     max_notional = Decimal(0)
+    min_liquidation_distance_pct: Decimal | None = None
     state = strategy.initial_state()
     pending: tuple[Signal, ...] = ()
     stop_price: Decimal | None = None
@@ -323,6 +325,34 @@ def run_perpetual_backtest(
                     check_maintenance_margin=True,
                 )
                 if ledger.position is None:
+                    min_liquidation_distance_pct = (
+                        Decimal(0)
+                        if min_liquidation_distance_pct is None
+                        else min(min_liquidation_distance_pct, Decimal(0))
+                    )
+                else:
+                    funding_tier = tier_for(
+                        ledger.position.quantity * event.mark_price
+                    )
+                    funding_liquidation_price = ledger.position.estimated_liquidation_price(
+                        funding_tier.maintenance_margin_rate,
+                        funding_tier.cumulative_maintenance_amount,
+                    )
+                    funding_distance = (
+                        (event.mark_price - funding_liquidation_price)
+                        / event.mark_price
+                        * 100
+                        if ledger.position.side is PositionSide.LONG
+                        else (funding_liquidation_price - event.mark_price)
+                        / event.mark_price
+                        * 100
+                    )
+                    min_liquidation_distance_pct = (
+                        funding_distance
+                        if min_liquidation_distance_pct is None
+                        else min(min_liquidation_distance_pct, funding_distance)
+                    )
+                if ledger.position is None:
                     liquidation_times.append(event.funding_time.isoformat())
                     fills.append(
                         Fill(
@@ -349,6 +379,17 @@ def run_perpetual_backtest(
                 active_tier.maintenance_margin_rate,
                 active_tier.cumulative_maintenance_amount,
             )
+            adverse_mark = mark.low if position.side is PositionSide.LONG else mark.high
+            liquidation_distance = (
+                (adverse_mark - liquidation_price) / adverse_mark * 100
+                if position.side is PositionSide.LONG
+                else (liquidation_price - adverse_mark) / adverse_mark * 100
+            )
+            min_liquidation_distance_pct = (
+                liquidation_distance
+                if min_liquidation_distance_pct is None
+                else min(min_liquidation_distance_pct, liquidation_distance)
+            )
             liq_hit = (
                 mark.low <= liquidation_price
                 if position.side is PositionSide.LONG
@@ -356,9 +397,9 @@ def run_perpetual_backtest(
             )
             if liq_hit:
                 reference = (
-                    max(mark.open, liquidation_price)
+                    min(mark.open, liquidation_price)
                     if position.side is PositionSide.LONG
-                    else min(mark.open, liquidation_price)
+                    else max(mark.open, liquidation_price)
                 )
                 fee = position.quantity * reference * liquidation_fee_rate
                 ledger.liquidate(reference, fee)
@@ -485,6 +526,7 @@ def run_perpetual_backtest(
         liquidation_count=len(liquidation_times),
         liquidation_times=liquidation_times,
         max_notional=max_notional,
+        min_liquidation_distance_pct=min_liquidation_distance_pct,
         paused=None if guard is None else guard.paused,
         sizing="risk_limits" if guard is not None else "futures_all_in",
     )

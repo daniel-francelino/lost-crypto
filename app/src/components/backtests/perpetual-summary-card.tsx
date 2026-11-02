@@ -2,7 +2,7 @@ import { CircleDollarSign, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
 import { IconCardTitle } from "@/components/shared/metrics/icon-card-title";
 import type { Backtest } from "@/lib/backtests/backtests.api";
-import { formatFractionAsPercent, formatMoney } from "@/lib/shared/format";
+import { formatFractionAsPercent, formatMoney, formatPercent } from "@/lib/shared/format";
 import { formatUtc } from "@/lib/shared/dates";
 
 export function PerpetualSummaryCard({ run }: { run: Backtest }) {
@@ -23,7 +23,7 @@ export function PerpetualSummaryCard({ run }: { run: Backtest }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <div>
             <dt className="text-sm text-muted-foreground">Alavancagem / margem</dt>
             <dd className="font-medium">
@@ -52,6 +52,18 @@ export function PerpetualSummaryCard({ run }: { run: Backtest }) {
                 ? "—"
                 : formatMoney(metrics.funding_received, quote)}
             </dd>
+          </div>
+          <div>
+            <dt className="text-sm text-muted-foreground">Distância mínima à liquidação</dt>
+            <dd className="font-medium">
+              {metrics.minimum_liquidation_distance_pct == null
+                ? "—"
+                : formatPercent(metrics.minimum_liquidation_distance_pct)}
+            </dd>
+            <p className="text-xs text-muted-foreground">
+              Estimada pelo extremo intrabar do mark price; pode ficar negativa quando a liquidação
+              é cruzada.
+            </p>
           </div>
         </dl>
         <div className="flex items-start gap-3 rounded-md border border-warning/50 bg-warning/5 p-3">

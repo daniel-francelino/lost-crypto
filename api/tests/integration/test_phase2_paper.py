@@ -148,6 +148,31 @@ async def test_kill_switch_pauses_running_bots_and_blocks_new_entries(env: Env) 
     assert (await env.bot(bot_id))["observed_state"] == "paused"  # not resumed automatically
 
 
+async def test_kill_switch_close_policy_is_explicit_and_persisted(env: Env) -> None:
+    rejected = await env.http.put(
+        "/api/v1/system/kill-switch",
+        json={"active": False, "close_futures_positions": True},
+    )
+    assert rejected.status_code == 409
+
+    activated = await env.http.put(
+        "/api/v1/system/kill-switch",
+        json={
+            "active": True,
+            "reason": "operator emergency",
+            "close_futures_positions": True,
+        },
+    )
+    assert activated.status_code == 200
+    assert activated.json()["close_futures_positions"] is True
+    current = await env.http.get("/api/v1/system/kill-switch")
+    assert current.json()["close_futures_positions"] is True
+
+    released = await env.http.put("/api/v1/system/kill-switch", json={"active": False})
+    assert released.status_code == 200
+    assert released.json()["close_futures_positions"] is False
+
+
 async def test_daily_loss_limit_pauses_the_bot(env: Env) -> None:
     runner = env.make_runner(PathSource)
     bot_id = await env.create_bot(risk={"max_daily_loss_pct": "5"})

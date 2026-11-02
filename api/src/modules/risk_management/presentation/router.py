@@ -14,12 +14,17 @@ router = APIRouter(prefix="/system", tags=["system"])
 class KillSwitchIn(BaseModel):
     active: bool
     reason: str | None = Field(default=None, max_length=200)
+    close_futures_positions: bool = Field(
+        default=False,
+        description="When activating, cancel opening Futures orders and close tracked Demo positions.",
+    )
 
 
 class KillSwitchOut(BaseModel):
     active: bool
     reason: str | None
     changed_at: datetime | None
+    close_futures_positions: bool = False
 
 
 class WorkerOut(BaseModel):
@@ -119,15 +124,26 @@ def _container(request: Request) -> Container:
 @router.get("/kill-switch", response_model=KillSwitchOut)
 async def get_kill_switch(request: Request) -> KillSwitchOut:
     state = await _container(request).kill_switch.get()
-    return KillSwitchOut(active=state.active, reason=state.reason, changed_at=state.changed_at)
+    return KillSwitchOut(
+        active=state.active,
+        reason=state.reason,
+        changed_at=state.changed_at,
+        close_futures_positions=state.close_futures_positions,
+    )
 
 
 @router.put("/kill-switch", response_model=KillSwitchOut)
 async def set_kill_switch(body: KillSwitchIn, request: Request) -> KillSwitchOut:
-    """Emergency stop. While active, the worker pauses every running bot and no new entries
-    are approved. Releasing it does not resume bots: start them again explicitly."""
-    state = await _container(request).kill_switch.set(body.active, body.reason)
-    return KillSwitchOut(active=state.active, reason=state.reason, changed_at=state.changed_at)
+    """Pause entries; optionally cancel opening Futures orders and close tracked positions."""
+    state = await _container(request).kill_switch.set(
+        body.active, body.reason, body.close_futures_positions
+    )
+    return KillSwitchOut(
+        active=state.active,
+        reason=state.reason,
+        changed_at=state.changed_at,
+        close_futures_positions=state.close_futures_positions,
+    )
 
 
 @router.get("/capabilities", response_model=CapabilitiesOut)
@@ -169,6 +185,7 @@ async def get_status(request: Request) -> SystemStatusOut:
             active=status.kill_switch.active,
             reason=status.kill_switch.reason,
             changed_at=status.kill_switch.changed_at,
+            close_futures_positions=status.kill_switch.close_futures_positions,
         ),
         bots_by_state=status.bots_by_state,
         stale_bots=[

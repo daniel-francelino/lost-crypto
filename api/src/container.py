@@ -338,6 +338,7 @@ def build_job_runner(container: Container) -> JobRunner:
             resolver=container.resolver,
             executor=executor,
             reconciler=reconciler,
+            perpetual_closer=container.perpetual_close,
             testnet_enabled=settings.testnet_trading_enabled,
             futures_paper_enabled=settings.futures_paper_enabled,
             live_enabled=settings.live_trading_enabled,

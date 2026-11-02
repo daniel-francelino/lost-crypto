@@ -21,6 +21,7 @@ export const metricsSchema = z.object({
   liquidation_count: z.number().nullish(),
   liquidation_times: z.array(z.string()).nullish(),
   maximum_notional: nullableDecimalSchema.optional(),
+  minimum_liquidation_distance_pct: nullableDecimalSchema.optional(),
   leverage: z.number().nullish(),
   margin_mode: z.string().nullish(),
   liquidation_fee_rate: nullableDecimalSchema.optional(),

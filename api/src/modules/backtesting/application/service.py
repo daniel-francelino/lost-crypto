@@ -514,6 +514,11 @@ class BacktestExecutor:
                 liquidation_count=outcome.liquidation_count,
                 liquidation_times=outcome.liquidation_times,
                 maximum_notional=str(outcome.max_notional),
+                minimum_liquidation_distance_pct=(
+                    None
+                    if outcome.min_liquidation_distance_pct is None
+                    else str(outcome.min_liquidation_distance_pct)
+                ),
                 leverage=config.leverage,
                 margin_mode=config.margin_mode.value if config.margin_mode else None,
                 liquidation_fee_rate=str(config.fee_rate),
