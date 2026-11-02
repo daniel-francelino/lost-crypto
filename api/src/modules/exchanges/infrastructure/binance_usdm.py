@@ -1,10 +1,15 @@
 """Binance USDⓈ-M perpetual integration, isolated from the Binance Spot adapter."""
 
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from modules.exchanges.application.ports import MarketOrderRequest, StopOrderRequest, VenueOrder
+from modules.exchanges.application.ports import (
+    ExchangePosition,
+    MarketOrderRequest,
+    StopOrderRequest,
+    VenueOrder,
+)
 from modules.exchanges.domain.connections import ApiPermissions
 from modules.exchanges.domain.models import (
     ExchangeCapabilities,
@@ -12,9 +17,10 @@ from modules.exchanges.domain.models import (
     FeeSchedule,
     MarginMode,
     OrderType,
+    PositionSide,
     TradingProduct,
 )
-from modules.exchanges.errors import ExchangeRejected
+from modules.exchanges.errors import ExchangeError, ExchangeRejected
 from modules.exchanges.infrastructure.ccxt_exchange import CcxtExchange
 from modules.market_data.domain.models import Candle, FundingRate, MarketInfo, MarkPrice, Timeframe
 
@@ -32,6 +38,7 @@ BINANCE_USDM_PROFILE = ExchangeProfile(
         timeframes=frozenset(Timeframe),
         products=frozenset({TradingProduct.LINEAR_PERPETUAL}),
         max_leverage=MAX_LEVERAGE,
+        has_demo=True,  # demo-fapi.binance.com, Futures Demo keys
     ),
     fees=FeeSchedule(maker_rate=Decimal("0.0002"), taker_rate=Decimal("0.0005")),
 )
@@ -133,6 +140,56 @@ class BinanceUsdmExchange(CcxtExchange):
             can_trade_derivatives=bool(raw.get("enableFutures")),
         )
 
+    async def fetch_positions(self, symbols: list[str] | None = None) -> list[ExchangePosition]:
+        """Read non-zero USD-M positions and normalize Binance/CCXT account fields."""
+        self._require_authentication()
+        raws = await self._call(lambda: self._client.fetch_positions(symbols))
+        positions: list[ExchangePosition] = []
+        for raw in raws:
+            info = raw.get("info") or {}
+            contracts = _optional_decimal(raw.get("contracts"))
+            if contracts is None:
+                contracts = abs(_optional_decimal(info.get("positionAmt")) or Decimal(0))
+            else:
+                contracts = abs(contracts)
+            if contracts <= 0:
+                continue
+            raw_side = raw.get("side")
+            if raw_side not in (PositionSide.LONG.value, PositionSide.SHORT.value):
+                amount = _optional_decimal(info.get("positionAmt"))
+                if amount is None or amount == 0:
+                    raise ExchangeError("Binance USD-M returned an open position without a side")
+                raw_side = PositionSide.LONG.value if amount > 0 else PositionSide.SHORT.value
+            raw_margin_mode = raw.get("marginMode")
+            margin_mode = (
+                MarginMode(raw_margin_mode)
+                if raw_margin_mode in {mode.value for mode in MarginMode}
+                else None
+            )
+            isolated_margin = (
+                _optional_decimal(info.get("isolatedWallet"))
+                if margin_mode is MarginMode.ISOLATED
+                else None
+            )
+            if isolated_margin is None and margin_mode is MarginMode.ISOLATED:
+                isolated_margin = _optional_decimal(raw.get("initialMargin"))
+            positions.append(
+                ExchangePosition(
+                    symbol=str(raw.get("symbol") or ""),
+                    side=PositionSide(raw_side),
+                    quantity=contracts,
+                    entry_price=_positive_decimal(raw.get("entryPrice")),
+                    mark_price=_positive_decimal(raw.get("markPrice")),
+                    unrealized_pnl=_optional_decimal(raw.get("unrealizedPnl")) or Decimal(0),
+                    leverage=_optional_integer(raw.get("leverage")),
+                    margin_mode=margin_mode,
+                    isolated_margin=isolated_margin,
+                    liquidation_price=_positive_decimal(raw.get("liquidationPrice")),
+                    notional=_positive_decimal(raw.get("notional")),
+                )
+            )
+        return positions
+
     async def prepare_market_order(self, request: MarketOrderRequest) -> None:
         if request.product is not TradingProduct.LINEAR_PERPETUAL:
             raise ExchangeRejected("Binance USD-M accepts only linear perpetual orders")
@@ -147,6 +204,7 @@ class BinanceUsdmExchange(CcxtExchange):
         symbol: str,
         leverage: int,
         margin_mode: MarginMode | None,
+        max_notional: Decimal | None = None,
     ) -> None:
         if product is not TradingProduct.LINEAR_PERPETUAL:
             raise ExchangeRejected("Binance USD-M accepts only linear perpetual markets")
@@ -163,9 +221,32 @@ class BinanceUsdmExchange(CcxtExchange):
             raise ExchangeRejected(f"unknown Binance USD-M perpetual symbol {symbol}") from exc
         if not self.is_supported_market(market):
             raise ExchangeRejected(f"{symbol} is not an active USDT linear perpetual")
-        permissions = await self.fetch_api_permissions()
-        if not permissions.can_read or not permissions.can_trade_derivatives:
-            raise ExchangeRejected("API key must have read and Binance Futures trading access")
+        tiers = await self.fetch_leverage_tiers(symbol)
+        notional = max_notional if max_notional is not None else Decimal(0)
+        supported_tier = next(
+            (
+                tier
+                for tier in tiers
+                if (
+                    tier.max_leverage >= leverage
+                    and (notional == 0 or tier.supports(notional, leverage))
+                )
+            ),
+            None,
+        )
+        if supported_tier is None:
+            raise ExchangeRejected(
+                f"Binance leverage tiers do not support {leverage}x at notional {notional}"
+            )
+        if self._demo or self._sandbox:
+            # Binance Demo/Testnet does not use the production SAPI restrictions endpoint. The
+            # account read and the following isolated/leverage configuration calls validate the
+            # credentials against the same USD-M environment as the orders.
+            await self._call(lambda: self._client.fetch_balance({"type": "future"}))
+        else:
+            permissions = await self.fetch_api_permissions()
+            if not permissions.can_read or not permissions.can_trade_derivatives:
+                raise ExchangeRejected("API key must have read and Binance Futures trading access")
         position_mode = await self._call(self._client.fetch_position_mode)
         if position_mode.get("hedged"):
             raise ExchangeRejected("Binance USD-M account must use one-way position mode")
@@ -190,13 +271,6 @@ class BinanceUsdmExchange(CcxtExchange):
         if raw_leverage is None or int(raw_leverage) != leverage:
             raise ExchangeRejected(f"Binance did not confirm requested {leverage}x leverage")
 
-        tiers = await self._call(lambda: self._client.fetch_leverage_tiers([symbol]))
-        symbol_tiers = tiers.get(symbol, [])
-        if not symbol_tiers or max(int(tier["maxLeverage"]) for tier in symbol_tiers) < leverage:
-            raise ExchangeRejected(
-                f"Binance leverage tiers do not support {leverage}x for {symbol}"
-            )
-
     def stop_order_type(self, request: StopOrderRequest) -> str:
         if request.product is TradingProduct.LINEAR_PERPETUAL:
             return "market"  # CCXT translates stopPrice into Binance STOP_MARKET/algo order.
@@ -204,14 +278,14 @@ class BinanceUsdmExchange(CcxtExchange):
 
     def lookup_params(self, client_order_id: str) -> dict[str, Any]:
         if client_order_id.endswith("-sl"):
-            # CCXT selects Binance's conditional algo-order endpoint from these fields.
-            return {"clientAlgoId": client_order_id, "triggerPrice": "1"}
+            # CCXT selects the current USD-M algo-order endpoints with trigger=True.
+            return {"clientAlgoId": client_order_id, "trigger": True}
         return super().lookup_params(client_order_id)
 
     async def fetch_open_orders(self, symbol: str) -> list[VenueOrder]:
         standard = await super().fetch_open_orders(symbol)
         conditional = await self._call(
-            lambda: self._client.fetch_open_orders(symbol, None, None, {"triggerPrice": "1"})
+            lambda: self._client.fetch_open_orders(symbol, None, None, {"trigger": True})
         )
         return [*standard, *conditional]
 
@@ -224,3 +298,29 @@ class BinanceUsdmExchange(CcxtExchange):
 
     def market_order_params(self, request: MarketOrderRequest) -> dict[str, Any]:
         return {"reduceOnly": True} if request.reduce_only else {}
+
+
+def _optional_decimal(value: Any) -> Decimal | None:
+    if value is None or value == "":
+        return None
+    try:
+        parsed = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        raise ExchangeError("Binance USD-M returned a malformed numeric position field") from None
+    if not parsed.is_finite():
+        raise ExchangeError("Binance USD-M returned a non-finite position field")
+    return parsed
+
+
+def _positive_decimal(value: Any) -> Decimal | None:
+    parsed = _optional_decimal(value)
+    return parsed if parsed is not None and parsed > 0 else None
+
+
+def _optional_integer(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise ExchangeError("Binance USD-M returned a malformed leverage field") from None

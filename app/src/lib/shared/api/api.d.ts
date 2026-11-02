@@ -1504,6 +1504,11 @@ export interface components {
              */
             exchange: string;
             /**
+             * Connection Id
+             * @description Required for futures; selects the account-specific USD-M leverage tiers.
+             */
+            connection_id?: string | null;
+            /**
              * Strategy Type
              * @example trend_quality_breakout
              */
@@ -1645,6 +1650,8 @@ export interface components {
             };
             /** Exchange */
             exchange: string;
+            /** Connection Id */
+            connection_id: string | null;
             /** Symbol */
             symbol: string;
             product: components["schemas"]["TradingProduct"];
@@ -2116,10 +2123,10 @@ export interface components {
             exchange: string;
             /**
              * Environment
-             * @default testnet
+             * @default demo
              * @enum {string}
              */
-            environment: "testnet" | "live";
+            environment: "demo" | "testnet" | "live";
             /**
              * Confirm Real Money
              * @description Required for environment=live: these keys can spend REAL money
@@ -2262,6 +2269,10 @@ export interface components {
             /** Outlier Samples */
             outlier_samples?: components["schemas"]["OutlierSampleOut"][];
             sample?: components["schemas"]["SampleCheckOut"] | null;
+            /** Perpetual Data */
+            perpetual_data?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * DrawdownAction
@@ -2277,7 +2288,7 @@ export interface components {
          * Environment
          * @enum {string}
          */
-        Environment: "testnet" | "live";
+        Environment: "demo" | "testnet" | "live";
         /** EquityPointOut */
         EquityPointOut: {
             /**
@@ -2782,6 +2793,24 @@ export interface components {
             open_position: boolean;
             /** Rejected Signals */
             rejected_signals: number;
+            /** Funding Paid */
+            funding_paid?: string | null;
+            /** Funding Received */
+            funding_received?: string | null;
+            /** Liquidation Count */
+            liquidation_count?: number | null;
+            /** Liquidation Times */
+            liquidation_times?: string[] | null;
+            /** Maximum Notional */
+            maximum_notional?: string | null;
+            /** Leverage */
+            leverage?: number | null;
+            /** Margin Mode */
+            margin_mode?: string | null;
+            /** Liquidation Fee Rate */
+            liquidation_fee_rate?: string | null;
+            /** Liquidation Fee Source */
+            liquidation_fee_source?: string | null;
             /**
              * Sharpe Ratio
              * @description Annualised (365 days), risk-free rate 0. Null below 30 returns.
@@ -3380,6 +3409,11 @@ export interface components {
             /** Max Risk Per Trade Pct */
             max_risk_per_trade_pct?: number | string | null;
             /**
+             * Min Liquidation Distance Pct
+             * @description Futures only: refuse entries whose estimated liquidation price is closer than this percentage from entry. This is an estimate; exchange liquidation state is authoritative.
+             */
+            min_liquidation_distance_pct?: number | string | null;
+            /**
              * Require Stop Loss
              * @default false
              */
@@ -3428,6 +3462,11 @@ export interface components {
             max_consecutive_losses?: number | null;
             /** Max Risk Per Trade Pct */
             max_risk_per_trade_pct?: string | null;
+            /**
+             * Min Liquidation Distance Pct
+             * @description Futures only: refuse entries whose estimated liquidation price is closer than this percentage from entry. This is an estimate; exchange liquidation state is authoritative.
+             */
+            min_liquidation_distance_pct?: string | null;
             /**
              * Require Stop Loss
              * @default false
@@ -3712,6 +3751,11 @@ export interface components {
              * @default binance
              */
             exchange: string;
+            /**
+             * Connection Id
+             * @description Required for futures; selects the account-specific USD-M leverage tiers.
+             */
+            connection_id?: string | null;
             /**
              * Strategy Type
              * @example trend_quality_breakout

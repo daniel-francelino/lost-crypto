@@ -230,15 +230,26 @@ class BotService:
         if not config.mode.uses_exchange:
             return
         assert config.connection_id is not None  # guaranteed by BotConfig
-        expected = Environment.LIVE if config.mode is ExecutionMode.LIVE else Environment.TESTNET
+        allowed_environments = (
+            {Environment.LIVE}
+            if config.mode is ExecutionMode.LIVE
+            else (
+                {Environment.DEMO}
+                if config.product is TradingProduct.LINEAR_PERPETUAL
+                else {Environment.DEMO, Environment.TESTNET}
+            )
+        )
         connection = await store.connections.get(config.connection_id)
         if connection is None:
             raise InvalidBotConnection("the exchange connection does not exist")
         if connection.status is not ConnectionStatus.ACTIVE:
             raise InvalidBotConnection(f"the exchange connection is {connection.status.value}")
-        if connection.environment is not expected:
+        if connection.environment not in allowed_environments:
+            expected = " or ".join(
+                sorted(environment.value for environment in allowed_environments)
+            )
             raise InvalidBotConnection(
-                f"{config.mode.value} bots need a {expected.value} connection"
+                f"{config.mode.value} bots for {config.product.value} need a {expected} connection"
             )
         if connection.exchange != config.exchange:
             raise InvalidBotConnection(

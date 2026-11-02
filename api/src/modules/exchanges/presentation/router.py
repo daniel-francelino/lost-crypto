@@ -27,7 +27,7 @@ class PermissionsOut(BaseModel):
 
 class ConnectionCreate(BaseModel):
     exchange: str = "binance"
-    environment: Literal["testnet", "live"] = "testnet"
+    environment: Literal["demo", "testnet", "live"] = "demo"
     confirm_real_money: bool = Field(
         default=False,
         description="Required for environment=live: these keys can spend REAL money",

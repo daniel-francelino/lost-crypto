@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime, timedelta
+from decimal import Decimal
 from uuid import UUID
 
 from core.clock import Clock
@@ -10,6 +11,7 @@ from core.security.vault import VaultError, VaultNotConfigured
 from modules.audit.models import AuditEvent
 from modules.bots.domain.models import Bot, BotState, ExecutionMode
 from modules.exchanges.application.connections import ConnectionResolver, InvalidConnection
+from modules.exchanges.domain.connections import Environment
 from modules.exchanges.domain.models import TradingProduct
 from modules.exchanges.errors import AuthenticationFailed
 from modules.risk_management.domain.models import KillSwitchState
@@ -153,7 +155,10 @@ class BotSupervisor:
         if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
             return "USD-M futures are disabled until the futures ledger and worker are released"
         if mode is ExecutionMode.TESTNET and not self._testnet_enabled:
-            return "testnet trading is disabled (set TESTNET_TRADING_ENABLED=true on the worker)"
+            return (
+                "demo/testnet trading is disabled "
+                "(set TESTNET_TRADING_ENABLED=true on the worker)"
+            )
         if mode is ExecutionMode.LIVE:
             if not self._live_enabled:
                 return "live trading is disabled (LIVE_TRADING_ENABLED is not true on the worker)"
@@ -198,13 +203,27 @@ class BotSupervisor:
             return f"exchange connection unusable: {type(exc).__name__}: {exc}"
         if bot.config.mode is ExecutionMode.TESTNET and not exchange.capabilities.has_testnet:
             return f"{bot.config.exchange} has no testnet"
+        environment = await self._resolver.environment_for(bot.config.connection_id)
+        if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
+            if environment is not Environment.DEMO:
+                return "Binance USD-M futures require a Binance Demo Mode connection"
+            if not exchange.capabilities.has_demo:
+                return f"{bot.config.exchange} has no Demo Mode API"
         if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
             try:
+                max_notional = (
+                    bot.config.initial_capital
+                    * bot.config.risk.max_position_fraction
+                    * bot.config.leverage
+                )
+                if bot.config.risk.max_order_notional is not None:
+                    max_notional = min(max_notional, bot.config.risk.max_order_notional)
                 await exchange.prepare_market_configuration(
                     bot.config.product,
                     bot.config.symbol,
                     bot.config.leverage,
                     bot.config.margin_mode,
+                    max_notional=max_notional or Decimal(0),
                 )
             except Exception as exc:
                 return f"futures account or market configuration refused: {exc}"

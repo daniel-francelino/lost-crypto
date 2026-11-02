@@ -19,6 +19,15 @@ class MetricsOut(BaseModel):
     avg_trade_pnl: Decimal | None
     open_position: bool
     rejected_signals: int
+    funding_paid: Decimal | None = None
+    funding_received: Decimal | None = None
+    liquidation_count: int | None = None
+    liquidation_times: list[datetime] | None = None
+    maximum_notional: Decimal | None = None
+    leverage: int | None = None
+    margin_mode: str | None = None
+    liquidation_fee_rate: Decimal | None = None
+    liquidation_fee_source: str | None = None
     # Optional: results stored before these metrics existed do not have them (shown as n/a).
     sharpe_ratio: Decimal | None = Field(
         default=None,

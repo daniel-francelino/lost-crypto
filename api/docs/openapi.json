@@ -4161,6 +4161,19 @@
             "title": "Exchange",
             "default": "binance"
           },
+          "connection_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id",
+            "description": "Required for futures; selects the account-specific USD-M leverage tiers."
+          },
           "strategy_type": {
             "type": "string",
             "title": "Strategy Type",
@@ -4425,6 +4438,18 @@
           "exchange": {
             "type": "string",
             "title": "Exchange"
+          },
+          "connection_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id"
           },
           "symbol": {
             "type": "string",
@@ -4765,6 +4790,7 @@
           "strategy_type",
           "strategy_params",
           "exchange",
+          "connection_id",
           "symbol",
           "product",
           "leverage",
@@ -5887,11 +5913,12 @@
           "environment": {
             "type": "string",
             "enum": [
+              "demo",
               "testnet",
               "live"
             ],
             "title": "Environment",
-            "default": "testnet"
+            "default": "demo"
           },
           "confirm_real_money": {
             "type": "boolean",
@@ -6293,6 +6320,18 @@
                 "type": "null"
               }
             ]
+          },
+          "perpetual_data": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Perpetual Data"
           }
         },
         "type": "object",
@@ -6311,6 +6350,7 @@
       "Environment": {
         "type": "string",
         "enum": [
+          "demo",
           "testnet",
           "live"
         ],
@@ -7558,6 +7598,109 @@
           "rejected_signals": {
             "type": "integer",
             "title": "Rejected Signals"
+          },
+          "funding_paid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Funding Paid"
+          },
+          "funding_received": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Funding Received"
+          },
+          "liquidation_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liquidation Count"
+          },
+          "liquidation_times": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liquidation Times"
+          },
+          "maximum_notional": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum Notional"
+          },
+          "leverage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leverage"
+          },
+          "margin_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Margin Mode"
+          },
+          "liquidation_fee_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liquidation Fee Rate"
+          },
+          "liquidation_fee_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liquidation Fee Source"
           },
           "sharpe_ratio": {
             "anyOf": [
@@ -9223,6 +9366,23 @@
             ],
             "title": "Max Risk Per Trade Pct"
           },
+          "min_liquidation_distance_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Liquidation Distance Pct",
+            "description": "Futures only: refuse entries whose estimated liquidation price is closer than this percentage from entry. This is an estimate; exchange liquidation state is authoritative."
+          },
           "require_stop_loss": {
             "type": "boolean",
             "title": "Require Stop Loss",
@@ -9350,6 +9510,18 @@
               }
             ],
             "title": "Max Risk Per Trade Pct"
+          },
+          "min_liquidation_distance_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Liquidation Distance Pct",
+            "description": "Futures only: refuse entries whose estimated liquidation price is closer than this percentage from entry. This is an estimate; exchange liquidation state is authoritative."
           },
           "require_stop_loss": {
             "type": "boolean",
@@ -10044,6 +10216,19 @@
             "type": "string",
             "title": "Exchange",
             "default": "binance"
+          },
+          "connection_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id",
+            "description": "Required for futures; selects the account-specific USD-M leverage tiers."
           },
           "strategy_type": {
             "type": "string",

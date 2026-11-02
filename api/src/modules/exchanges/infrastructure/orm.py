@@ -21,7 +21,7 @@ class ExchangeConnectionRow(Base):
     __tablename__ = "exchange_connections"
     __table_args__ = (
         UniqueConstraint("exchange", "environment", "label"),
-        CheckConstraint("environment IN ('testnet','live')", name="environment_valid"),
+        CheckConstraint("environment IN ('demo','testnet','live')", name="environment_valid"),
         CheckConstraint("status IN ('active','disabled','invalid','pending')", name="status_valid"),
     )
 

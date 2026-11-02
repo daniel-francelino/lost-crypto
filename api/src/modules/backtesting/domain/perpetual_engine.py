@@ -7,12 +7,13 @@ filled from signal candles or the current funding rate.
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from itertools import pairwise
 from typing import Any
 from uuid import UUID
 
+from modules.analytics.domain.metrics import round_trip_pnls
 from modules.backtesting.domain.models import (
     BacktestConfig,
     EmittedSignal,
@@ -21,12 +22,25 @@ from modules.backtesting.domain.models import (
     InvalidBacktestConfig,
     RejectedSignal,
 )
-from modules.exchanges.domain.models import PositionSide, TradingProduct
+from modules.exchanges.domain.models import LeverageTier, PositionSide, TradingProduct
 from modules.execution.domain.fills import effective_slippage_bps, simulate_market_fill
 from modules.execution.domain.normalizer import OrderRejected
 from modules.execution.domain.orders import Fill
 from modules.market_data.domain.models import Candle, FundingRate, MarketInfo
-from modules.portfolio.domain.perpetuals import InvalidPerpetualPosition, PerpetualLedger
+from modules.portfolio.domain.perpetuals import (
+    InvalidPerpetualPosition,
+    LinearPerpetualPosition,
+    PerpetualLedger,
+)
+from modules.risk_management.domain.models import (
+    RiskLimits,
+    average_quote_volume,
+    candle_range_pct,
+    close_jump_pct,
+    consecutive_losses_breached,
+    daily_loss_breached,
+    drawdown_breached,
+)
 from modules.strategies.domain.base import Strategy
 from modules.strategies.domain.types import Side, Signal, SignalKind, StrategyContext
 
@@ -48,6 +62,170 @@ class PerpetualBacktestOutcome:
     liquidation_count: int
     liquidation_times: list[str]
     max_notional: Decimal
+    paused: tuple[datetime, str] | None = None
+    sizing: str = "futures_all_in"
+
+
+class _PerpetualRiskGuard:
+    """Directional position sizing and pauses over isolated collateral equity."""
+
+    def __init__(self, config: BacktestConfig) -> None:
+        if config.risk is None:
+            raise ValueError("perpetual risk guard requires limits")
+        self.limits: RiskLimits = config.risk
+        self.config = config
+        self.paused: tuple[datetime, str] | None = None
+        self._day: date | None = None
+        self._day_start = config.initial_capital
+        self._last_mark = config.initial_capital
+        self._peak = config.initial_capital
+        self._volumes: list[Decimal] = []
+        self._previous_close: Decimal | None = None
+        self._last_close: Decimal | None = None
+        self._last_open_time: datetime | None = None
+
+    def observe(self, candle: Candle) -> None:
+        if candle.volume > 0:
+            self._volumes.append(candle.volume * candle.close)
+            self._volumes = self._volumes[-20:]
+        self._previous_close = self._last_close
+        self._last_close = candle.close
+        self._last_open_time = candle.open_time
+
+    def size(
+        self,
+        signal: Signal,
+        ledger: PerpetualLedger,
+        reference: Decimal,
+        candle: Candle,
+        slippage_bps: Decimal,
+    ) -> Decimal:
+        if self.paused is not None:
+            raise OrderRejected(f"bot paused: {self.paused[1]}")
+        limits = self.limits
+        if limits.max_candle_range_pct is not None:
+            range_pct = candle_range_pct(candle.high, candle.low)
+            if range_pct > limits.max_candle_range_pct:
+                raise OrderRejected(
+                    f"candle range {range_pct:.1f}% exceeds "
+                    f"{limits.max_candle_range_pct}% (suspect data)"
+                )
+        prior_close = (
+            self._previous_close if self._last_open_time == candle.open_time else self._last_close
+        )
+        jump = close_jump_pct(candle.close, prior_close)
+        if (
+            limits.max_close_jump_pct is not None
+            and jump is not None
+            and jump > limits.max_close_jump_pct
+        ):
+            raise OrderRejected(
+                f"close moved {jump:.1f}% from the previous close, above "
+                f"{limits.max_close_jump_pct}% (suspect data)"
+            )
+        if limits.require_stop_loss and signal.stop_loss is None:
+            raise OrderRejected("a stop-loss is required but the signal has none")
+
+        side = PositionSide.LONG if signal.side is Side.BUY else PositionSide.SHORT
+        if signal.stop_loss is not None:
+            valid_stop = (
+                signal.stop_loss < reference
+                if side is PositionSide.LONG
+                else signal.stop_loss > reference
+            )
+            if not valid_stop:
+                raise OrderRejected("stop-loss is on the wrong side of the entry")
+        entry = reference * (
+            1 + slippage_bps / Decimal(10_000)
+            if signal.side is Side.BUY
+            else 1 - slippage_bps / Decimal(10_000)
+        )
+        equity = ledger.equity(reference)
+        collateral_budget = min(ledger.available_balance, equity * limits.max_position_fraction)
+        max_notional = (
+            collateral_budget
+            * self.config.leverage
+            / (1 + self.config.fee_rate * self.config.leverage)
+        )
+        if limits.max_order_notional is not None:
+            max_notional = min(max_notional, limits.max_order_notional)
+        average_volume = average_quote_volume(self._volumes)
+        if limits.max_order_pct_of_volume is not None and average_volume is not None:
+            max_notional = min(
+                max_notional, average_volume * limits.max_order_pct_of_volume / Decimal(100)
+            )
+        if max_notional <= 0:
+            raise OrderRejected("no collateral remains for a new position")
+        quantity = max_notional / entry
+
+        if limits.max_risk_per_trade_pct is not None:
+            if signal.stop_loss is None:
+                raise OrderRejected("risk-per-trade sizing requires a stop-loss")
+            distance = abs(entry - signal.stop_loss)
+            round_trip_fees = (entry + signal.stop_loss) * self.config.fee_rate
+            per_unit_risk = distance + round_trip_fees
+            if per_unit_risk <= 0:
+                raise OrderRejected("stop-loss risk distance must be positive")
+            risk_budget = equity * limits.max_risk_per_trade_pct / Decimal(100)
+            quantity = min(quantity, risk_budget / per_unit_risk)
+
+        if limits.min_liquidation_distance_pct is not None:
+            notional = quantity * entry
+            tier = next(
+                (
+                    item
+                    for item in self.config.leverage_tiers
+                    if item.min_notional <= notional < item.max_notional
+                ),
+                None,
+            )
+            if tier is None or tier.max_leverage < self.config.leverage:
+                raise OrderRejected("no supported leverage tier covers the sized position")
+            position = LinearPerpetualPosition(
+                side,
+                quantity,
+                entry,
+                self.config.leverage,
+                notional / self.config.leverage,
+            )
+            liquidation_price = position.estimated_liquidation_price(
+                tier.maintenance_margin_rate, tier.cumulative_maintenance_amount
+            )
+            distance_pct = (
+                (entry - liquidation_price) / entry * Decimal(100)
+                if side is PositionSide.LONG
+                else (liquidation_price - entry) / entry * Decimal(100)
+            )
+            if distance_pct < limits.min_liquidation_distance_pct:
+                raise OrderRejected(
+                    f"estimated liquidation buffer {distance_pct:.2f}% is below configured "
+                    f"{limits.min_liquidation_distance_pct}%"
+                )
+        return quantity
+
+    def after_mark(self, equity: Decimal, at: datetime) -> None:
+        day = at.date()
+        if self._day is None:
+            self._day = day
+        elif day != self._day:
+            self._day, self._day_start = day, self._last_mark
+            if self.config.resume_daily_pause and self._paused_by_daily_loss():
+                self.paused = None
+        self._last_mark = equity
+        self._peak = max(self._peak, equity)
+        if self.paused is not None:
+            return
+        if daily_loss_breached(equity, self._day_start, self.limits):
+            self.paused = (at, "daily loss limit breached")
+        elif drawdown_breached(equity, self._peak, self.limits):
+            self.paused = (at, "max drawdown limit breached")
+
+    def after_exit(self, fills: Sequence[Fill], at: datetime) -> None:
+        if self.paused is None and consecutive_losses_breached(round_trip_pnls(fills), self.limits):
+            self.paused = (at, "max consecutive losses reached")
+
+    def _paused_by_daily_loss(self) -> bool:
+        return self.paused is not None and self.paused[1] == "daily loss limit breached"
 
 
 def run_perpetual_backtest(
@@ -58,17 +236,13 @@ def run_perpetual_backtest(
     market: MarketInfo,
     strategy: Strategy[Any],
     *,
-    maintenance_margin_rate: Decimal,
     liquidation_fee_rate: Decimal,
     trade_from: datetime | None = None,
 ) -> PerpetualBacktestOutcome:
     """Run with signal candles, separate mark candles, and event-time historical funding."""
     if config.product is not TradingProduct.LINEAR_PERPETUAL:
         raise InvalidBacktestConfig("perpetual engine requires linear_perpetual product")
-    if config.risk is not None:
-        raise InvalidBacktestConfig(
-            "perpetual backtests with risk limits require the futures risk sizing model"
-        )
+    guard = _PerpetualRiskGuard(config) if config.risk is not None else None
     if not candles or len(candles) != len(mark_candles):
         raise InvalidBacktestConfig("signal and mark candles must have complete matching coverage")
     if any(
@@ -78,8 +252,8 @@ def run_perpetual_backtest(
         for signal, mark in zip(candles, mark_candles, strict=True)
     ):
         raise InvalidBacktestConfig("mark candles must align exactly with signal candles")
-    if not 0 <= maintenance_margin_rate < 1 or not 0 <= liquidation_fee_rate < 1:
-        raise InvalidBacktestConfig("maintenance and liquidation fee rates must be in [0, 1)")
+    if not config.leverage_tiers or not 0 <= liquidation_fee_rate < 1:
+        raise InvalidBacktestConfig("perpetual backtest requires leverage tiers and a valid fee")
     if any(rate.mark_price is None for rate in funding_rates):
         raise InvalidBacktestConfig("funding observations need their event-time mark price")
 
@@ -105,6 +279,13 @@ def run_perpetual_backtest(
     pending: tuple[Signal, ...] = ()
     stop_price: Decimal | None = None
     take_profit_price: Decimal | None = None
+    active_tier: LeverageTier | None = None
+
+    def tier_for(notional: Decimal) -> LeverageTier:
+        for tier in config.leverage_tiers:
+            if tier.min_notional <= notional < tier.max_notional:
+                return tier
+        raise InvalidBacktestConfig(f"no maintenance tier covers notional {notional}")
 
     def bps(candle: Candle, notional: Decimal) -> Decimal:
         return effective_slippage_bps(
@@ -134,18 +315,24 @@ def run_perpetual_backtest(
                     if signal.side is Side.BUY
                     else 1 - config.slippage_bps / Decimal(10_000)
                 )
-                budget = ledger.available_balance
-                wanted = (
-                    budget
-                    * config.leverage
-                    / (price_hint * (1 + config.fee_rate * config.leverage))
-                )
+                budget = ledger.available_balance * config.leverage
+                slippage = bps(candle, budget)
+                if guard is not None:
+                    wanted = guard.size(signal, ledger, reference, candle, slippage)
+                else:
+                    wanted = budget / (price_hint * (1 + config.fee_rate * config.leverage))
                 executed = simulate_market_fill(
-                    signal.side, wanted, reference, config.fee_rate, bps(candle, budget), market, at
+                    signal.side, wanted, reference, config.fee_rate, slippage, market, at
                 )
                 ledger.open_position(
                     side, executed.quantity, executed.price, config.leverage, executed.fee
                 )
+                active_tier = tier_for(executed.notional)
+                if active_tier.max_leverage < config.leverage:
+                    raise InvalidBacktestConfig(
+                        f"tier {active_tier.tier} does not allow {config.leverage}x"
+                    )
+                ledger.maintenance_margin_rate = active_tier.maintenance_margin_rate
             except (InvalidPerpetualPosition, OrderRejected, ValueError) as exc:
                 rejected.append(RejectedSignal(at, signal.side, str(exc)))
                 return
@@ -185,6 +372,8 @@ def run_perpetual_backtest(
         )
         ledger.close_position(executed.quantity, executed.price, executed.fee)
         fills.append(executed)
+        if guard is not None:
+            guard.after_exit(fills, at)
         stop_price = take_profit_price = None
 
     for candle, mark in zip(candles, mark_candles, strict=True):
@@ -206,7 +395,11 @@ def run_perpetual_backtest(
 
         position = ledger.position
         if position is not None:
-            liquidation_price = position.estimated_liquidation_price(maintenance_margin_rate)
+            active_tier = tier_for(position.quantity * mark.close)
+            liquidation_price = position.estimated_liquidation_price(
+                active_tier.maintenance_margin_rate,
+                active_tier.cumulative_maintenance_amount,
+            )
             liq_hit = (
                 mark.low <= liquidation_price
                 if position.side is PositionSide.LONG
@@ -229,6 +422,8 @@ def run_perpetual_backtest(
                         fee=fee,
                     )
                 )
+                if guard is not None:
+                    guard.after_exit(fills, candle.open_time)
                 liquidation_times.append(candle.open_time.isoformat())
                 stop_price = take_profit_price = None
             else:
@@ -267,6 +462,8 @@ def run_perpetual_backtest(
                     )
                     ledger.close_position(executed.quantity, executed.price, executed.fee)
                     fills.append(executed)
+                    if guard is not None:
+                        guard.after_exit(fills, candle.open_time)
                     stop_price = take_profit_price = None
 
         if config.fill_timing is FillTiming.SIGNAL_CLOSE and trading:
@@ -285,8 +482,17 @@ def run_perpetual_backtest(
                 emitted.append(EmittedSignal(candle.open_time, signal.side, signal.kind))
                 fill(signal, candle.close, candle.close_time, candle)
 
-        ledger.mark(mark.close, mark.close_time, maintenance_margin_rate)
+        active_tier = (
+            tier_for(ledger.position.quantity * mark.close) if ledger.position is not None else None
+        )
+        ledger.mark(
+            mark.close,
+            mark.close_time,
+            active_tier.maintenance_margin_rate if active_tier is not None else Decimal(0),
+        )
         equity.append(EquityPoint(mark.close_time, ledger.equity(mark.close)))
+        if guard is not None and trading:
+            guard.after_mark(equity[-1].equity, mark.close_time)
         in_market.append(ledger.position is not None)
 
         if config.fill_timing is not FillTiming.SIGNAL_CLOSE:
@@ -308,6 +514,9 @@ def run_perpetual_backtest(
         else:
             pending = ()
 
+        if guard is not None:
+            guard.observe(candle)
+
     if funding_index < len(ordered_funding):
         raise InvalidBacktestConfig("funding data extends beyond the backtest candle range")
     final_position = ledger.position
@@ -318,8 +527,8 @@ def run_perpetual_backtest(
         rejected=rejected,
         final_cash=ledger.wallet_balance,
         final_quantity=final_position.quantity if final_position else Decimal(0),
-        first_price=mark_candles[0].open,
-        last_price=mark_candles[-1].close,
+        first_price=candles[0].open,
+        last_price=candles[-1].close,
         unfilled_signals=len(pending),
         signals=emitted,
         funding_paid=ledger.funding_paid,
@@ -327,4 +536,6 @@ def run_perpetual_backtest(
         liquidation_count=len(liquidation_times),
         liquidation_times=liquidation_times,
         max_notional=max_notional,
+        paused=None if guard is None else guard.paused,
+        sizing="risk_limits" if guard is not None else "futures_all_in",
     )

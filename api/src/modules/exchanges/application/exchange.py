@@ -12,10 +12,12 @@ any method below unimplemented, and the contract tests check the behaviour.
 
 from abc import ABC, abstractmethod
 from datetime import datetime
+from decimal import Decimal
 from typing import ClassVar
 
 from modules.exchanges.application.ports import (
     Balance,
+    ExchangePosition,
     MarketOrderRequest,
     StopOrderRequest,
     VenueOrder,
@@ -24,6 +26,7 @@ from modules.exchanges.domain.connections import ApiPermissions
 from modules.exchanges.domain.models import (
     ExchangeCapabilities,
     ExchangeProfile,
+    LeverageTier,
     MarginMode,
     TradingProduct,
 )
@@ -59,6 +62,10 @@ class Exchange(ABC):
         """Active and inactive instruments supported by this adapter."""
         raise NotImplementedError("market catalog is not implemented for this exchange")
 
+    async def fetch_leverage_tiers(self, symbol: str) -> list[LeverageTier]:
+        """Read authenticated, account-specific contract notional and maintenance brackets."""
+        raise NotImplementedError("leverage tiers are not implemented for this exchange")
+
     # --- trading (needs credentials once real orders are enabled) ----------------------------
 
     @abstractmethod
@@ -92,6 +99,10 @@ class Exchange(ABC):
     async def fetch_balances(self) -> dict[str, Balance]:
         """Account balances by asset (only assets holding something)."""
 
+    async def fetch_positions(self, symbols: list[str] | None = None) -> list[ExchangePosition]:
+        """Open derivatives positions. Spot adapters have no positions to report."""
+        return []
+
     @abstractmethod
     async def fetch_api_permissions(self) -> ApiPermissions:
         """What the credentials this integration was built with may do (trade? withdraw? from
@@ -104,6 +115,7 @@ class Exchange(ABC):
         symbol: str,
         leverage: int,
         margin_mode: MarginMode | None,
+        max_notional: Decimal | None = None,
     ) -> None:
         """Validate and configure the account and exact market before a session starts.
 

@@ -55,14 +55,24 @@ class LinearPerpetualPosition:
         payment = mark_price * self.quantity * funding_rate
         return -payment if self.side is PositionSide.LONG else payment
 
-    def estimated_liquidation_price(self, maintenance_margin_rate: Decimal) -> Decimal:
-        """Fee-free isolated-margin estimate; venue-specific liquidation rules still govern."""
+    def estimated_liquidation_price(
+        self,
+        maintenance_margin_rate: Decimal,
+        cumulative_maintenance_amount: Decimal = Decimal(0),
+    ) -> Decimal:
+        """Isolated estimate using the venue tier's rate and cumulative maintenance amount."""
         if not 0 <= maintenance_margin_rate < 1:
             raise InvalidPerpetualPosition("maintenance margin rate must be in [0, 1)")
+        if cumulative_maintenance_amount < 0:
+            raise InvalidPerpetualPosition("cumulative maintenance amount cannot be negative")
         margin_per_unit = self.isolated_margin / self.quantity
         if self.side is PositionSide.LONG:
-            return (self.entry_price - margin_per_unit) / (1 - maintenance_margin_rate)
-        return (self.entry_price + margin_per_unit) / (1 + maintenance_margin_rate)
+            return (
+                self.entry_price - margin_per_unit - cumulative_maintenance_amount / self.quantity
+            ) / (1 - maintenance_margin_rate)
+        return (
+            self.entry_price + margin_per_unit + cumulative_maintenance_amount / self.quantity
+        ) / (1 + maintenance_margin_rate)
 
 
 @dataclass(slots=True)
@@ -222,18 +232,35 @@ class PerpetualLedger:
     def marked_equity(self) -> Decimal | None:
         return None if self.mark_price is None else self.equity(self.mark_price)
 
-    def liquidation_estimate(self, maintenance_margin_rate: Decimal) -> Decimal | None:
+    def liquidation_estimate(
+        self,
+        maintenance_margin_rate: Decimal,
+        cumulative_maintenance_amount: Decimal = Decimal(0),
+    ) -> Decimal | None:
         if self.position is None:
             return None
-        return self.position.estimated_liquidation_price(maintenance_margin_rate)
+        return self.position.estimated_liquidation_price(
+            maintenance_margin_rate, cumulative_maintenance_amount
+        )
 
-    def liquidation_breached(self, mark_price: Decimal, maintenance_margin_rate: Decimal) -> bool:
+    def liquidation_breached(
+        self,
+        mark_price: Decimal,
+        maintenance_margin_rate: Decimal,
+        cumulative_maintenance_amount: Decimal = Decimal(0),
+    ) -> bool:
         if self.position is None:
             return False
         if not 0 <= maintenance_margin_rate < 1:
             raise InvalidPerpetualPosition("maintenance margin rate must be in [0, 1)")
         margin_equity = self.position.isolated_margin + self.position.unrealized_pnl(mark_price)
-        maintenance = mark_price * self.position.quantity * maintenance_margin_rate
+        if cumulative_maintenance_amount < 0:
+            raise InvalidPerpetualPosition("cumulative maintenance amount cannot be negative")
+        maintenance = max(
+            Decimal(0),
+            mark_price * self.position.quantity * maintenance_margin_rate
+            - cumulative_maintenance_amount,
+        )
         return margin_equity <= maintenance
 
     def liquidate(self, mark_price: Decimal, close_fee: Decimal = Decimal(0)) -> Decimal:

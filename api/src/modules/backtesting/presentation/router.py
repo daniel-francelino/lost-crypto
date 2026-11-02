@@ -42,6 +42,10 @@ Symbol = Annotated[
 
 class BacktestCreate(BaseModel):
     exchange: str = "binance"
+    connection_id: UUID | None = Field(
+        default=None,
+        description="Required for futures; selects the account-specific USD-M leverage tiers.",
+    )
     strategy_type: str = Field(examples=["trend_quality_breakout"])
     strategy_params: dict[str, Any] = Field(
         default_factory=dict, examples=[{"fast_period": 9, "slow_period": 21}]
@@ -402,6 +406,7 @@ class DataQualityOut(BaseModel):
     )
     outlier_samples: list[OutlierSampleOut] = Field(default_factory=list)
     sample: SampleCheckOut | None = None
+    perpetual_data: dict[str, Any] | None = None
 
 
 class RobustnessOut(BaseModel):
@@ -431,6 +436,7 @@ class BacktestOut(BaseModel):
     strategy_type: str
     strategy_params: dict[str, Any]
     exchange: str
+    connection_id: UUID | None
     symbol: str
     product: TradingProduct
     leverage: int
@@ -546,6 +552,7 @@ def _out(run: BacktestRun) -> BacktestOut:
         strategy_type=c.strategy_type,
         strategy_params=dict(c.strategy_params),
         exchange=c.exchange,
+        connection_id=c.connection_id,
         symbol=c.symbol,
         product=c.product,
         leverage=c.leverage,
@@ -598,6 +605,7 @@ def _out(run: BacktestRun) -> BacktestOut:
 def _config(body: BacktestCreate, container: Container) -> BacktestConfig:
     return BacktestConfig(
         exchange=body.exchange,
+        connection_id=body.connection_id,
         symbol=body.symbol,
         product=body.product,
         leverage=body.leverage,

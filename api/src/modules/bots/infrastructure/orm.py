@@ -85,6 +85,7 @@ class BotRow(Base):
     max_drawdown_pct: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     max_consecutive_losses: Mapped[int | None] = mapped_column(Integer, nullable=True)
     max_risk_per_trade_pct: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
+    min_liquidation_distance_pct: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     require_stop_loss: Mapped[bool] = mapped_column(Boolean, server_default="false")
     max_candle_range_pct: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     max_order_pct_of_volume: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)

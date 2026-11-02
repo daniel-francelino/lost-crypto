@@ -42,6 +42,11 @@ class BacktestRunRow(Base):
             "(product = 'linear_perpetual' AND margin_mode = 'isolated')",
             name="margin_valid",
         ),
+        CheckConstraint(
+            "(product = 'spot' AND exchange_connection_id IS NULL) OR "
+            "(product = 'linear_perpetual' AND exchange_connection_id IS NOT NULL)",
+            name="backtest_runs_connection_valid",
+        ),
         Index("ix_backtest_runs_status_created_at", "status", "created_at"),
     )
 
@@ -53,6 +58,13 @@ class BacktestRunRow(Base):
     leverage: Mapped[int] = mapped_column(Integer, server_default="1")
     margin_mode: Mapped[str | None] = mapped_column(Text, nullable=True)
     allow_short: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    exchange_connection_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("exchange_connections.id"), nullable=True
+    )
+    leverage_tiers: Mapped[list[dict[str, str]] | None] = mapped_column(JSONB, nullable=True)
+    leverage_tiers_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     timeframe: Mapped[str] = mapped_column(Text)
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

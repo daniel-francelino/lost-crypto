@@ -157,7 +157,7 @@ export function ConnectionsPage() {
           empty={
             <Empty
               title="Nenhuma conexão"
-              description="Crie uma conexão testnet para rodar bots na exchange com dinheiro fictício."
+              description="Conecte uma chave Binance Demo para validar ordens com dinheiro fictício."
             />
           }
         />

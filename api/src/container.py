@@ -111,7 +111,8 @@ def build_container(
         exchanges.exchange_ids,
         timedelta(seconds=settings.worker_stale_after_seconds),
     )
-    backtests = BacktestService(backtest_stores, registry, exchanges, clock, ids)
+    resolver = ConnectionResolver(trading_stores, vault, exchanges, clock)
+    backtests = BacktestService(backtest_stores, registry, exchanges, clock, ids, resolver)
     bots = BotService(trading_stores, registry, exchanges, clock, ids, live)
     return Container(
         settings=settings,
@@ -158,7 +159,7 @@ def build_container(
             ids,
             live_allowed=settings.app_env is AppEnv.PROD,
         ),
-        resolver=ConnectionResolver(trading_stores, vault, exchanges, clock),
+        resolver=resolver,
         parity=ParityService(trading_stores, clock, ids),
         comparison=ComparisonService(trading_stores, bots, backtests),
         status=status,

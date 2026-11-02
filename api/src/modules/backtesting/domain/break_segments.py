@@ -14,7 +14,7 @@ from itertools import pairwise
 from typing import Any
 
 from modules.analytics.domain.metrics import compute_metrics
-from modules.backtesting.domain.models import BacktestConfig, BacktestOutcome
+from modules.backtesting.domain.models import BacktestConfig, BacktestOutcomeView
 from modules.market_data.domain.models import Candle
 
 MIN_STRETCH_CANDLES = 2
@@ -54,7 +54,7 @@ def _label(candles: Sequence[Candle], first: int, end: int, breaks: Sequence[Bre
 def compute_break_segments(
     config: BacktestConfig,
     candles: Sequence[Candle],
-    outcome: BacktestOutcome,
+    outcome: BacktestOutcomeView,
     breaks: Sequence[BreakRef],
 ) -> dict[str, Any] | None:
     """``None`` when no break falls inside the run."""

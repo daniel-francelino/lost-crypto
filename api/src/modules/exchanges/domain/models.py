@@ -25,6 +25,34 @@ class MarginMode(StrEnum):
     CROSS = "cross"
 
 
+@dataclass(frozen=True, slots=True)
+class LeverageTier:
+    """Venue-reported notional bracket for a linear contract."""
+
+    tier: int
+    min_notional: Decimal
+    max_notional: Decimal
+    max_leverage: int
+    maintenance_margin_rate: Decimal
+    cumulative_maintenance_amount: Decimal = Decimal(0)
+
+    def __post_init__(self) -> None:
+        if (
+            self.tier < 1
+            or self.min_notional < 0
+            or self.max_notional <= self.min_notional
+            or self.max_leverage < 1
+            or not 0 <= self.maintenance_margin_rate < 1
+            or self.cumulative_maintenance_amount < 0
+        ):
+            raise ValueError("exchange returned an invalid leverage tier")
+
+    def supports(self, notional: Decimal, leverage: int) -> bool:
+        return (
+            self.min_notional <= notional < self.max_notional and 1 <= leverage <= self.max_leverage
+        )
+
+
 class OrderType(StrEnum):
     MARKET = "market"
     LIMIT = "limit"
@@ -45,6 +73,7 @@ class ExchangeCapabilities:
     timeframes: frozenset[Timeframe]
     products: frozenset[TradingProduct] = frozenset({TradingProduct.SPOT})
     max_leverage: int = 1
+    has_demo: bool = False
 
     def __post_init__(self) -> None:
         if not self.products:

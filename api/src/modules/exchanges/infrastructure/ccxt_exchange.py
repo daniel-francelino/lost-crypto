@@ -28,6 +28,7 @@ from modules.exchanges.application.ports import (
     VenueOrder,
 )
 from modules.exchanges.domain.connections import ApiPermissions, Credentials
+from modules.exchanges.domain.models import LeverageTier
 from modules.exchanges.errors import (
     AuthenticationFailed,
     ExchangeConfigurationError,
@@ -63,8 +64,15 @@ class CcxtExchange(Exchange):
         client: Any | None = None,
         credentials: Credentials | None = None,
         sandbox: bool = False,
+        demo: bool = False,
     ) -> None:
+        if sandbox and demo:
+            raise ExchangeConfigurationError(
+                "an exchange client cannot target two demo environments"
+            )
         self._authenticated = credentials is not None
+        self._sandbox = sandbox
+        self._demo = demo
         if client is None:
             config: dict[str, Any] = {"enableRateLimit": True}
             if credentials is not None:
@@ -72,15 +80,43 @@ class CcxtExchange(Exchange):
             client = getattr(ccxt_async, self.CCXT_EXCHANGE_ID)(config)
             if sandbox:
                 client.set_sandbox_mode(True)  # the exchange's test environment, fake money
-            # An adapter serves exactly one environment. Verify the client really points where
-            # it was asked to, so real money can never be reached through a "testnet" adapter
-            # (or fake orders sent to production by mistake).
-            if ("testnet" in str(client.urls.get("api"))) != sandbox:
+            if demo:
+                self._set_demo_urls(client)
+            # An adapter serves exactly one environment. Verify critical trade endpoints before
+            # exposing the client, so it cannot silently target the wrong trading environment.
+            api_urls = client.urls.get("api")
+            api_text = " ".join(api_urls.values()) if isinstance(api_urls, dict) else str(api_urls)
+            expected_demo_host = (
+                "demo-fapi.binance.com"
+                if self.PROFILE.capabilities.exchange_id == "binance-usdm"
+                else "demo-api.binance.com"
+            )
+            if demo and expected_demo_host not in api_text:
+                raise ExchangeConfigurationError("Binance Demo API endpoint was not configured")
+            if sandbox and "testnet" not in api_text:
                 raise ExchangeConfigurationError(
-                    f"{self.PROFILE.exchange_id}: client environment does not match "
-                    f"sandbox={sandbox}"
+                    f"{self.PROFILE.exchange_id}: CCXT sandbox URLs are not configured"
+                )
+            if not sandbox and not demo and ("testnet" in api_text or "demo-" in api_text):
+                raise ExchangeConfigurationError(
+                    f"{self.PROFILE.exchange_id}: live client unexpectedly points to a sandbox"
                 )
         self._client: Any = client
+
+    def _set_demo_urls(self, client: Any) -> None:
+        api_urls = client.urls.get("api")
+        if not isinstance(api_urls, dict):
+            raise ExchangeConfigurationError("Binance CCXT API URL map is not supported")
+        if self.PROFILE.capabilities.exchange_id == "binance-usdm":
+            names = [name for name in api_urls if name.startswith("fapi")]
+            source_host, demo_host = "fapi.binance.com", "demo-fapi.binance.com"
+        else:
+            names = [name for name in ("public", "private", "v1") if name in api_urls]
+            source_host, demo_host = "api.binance.com", "demo-api.binance.com"
+        if not names:
+            raise ExchangeConfigurationError("Binance CCXT API URLs are missing Demo endpoints")
+        for name in names:
+            api_urls[name] = api_urls[name].replace(source_host, demo_host)
 
     # --- hooks a concrete exchange may override ----------------------------------------------
 
@@ -170,6 +206,35 @@ class CcxtExchange(Exchange):
             min_quantity=Decimal(str((limits.get("amount") or {}).get("min") or 0)),
             min_notional=Decimal(str((limits.get("cost") or {}).get("min") or 0)),
         )
+
+    async def fetch_leverage_tiers(self, symbol: str) -> list[LeverageTier]:
+        """Fetch authenticated account-specific linear contract notional brackets."""
+        self._require_authentication()
+        tiers_by_symbol = await self._call(lambda: self._client.fetch_leverage_tiers([symbol]))
+        raw_tiers = tiers_by_symbol.get(symbol)
+        if not raw_tiers:
+            raise ExchangeError(
+                f"{self.PROFILE.exchange_id} returned no leverage tiers for {symbol}"
+            )
+        try:
+            tiers = [
+                LeverageTier(
+                    tier=int(raw["tier"]),
+                    min_notional=Decimal(str(raw["minNotional"])),
+                    max_notional=Decimal(str(raw["maxNotional"])),
+                    max_leverage=int(raw["maxLeverage"]),
+                    maintenance_margin_rate=Decimal(str(raw["maintenanceMarginRate"])),
+                    cumulative_maintenance_amount=Decimal(
+                        str((raw.get("info") or {}).get("cum") or 0)
+                    ),
+                )
+                for raw in raw_tiers
+            ]
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ExchangeError(
+                f"{self.PROFILE.exchange_id} returned malformed leverage tiers"
+            ) from exc
+        return sorted(tiers, key=lambda tier: tier.min_notional)
 
     # --- trading (authenticated) -------------------------------------------------------------
 

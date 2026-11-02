@@ -118,7 +118,9 @@ class ConnectionService:
                 raise InvalidConnection(
                     "live connections use REAL MONEY: send confirm_real_money=true to proceed"
                 )
-        elif not profile.capabilities.has_testnet:
+        elif environment is Environment.DEMO and not profile.capabilities.has_demo:
+            raise InvalidConnection(f"{exchange} has no Demo Mode API")
+        elif environment is Environment.TESTNET and not profile.capabilities.has_testnet:
             raise InvalidConnection(f"{exchange} has no testnet")
         if len(credentials.api_key) < 8 or len(credentials.api_secret) < 8:
             raise InvalidConnection("api_key and api_secret look too short to be real")
@@ -225,6 +227,13 @@ class ConnectionResolver:
             Credentials(raw["api_key"], raw["api_secret"]),
             connection.environment,
         )
+
+    async def environment_for(self, connection_id: UUID) -> Environment:
+        async with self._stores() as store:
+            connection = await store.connections.get(connection_id)
+        if connection is None:
+            raise ConnectionNotFound(str(connection_id))
+        return connection.environment
 
     async def verify_pending(self, require_ip_restriction: bool) -> int:
         """Check what each pending (live) key may do; activate the acceptable, reject the rest.

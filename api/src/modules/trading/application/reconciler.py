@@ -22,6 +22,7 @@ from core.clock import Clock
 from modules.audit.models import AuditEvent
 from modules.bots.domain.models import Bot, BotState, ExecutionMode
 from modules.exchanges.application.connections import ConnectionResolver
+from modules.exchanges.domain.models import TradingProduct
 from modules.exchanges.errors import AuthenticationFailed
 from modules.trading.application.orders import OrderExecutor
 from modules.trading.application.ports import TradingStore
@@ -82,9 +83,47 @@ class Reconciler:
         for connection_id, connection_bots in by_connection.items():
             try:
                 mismatches += await self._reconcile_connection(connection_id, connection_bots)
-            except Exception:
+            except Exception as exc:
                 logger.exception("reconciliation of connection %s failed", connection_id)
+                if any(
+                    bot.config.product is TradingProduct.LINEAR_PERPETUAL
+                    for bot in connection_bots
+                ):
+                    await self._reconciliation_unavailable(connection_id, connection_bots, exc)
         return mismatches
+
+    async def _reconciliation_unavailable(
+        self, connection_id: UUID, bots: list[Bot], error: Exception
+    ) -> None:
+        """Pause futures when REST cannot establish the exchange position as authority."""
+        futures = [
+            bot for bot in bots if bot.config.product is TradingProduct.LINEAR_PERPETUAL
+        ]
+        started = self._clock.now()
+        error_type = type(error).__name__
+        async with self._stores() as store:
+            await store.reconciliations.add(
+                connection_id,
+                started,
+                "unavailable",
+                {"error_type": error_type, "bots": [str(bot.id) for bot in futures]},
+            )
+            for bot in futures:
+                await store.bots.set_desired(bot.id, BotState.PAUSED)
+                await store.bots.set_observed(
+                    bot.id, BotState.PAUSED, "futures reconciliation unavailable"
+                )
+                await store.audit.add(
+                    AuditEvent(
+                        "reconciliation.unavailable",
+                        "bot",
+                        str(bot.id),
+                        actor="worker",
+                        bot_id=bot.id,
+                        payload={"error_type": error_type},
+                    )
+                )
+            await store.commit()
 
     async def _reconcile_connection(self, connection_id: UUID, bots: list[Bot]) -> int:
         started = self._clock.now()
@@ -93,8 +132,15 @@ class Reconciler:
                 if await store.orders.count_unresolved(bot.id):
                     return 0  # books and exchange legitimately differ until those are settled
         exchange = await self._resolver.exchange_for(connection_id)
+        futures_bots = [
+            bot for bot in bots if bot.config.product is TradingProduct.LINEAR_PERPETUAL
+        ]
+        futures_symbols = sorted({bot.config.symbol for bot in futures_bots})
         try:
             balances = await exchange.fetch_balances()
+            remote_positions = (
+                await exchange.fetch_positions(futures_symbols) if futures_symbols else []
+            )
         except AuthenticationFailed as exc:
             await self._credentials_rejected(connection_id, bots, str(exc))
             return 1
@@ -104,6 +150,8 @@ class Reconciler:
         open_orders: dict[str, list[str]] = {}
         async with self._stores() as store:
             for bot in bots:
+                if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
+                    continue  # futures collateral is isolated from the spot asset ledger
                 portfolio = await store.portfolio.get(bot.id)
                 if portfolio is None:
                     continue
@@ -134,6 +182,76 @@ class Reconciler:
                         "asset": asset,
                         "bots_expect": str(wanted),
                         "exchange_holds": str(held),
+                    }
+                )
+        remote_by_symbol: dict[str, list[Any]] = defaultdict(list)
+        for position in remote_positions:
+            remote_by_symbol[position.symbol].append(position)
+        futures_by_symbol = {bot.config.symbol: bot for bot in futures_bots}
+        async with self._stores() as store:
+            for symbol, bot in futures_by_symbol.items():
+                remote = remote_by_symbol.pop(symbol, [])
+                ledger = await store.perpetual_portfolio.get(bot.id)
+                local = ledger.position if ledger is not None else None
+                if len(remote) > 1:
+                    problems.append(
+                        {"kind": "multiple_exchange_positions", "symbol": symbol}
+                    )
+                    continue
+                if local is None and not remote:
+                    continue
+                if local is None:
+                    problems.append(
+                        {
+                            "kind": "untracked_exchange_position",
+                            "symbol": symbol,
+                            "side": remote[0].side.value,
+                            "quantity": str(remote[0].quantity),
+                        }
+                    )
+                    continue
+                if not remote:
+                    problems.append(
+                        {
+                            "kind": "exchange_position_missing",
+                            "symbol": symbol,
+                            "side": local.side.value,
+                            "quantity": str(local.quantity),
+                        }
+                    )
+                    continue
+                actual = remote[0]
+                quantity_tolerance = max(
+                    _ABSOLUTE_TOLERANCE, local.quantity * _RELATIVE_TOLERANCE
+                )
+                differences: dict[str, Any] = {}
+                if actual.side is not local.side:
+                    differences.update(
+                        expected_side=local.side.value, exchange_side=actual.side.value
+                    )
+                if abs(actual.quantity - local.quantity) > quantity_tolerance:
+                    differences.update(
+                        expected_quantity=str(local.quantity),
+                        exchange_quantity=str(actual.quantity),
+                    )
+                if actual.leverage is not None and actual.leverage != local.leverage:
+                    differences.update(
+                        expected_leverage=local.leverage, exchange_leverage=actual.leverage
+                    )
+                if actual.margin_mode is not None and actual.margin_mode.value != "isolated":
+                    differences["exchange_margin_mode"] = actual.margin_mode.value
+                if differences:
+                    problems.append(
+                        {"kind": "futures_position_mismatch", "symbol": symbol, **differences}
+                    )
+        for symbol, positions in remote_by_symbol.items():
+            for position in positions:
+                problems.append(
+                    {
+                        "kind": "unowned_exchange_position",
+                        "symbol": symbol,
+                        "side": position.side.value,
+                        "quantity": str(position.quantity),
                     }
                 )
         for cid in sorted(foreign_orders):

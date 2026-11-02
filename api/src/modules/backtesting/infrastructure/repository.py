@@ -14,7 +14,7 @@ from modules.backtesting.infrastructure.orm import (
     BacktestSweepRow,
     BacktestTradeRow,
 )
-from modules.exchanges.domain.models import MarginMode, TradingProduct
+from modules.exchanges.domain.models import LeverageTier, MarginMode, TradingProduct
 from modules.execution.domain.fills import SlippageModel
 from modules.execution.domain.orders import Fill
 from modules.market_data.domain.models import MarketInfo, Timeframe
@@ -58,6 +58,19 @@ def _to_run(row: BacktestRunRow) -> BacktestRun:
             leverage=row.leverage,
             margin_mode=MarginMode(row.margin_mode) if row.margin_mode else None,
             allow_short=row.allow_short,
+            connection_id=row.exchange_connection_id,
+            leverage_tiers=tuple(
+                LeverageTier(
+                    tier=int(raw["tier"]),
+                    min_notional=Decimal(raw["min_notional"]),
+                    max_notional=Decimal(raw["max_notional"]),
+                    max_leverage=int(raw["max_leverage"]),
+                    maintenance_margin_rate=Decimal(raw["maintenance_margin_rate"]),
+                    cumulative_maintenance_amount=Decimal(raw["cumulative_maintenance_amount"]),
+                )
+                for raw in (row.leverage_tiers or [])
+            ),
+            leverage_tiers_at=row.leverage_tiers_at,
             timeframe=Timeframe(row.timeframe),
             start=row.start_at,
             end=row.end_at,
@@ -120,6 +133,20 @@ class SqlAlchemyBacktestStore:
                 leverage=c.leverage,
                 margin_mode=c.margin_mode.value if c.margin_mode else None,
                 allow_short=c.allow_short,
+                exchange_connection_id=c.connection_id,
+                leverage_tiers=[
+                    {
+                        "tier": str(tier.tier),
+                        "min_notional": str(tier.min_notional),
+                        "max_notional": str(tier.max_notional),
+                        "max_leverage": str(tier.max_leverage),
+                        "maintenance_margin_rate": str(tier.maintenance_margin_rate),
+                        "cumulative_maintenance_amount": str(tier.cumulative_maintenance_amount),
+                    }
+                    for tier in c.leverage_tiers
+                ]
+                or None,
+                leverage_tiers_at=c.leverage_tiers_at,
                 timeframe=c.timeframe.value,
                 start_at=c.start,
                 end_at=c.end,

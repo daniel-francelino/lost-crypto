@@ -5,6 +5,7 @@ from uuid import UUID
 
 
 class Environment(StrEnum):
+    DEMO = "demo"
     TESTNET = "testnet"
     LIVE = "live"
 

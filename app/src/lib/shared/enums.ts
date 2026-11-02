@@ -147,6 +147,7 @@ export const ConnectionStatus = {
 export type ConnectionStatus = ValueOf<typeof ConnectionStatus>;
 
 export const Environment = {
+  Demo: "demo",
   Testnet: "testnet",
   Live: "live",
 } as const;

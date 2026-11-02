@@ -14,6 +14,14 @@ class RiskLimitsIn(BaseModel):
     max_drawdown_pct: Decimal | None = Field(default=None, gt=0, le=100)
     max_consecutive_losses: int | None = Field(default=None, ge=1)
     max_risk_per_trade_pct: Decimal | None = Field(default=None, gt=0, le=100)
+    min_liquidation_distance_pct: Decimal | None = Field(
+        default=None,
+        gt=0,
+        le=100,
+        description="Futures only: refuse entries whose estimated liquidation price is closer "
+        "than this percentage from entry. This is an estimate; exchange liquidation state is "
+        "authoritative.",
+    )
     require_stop_loss: bool = False
     max_candle_range_pct: Decimal | None = Field(default=Decimal(25), gt=0)
     max_order_pct_of_volume: Decimal | None = Field(
@@ -50,6 +58,7 @@ class RiskLimitsIn(BaseModel):
             max_drawdown_pct=limits.max_drawdown_pct,
             max_consecutive_losses=limits.max_consecutive_losses,
             max_risk_per_trade_pct=limits.max_risk_per_trade_pct,
+            min_liquidation_distance_pct=limits.min_liquidation_distance_pct,
             require_stop_loss=limits.require_stop_loss,
             max_candle_range_pct=limits.max_candle_range_pct,
             max_order_pct_of_volume=limits.max_order_pct_of_volume,

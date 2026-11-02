@@ -19,7 +19,9 @@ AVAILABLE_EXCHANGES: dict[str, type[Exchange]] = {
 }
 
 
-def build_exchange_registry(enabled: Sequence[str] = ("binance",)) -> ExchangeRegistry:
+def build_exchange_registry(
+    enabled: Sequence[str] = ("binance", "binance-usdm")
+) -> ExchangeRegistry:
     registry = ExchangeRegistry()
     for exchange_id in enabled:
         try:

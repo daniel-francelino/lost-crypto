@@ -12,7 +12,7 @@ from typing import Any
 from modules.analytics.domain.metrics import compute_metrics
 from modules.backtesting.domain.models import (
     BacktestConfig,
-    BacktestOutcome,
+    BacktestOutcomeView,
     InvalidBacktestConfig,
 )
 from modules.execution.domain.orders import Fill
@@ -24,11 +24,11 @@ MIN_SEGMENT_CANDLES = 2
 
 def _holds_position(fills: Sequence[Fill]) -> bool:
     net = sum((f.quantity if f.side is Side.BUY else -f.quantity for f in fills), Decimal(0))
-    return net > 0
+    return net != 0
 
 
 def compute_segments(
-    config: BacktestConfig, candles: Sequence[Candle], outcome: BacktestOutcome
+    config: BacktestConfig, candles: Sequence[Candle], outcome: BacktestOutcomeView
 ) -> dict[str, Any] | None:
     fraction = config.test_fraction
     if fraction is None:

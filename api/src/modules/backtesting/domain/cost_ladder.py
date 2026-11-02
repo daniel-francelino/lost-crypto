@@ -2,8 +2,9 @@
 
 Chan's ES example goes from Sharpe ~3 to ~-3 with one basis point of extra cost. Here the whole
 engine is re-run at each level, because the strategy sees its position and the buy size depends
-on cash, so reusing the signals of the base run would not be exact. Only fee and slippage change;
-fill realism (market impact, limit-order queues) does not.
+on collateral, so reusing the signals of the base run would not be exact. Perpetual runs also
+scale the liquidation fee proxy with the taker fee. Fill realism (market impact, limit-order
+queues) does not change.
 """
 
 from collections.abc import Callable, Sequence
@@ -14,8 +15,17 @@ from typing import Any
 
 from modules.analytics.domain.metrics import compute_metrics
 from modules.backtesting.domain.engine import run_backtest
-from modules.backtesting.domain.models import MAX_COST_MULTIPLIER, BacktestConfig
-from modules.market_data.domain.models import Candle, MarketInfo
+from modules.backtesting.domain.models import (
+    MAX_COST_MULTIPLIER,
+    BacktestConfig,
+    BacktestOutcome,
+)
+from modules.backtesting.domain.perpetual_engine import (
+    PerpetualBacktestOutcome,
+    run_perpetual_backtest,
+)
+from modules.exchanges.domain.models import TradingProduct
+from modules.market_data.domain.models import Candle, FundingRate, MarketInfo
 from modules.strategies.domain.base import Strategy
 
 MULTIPLIERS: tuple[Decimal, ...] = (
@@ -33,6 +43,8 @@ def _level(
     market: MarketInfo,
     strategy: Strategy[Any],
     multiplier: Decimal,
+    mark_candles: Sequence[Candle],
+    funding_rates: Sequence[FundingRate],
 ) -> dict[str, Any]:
     scaled = replace(
         config,
@@ -40,7 +52,19 @@ def _level(
         slippage_bps=config.slippage_bps * multiplier,
         cost_sensitivity=False,  # a level is a plain run (and may have zero cost)
     )
-    outcome = run_backtest(scaled, candles, market, strategy)
+    outcome: BacktestOutcome | PerpetualBacktestOutcome
+    if scaled.product is TradingProduct.LINEAR_PERPETUAL:
+        outcome = run_perpetual_backtest(
+            scaled,
+            candles,
+            mark_candles,
+            funding_rates,
+            market,
+            strategy,
+            liquidation_fee_rate=scaled.fee_rate,
+        )
+    else:
+        outcome = run_backtest(scaled, candles, market, strategy)
     metrics = compute_metrics(
         initial_capital=config.initial_capital,
         equity_curve=outcome.equity_curve,
@@ -53,7 +77,7 @@ def _level(
         benchmark_prices=[c.close for c in candles],
         in_market=outcome.in_market,
     )
-    return {
+    level = {
         "multiplier": str(multiplier),
         "fee_rate": str(scaled.fee_rate),
         "slippage_bps": str(scaled.slippage_bps),
@@ -64,6 +88,16 @@ def _level(
         "round_trips": metrics.round_trips,
         "fees_paid": str(metrics.fees_paid),
     }
+    if isinstance(outcome, PerpetualBacktestOutcome):
+        level.update(
+            funding_paid=str(outcome.funding_paid),
+            funding_received=str(outcome.funding_received),
+            liquidation_fee_rate=str(scaled.fee_rate),
+            liquidation_count=outcome.liquidation_count,
+            maximum_notional=str(outcome.max_notional),
+            leverage=scaled.leverage,
+        )
+    return level
 
 
 def break_even(levels: Sequence[dict[str, Any]]) -> tuple[str, Decimal | None]:
@@ -86,8 +120,26 @@ def run_cost_ladder(
     candles: Sequence[Candle],
     market: MarketInfo,
     new_strategy: Callable[[], Strategy[Any]],
+    mark_candles: Sequence[Candle] = (),
+    funding_rates: Sequence[FundingRate] = (),
 ) -> dict[str, Any]:
-    levels = [_level(config, candles, market, new_strategy(), m) for m in MULTIPLIERS]
+    if config.product is TradingProduct.LINEAR_PERPETUAL and (
+        len(mark_candles) != len(candles)
+        or any(rate.mark_price is None for rate in funding_rates)
+    ):
+        raise ValueError("futures cost sensitivity requires complete mark and funding data")
+    levels = [
+        _level(
+            config,
+            candles,
+            market,
+            new_strategy(),
+            multiplier,
+            mark_candles,
+            funding_rates,
+        )
+        for multiplier in MULTIPLIERS
+    ]
     status, multiplier = break_even(levels)
     base_cost = config.fee_rate * _BPS + config.slippage_bps
     return {
@@ -97,6 +149,6 @@ def run_cost_ladder(
         "break_even_cost_per_side_bps": None
         if multiplier is None
         else str((base_cost * multiplier).quantize(_Q)),
-        "note": "Only fee and slippage change; market impact and missed limit fills are not "
-        "modelled.",
+        "note": "Fee and slippage change; futures also scale the liquidation fee proxy. "
+        "Market impact and missed limit fills are not modelled.",
     }

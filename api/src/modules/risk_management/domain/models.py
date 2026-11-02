@@ -41,6 +41,7 @@ class RiskLimits:
     max_drawdown_pct: Decimal | None = None  # pause beyond this drop from the equity peak
     max_consecutive_losses: int | None = None  # pause after N losing round trips in a row
     max_risk_per_trade_pct: Decimal | None = None  # equity % lost if the stop is hit (sizing)
+    min_liquidation_distance_pct: Decimal | None = None  # futures only; buffer from entry to liq
     require_stop_loss: bool = False  # refuse entries that come without a stop-loss
     max_candle_range_pct: Decimal | None = Decimal(25)  # refuse entries on suspect candles
     # An order may use at most this % of the average quote volume of the last candles
@@ -56,7 +57,12 @@ class RiskLimits:
             raise InvalidRiskLimits("max_position_fraction must be in (0, 1]")
         if self.max_order_notional is not None and self.max_order_notional <= 0:
             raise InvalidRiskLimits("max_order_notional must be positive")
-        for name in ("max_daily_loss_pct", "max_drawdown_pct", "max_risk_per_trade_pct"):
+        for name in (
+            "max_daily_loss_pct",
+            "max_drawdown_pct",
+            "max_risk_per_trade_pct",
+            "min_liquidation_distance_pct",
+        ):
             value = getattr(self, name)
             if value is not None and not (0 < value <= 100):
                 raise InvalidRiskLimits(f"{name} must be in (0, 100]")
@@ -275,6 +281,7 @@ _LIMIT_DECIMALS = (
     "max_daily_loss_pct",
     "max_drawdown_pct",
     "max_risk_per_trade_pct",
+    "min_liquidation_distance_pct",
     "max_candle_range_pct",
     "max_order_pct_of_volume",
     "max_close_jump_pct",

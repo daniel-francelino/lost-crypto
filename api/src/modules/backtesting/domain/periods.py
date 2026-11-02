@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from modules.analytics.domain.metrics import compute_metrics
-from modules.backtesting.domain.models import BacktestConfig, BacktestOutcome
+from modules.backtesting.domain.models import BacktestConfig, BacktestOutcomeView
 from modules.market_data.domain.models import Candle
 
 _QUARTERS_BELOW = timedelta(days=730)
@@ -38,7 +38,7 @@ def _buckets(candles: Sequence[Candle], quarterly: bool) -> list[tuple[str, int,
 
 
 def compute_periods(
-    config: BacktestConfig, candles: Sequence[Candle], outcome: BacktestOutcome
+    config: BacktestConfig, candles: Sequence[Candle], outcome: BacktestOutcomeView
 ) -> dict[str, Any] | None:
     if len(candles) < 2:
         return None

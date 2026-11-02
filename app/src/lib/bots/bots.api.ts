@@ -30,6 +30,7 @@ const riskSchema = z.object({
   max_drawdown_pct: nullableDecimalSchema,
   max_consecutive_losses: z.number().nullable(),
   max_risk_per_trade_pct: nullableDecimalSchema,
+  min_liquidation_distance_pct: nullableDecimalSchema.optional(),
   require_stop_loss: z.boolean(),
   max_candle_range_pct: nullableDecimalSchema,
   max_order_pct_of_volume: nullableDecimalSchema.optional(),
@@ -146,6 +147,7 @@ export type RiskInput = {
   max_drawdown_pct: string | null;
   max_consecutive_losses: number | null;
   max_risk_per_trade_pct: string | null;
+  min_liquidation_distance_pct?: string | null;
   require_stop_loss: boolean;
   max_candle_range_pct: string | null;
   max_order_pct_of_volume: string | null;

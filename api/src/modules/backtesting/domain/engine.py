@@ -27,6 +27,7 @@ from modules.analytics.domain.metrics import round_trip_pnls
 from modules.backtesting.domain.models import (
     BacktestConfig,
     BacktestOutcome,
+    BacktestOutcomeView,
     EmittedSignal,
     EquityPoint,
     FillTiming,
@@ -314,7 +315,7 @@ class _RiskGuard:
             self.paused = (at, "max consecutive losses reached")
 
 
-def risk_report(outcome: BacktestOutcome) -> dict[str, Any]:
+def risk_report(outcome: BacktestOutcomeView) -> dict[str, Any]:
     """How the run was sized and what the bot's risk module refused (or why it paused)."""
     refusals: dict[str, int] = {}
     for item in outcome.rejected:

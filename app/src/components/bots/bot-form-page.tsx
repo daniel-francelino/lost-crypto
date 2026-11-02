@@ -136,7 +136,9 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
   const set = <K extends keyof BotFormValues>(key: K, value: BotFormValues[K]) =>
     setValues((current) => ({ ...current, [key]: value }));
   const testnetConnections = (connections.data ?? []).filter(
-    (item) => item.environment === Environment.Testnet && item.status === ConnectionStatus.Active,
+    (item) =>
+      (item.environment === Environment.Demo || item.environment === Environment.Testnet) &&
+      item.status === ConnectionStatus.Active,
   );
 
   const mutation = useMutation({
@@ -419,7 +421,7 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
               />
               {values.mode === ExecutionMode.Paper ? null : (
                 <FormSelect
-                  label="Conexão testnet ativa"
+                  label="Conexão Demo/testnet ativa"
                   placeholder={
                     testnetConnections.length === 0 ? "Nenhuma conexão ativa" : "Escolha"
                   }

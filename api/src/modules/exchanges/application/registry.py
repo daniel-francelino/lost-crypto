@@ -90,7 +90,9 @@ class ExchangeRegistry:
             factory = self._auth_factories.get(exchange_id)
             if factory is None:
                 self._authenticated[connection_id] = self._classes[exchange_id](  # type: ignore[call-arg]
-                    credentials=credentials, sandbox=environment is Environment.TESTNET
+                    credentials=credentials,
+                    sandbox=environment is Environment.TESTNET,
+                    demo=environment is Environment.DEMO,
                 )
             else:
                 self._authenticated[connection_id] = factory(credentials, environment)

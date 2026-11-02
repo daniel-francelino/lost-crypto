@@ -29,6 +29,7 @@ BINANCE_PROFILE = ExchangeProfile(
         native_stop_orders=True,  # STOP_LOSS_LIMIT / OCO live on the exchange
         max_client_order_id_length=36,  # newClientOrderId
         has_testnet=True,  # testnet.binance.vision, separate API keys
+        has_demo=True,  # demo-api.binance.com, Demo Mode keys
         timeframes=frozenset(Timeframe),
     ),
     # Regular tier without BNB discount; refine per account when real fees are reconciled.

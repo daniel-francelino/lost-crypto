@@ -4,17 +4,19 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Any
+from typing import Any, Protocol
+from uuid import UUID
 
 from core.errors import DomainError
 from modules.exchanges.domain.models import (
     MAX_PERPETUAL_LEVERAGE,
+    LeverageTier,
     MarginMode,
     TradingProduct,
 )
 from modules.execution.domain.fills import SlippageModel
 from modules.execution.domain.orders import Fill
-from modules.market_data.domain.models import Candle, Timeframe
+from modules.market_data.domain.models import Candle, FundingRate, Timeframe
 from modules.risk_management.domain.models import RiskLimits
 from modules.strategies.domain.types import Side, SignalKind
 
@@ -68,6 +70,9 @@ class BacktestConfig:
     leverage: int = 1
     margin_mode: MarginMode | None = None
     allow_short: bool = False
+    connection_id: UUID | None = None
+    leverage_tiers: tuple[LeverageTier, ...] = ()
+    leverage_tiers_at: datetime | None = None
 
     def __post_init__(self) -> None:
         if self.start >= self.end:
@@ -77,6 +82,9 @@ class BacktestConfig:
                 self.leverage != 1
                 or self.margin_mode is not None
                 or self.allow_short
+                or self.connection_id is not None
+                or self.leverage_tiers
+                or self.leverage_tiers_at is not None
                 or ":" in self.symbol
             ):
                 raise InvalidBacktestConfig("spot backtests must be long-only at 1x")
@@ -89,6 +97,18 @@ class BacktestConfig:
                 )
             if not self.symbol.endswith(":USDT"):
                 raise InvalidBacktestConfig("linear perpetual symbols must include USDT settlement")
+            if self.connection_id is None:
+                raise InvalidBacktestConfig(
+                    "perpetual backtests require a verified Binance USD-M connection"
+                )
+            if (
+                self.leverage_tiers
+                and tuple(sorted(self.leverage_tiers, key=lambda tier: tier.min_notional))
+                != self.leverage_tiers
+            ):
+                raise InvalidBacktestConfig("leverage tiers must be sorted by notional")
+            if self.leverage_tiers_at is not None and self.leverage_tiers_at.tzinfo is None:
+                raise InvalidBacktestConfig("leverage tier snapshot time must be timezone-aware")
         if self.initial_capital <= 0:
             raise InvalidBacktestConfig("initial_capital must be positive")
         if not (0 <= self.fee_rate < 1):
@@ -152,6 +172,31 @@ class BacktestOutcome:
     sizing: str = "all_in"  # "all_in" | "risk_limits"
 
 
+class BacktestOutcomeView(Protocol):
+    """Common result surface consumed by metrics and slicing reports."""
+
+    @property
+    def fills(self) -> list[Fill]: ...
+
+    @property
+    def equity_curve(self) -> list[EquityPoint]: ...
+
+    @property
+    def in_market(self) -> list[bool]: ...
+
+    @property
+    def rejected(self) -> list[RejectedSignal]: ...
+
+    @property
+    def final_quantity(self) -> Decimal: ...
+
+    @property
+    def paused(self) -> tuple[datetime, str] | None: ...
+
+    @property
+    def sizing(self) -> str: ...
+
+
 def hash_candles(candles: Sequence[Candle]) -> str:
     """Stable fingerprint of the input data, recorded so a run can be reproduced/verified."""
 
@@ -165,4 +210,56 @@ def hash_candles(candles: Sequence[Candle]) -> str:
             f"{num(c.low)}|{num(c.close)}|{num(c.volume)}\n"
         )
         digest.update(line.encode())
+    return digest.hexdigest()
+
+
+def hash_perpetual_inputs(
+    signal_candles: Sequence[Candle],
+    mark_candles: Sequence[Candle],
+    funding_rates: Sequence[FundingRate],
+    leverage_tiers: Sequence[LeverageTier],
+    *,
+    liquidation_fee_rate: Decimal,
+) -> str:
+    """Fingerprint every price/funding input and liquidation parameter used by a perp run."""
+    digest = hashlib.sha256()
+    digest.update(b"lost-crypto-linear-perpetual-backtest-v1\n")
+    digest.update(f"signals:{hash_candles(signal_candles)}\n".encode())
+    digest.update(f"liquidation_fee:{liquidation_fee_rate.normalize()}\n".encode())
+    for tier in leverage_tiers:
+        digest.update(
+            (
+                f"tier|{tier.tier}|{tier.min_notional}|{tier.max_notional}|{tier.max_leverage}|"
+                f"{tier.maintenance_margin_rate}|{tier.cumulative_maintenance_amount}\n"
+            ).encode()
+        )
+    for candle in mark_candles:
+        values = (candle.open, candle.high, candle.low, candle.close, candle.volume)
+        digest.update(
+            (
+                "mark|"
+                + candle.symbol
+                + "|"
+                + candle.timeframe.value
+                + "|"
+                + candle.open_time.isoformat()
+                + "|"
+                + "|".join(format(value.normalize(), "f") for value in values)
+                + "\n"
+            ).encode()
+        )
+    for event in sorted(funding_rates, key=lambda row: row.funding_time):
+        digest.update(
+            (
+                "funding|"
+                + event.symbol
+                + "|"
+                + event.funding_time.isoformat()
+                + "|"
+                + format(event.rate.normalize(), "f")
+                + "|"
+                + (format(event.mark_price.normalize(), "f") if event.mark_price else "missing")
+                + "\n"
+            ).encode()
+        )
     return digest.hexdigest()

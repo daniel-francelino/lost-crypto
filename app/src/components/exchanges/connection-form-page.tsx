@@ -26,7 +26,7 @@ export function ConnectionFormPage() {
   const client = useQueryClient();
   const capabilities = useCapabilities();
   const [exchange, setExchange] = useState("binance");
-  const [environment, setEnvironment] = useState<string>(Environment.Testnet);
+  const [environment, setEnvironment] = useState<string>(Environment.Demo);
   const [label, setLabel] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
@@ -83,7 +83,8 @@ export function ConnectionFormPage() {
             <FormSelect
               label="Ambiente"
               items={[
-                { label: "TESTNET (dinheiro fictício)", value: Environment.Testnet },
+                { label: "BINANCE DEMO (dinheiro fictício, recomendado)", value: Environment.Demo },
+                { label: "TESTNET legado", value: Environment.Testnet },
                 {
                   label: "LIVE (dinheiro real)",
                   value: Environment.Live,

@@ -34,14 +34,21 @@ from modules.backtesting.domain.data_quality import (
 from modules.backtesting.domain.engine import risk_report, run_backtest
 from modules.backtesting.domain.models import (
     BacktestConfig,
+    BacktestOutcome,
     EquityPoint,
     InvalidBacktestConfig,
     hash_candles,
+    hash_perpetual_inputs,
 )
 from modules.backtesting.domain.periods import compute_periods
+from modules.backtesting.domain.perpetual_engine import (
+    PerpetualBacktestOutcome,
+    run_perpetual_backtest,
+)
 from modules.backtesting.domain.random_entries import random_entries_block
 from modules.backtesting.domain.segments import compute_segments
 from modules.bots.domain.models import BotConfig
+from modules.exchanges.application.connections import ConnectionResolver
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.exchanges.domain.models import TradingProduct
 from modules.execution.domain.orders import Fill
@@ -89,19 +96,16 @@ class BacktestService:
         exchanges: ExchangeRegistry,
         clock: Clock,
         ids: IdGenerator,
+        resolver: ConnectionResolver | None = None,
     ) -> None:
         self._stores = stores
         self._registry = registry
         self._exchanges = exchanges
         self._clock = clock
         self._ids = ids
+        self._resolver = resolver
 
     async def create(self, config: BacktestConfig) -> BacktestRun:
-        if config.product is not TradingProduct.SPOT:
-            raise InvalidBacktestConfig(
-                "futures backtests are not enabled until funding and liquidation "
-                "accounting is available"
-            )
         profile = self._exchanges.require(config.exchange, config.timeframe)
         if config.product not in profile.capabilities.products:
             raise InvalidBacktestConfig(
@@ -111,6 +115,8 @@ class BacktestService:
             raise InvalidBacktestConfig(
                 f"{config.exchange} supports up to {profile.capabilities.max_leverage}x leverage"
             )
+        if config.product is TradingProduct.LINEAR_PERPETUAL:
+            config = await self._with_tier_snapshot(config)
         self._registry.create(config.strategy_type, config.strategy_params)  # validates
         run = BacktestRun(
             id=self._ids.new_id(),
@@ -131,11 +137,6 @@ class BacktestService:
 
         Also returns the number of earlier runs on the same strategy and data (prior trials).
         """
-        if base.product is not TradingProduct.SPOT:
-            raise InvalidSweep(
-                "futures backtest sweeps are not enabled until funding and liquidation "
-                "accounting is available"
-            )
         profile = self._exchanges.require(base.exchange, base.timeframe)
         if base.product not in profile.capabilities.products:
             raise InvalidSweep(
@@ -145,6 +146,8 @@ class BacktestService:
             raise InvalidSweep(
                 f"{base.exchange} supports up to {profile.capabilities.max_leverage}x leverage"
             )
+        if base.product is TradingProduct.LINEAR_PERPETUAL:
+            base = await self._with_tier_snapshot(base)
         if base.cost_sensitivity:
             raise InvalidSweep("cost sensitivity is per backtest; open the chosen run instead")
         offsets = self._start_offsets(grid)
@@ -193,6 +196,32 @@ class BacktestService:
             prior = await store.count_prior_trials(sweep, base)
             await store.commit()
         return sweep, runs, prior
+
+    async def _with_tier_snapshot(self, config: BacktestConfig) -> BacktestConfig:
+        """Pin the account-specific bracket schedule to this immutable backtest config."""
+        if self._resolver is None or config.connection_id is None:
+            raise InvalidBacktestConfig(
+                "perpetual backtests need an active USD-M account connection to read its tiers"
+            )
+        exchange = await self._resolver.exchange_for(config.connection_id)
+        if exchange.capabilities.exchange_id != config.exchange:
+            raise InvalidBacktestConfig("connection exchange does not match backtest exchange")
+        tiers = await exchange.fetch_leverage_tiers(config.symbol)
+        max_notional = config.initial_capital * config.leverage
+        if config.risk is not None:
+            max_notional *= config.risk.max_position_fraction
+            if config.risk.max_order_notional is not None:
+                max_notional = min(max_notional, config.risk.max_order_notional)
+        if not any(tier.supports(max_notional, config.leverage) for tier in tiers):
+            raise InvalidBacktestConfig(
+                f"account leverage tiers do not support {config.leverage}x "
+                f"at maximum notional {max_notional}"
+            )
+        return replace(
+            config,
+            leverage_tiers=tuple(tiers),
+            leverage_tiers_at=self._clock.now(),
+        )
 
     @staticmethod
     def _start_offsets(grid: dict[str, list[Any]]) -> list[int] | None:
@@ -253,7 +282,33 @@ class BacktestService:
             raise DataGapsError(
                 f"{problem}; import the missing candles, or set allow_gaps to run anyway"
             )
-        return {"gaps": gaps_summary(coverage, config.timeframe, config.allow_gaps)}
+        report: dict[str, Any] = {
+            "gaps": gaps_summary(coverage, config.timeframe, config.allow_gaps)
+        }
+        if config.product is TradingProduct.LINEAR_PERPETUAL:
+            mark_candles = await store.perpetual_data.get_mark_candles(
+                config.exchange, config.symbol, config.timeframe, config.start, config.end
+            )
+            if [candle.open_time for candle in mark_candles] != times:
+                raise DataGapsError(
+                    "perpetual backtest requires mark candles at every signal candle timestamp"
+                )
+            funding = await store.perpetual_data.get_funding_rates(
+                config.exchange, config.symbol, config.start, config.end
+            )
+            if any(item.mark_price is None for item in funding):
+                raise InvalidBacktestConfig(
+                    "reimport funding history with event-time mark prices before running futures"
+                )
+            if not funding and config.end - config.start >= timedelta(hours=8):
+                raise DataGapsError("perpetual funding history is missing for this range")
+            report["perpetual_data"] = {
+                "mark_candles": len(mark_candles),
+                "funding_events": len(funding),
+                "funding_first_at": funding[0].funding_time.isoformat() if funding else None,
+                "funding_last_at": funding[-1].funding_time.isoformat() if funding else None,
+            }
+        return report
 
     async def get(self, run_id: UUID) -> BacktestRun:
         async with self._stores() as store:
@@ -386,11 +441,46 @@ class BacktestExecutor:
             breaks = await store.regime_breaks.inside(
                 config.exchange, config.symbol, config.start, config.end
             )
+            mark_candles = (
+                await store.perpetual_data.get_mark_candles(
+                    config.exchange, config.symbol, config.timeframe, config.start, config.end
+                )
+                if config.product is TradingProduct.LINEAR_PERPETUAL
+                else []
+            )
+            funding_rates = (
+                await store.perpetual_data.get_funding_rates(
+                    config.exchange, config.symbol, config.start, config.end
+                )
+                if config.product is TradingProduct.LINEAR_PERPETUAL
+                else []
+            )
         market = await self._exchanges.market_data(config.exchange).fetch_market_info(config.symbol)
         strategy = self._registry.create(config.strategy_type, config.strategy_params)
 
         # CPU-bound: keep the event loop (heartbeats, shutdown handling) responsive.
-        outcome = await asyncio.to_thread(run_backtest, config, candles, market, strategy)
+        outcome: BacktestOutcome | PerpetualBacktestOutcome
+        if config.product is TradingProduct.LINEAR_PERPETUAL:
+            outcome = await asyncio.to_thread(
+                run_perpetual_backtest,
+                config,
+                candles,
+                mark_candles,
+                funding_rates,
+                market,
+                strategy,
+                liquidation_fee_rate=config.fee_rate,
+            )
+            data_hash = hash_perpetual_inputs(
+                candles,
+                mark_candles,
+                funding_rates,
+                config.leverage_tiers,
+                liquidation_fee_rate=config.fee_rate,
+            )
+        else:
+            outcome = await asyncio.to_thread(run_backtest, config, candles, market, strategy)
+            data_hash = hash_candles(candles)
         ladder = (
             await asyncio.to_thread(
                 cost_ladder.run_cost_ladder,
@@ -398,6 +488,8 @@ class BacktestExecutor:
                 candles,
                 market,
                 lambda: self._registry.create(config.strategy_type, config.strategy_params),
+                mark_candles,
+                funding_rates,
             )
             if config.cost_sensitivity
             else None
@@ -414,6 +506,19 @@ class BacktestExecutor:
             benchmark_prices=[c.close for c in candles],
             in_market=outcome.in_market,
         )
+        metrics_data = metrics.to_dict()
+        if isinstance(outcome, PerpetualBacktestOutcome):
+            metrics_data.update(
+                funding_paid=str(outcome.funding_paid),
+                funding_received=str(outcome.funding_received),
+                liquidation_count=outcome.liquidation_count,
+                liquidation_times=outcome.liquidation_times,
+                maximum_notional=str(outcome.max_notional),
+                leverage=config.leverage,
+                margin_mode=config.margin_mode.value if config.margin_mode else None,
+                liquidation_fee_rate=str(config.fee_rate),
+                liquidation_fee_source="configured_taker_fee_proxy",
+            )
         free = free_parameters(
             self._registry.get(config.strategy_type).PARAMETERS, config.strategy_params
         )
@@ -422,13 +527,41 @@ class BacktestExecutor:
             **candle_report(candles),
             "sample": sample_check(free, len(candles), metrics.round_trips),
         }
+        if config.product is TradingProduct.LINEAR_PERPETUAL:
+            quality["perpetual_data"] = {
+                **(quality.get("perpetual_data") or {}),
+                "mark_data_hash": hash_candles(mark_candles),
+                "funding_data_hash": hash_perpetual_inputs(
+                    (),
+                    (),
+                    funding_rates,
+                    (),
+                    liquidation_fee_rate=Decimal(0),
+                ),
+                "leverage_tier_snapshot": [
+                    {
+                        "tier": tier.tier,
+                        "min_notional": str(tier.min_notional),
+                        "max_notional": str(tier.max_notional),
+                        "max_leverage": tier.max_leverage,
+                        "maintenance_margin_rate": str(tier.maintenance_margin_rate),
+                        "cumulative_maintenance_amount": str(tier.cumulative_maintenance_amount),
+                    }
+                    for tier in config.leverage_tiers
+                ],
+                "leverage_tiers_at": (
+                    config.leverage_tiers_at.isoformat()
+                    if config.leverage_tiers_at is not None
+                    else None
+                ),
+            }
         async with self._stores() as store:
             await store.save_result(
                 run.id,
-                data_hash=hash_candles(candles),
+                data_hash=data_hash,
                 candles_count=len(candles),
                 market_info=market,
-                metrics=metrics.to_dict(),
+                metrics=metrics_data,
                 segments=compute_segments(config, candles, outcome),
                 periods=compute_periods(config, candles, outcome),
                 cost_ladder=ladder,
@@ -438,13 +571,17 @@ class BacktestExecutor:
                 regime=await asyncio.to_thread(
                     regime_report, candles, outcome.equity_curve, outcome.in_market
                 ),
-                significance=await asyncio.to_thread(
-                    random_entries_block,
-                    candles,
-                    outcome.fills,
-                    fee_rate=config.fee_rate,
-                    slippage_bps=config.slippage_bps,
-                    seed=config.seed,
+                significance=(
+                    await asyncio.to_thread(
+                        random_entries_block,
+                        candles,
+                        outcome.fills,
+                        fee_rate=config.fee_rate,
+                        slippage_bps=config.slippage_bps,
+                        seed=config.seed,
+                    )
+                    if config.product is TradingProduct.SPOT
+                    else None
                 ),
                 break_metrics=compute_break_segments(
                     config,
@@ -452,7 +589,11 @@ class BacktestExecutor:
                     outcome,
                     [BreakRef(str(b.id), b.name, b.occurred_at, b.created_at) for b in breaks],
                 ),
-                excursion=await asyncio.to_thread(adverse_excursions, outcome.fills, candles),
+                excursion=(
+                    await asyncio.to_thread(adverse_excursions, outcome.fills, candles)
+                    if config.product is TradingProduct.SPOT
+                    else None
+                ),
                 equity_curve=outcome.equity_curve,
                 fills=outcome.fills,
             )

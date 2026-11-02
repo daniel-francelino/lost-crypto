@@ -82,14 +82,21 @@ export const modeLabel = (value: string): string =>
   pick(
     {
       [ExecutionMode.Paper]: "PAPER",
-      [ExecutionMode.Testnet]: "TESTNET",
+      [ExecutionMode.Testnet]: "DEMO / TESTNET",
       [ExecutionMode.Live]: "LIVE",
     },
     value,
   );
 
 export const environmentLabel = (value: string): string =>
-  pick({ [Environment.Testnet]: "TESTNET", [Environment.Live]: "LIVE" }, value);
+  pick(
+    {
+      [Environment.Demo]: "BINANCE DEMO",
+      [Environment.Testnet]: "TESTNET",
+      [Environment.Live]: "LIVE",
+    },
+    value,
+  );
 
 export const orderStatusLabel = (value: string): string =>
   pick(

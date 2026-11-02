@@ -78,6 +78,37 @@ class StopOrderRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class ExchangePosition:
+    """Normalized open derivatives position reported by an exchange account."""
+
+    symbol: str
+    side: PositionSide
+    quantity: Decimal
+    entry_price: Decimal | None
+    mark_price: Decimal | None
+    unrealized_pnl: Decimal
+    leverage: int | None
+    margin_mode: MarginMode | None
+    isolated_margin: Decimal | None
+    liquidation_price: Decimal | None
+    notional: Decimal | None
+
+    def __post_init__(self) -> None:
+        if not self.quantity.is_finite() or self.quantity <= 0:
+            raise ValueError("exchange position quantity must be positive")
+        for name in (
+            "entry_price",
+            "mark_price",
+            "isolated_margin",
+            "liquidation_price",
+            "notional",
+        ):
+            value = getattr(self, name)
+            if value is not None and (not value.is_finite() or value < 0):
+                raise ValueError(f"exchange position {name} cannot be negative")
+
+
+@dataclass(frozen=True, slots=True)
 class Balance:
     asset: str
     free: Decimal

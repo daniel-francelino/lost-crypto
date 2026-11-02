@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     # import Fernet; print(Fernet.generate_key().decode())"
     credential_master_keys: SecretStr | None = None
     # Exchange integrations to enable, comma separated (see exchanges/infrastructure/catalog.py).
-    enabled_exchanges: str = "binance"
+    enabled_exchanges: str = "binance,binance-usdm"
     # Strategies to enable, comma separated (see strategies/catalog.py). Empty enables all.
     enabled_strategies: str = ""
     worker_heartbeat_seconds: float = 5.0
