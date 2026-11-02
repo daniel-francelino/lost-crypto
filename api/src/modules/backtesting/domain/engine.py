@@ -56,7 +56,7 @@ from modules.risk_management.domain.models import (
 )
 from modules.risk_management.domain.stops import ExitReason, check_protective_exit
 from modules.strategies.domain.base import Strategy
-from modules.strategies.domain.types import Side, Signal, StrategyContext
+from modules.strategies.domain.types import Side, Signal, SignalKind, StrategyContext
 
 
 def run_backtest(
@@ -113,6 +113,8 @@ def run_backtest(
                 if quantity <= 0:
                     raise OrderRejected("no position to sell")
                 wanted = quantity
+            if signal.kind is SignalKind.EXIT and signal.exit_fraction is not None:
+                wanted *= signal.exit_fraction
             fill = simulate_market_fill(
                 signal.side,
                 wanted,

@@ -28,7 +28,7 @@ from simulated_exchange import SimulatedExchange
 
 @pytest.fixture
 async def env() -> AsyncIterator[Env]:
-    settings = Settings(**QUIET)  # type: ignore[call-arg]
+    settings = Settings(api_token=API_TOKEN, **QUIET)  # type: ignore[call-arg]
     clock = FakeClock(START + timedelta(hours=20, seconds=5))
     app = create_app(settings)
     containers: list[Container] = []
@@ -52,7 +52,10 @@ async def env() -> AsyncIterator[Env]:
         api_container: Container = app.state.container
         await cleanup(api_container)
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:
+        headers = {"Authorization": f"Bearer {API_TOKEN}"}
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test", headers=headers
+        ) as http:
             yield Env(http, clock, make_runner, containers)
         await cleanup(api_container)
     for container in containers:

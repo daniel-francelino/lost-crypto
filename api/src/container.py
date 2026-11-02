@@ -46,6 +46,7 @@ from modules.strategies.catalog import build_strategy_registry
 from modules.strategies.domain.registry import StrategyRegistry
 from modules.trading.application.comparison import ComparisonService
 from modules.trading.application.deterioration import DeteriorationWatch
+from modules.trading.application.futures_user_stream import FuturesUserStreamMonitor
 from modules.trading.application.operations import OperationsMonitor
 from modules.trading.application.orders import OrderExecutor
 from modules.trading.application.parity import ParityExecutor, ParityService
@@ -202,6 +203,7 @@ class JobRunner:
         parity: ParityExecutor | None = None,
         updater: CandleUpdater | None = None,
         alert_monitor: AlertMonitor | None = None,
+        futures_user_stream: FuturesUserStreamMonitor | None = None,
     ) -> None:
         self._importer = importer
         self._executor = executor
@@ -211,6 +213,7 @@ class JobRunner:
         self._parity = parity
         self._updater = updater
         self._alert_monitor = alert_monitor
+        self._futures_user_stream = futures_user_stream
 
     async def recover(self) -> int:
         """Jobs left 'running' by a crashed worker are queued again (all jobs are idempotent).
@@ -220,11 +223,17 @@ class JobRunner:
         """
         return await self._importer.recover() + await self._executor.recover()
 
+    async def aclose(self) -> None:
+        if self._futures_user_stream is not None:
+            await self._futures_user_stream.aclose()
+
     async def run_once(self) -> bool:
         """One supervisor pass, the candle update and alert checks (each throttled by its own
         interval and never fatal), plus at most one job; False when there was no job to run."""
         if self._operations is not None:
             await self._operations.run_due()  # clock skew (once a minute), before trading on it
+        if self._futures_user_stream is not None:
+            await self._futures_user_stream.ensure_running()
         await self._supervisor.run_once()
         if self._listings is not None:
             await self._listings.run_due()  # once a day; failures are logged, never raised
@@ -361,5 +370,11 @@ def build_job_runner(container: Container) -> JobRunner:
             container.clock,
             updater.report if updater is not None else None,
             DeteriorationWatch(container.comparison).conditions,
+        ),
+        FuturesUserStreamMonitor(
+            container.trading_stores,
+            container.resolver,
+            reconciler,
+            container.clock,
         ),
     )

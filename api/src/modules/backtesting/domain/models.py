@@ -248,13 +248,15 @@ def hash_perpetual_inputs(
                 + "\n"
             ).encode()
         )
-    for event in sorted(funding_rates, key=lambda row: row.funding_time):
+    for event in sorted(funding_rates, key=lambda row: (row.funding_time, row.rate_type)):
         digest.update(
             (
                 "funding|"
                 + event.symbol
                 + "|"
                 + event.funding_time.isoformat()
+                + "|"
+                + event.rate_type
                 + "|"
                 + format(event.rate.normalize(), "f")
                 + "|"

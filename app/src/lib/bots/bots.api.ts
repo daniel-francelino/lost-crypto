@@ -142,6 +142,7 @@ const signalSchema = z.object({
   bar_time: z.string(),
   side: lenientEnum(Side),
   kind: lenientEnum(SignalKind),
+  exit_fraction: nullableDecimalSchema.optional(),
   reason: z.string(),
   decision: z.string(),
   decision_reason: z.string().nullable(),

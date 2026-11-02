@@ -58,10 +58,16 @@ class PerpetualMarkCandleRow(Base):
 
 class PerpetualFundingRateRow(Base):
     __tablename__ = "perpetual_funding_rates"
+    __table_args__ = (
+        CheckConstraint(
+            "rate_type IN ('regular', 'special')", name="rate_type_valid"
+        ),
+    )
 
     exchange: Mapped[str] = mapped_column(Text, primary_key=True)
     symbol: Mapped[str] = mapped_column(Text, primary_key=True)
     funding_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    rate_type: Mapped[str] = mapped_column(Text, primary_key=True, server_default="regular")
     rate: Mapped[Decimal] = mapped_column(MONEY)
     mark_price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     ingested_at: Mapped[datetime] = mapped_column(

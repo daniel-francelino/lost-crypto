@@ -27,6 +27,16 @@ class Signal:
     # Protective levels a strategy may propose with an entry (price levels, quote currency).
     stop_loss: Decimal | None = None
     take_profit: Decimal | None = None
+    # Fraction of the currently open position to close; omitted means a full exit.
+    exit_fraction: Decimal | None = None
+
+    def __post_init__(self) -> None:
+        if self.exit_fraction is not None and (
+            self.kind is not SignalKind.EXIT
+            or not self.exit_fraction.is_finite()
+            or not 0 < self.exit_fraction <= 1
+        ):
+            raise ValueError("exit_fraction must be in (0, 1] and only applies to exit signals")
 
 
 @dataclass(frozen=True, slots=True)

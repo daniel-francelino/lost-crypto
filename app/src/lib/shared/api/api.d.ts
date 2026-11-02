@@ -930,6 +930,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bots/{bot_id}/close-position": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close Futures Position
+         * @description Pause a Binance Demo Futures bot and submit a reduce-only market close.
+         */
+        post: operations["close_futures_position_api_v1_bots__bot_id__close_position_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bots/{bot_id}/reset-portfolio": {
         parameters: {
             query?: never;
@@ -1174,8 +1194,7 @@ export interface paths {
         get: operations["get_kill_switch_api_v1_system_kill_switch_get"];
         /**
          * Set Kill Switch
-         * @description Emergency stop. While active, the worker pauses every running bot and no new entries
-         *     are approved. Releasing it does not resume bots: start them again explicitly.
+         * @description Pause entries; optionally cancel opening Futures orders and close tracked positions.
          */
         put: operations["set_kill_switch_api_v1_system_kill_switch_put"];
         post?: never;
@@ -1831,7 +1850,7 @@ export interface components {
             mode: "paper" | "testnet";
             /**
              * Connection Id
-             * @description Required for testnet bots: the exchange connection to use
+             * @description Required for testnet bots and Futures paper (active Binance Demo connection)
              */
             connection_id?: string | null;
         };
@@ -2689,6 +2708,12 @@ export interface components {
             active: boolean;
             /** Reason */
             reason?: string | null;
+            /**
+             * Close Futures Positions
+             * @description When activating, cancel opening Futures orders and close tracked Demo positions.
+             * @default false
+             */
+            close_futures_positions: boolean;
         };
         /** KillSwitchOut */
         KillSwitchOut: {
@@ -2698,6 +2723,11 @@ export interface components {
             reason: string | null;
             /** Changed At */
             changed_at: string | null;
+            /**
+             * Close Futures Positions
+             * @default false
+             */
+            close_futures_positions: boolean;
         };
         /** ListingOut */
         ListingOut: {
@@ -3642,6 +3672,8 @@ export interface components {
             bar_time: string;
             side: components["schemas"]["Side"];
             kind: components["schemas"]["SignalKind"];
+            /** Exit Fraction */
+            exit_fraction?: string | null;
             /** Reason */
             reason: string;
             /** Decision */
@@ -5798,6 +5830,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BotOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    close_futures_position_api_v1_bots__bot_id__close_position_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReasonIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderOut"];
                 };
             };
             /** @description Validation Error */

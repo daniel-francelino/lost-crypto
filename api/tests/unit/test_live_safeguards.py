@@ -127,21 +127,21 @@ async def test_an_adapter_refuses_a_client_that_points_at_the_wrong_environment(
     credentials = Credentials("k" * 20, "s" * 20)
     # sandbox requested, but the client would stay on production: must refuse, not trade there.
     monkeypatch.setattr(ccxt_async.binance, "set_sandbox_mode", lambda self, enabled: None)
-    with pytest.raises(ExchangeConfigurationError, match="does not match"):
+    with pytest.raises(ExchangeConfigurationError, match="sandbox URLs are not configured"):
         BinanceExchange(credentials=credentials, sandbox=True)
 
 
-async def test_production_and_sandbox_adapters_point_at_different_hosts() -> None:
+async def test_production_and_demo_adapters_point_at_different_hosts() -> None:
     from modules.exchanges.domain.connections import Credentials
 
     credentials = Credentials("k" * 20, "s" * 20)
     live, sandbox = (
         BinanceExchange(credentials=credentials),
-        BinanceExchange(credentials=credentials, sandbox=True),
+        BinanceExchange(credentials=credentials, demo=True),
     )
     try:
-        assert "testnet" not in str(live._client.urls["api"])
-        assert "testnet" in str(sandbox._client.urls["api"])
+        assert "demo-api.binance.com" not in str(live._client.urls["api"])
+        assert "demo-api.binance.com" in str(sandbox._client.urls["api"])
     finally:
         await live.aclose()
         await sandbox.aclose()

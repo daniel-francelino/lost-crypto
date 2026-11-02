@@ -152,8 +152,8 @@ class PerpetualPaperTrader:
             raise ConflictError("funding history symbol does not match the Futures bot")
         if any(rate.mark_price is None for rate in rates):
             raise ConflictError("funding history lacks event-time mark prices; cycle stopped")
-        if any(a.funding_time == b.funding_time for a, b in pairwise(rates)):
-            raise ConflictError("funding history contains duplicate event timestamps")
+        if len({(rate.funding_time, rate.rate_type) for rate in rates}) != len(rates):
+            raise ConflictError("funding history contains duplicate event types at one timestamp")
 
         market = await source.fetch_market_info(cfg.symbol)
         tiers = await self._leverage_tiers(bot, now)
@@ -190,13 +190,12 @@ class PerpetualPaperTrader:
             return cached[1]
         exchange = await self._resolver.exchange_for(connection_id)
         tiers = await exchange.fetch_leverage_tiers(bot.config.symbol)
-        supported = [tier for tier in tiers if tier.max_leverage >= bot.config.leverage]
-        if not supported:
+        if not tiers:
             raise ConflictError(
                 "Binance Demo returned no leverage tier for the configured leverage"
             )
-        self._tier_cache[key] = (now, supported)
-        return supported
+        self._tier_cache[key] = (now, tiers)
+        return tiers
 
     @staticmethod
     async def _funding_history(
@@ -206,18 +205,19 @@ class PerpetualPaperTrader:
         end: datetime,
     ) -> list[FundingRate]:
         """Page every funding event needed for this candle batch; never silently truncate."""
-        events: dict[datetime, FundingRate] = {}
+        events: dict[tuple[datetime, str], FundingRate] = {}
         cursor = start
         while cursor <= end:
             page = await fetch_funding(symbol, cursor, _FUNDING_PAGE)
             if not page:
                 break
-            ordered = sorted(page, key=lambda rate: rate.funding_time)
+            ordered = sorted(page, key=lambda rate: (rate.funding_time, rate.rate_type))
             for rate in ordered:
                 if start <= rate.funding_time <= end:
-                    if rate.funding_time in events:
-                        raise ConflictError("funding history contains duplicate event timestamps")
-                    events[rate.funding_time] = rate
+                    key = (rate.funding_time, rate.rate_type)
+                    if key in events:
+                        raise ConflictError("funding history contains duplicate event types")
+                    events[key] = rate
             newest = ordered[-1].funding_time
             if newest < cursor:
                 raise ConflictError("funding history pagination moved backwards")
@@ -227,7 +227,7 @@ class PerpetualPaperTrader:
             if next_cursor <= cursor:
                 raise ConflictError("funding history pagination made no progress")
             cursor = next_cursor
-        return [events[at] for at in sorted(events)]
+        return [events[key] for key in sorted(events)]
 
     async def _store_inputs(
         self,
@@ -271,11 +271,13 @@ class PerpetualPaperTrader:
                 if ledger.position is None:
                     continue
                 assert rate.mark_price is not None
-                funding_reference = f"funding:{cfg.symbol}:{rate.funding_time.isoformat()}"
+                funding_reference = (
+                    f"funding:{cfg.symbol}:{rate.funding_time.isoformat()}:{rate.rate_type}"
+                )
                 if await store.perpetual_portfolio.has_entry(bot.id, funding_reference):
                     continue
                 before = ledger.position
-                funding_tier = _tier_for(tiers, before.quantity * rate.mark_price, before.leverage)
+                funding_tier = _tier_for(tiers, before.quantity * rate.mark_price)
                 ledger.mark(
                     rate.mark_price,
                     rate.funding_time,
@@ -337,9 +339,7 @@ class PerpetualPaperTrader:
 
             position = ledger.position
             active_tier = (
-                _tier_for(tiers, position.quantity * mark.close, position.leverage)
-                if position is not None
-                else None
+                _tier_for(tiers, position.quantity * mark.close) if position is not None else None
             )
             ledger.mark(
                 mark.close,
@@ -457,21 +457,30 @@ class PerpetualPaperTrader:
                         ):
                             decision = "exit direction would increase exposure"
                         else:
+                            exit_quantity = position.quantity
+                            if signal.exit_fraction is not None:
+                                exit_quantity *= signal.exit_fraction
+                            try:
+                                await self._close(
+                                    store,
+                                    bot,
+                                    session,
+                                    candle,
+                                    ledger,
+                                    market,
+                                    exit_quantity,
+                                    candle.close,
+                                    cfg.fee_rate,
+                                    False,
+                                    signal.reason,
+                                )
+                            except (InvalidPerpetualPosition, OrderRejected, ValueError) as exc:
+                                await self._signal(
+                                    store, bot, session, candle, signal, "rejected", str(exc)
+                                )
+                                continue
                             await self._signal(
                                 store, bot, session, candle, signal, "approved", None
-                            )
-                            await self._close(
-                                store,
-                                bot,
-                                session,
-                                candle,
-                                ledger,
-                                market,
-                                position.quantity,
-                                candle.close,
-                                cfg.fee_rate,
-                                False,
-                                signal.reason,
                             )
                             exited = True
                             continue
@@ -520,9 +529,7 @@ class PerpetualPaperTrader:
             ledger.mark(
                 mark.close,
                 mark.close_time,
-                _tier_for(
-                    tiers, ledger.position.quantity * mark.close, ledger.position.leverage
-                ).maintenance_margin_rate
+                _tier_for(tiers, ledger.position.quantity * mark.close).maintenance_margin_rate
                 if ledger.position is not None
                 else Decimal(0),
                 source="binance_exchange_mark_price",
@@ -579,6 +586,7 @@ class PerpetualPaperTrader:
                 bar_time=candle.open_time,
                 side=signal.side,
                 kind=signal.kind,
+                exit_fraction=signal.exit_fraction,
                 reason=signal.reason,
                 decision=decision,
                 decision_reason=reason,
@@ -609,6 +617,10 @@ class PerpetualPaperTrader:
             market,
             candle.close_time,
         )
+        try:
+            tier = _tier_for(tiers, fill.notional, cfg.leverage)
+        except ConflictError as exc:
+            raise OrderRejected(str(exc)) from exc
         order = Order(
             id=self._ids.new_id(),
             bot_id=bot.id,
@@ -637,7 +649,6 @@ class PerpetualPaperTrader:
             signal.stop_loss,
             signal.take_profit,
         )
-        tier = _tier_for(tiers, fill.notional, cfg.leverage)
         ledger.mark(candle.close, candle.close_time, tier.maintenance_margin_rate)
         inserted = await store.orders.add_if_absent(order)
         if not inserted:
@@ -872,8 +883,19 @@ def _floor(at: datetime, timeframe: Timeframe) -> datetime:
     return floor_to_timeframe(at, timeframe)
 
 
-def _tier_for(tiers: list[LeverageTier], notional: Decimal, leverage: int) -> LeverageTier:
-    tier = next((item for item in tiers if item.supports(notional, leverage)), None)
+def _tier_for(
+    tiers: list[LeverageTier], notional: Decimal, leverage: int | None = None
+) -> LeverageTier:
+    tier = next(
+        (
+            item
+            for item in tiers
+            if item.min_notional <= notional < item.max_notional
+            and (leverage is None or item.max_leverage >= leverage)
+        ),
+        None,
+    )
     if tier is None:
-        raise ConflictError(f"no Binance leverage tier supports notional {notional} at {leverage}x")
+        detail = f" at {leverage}x" if leverage is not None else ""
+        raise ConflictError(f"no Binance leverage tier covers notional {notional}{detail}")
     return tier

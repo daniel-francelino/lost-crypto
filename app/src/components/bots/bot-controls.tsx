@@ -12,6 +12,7 @@ import type { Bot } from "@/lib/bots/bots.api";
 import { refusalMessage } from "@/lib/shared/api/messages";
 import { Capability, can } from "@/lib/shared/capability";
 import { BotState, ExecutionMode } from "@/lib/shared/enums";
+import { compareDecimal } from "@/lib/shared/format";
 
 const KILL_SWITCH_REASON = "Kill switch ativo.";
 const SENT = "Comando enviado: aguardando o worker confirmar.";
@@ -42,7 +43,7 @@ export function BotControls({ bot }: { bot: Bot }) {
     bot.exchange === "binance-usdm" &&
     bot.product === "linear_perpetual" &&
     (bot.mode === ExecutionMode.Paper || bot.mode === ExecutionMode.Testnet);
-  const hasPosition = Number(portfolio.data?.quantity ?? 0) > 0;
+  const hasPosition = compareDecimal(portfolio.data?.quantity ?? null, "0") > 0;
   const wantsRunning = bot.desired_state === BotState.Running;
   const settledStopped =
     bot.desired_state === BotState.Stopped && bot.observed_state !== BotState.Running;

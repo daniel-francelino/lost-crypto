@@ -245,6 +245,13 @@ class BotSupervisor:
                 tiers = await exchange.fetch_leverage_tiers(bot.config.symbol)
                 if not any(tier.supports(max_notional, bot.config.leverage) for tier in tiers):
                     return "Binance Demo leverage tiers do not support the configured notional"
+                await exchange.prepare_market_configuration(
+                    product=bot.config.product,
+                    symbol=bot.config.symbol,
+                    leverage=bot.config.leverage,
+                    margin_mode=bot.config.margin_mode,
+                    max_notional=max_notional,
+                )
             except Exception as exc:
                 return f"Futures Demo market or account validation failed: {exc}"
         return None
@@ -275,6 +282,41 @@ class BotSupervisor:
         if needs_connection and (problem := await self._connection_problem(bot)):
             await self._enter_error(bot, problem)
             return False
+        async with self._stores() as store:
+            existing_session = await store.sessions.get_active(bot.id)
+        execution_snapshot = None
+        if bot.config.product is TradingProduct.LINEAR_PERPETUAL and existing_session is None:
+            try:
+                if self._resolver is None or bot.config.connection_id is None:
+                    raise RuntimeError("Futures session has no Binance Demo connection")
+                exchange = await self._resolver.exchange_for(bot.config.connection_id)
+                tiers = await exchange.fetch_leverage_tiers(bot.config.symbol)
+                if not tiers:
+                    raise RuntimeError("Binance Demo returned no leverage tiers")
+                execution_snapshot = {
+                    "leverage_tiers": [
+                        {
+                            "tier": tier.tier,
+                            "min_notional": str(tier.min_notional),
+                            "max_notional": str(tier.max_notional),
+                            "max_leverage": tier.max_leverage,
+                            "maintenance_margin_rate": str(tier.maintenance_margin_rate),
+                            "cumulative_maintenance_amount": str(
+                                tier.cumulative_maintenance_amount
+                            ),
+                        }
+                        for tier in tiers
+                    ],
+                    "leverage_tiers_at": self._clock.now().isoformat(),
+                    "config_version": bot.config_version,
+                }
+            except Exception as exc:
+                await self._enter_error(
+                    bot,
+                    f"could not pin Futures leverage tiers for this session: "
+                    f"{type(exc).__name__}: {exc}",
+                )
+                return False
         resumed = bot.observed_state is BotState.PAUSED
         async with self._stores() as store:
             if await store.sessions.get_active(bot.id) is None:
@@ -286,6 +328,7 @@ class BotSupervisor:
                         status=SessionStatus.ACTIVE,
                         started_at=self._clock.now(),
                         mode=bot.config.mode.value,
+                        execution_snapshot=execution_snapshot,
                     )
                 )
             await store.bots.set_observed(bot.id, BotState.RUNNING, None)
@@ -373,9 +416,11 @@ class BotSupervisor:
             if ledger is None or ledger.position is None:
                 self._kill_close_retry_at.pop(bot.id, None)
                 return
-            if bot.config.connection_id is None or (
-                await self._resolver.environment_for(bot.config.connection_id)
-            ) is not Environment.DEMO:
+            if (
+                bot.config.connection_id is None
+                or (await self._resolver.environment_for(bot.config.connection_id))
+                is not Environment.DEMO
+            ):
                 raise RuntimeError("Futures kill close is restricted to Binance Demo")
             if bot.config.mode is ExecutionMode.TESTNET:
                 await self._executor.cancel_opening_perpetual_orders(bot)
@@ -390,7 +435,8 @@ class BotSupervisor:
                     close_order = await store.orders.get(close_order.id) or close_order
             if close_order.status.value != "FILLED":
                 raise RuntimeError(
-                    f"Futures kill close is {close_order.status.value}; position remains under review"
+                    "Futures kill close is "
+                    f"{close_order.status.value}; position remains under review"
                 )
             async with self._stores() as store:
                 await store.audit.add(

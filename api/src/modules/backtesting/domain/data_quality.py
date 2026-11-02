@@ -10,7 +10,7 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
-from modules.market_data.domain.models import Candle, RangeCoverage, Timeframe
+from modules.market_data.domain.models import Candle, FundingRate, RangeCoverage, Timeframe
 from modules.market_data.domain.quality import (
     DEFAULT_OUTLIER_SIGMAS,
     candle_problems,
@@ -23,6 +23,43 @@ MAX_GAP = timedelta(hours=24)  # or a single hole longer than a day
 MAX_LISTED = 20
 BARS_PER_PARAMETER = 252  # Chan's rule of thumb (p. 53), stated as experience, not theory
 MIN_ROUND_TRIPS = 30  # our adaptation: trades, not bars, are the independent observations
+
+
+def funding_coverage_report(
+    mark_candles: Sequence[Candle], funding_rates: Sequence[FundingRate]
+) -> dict[str, Any]:
+    """Report observed funding coverage without claiming an unrecorded historical schedule.
+
+    Binance can adjust funding intervals; historical rate rows do not identify the interval
+    schedule effective between events. The engine rejects observed gaps over eight hours, while
+    this report makes the remaining completeness limit visible to API consumers.
+    """
+    ordered = sorted(funding_rates, key=lambda rate: (rate.funding_time, rate.rate_type))
+    event_times = sorted({rate.funding_time for rate in ordered})
+    if not mark_candles:
+        return {
+            "status": "not_certified",
+            "reason": "mark-price candles are unavailable",
+            "event_count": len(ordered),
+            "max_observed_gap_seconds": None,
+        }
+    start = mark_candles[0].open_time
+    end = mark_candles[-1].close_time
+    gaps = [event_times[0] - start] if event_times else [end - start]
+    gaps.extend(
+        event_times[index] - event_times[index - 1]
+        for index in range(1, len(event_times))
+    )
+    if event_times:
+        gaps.append(end - event_times[-1])
+    max_gap = max(gaps, default=timedelta(0))
+    return {
+        "status": "not_certified",
+        "reason": "historical funding interval schedule is not stored with rate observations",
+        "event_count": len(ordered),
+        "max_observed_gap_seconds": int(max_gap.total_seconds()),
+        "maximum_gap_guard_hours": 8,
+    }
 
 
 def gap_problem(coverage: RangeCoverage, timeframe: Timeframe) -> str | None:

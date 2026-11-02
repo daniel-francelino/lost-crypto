@@ -31,6 +31,11 @@ def _when(milliseconds: Any, fallback: datetime) -> datetime:
     return datetime.fromtimestamp(int(milliseconds) / 1000, UTC) if milliseconds else fallback
 
 
+def _quote_asset(symbol: str) -> str:
+    """Strip CCXT's settlement suffix from contract symbols (``BTC/USDT:USDT``)."""
+    return symbol.partition("/")[2].partition(":")[0]
+
+
 def raw_fills_as_trades(raw_fills: list[dict[str, Any]], quote: str) -> list[dict[str, Any]]:
     """Binance ``fills`` (price, qty, commission, commissionAsset, tradeId) as CCXT trades."""
     return [
@@ -49,7 +54,8 @@ def parse_fills(
     trades: list[dict[str, Any]], symbol: str, side: Side, fallback_time: datetime
 ) -> tuple[Fill, ...]:
     """CCXT trades -> fills, splitting the fee into quote-denominated and base-denominated."""
-    base, _, quote = symbol.partition("/")
+    base, _, _ = symbol.partition("/")
+    quote = _quote_asset(symbol)
     fills: list[Fill] = []
     for trade in trades:
         fee_quote = fee_base = Decimal(0)
@@ -87,7 +93,7 @@ def parse_order(
     """A CCXT order dict -> ``VenueOrder``. ``trades`` overrides the order's embedded fills."""
     info = raw.get("info") or {}
     side = Side(str(raw["side"]).lower())
-    quote = symbol.partition("/")[2]
+    quote = _quote_asset(symbol)
     moment = _when(raw.get("lastTradeTimestamp") or raw.get("timestamp"), now or datetime.now(UTC))
 
     if trades is None:

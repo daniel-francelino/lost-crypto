@@ -400,13 +400,16 @@ class BotTrader:
                         )
                     )
                     continue
+                order_quantity = decision.quantity
+                if signal.exit_fraction is not None:
+                    order_quantity *= signal.exit_fraction
                 await self._record(store, bot, session, candle, signal, "approved", None)
                 filled = await self._execute(
                     store,
                     bot,
                     session,
                     signal,
-                    decision.quantity,
+                    order_quantity,
                     candle,
                     candle.close,
                     cfg.slippage_bps,
@@ -521,6 +524,7 @@ class BotTrader:
                 bar_time=candle.open_time,
                 side=signal.side,
                 kind=signal.kind,
+                exit_fraction=signal.exit_fraction,
                 reason=signal.reason,
                 decision=decision,
                 decision_reason=reason,

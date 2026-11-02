@@ -7,7 +7,7 @@ filled from signal candles or the current funding rate.
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from itertools import pairwise
 from typing import Any
@@ -41,6 +41,8 @@ from modules.risk_management.domain.models import (
 from modules.risk_management.domain.perpetual import size_linear_perpetual_entry
 from modules.strategies.domain.base import Strategy
 from modules.strategies.domain.types import Side, Signal, SignalKind, StrategyContext
+
+_MAX_FUNDING_INTERVAL = timedelta(hours=8)
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,15 +178,34 @@ def run_perpetual_backtest(
     if any(rate.mark_price is None for rate in funding_rates):
         raise InvalidBacktestConfig("funding observations need their event-time mark price")
 
-    ordered_funding = sorted(funding_rates, key=lambda item: item.funding_time)
+    ordered_funding = sorted(funding_rates, key=lambda item: (item.funding_time, item.rate_type))
     if any(
         item.funding_time < mark_candles[0].open_time
         or item.funding_time > mark_candles[-1].close_time
         for item in ordered_funding
     ):
         raise InvalidBacktestConfig("funding observations fall outside the simulated range")
-    if any(a.funding_time == b.funding_time for a, b in pairwise(ordered_funding)):
-        raise InvalidBacktestConfig("duplicate funding timestamps are not allowed")
+    funding_start = mark_candles[0].open_time
+    funding_end = mark_candles[-1].close_time
+    if funding_end - funding_start >= _MAX_FUNDING_INTERVAL and not ordered_funding:
+        raise InvalidBacktestConfig(
+            "funding history is missing for a range that can include settlement events"
+        )
+    if ordered_funding:
+        if ordered_funding[0].funding_time - funding_start > _MAX_FUNDING_INTERVAL:
+            raise InvalidBacktestConfig("funding history starts after an uncovered interval")
+        if funding_end - ordered_funding[-1].funding_time > _MAX_FUNDING_INTERVAL:
+            raise InvalidBacktestConfig("funding history ends before an uncovered interval")
+        if any(
+            current.funding_time - previous.funding_time > _MAX_FUNDING_INTERVAL
+            for previous, current in pairwise(ordered_funding)
+        ):
+            raise InvalidBacktestConfig("funding history contains an uncovered interval")
+    event_keys = {(event.funding_time, event.rate_type) for event in ordered_funding}
+    if len(event_keys) != len(ordered_funding):
+        raise InvalidBacktestConfig(
+            "duplicate funding event types at the same timestamp are not allowed"
+        )
     funding_index = 0
     ledger = PerpetualLedger.new(UUID(int=0), config.initial_capital)
     fills: list[Fill] = []
@@ -244,6 +265,11 @@ def run_perpetual_backtest(
                 executed = simulate_market_fill(
                     signal.side, wanted, reference, config.fee_rate, slippage, market, at
                 )
+                active_tier = tier_for(executed.notional)
+                if active_tier.max_leverage < config.leverage:
+                    raise InvalidBacktestConfig(
+                        f"tier {active_tier.tier} does not allow {config.leverage}x"
+                    )
                 ledger.open_position(
                     side,
                     executed.quantity,
@@ -253,11 +279,6 @@ def run_perpetual_backtest(
                     signal.stop_loss,
                     signal.take_profit,
                 )
-                active_tier = tier_for(executed.notional)
-                if active_tier.max_leverage < config.leverage:
-                    raise InvalidBacktestConfig(
-                        f"tier {active_tier.tier} does not allow {config.leverage}x"
-                    )
                 ledger.maintenance_margin_rate = active_tier.maintenance_margin_rate
             except (InvalidPerpetualPosition, OrderRejected, ValueError) as exc:
                 rejected.append(RejectedSignal(at, signal.side, str(exc)))
@@ -287,9 +308,12 @@ def run_perpetual_backtest(
                 RejectedSignal(at, signal.side, "exit direction would increase exposure")
             )
             return
+        exit_quantity = position.quantity
+        if signal.exit_fraction is not None:
+            exit_quantity *= signal.exit_fraction
         executed = simulate_market_fill(
             signal.side,
-            position.quantity,
+            exit_quantity,
             reference,
             config.fee_rate,
             bps(candle, position.quantity * reference),
@@ -300,7 +324,8 @@ def run_perpetual_backtest(
         fills.append(executed)
         if guard is not None:
             guard.after_exit(fills, at)
-        stop_price = take_profit_price = None
+        if ledger.position is None:
+            stop_price = take_profit_price = None
 
     for candle, mark in zip(candles, mark_candles, strict=True):
         trading = trade_from is None or candle.close_time > trade_from
@@ -331,21 +356,15 @@ def run_perpetual_backtest(
                         else min(min_liquidation_distance_pct, Decimal(0))
                     )
                 else:
-                    funding_tier = tier_for(
-                        ledger.position.quantity * event.mark_price
-                    )
+                    funding_tier = tier_for(ledger.position.quantity * event.mark_price)
                     funding_liquidation_price = ledger.position.estimated_liquidation_price(
                         funding_tier.maintenance_margin_rate,
                         funding_tier.cumulative_maintenance_amount,
                     )
                     funding_distance = (
-                        (event.mark_price - funding_liquidation_price)
-                        / event.mark_price
-                        * 100
+                        (event.mark_price - funding_liquidation_price) / event.mark_price * 100
                         if ledger.position.side is PositionSide.LONG
-                        else (funding_liquidation_price - event.mark_price)
-                        / event.mark_price
-                        * 100
+                        else (funding_liquidation_price - event.mark_price) / event.mark_price * 100
                     )
                     min_liquidation_distance_pct = (
                         funding_distance
@@ -358,9 +377,7 @@ def run_perpetual_backtest(
                         Fill(
                             time=event.funding_time,
                             side=(
-                                Side.SELL
-                                if before_funding.side is PositionSide.LONG
-                                else Side.BUY
+                                Side.SELL if before_funding.side is PositionSide.LONG else Side.BUY
                             ),
                             quantity=before_funding.quantity,
                             price=event.mark_price,

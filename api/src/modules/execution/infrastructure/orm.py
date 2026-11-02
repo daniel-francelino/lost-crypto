@@ -89,6 +89,7 @@ class TradingSignalRow(Base):
     bar_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     side: Mapped[str] = mapped_column(Text)
     kind: Mapped[str] = mapped_column(Text)
+    exit_fraction: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     reason: Mapped[str] = mapped_column(Text)
     decision: Mapped[str] = mapped_column(Text)
     decision_reason: Mapped[str | None] = mapped_column(Text, nullable=True)

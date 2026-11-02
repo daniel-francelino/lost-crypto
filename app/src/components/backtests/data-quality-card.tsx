@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "lost-ui/ui/alert";
 import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import type { Backtest, DataQuality } from "@/lib/backtests/backtests.api";
 import { dayString, formatUtc, toMs } from "@/lib/shared/dates";
@@ -65,13 +66,15 @@ const sampleRow = (quality: DataQuality): Row | null => {
 };
 
 export function DataQualityCard({ run, quality }: { run: Backtest; quality: DataQuality }) {
+  const fundingCoverage = quality.perpetual_data?.funding_coverage;
+  const fundingUncertified = fundingCoverage?.status === "not_certified";
   const rows = [
     gapRow(quality),
     invalidRow(quality),
     outlierRow(quality),
     sampleRow(quality),
   ].filter((row): row is Row => row !== null);
-  if (rows.length === 0) return null;
+  if (rows.length === 0 && !fundingUncertified) return null;
   return (
     <Card>
       <CardHeader>
@@ -82,6 +85,19 @@ export function DataQualityCard({ run, quality }: { run: Backtest; quality: Data
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        {fundingUncertified ? (
+          <Alert className="border-warning/40">
+            <AlertTitle>Cobertura de funding não certificada</AlertTitle>
+            <AlertDescription>
+              O histórico não informa o intervalo de funding vigente entre os eventos. O motor
+              rejeita lacunas observadas acima de 8 horas, mas lacunas menores podem passar
+              despercebidas.{" "}
+              {fundingCoverage.event_count === undefined
+                ? null
+                : `${formatInteger(fundingCoverage.event_count)} evento(s) de funding foram usados.`}
+            </AlertDescription>
+          </Alert>
+        ) : null}
         <dl className="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">
           {rows.map((row) => (
             <div key={row.label} className="contents">

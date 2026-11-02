@@ -16,7 +16,9 @@ class KillSwitchIn(BaseModel):
     reason: str | None = Field(default=None, max_length=200)
     close_futures_positions: bool = Field(
         default=False,
-        description="When activating, cancel opening Futures orders and close tracked Demo positions.",
+        description=(
+            "When activating, cancel opening Futures orders and close tracked Demo positions."
+        ),
     )
 
 

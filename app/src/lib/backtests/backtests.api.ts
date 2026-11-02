@@ -163,6 +163,20 @@ const dataQualitySchema = z.object({
       meets_trade_rule: z.boolean(),
     })
     .nullish(),
+  perpetual_data: z
+    .object({
+      funding_coverage: z
+        .object({
+          status: z.string(),
+          reason: z.string().optional(),
+          event_count: z.number().optional(),
+          max_observed_gap_seconds: z.number().nullable().optional(),
+          maximum_gap_guard_hours: z.number().optional(),
+        })
+        .nullish(),
+    })
+    .passthrough()
+    .nullish(),
 });
 export type DataQuality = z.infer<typeof dataQualitySchema>;
 

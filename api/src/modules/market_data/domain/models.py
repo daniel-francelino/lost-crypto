@@ -81,12 +81,15 @@ class FundingRate:
     rate: Decimal
     funding_time: datetime
     mark_price: Decimal | None = None
+    rate_type: str = "regular"
 
     def __post_init__(self) -> None:
         if self.funding_time.tzinfo is None:
             raise ValueError("funding time must be timezone-aware")
         if self.mark_price is not None and self.mark_price <= 0:
             raise ValueError("funding mark price must be positive when present")
+        if self.rate_type not in {"regular", "special"}:
+            raise ValueError("funding rate type must be regular or special")
 
 
 @dataclass(frozen=True, slots=True)

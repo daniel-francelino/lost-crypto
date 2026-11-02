@@ -24,10 +24,11 @@ import {
 } from "@/hooks/bots/use-bots";
 import type { Bot, Order, Signal } from "@/lib/bots/bots.api";
 import { formatDateTime, formatUtcShort } from "@/lib/shared/dates";
-import { DrawdownAction, ExecutionMode, TradingProduct } from "@/lib/shared/enums";
+import { DrawdownAction, ExecutionMode, SignalKind, TradingProduct } from "@/lib/shared/enums";
 import { ExecutionQualityCard } from "@/components/bots/bot-execution";
 import {
   compareDecimal,
+  formatFractionAsPercent,
   formatInteger,
   formatRatio,
   formatMoney,
@@ -327,6 +328,16 @@ export function SignalsTab({ bot }: { bot: Bot }) {
     },
     { id: "side", header: "Lado", accessor: "side", cell: (row) => <SideBadge side={row.side} /> },
     { id: "kind", header: "Tipo", accessor: "kind", cell: (row) => signalKindLabel(row.kind) },
+    {
+      id: "exit_fraction",
+      header: "Fechamento",
+      cell: (row) =>
+        row.kind !== SignalKind.Exit
+          ? "—"
+          : row.exit_fraction == null
+            ? "Posição toda"
+            : formatFractionAsPercent(row.exit_fraction),
+    },
     { id: "reason", header: "Motivo da estratégia", accessor: "reason" },
     {
       id: "decision",

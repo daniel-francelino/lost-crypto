@@ -3413,7 +3413,7 @@
           "system"
         ],
         "summary": "Set Kill Switch",
-        "description": "Emergency stop. While active, the worker pauses every running bot and no new entries\nare approved. Releasing it does not resume bots: start them again explicitly.",
+        "description": "Pause entries; optionally cancel opening Futures orders and close tracked positions.",
         "operationId": "set_kill_switch_api_v1_system_kill_switch_put",
         "requestBody": {
           "content": {
@@ -5135,7 +5135,7 @@
               }
             ],
             "title": "Connection Id",
-            "description": "Required for testnet bots: the exchange connection to use"
+            "description": "Required for testnet bots and Futures paper (active Binance Demo connection)"
           }
         },
         "type": "object",
@@ -7371,6 +7371,12 @@
               }
             ],
             "title": "Reason"
+          },
+          "close_futures_positions": {
+            "type": "boolean",
+            "title": "Close Futures Positions",
+            "description": "When activating, cancel opening Futures orders and close tracked Demo positions.",
+            "default": false
           }
         },
         "type": "object",
@@ -7407,6 +7413,11 @@
               }
             ],
             "title": "Changed At"
+          },
+          "close_futures_positions": {
+            "type": "boolean",
+            "title": "Close Futures Positions",
+            "default": false
           }
         },
         "type": "object",
@@ -9987,6 +9998,17 @@
           },
           "kind": {
             "$ref": "#/components/schemas/SignalKind"
+          },
+          "exit_fraction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Fraction"
           },
           "reason": {
             "type": "string",

@@ -11,6 +11,7 @@ any method below unimplemented, and the contract tests check the behaviour.
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from datetime import datetime
 from decimal import Decimal
 from typing import ClassVar
@@ -102,6 +103,10 @@ class Exchange(ABC):
     async def fetch_positions(self, symbols: list[str] | None = None) -> list[ExchangePosition]:
         """Open derivatives positions. Spot adapters have no positions to report."""
         return []
+
+    def stream_user_events(self) -> AsyncIterator[dict[str, object]]:
+        """Yield authenticated private account events when the venue supports user streams."""
+        raise NotImplementedError("private user-data streams are not implemented for this exchange")
 
     @abstractmethod
     async def fetch_api_permissions(self) -> ApiPermissions:

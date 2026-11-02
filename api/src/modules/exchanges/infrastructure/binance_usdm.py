@@ -1,8 +1,13 @@
 """Binance USDⓈ-M perpetual integration, isolated from the Binance Spot adapter."""
 
+import asyncio
+import json
+from collections.abc import AsyncIterator
+from contextlib import suppress
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
+from urllib.parse import urlencode
 
 from modules.exchanges.application.ports import (
     ExchangePosition,
@@ -26,6 +31,7 @@ from modules.market_data.domain.models import Candle, FundingRate, MarketInfo, M
 
 BINANCE_USDM_ID = "binance-usdm"
 MAX_LEVERAGE = 10
+USER_STREAM_KEEPALIVE_SECONDS = 30 * 60
 
 BINANCE_USDM_PROFILE = ExchangeProfile(
     capabilities=ExchangeCapabilities(
@@ -75,6 +81,16 @@ class BinanceUsdmExchange(CcxtExchange):
             ),
         )
 
+    async def fetch_market_info(self, symbol: str) -> MarketInfo:
+        """Return trading rules only for an active USDT-settled linear perpetual."""
+        info = await super().fetch_market_info(symbol)
+        market = self._client.market(symbol)
+        if not self.is_supported_market(market):
+            raise ExchangeRejected(f"{symbol} is not an active USDT linear perpetual")
+        if market.get("symbol") != symbol:
+            raise ExchangeRejected("USD-M market lookup returned a different instrument")
+        return info
+
     async def fetch_mark_price(self, symbol: str) -> MarkPrice:
         raw = await self._call(lambda: self._client.fetch_mark_price(symbol))
         return MarkPrice(
@@ -121,10 +137,96 @@ class BinanceUsdmExchange(CcxtExchange):
                 mark_price=(
                     Decimal(str(row["markPrice"])) if row.get("markPrice") is not None else None
                 ),
+                rate_type=(
+                    "special"
+                    if isinstance(row.get("info"), dict)
+                    and str(row["info"].get("rateType", "")).lower() == "special"
+                    else "regular"
+                ),
             )
             for row in rows
             if row.get("fundingRate") is not None and row.get("timestamp") is not None
         ]
+
+    async def stream_user_events(self) -> AsyncIterator[dict[str, object]]:
+        """Stream authenticated USD-M Demo account events from Binance's private endpoint.
+
+        The key is renewed every 30 minutes. A disconnect or expired key ends this iterator so
+        the worker can reconcile through REST before opening a replacement stream.
+        """
+        if not self._demo:
+            raise ExchangeRejected("USD-M private user streams are enabled only for Binance Demo")
+        self._require_authentication()
+        await self._call(self._client.fetch_time)
+        session = getattr(self._client, "session", None)
+        if session is None or session.closed:
+            raise ExchangeError("Binance HTTP session is unavailable for the private stream")
+
+        response = await self._call(self._client.fapiPrivatePostListenKey)
+        listen_key = response.get("listenKey") if isinstance(response, dict) else None
+        if not isinstance(listen_key, str) or not listen_key:
+            raise ExchangeError("Binance did not return a USD-M user stream listen key")
+        url = "wss://demo-fstream.binance.com/private/ws?" + urlencode(
+            {
+                "listenKey": listen_key,
+                "events": (
+                    "ORDER_TRADE_UPDATE,ALGO_UPDATE,ACCOUNT_UPDATE,ACCOUNT_CONFIG_UPDATE,MARGIN_CALL"
+                ),
+            }
+        )
+
+        async def keepalive() -> None:
+            # Renew on a clock, not only when the stream is idle: active accounts can emit
+            # events continuously and otherwise let the 60-minute listen key expire.
+            while True:
+                await asyncio.sleep(USER_STREAM_KEEPALIVE_SECONDS)
+                await self._call(
+                    lambda: self._client.fapiPrivatePutListenKey({"listenKey": listen_key})
+                )
+
+        keepalive_task: asyncio.Task[None] | None = None
+        try:
+            async with session.ws_connect(url, heartbeat=30) as websocket:
+                keepalive_task = asyncio.create_task(keepalive())
+                while True:
+                    try:
+                        message = await asyncio.wait_for(websocket.receive(), timeout=30 * 60)
+                    except TimeoutError:
+                        if keepalive_task.done():
+                            await keepalive_task
+                        continue
+                    if keepalive_task.done():
+                        await keepalive_task
+                    message_type = getattr(message.type, "name", str(message.type))
+                    if message_type == "TEXT":
+                        try:
+                            payload = json.loads(message.data)
+                        except (TypeError, json.JSONDecodeError) as exc:
+                            raise ExchangeError(
+                                "Binance sent malformed private stream JSON"
+                            ) from exc
+                        if not isinstance(payload, dict):
+                            raise ExchangeError("Binance sent an unexpected private stream payload")
+                        event = payload.get("event", payload)
+                        if not isinstance(event, dict):
+                            raise ExchangeError("Binance sent a malformed private stream event")
+                        yield event
+                        if event.get("e") == "listenKeyExpired":
+                            return
+                    elif message_type in {"CLOSE", "CLOSED", "CLOSING", "ERROR"}:
+                        raise ExchangeError("Binance USD-M private stream disconnected")
+        except asyncio.CancelledError:
+            raise
+        finally:
+            if keepalive_task is not None:
+                keepalive_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await keepalive_task
+            # Avoid accumulating live listen keys across worker restarts and reconnects.
+            with suppress(Exception):
+                await self._call(
+                    lambda: self._client.fapiPrivateDeleteListenKey({"listenKey": listen_key})
+                )
 
     async def fetch_api_permissions(self) -> ApiPermissions:
         self._require_authentication()

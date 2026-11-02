@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from typing import Protocol
 from uuid import UUID
 
@@ -22,6 +23,7 @@ class SignalRecord:
     decision: str  # approved | rejected | discarded_stale
     decision_reason: str | None
     created_at: datetime
+    exit_fraction: Decimal | None = None
 
 
 class OrderRepository(Protocol):

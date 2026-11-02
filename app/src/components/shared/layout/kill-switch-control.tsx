@@ -58,21 +58,21 @@ export function KillSwitchControl() {
         title={active ? "Liberar o kill switch?" : "Ativar o kill switch?"}
         description={
           active
-            ? `Ativado em ${formatDateTime(state.changed_at)}. ${state.close_futures_positions ? "A pol?tica de fechamento Futures foi selecionada." : "As posi??es foram preservadas."} Liberar n?o retoma os bots.`
-            : "Os bots ser?o pausados. Entradas pendentes ser?o fechadas somente se voc? selecionar a op??o abaixo; caso contr?rio, os stops nativos permanecem na exchange."
+            ? `Ativado em ${formatDateTime(state.changed_at)}. ${state.close_futures_positions ? "A política de fechamento Futures foi selecionada." : "As posições foram preservadas."} Liberar não retoma os bots.`
+            : "Os bots serão pausados. Entradas pendentes serão fechadas somente se você selecionar a opção abaixo; caso contrário, os stops nativos permanecem na exchange."
         }
         confirmLabel={active ? "Liberar" : "Ativar kill switch"}
         reasonLabel={active ? "Motivo da liberação" : "Motivo (opcional)"}
         reasonRequired={active}
-        confirmOption={
-          active
-            ? undefined
-            : {
+        {...(!active
+          ? {
+              confirmOption: {
                 label: "Fechar posições Futures rastreadas",
                 description:
                   "Cancela entradas USD-M pendentes e envia fechamentos reduce-only no Demo. No modo paper, fecha apenas a posição simulada.",
-              }
-        }
+              },
+            }
+          : {})}
         onConfirm={(reason, closeFuturesPositions) =>
           mutation.mutateAsync({ active: !active, reason, closeFuturesPositions })
         }

@@ -177,6 +177,7 @@ class SignalOut(BaseModel):
     bar_time: datetime
     side: Side
     kind: SignalKind
+    exit_fraction: Decimal | None = None
     reason: str
     decision: str
     decision_reason: str | None
@@ -624,6 +625,7 @@ async def get_signals(
             bar_time=s.bar_time,
             side=s.side,
             kind=s.kind,
+            exit_fraction=s.exit_fraction,
             reason=s.reason,
             decision=s.decision,
             decision_reason=s.decision_reason,

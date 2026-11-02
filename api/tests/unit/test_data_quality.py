@@ -8,12 +8,19 @@ from factories import T0, make_candles
 from modules.backtesting.domain.data_quality import (
     candle_report,
     free_parameters,
+    funding_coverage_report,
     gap_problem,
     gaps_summary,
     sample_check,
 )
+from modules.backtesting.domain.models import hash_perpetual_inputs
 from modules.backtesting.domain.robustness import Verdict, assess
-from modules.market_data.domain.models import Timeframe, ceil_to_timeframe, range_coverage
+from modules.market_data.domain.models import (
+    FundingRate,
+    Timeframe,
+    ceil_to_timeframe,
+    range_coverage,
+)
 from modules.market_data.domain.quality import (
     CandleProblem,
     candle_problems,
@@ -23,6 +30,35 @@ from modules.market_data.domain.quality import (
 from reference_ema_crossover import EmaCrossoverStrategy
 
 H = timedelta(hours=1)
+
+
+def test_perpetual_funding_coverage_is_reported_as_uncertified_without_interval_history() -> None:
+    candles = make_candles(["100", "100", "100"])
+    rates = [FundingRate("BTC/USDT", Decimal("0.001"), T0 + H, Decimal("100"))]
+
+    report = funding_coverage_report(candles, rates)
+
+    assert report["status"] == "not_certified"
+    assert report["event_count"] == 1
+    assert report["max_observed_gap_seconds"] == 2 * 60 * 60
+    assert report["maximum_gap_guard_hours"] == 8
+
+
+def test_same_time_regular_and_special_funding_events_remain_distinct_inputs() -> None:
+    at = T0 + H
+    regular = FundingRate("BTC/USDT", Decimal("0.001"), at, Decimal("100"))
+    special = FundingRate(
+        "BTC/USDT", Decimal("0.002"), at, Decimal("100"), rate_type="special"
+    )
+
+    regular_hash = hash_perpetual_inputs([], [], [regular], [], liquidation_fee_rate=Decimal(0))
+    both_hash = hash_perpetual_inputs(
+        [], [], [regular, special], [], liquidation_fee_rate=Decimal(0)
+    )
+
+    assert regular.rate_type == "regular"
+    assert special.rate_type == "special"
+    assert both_hash != regular_hash
 
 
 def test_valid_candles_have_no_problems() -> None:

@@ -57,7 +57,8 @@ class BotRow(Base):
             "symbol",
             unique=True,
             postgresql_where=text(
-                "product = 'linear_perpetual' AND exchange_connection_id IS NOT NULL"
+                "product = 'linear_perpetual' AND exchange_connection_id IS NOT NULL "
+                "AND (desired_state <> 'stopped' OR observed_state <> 'stopped')"
             ),
         ),
     )

@@ -19,6 +19,7 @@ def _to_session(row: TradingSessionRow) -> TradingSession:
         status=SessionStatus(row.status),
         started_at=row.started_at,
         strategy_state=row.strategy_state,
+        execution_snapshot=row.execution_snapshot,
         last_processed_bar_time=row.last_processed_bar_time,
         ended_at=row.ended_at,
         end_reason=row.end_reason,
@@ -60,6 +61,7 @@ class SqlAlchemySessionRepository:
                 status=session.status.value,
                 started_at=session.started_at,
                 strategy_state=session.strategy_state,
+                execution_snapshot=session.execution_snapshot,
                 last_processed_bar_time=session.last_processed_bar_time,
             )
         )

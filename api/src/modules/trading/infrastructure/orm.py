@@ -31,6 +31,7 @@ class TradingSessionRow(Base):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     end_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     strategy_state: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    execution_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     last_processed_bar_time: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

@@ -27,6 +27,7 @@ from modules.backtesting.domain.break_segments import BreakRef, compute_break_se
 from modules.backtesting.domain.data_quality import (
     candle_report,
     free_parameters,
+    funding_coverage_report,
     gap_problem,
     gaps_summary,
     sample_check,
@@ -543,6 +544,7 @@ class BacktestExecutor:
                     (),
                     liquidation_fee_rate=Decimal(0),
                 ),
+                "funding_coverage": funding_coverage_report(mark_candles, funding_rates),
                 "leverage_tier_snapshot": [
                     {
                         "tier": tier.tier,

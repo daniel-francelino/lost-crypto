@@ -45,6 +45,7 @@ from modules.execution.domain.orders import (
     OrderStatus,
     make_stop_client_order_id,
 )
+from modules.market_data.domain.models import MarketInfo
 from modules.portfolio.domain.models import PortfolioState
 from modules.portfolio.domain.perpetual_ledger import PerpetualLedgerEntry, PerpetualLedgerEventKind
 from modules.portfolio.domain.perpetuals import PerpetualLedger
@@ -214,11 +215,6 @@ class OrderExecutor:
                 or (order.product is TradingProduct.SPOT and order.side is Side.BUY)
             ):
                 await self.ensure_native_stop(bot, order.client_order_id)
-        elif self._clock.now() - order.created_at >= self._absent_after:
-            await self._reject(
-                bot, order.id, "never reached the exchange (not found after waiting)"
-            )
-
     async def resolve(self, bot: Bot, order: Order) -> None:
         """Settle an order whose outcome is unknown, by asking the exchange about it."""
         exchange = await self._exchange(bot)
@@ -230,6 +226,10 @@ class OrderExecutor:
                 or (order.product is TradingProduct.SPOT and order.side is Side.BUY)
             ):
                 await self.ensure_native_stop(bot, order.client_order_id)
+        elif self._clock.now() - order.created_at >= self._absent_after:
+            await self._reject(
+                bot, order.id, "never reached the exchange (not found after waiting)"
+            )
 
     async def cancel_opening_perpetual_orders(self, bot: Bot) -> int:
         """Cancel this bot's non-reduce-only USD-M orders and apply any racing fills.
@@ -268,11 +268,12 @@ class OrderExecutor:
             try:
                 venue = await exchange.cancel_order(order.symbol, order.client_order_id)
             except Exception as cancel_error:
-                venue = await exchange.fetch_order(order.symbol, order.client_order_id)
-                if venue is None:
+                resolved = await exchange.fetch_order(order.symbol, order.client_order_id)
+                if resolved is None:
                     raise RuntimeError(
                         f"could not confirm cancellation of opening order {order.client_order_id}"
                     ) from cancel_error
+                venue = resolved
             await self._apply(bot, order.id, venue)
             if venue.fills:
                 await self.ensure_native_stop(bot, order.client_order_id)
@@ -320,6 +321,11 @@ class OrderExecutor:
                     await store.commit()
                 return
             raise
+        if (
+            bot.config.product is TradingProduct.LINEAR_PERPETUAL
+            and await self._resize_perpetual_stop(bot, exchange, market)
+        ):
+            return
         async with self._stores() as store:
             futures = bot.config.product is TradingProduct.LINEAR_PERPETUAL
             portfolio = None if futures else await store.portfolio.get(bot.id)
@@ -335,6 +341,14 @@ class OrderExecutor:
                 portfolio.stop_order_client_id if portfolio is not None else None
             )
             if quantity_value <= 0 or stop_price is None or existing_stop is not None:
+                if futures and quantity_value > 0 and stop_price is None:
+                    await self._pause(
+                        store,
+                        bot,
+                        "risk.futures_stop_unavailable",
+                        "open Futures position has no protective stop price",
+                    )
+                    await store.commit()
                 return
             try:
                 quantity = normalize_quantity(quantity_value, stop_price, market)
@@ -355,11 +369,18 @@ class OrderExecutor:
                 stop_side = Side.SELL if position.side is PositionSide.LONG else Side.BUY
             else:
                 stop_side = Side.SELL
+            stop_client_order_id = make_stop_client_order_id(entry_client_order_id)
+            previous_stop = await store.orders.get_by_client_id(bot.id, stop_client_order_id)
+            if previous_stop is not None:
+                if not previous_stop.is_final:
+                    return  # unresolved placement: the reconciler owns this client id
+                if futures:
+                    stop_client_order_id = make_stop_client_order_id(self._ids.new_id().hex)
             stop = Order(
                 id=self._ids.new_id(),
                 bot_id=bot.id,
                 session_id=(await self._session_id(store, bot)),
-                client_order_id=make_stop_client_order_id(entry_client_order_id),
+                client_order_id=stop_client_order_id,
                 symbol=symbol,
                 side=stop_side,
                 quantity=quantity,
@@ -400,6 +421,73 @@ class OrderExecutor:
             await self._mark_unknown(bot, stop.id, f"{type(exc).__name__}: {exc}")
         else:
             await self._apply(bot, stop.id, venue)
+
+    async def _resize_perpetual_stop(
+        self, bot: Bot, exchange: Exchange, market: MarketInfo
+    ) -> bool:
+        """Replace a native stop when a partial fill changes the protected position size."""
+        async with self._stores() as store:
+            ledger = await store.perpetual_portfolio.get(bot.id)
+            if ledger is None or ledger.position is None or ledger.stop_order_client_id is None:
+                return False
+            position = ledger.position
+            stop_id = ledger.stop_order_client_id
+            tracked = await store.orders.get_by_client_id(bot.id, stop_id)
+            if tracked is None:
+                await self._pause(
+                    store,
+                    bot,
+                    "risk.futures_stop_unavailable",
+                    "tracked Futures stop is missing from the local order ledger",
+                )
+                await store.commit()
+                return True
+            if position.stop_price is None:
+                await self._pause(
+                    store,
+                    bot,
+                    "risk.futures_stop_unavailable",
+                    "open Futures position has no protective stop price",
+                )
+                await store.commit()
+                return True
+            try:
+                quantity = normalize_quantity(position.quantity, position.stop_price, market)
+            except OrderRejected as exc:
+                await self._pause(
+                    store,
+                    bot,
+                    "risk.futures_stop_placement_failed",
+                    f"updated Futures stop violates market quantity rules: {exc}",
+                )
+                await store.commit()
+                return True
+            if (
+                not tracked.is_final
+                and tracked.quantity == quantity
+                and tracked.stop_price == position.stop_price
+            ):
+                return True
+
+        await self._cancel_native_stop(bot, exchange, stop_id)
+        async with self._stores() as store:
+            ledger = await store.perpetual_portfolio.get(bot.id)
+            stop_still_tracked = ledger is not None and ledger.stop_order_client_id == stop_id
+            position_remains = ledger is not None and ledger.position is not None
+            if stop_still_tracked:
+                await self._pause(
+                    store,
+                    bot,
+                    "risk.futures_stop_unavailable",
+                    "Binance did not confirm cancellation of the outdated Futures stop",
+                )
+                await store.commit()
+                return True
+        if position_remains:
+            # Canceled client ids are immutable; a replacement gets a fresh id and is committed
+            # before its network request so a restart can resolve the same order safely.
+            await self.ensure_native_stop(bot, self._ids.new_id().hex)
+        return True
 
     async def _restore_perpetual_stop(self, bot: Bot, client_order_id: str) -> None:
         async with self._stores() as store:

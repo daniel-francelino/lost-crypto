@@ -106,6 +106,7 @@ class SqlAlchemyPerpetualDataRepository:
                     "exchange": exchange,
                     "symbol": rate.symbol,
                     "funding_time": rate.funding_time,
+                    "rate_type": rate.rate_type,
                     "rate": rate.rate,
                     "mark_price": rate.mark_price,
                 }
@@ -116,7 +117,7 @@ class SqlAlchemyPerpetualDataRepository:
             statement = insert(PerpetualFundingRateRow).values(rows)
             await self._session.execute(
                 statement.on_conflict_do_update(
-                    index_elements=["exchange", "symbol", "funding_time"],
+                    index_elements=["exchange", "symbol", "funding_time", "rate_type"],
                     set_={
                         "rate": statement.excluded.rate,
                         "mark_price": statement.excluded.mark_price,
@@ -144,6 +145,7 @@ class SqlAlchemyPerpetualDataRepository:
                 rate=row.rate,
                 funding_time=row.funding_time,
                 mark_price=row.mark_price,
+                rate_type=row.rate_type,
             )
             for row in result.scalars()
         ]

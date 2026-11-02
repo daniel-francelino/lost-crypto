@@ -80,6 +80,7 @@ async def _main() -> None:
     except asyncio.CancelledError:
         stop.set()
     finally:
+        await jobs.aclose()
         await container.exchanges.aclose()
         await container.engine.dispose()
 

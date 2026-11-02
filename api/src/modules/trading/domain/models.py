@@ -29,6 +29,7 @@ class TradingSession:
     status: SessionStatus
     started_at: datetime
     strategy_state: dict[str, Any] | None = None
+    execution_snapshot: dict[str, Any] | None = None
     last_processed_bar_time: datetime | None = None
     mode: str = "paper"  # the execution mode this run traded in (paper history gate)
     ended_at: datetime | None = None

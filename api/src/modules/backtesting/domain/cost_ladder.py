@@ -129,8 +129,7 @@ def run_cost_ladder(
     funding_rates: Sequence[FundingRate] = (),
 ) -> dict[str, Any]:
     if config.product is TradingProduct.LINEAR_PERPETUAL and (
-        len(mark_candles) != len(candles)
-        or any(rate.mark_price is None for rate in funding_rates)
+        len(mark_candles) != len(candles) or any(rate.mark_price is None for rate in funding_rates)
     ):
         raise ValueError("futures cost sensitivity requires complete mark and funding data")
     levels = [

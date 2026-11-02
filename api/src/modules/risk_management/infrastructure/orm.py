@@ -15,7 +15,9 @@ class SystemFlagRow(Base):
     active: Mapped[bool] = mapped_column(Boolean)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    close_futures_positions: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    close_futures_positions: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
 
 
 class BackupRunRow(Base):

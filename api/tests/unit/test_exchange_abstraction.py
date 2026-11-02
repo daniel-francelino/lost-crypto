@@ -220,14 +220,14 @@ async def test_registry_creates_the_integration_lazily_once_and_closes_it() -> N
 def test_default_catalog_offers_binance_with_its_facts() -> None:
     registry = build_exchange_registry()
     caps = registry.profile("binance").capabilities
-    assert registry.exchange_ids() == ["binance"]
+    assert registry.exchange_ids() == ["binance", "binance-usdm"]
     assert caps.native_stop_orders and caps.has_testnet
     assert caps.max_client_order_id_length == 36
     assert set(Timeframe) <= caps.timeframes
 
 
 def test_catalog_enables_only_what_the_deployment_selects() -> None:
-    assert set(AVAILABLE_EXCHANGES) == {"binance"}
+    assert set(AVAILABLE_EXCHANGES) == {"binance", "binance-usdm"}
     with pytest.raises(ExchangeConfigurationError, match="no integration"):
         build_exchange_registry(["ftx"])
     with pytest.raises(ExchangeConfigurationError, match="at least one"):
@@ -237,7 +237,7 @@ def test_catalog_enables_only_what_the_deployment_selects() -> None:
 def test_enabled_exchanges_setting_is_parsed_from_a_comma_separated_list() -> None:
     settings = Settings(_env_file=None, enabled_exchanges=" binance , kraken ,")  # type: ignore[call-arg]
     assert settings.enabled_exchange_ids == ["binance", "kraken"]
-    assert Settings(_env_file=None).enabled_exchange_ids == ["binance"]  # type: ignore[call-arg]
+    assert Settings(_env_file=None).enabled_exchange_ids == ["binance", "binance-usdm"]  # type: ignore[call-arg]
 
 
 def test_fee_schedule_validates_rates() -> None:

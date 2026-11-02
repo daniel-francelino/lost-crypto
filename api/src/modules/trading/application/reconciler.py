@@ -49,7 +49,7 @@ class Reconciler:
         self._executor = executor
         self._clock = clock
 
-    async def resolve_pending(self) -> int:
+    async def resolve_pending(self, connection_id: UUID | None = None) -> int:
         """Settle every order whose outcome is unknown. Returns how many were examined."""
         async with self._stores() as store:
             pending = await store.orders.list_unresolved()
@@ -59,12 +59,31 @@ class Reconciler:
             bot = bots.get(order.bot_id)
             if bot is None or not bot.config.mode.uses_exchange:
                 continue
+            if connection_id is not None and bot.config.connection_id != connection_id:
+                continue
             try:
                 await self._executor.resolve(bot, order)
                 examined += 1
             except Exception:
                 logger.exception("could not resolve order %s", order.client_order_id)
         return examined
+
+    async def reconcile_connection(self, connection_id: UUID) -> int:
+        """Reconcile one account immediately, for user-stream startup and recovery."""
+        async with self._stores() as store:
+            bots = [
+                bot
+                for bot in await store.bots.list_bots(500)
+                if bot.config.connection_id == connection_id and bot.config.mode.uses_exchange
+            ]
+        if not bots:
+            return 0
+        try:
+            return await self._reconcile_connection(connection_id, bots)
+        except Exception as exc:
+            logger.exception("reconciliation of connection %s failed", connection_id)
+            await self._reconciliation_unavailable(connection_id, bots, exc)
+            return 1
 
     async def reconcile_accounts(self) -> int:
         """Check each connection used by a testnet bot. Returns the number of mismatches."""
@@ -86,8 +105,7 @@ class Reconciler:
             except Exception as exc:
                 logger.exception("reconciliation of connection %s failed", connection_id)
                 if any(
-                    bot.config.product is TradingProduct.LINEAR_PERPETUAL
-                    for bot in connection_bots
+                    bot.config.product is TradingProduct.LINEAR_PERPETUAL for bot in connection_bots
                 ):
                     await self._reconciliation_unavailable(connection_id, connection_bots, exc)
         return mismatches
@@ -96,9 +114,7 @@ class Reconciler:
         self, connection_id: UUID, bots: list[Bot], error: Exception
     ) -> None:
         """Pause futures when REST cannot establish the exchange position as authority."""
-        futures = [
-            bot for bot in bots if bot.config.product is TradingProduct.LINEAR_PERPETUAL
-        ]
+        futures = [bot for bot in bots if bot.config.product is TradingProduct.LINEAR_PERPETUAL]
         started = self._clock.now()
         error_type = type(error).__name__
         async with self._stores() as store:
@@ -198,9 +214,7 @@ class Reconciler:
                 ledger = await store.perpetual_portfolio.get(bot.id)
                 local = ledger.position if ledger is not None else None
                 if len(remote) > 1:
-                    problems.append(
-                        {"kind": "multiple_exchange_positions", "symbol": symbol}
-                    )
+                    problems.append({"kind": "multiple_exchange_positions", "symbol": symbol})
                     continue
                 if local is None and not remote:
                     continue
@@ -225,9 +239,7 @@ class Reconciler:
                     )
                     continue
                 actual = remote[0]
-                quantity_tolerance = max(
-                    _ABSOLUTE_TOLERANCE, local.quantity * _RELATIVE_TOLERANCE
-                )
+                quantity_tolerance = max(_ABSOLUTE_TOLERANCE, local.quantity * _RELATIVE_TOLERANCE)
                 differences: dict[str, Any] = {}
                 if actual.side is not local.side:
                     differences.update(
