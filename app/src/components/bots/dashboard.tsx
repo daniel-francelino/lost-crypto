@@ -10,7 +10,8 @@ import { StatTile } from "@/components/shared/metrics/stat-tile";
 import { BotStateBadge, ModeBadge } from "@/components/shared/status/badges";
 import { SymbolLabel } from "@/components/shared/market-data/coin-icon";
 import { SignedValue } from "@/components/shared/status/signed-value";
-import { useOverview, useSummary } from "@/hooks/bots/use-bots";
+import { useSummary } from "@/hooks/bots/use-bots";
+import { useOverview } from "@/hooks/shared/use-overview";
 import type { BotOverview, PortfolioSummary } from "@/lib/bots/bots.api";
 import { ageSeconds, formatAge } from "@/lib/shared/dates";
 import {

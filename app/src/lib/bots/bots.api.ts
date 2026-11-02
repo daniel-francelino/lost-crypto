@@ -64,27 +64,7 @@ export const botSchema = z.object({
 });
 export type Bot = z.infer<typeof botSchema>;
 
-const overviewSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  mode: lenientEnum(ExecutionMode),
-  exchange: z.string(),
-  symbol: z.string(),
-  timeframe: z.string(),
-  strategy_type: z.string(),
-  strategy_params: z.record(z.string(), z.unknown()),
-  desired_state: lenientEnum(BotState),
-  observed_state: lenientEnum(BotState),
-  equity: decimalSchema,
-  return_pct: decimalSchema,
-  realized_pnl: decimalSchema,
-  fees_paid: decimalSchema,
-  in_position: z.boolean(),
-  last_price: nullableDecimalSchema,
-  last_heartbeat_at: nullableTimestampSchema,
-  interventions_30d: z.number(),
-});
-export type BotOverview = z.infer<typeof overviewSchema>;
+export { type BotOverview, getOverview } from "@/lib/shared/bots/overview.api";
 
 const summarySchema = z.object({
   mode: lenientEnum(ExecutionMode),
@@ -190,9 +170,6 @@ export type BotInput = {
 
 export const listBots = (signal?: AbortSignal) =>
   request({ path: "/bots", schema: z.array(botSchema), signal, query: { limit: 500 } });
-
-export const getOverview = (signal?: AbortSignal) =>
-  request({ path: "/bots/overview", schema: z.array(overviewSchema), signal });
 
 export const getSummary = (signal?: AbortSignal) =>
   request({ path: "/bots/summary", schema: z.array(summarySchema), signal });

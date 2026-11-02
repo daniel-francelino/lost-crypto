@@ -3,7 +3,7 @@ import { CircleAlert, CircleCheck, OctagonX, WifiOff } from "lucide-react";
 import { Badge } from "lost-ui/ui/badge";
 import { AlertsIndicator } from "@/components/shared/layout/alerts-indicator";
 import { KillSwitchControl } from "@/components/shared/layout/kill-switch-control";
-import { useOverview } from "@/hooks/bots/use-bots";
+import { useOverview } from "@/hooks/shared/use-overview";
 import { useConnections } from "@/hooks/shared/use-catalog";
 import { useSystemStatus } from "@/hooks/shared/use-system";
 import { isApiError } from "@/lib/shared/api/api-error";
@@ -113,7 +113,7 @@ export function SystemBanners() {
           className={`sticky top-0 z-40 flex flex-wrap items-start gap-3 rounded-md border px-4 py-3 shadow-md ${
             critical
               ? "border-destructive bg-destructive text-destructive-foreground"
-              : "border-amber-600 bg-amber-500 text-amber-950"
+              : "border-warning bg-warning text-warning-foreground"
           }`}
         >
           {critical ? (

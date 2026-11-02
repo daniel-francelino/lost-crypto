@@ -1,4 +1,5 @@
 import { FormInputNumber } from "lost-ui/forms/form-input-number";
+import { numberText, numberValue } from "@/lib/shared/format";
 import { type ParamValues, validateParam } from "@/lib/shared/strategies/params";
 import { stopHints } from "@/lib/shared/strategies/stop-hint";
 import type { Strategy } from "@/lib/shared/strategies/strategies.api";
@@ -30,8 +31,8 @@ export function StrategyFields({
           {...(param.minimum === null ? {} : { min: param.minimum })}
           disabled={disabled}
           required={param.default !== null}
-          value={values[param.name]?.trim() === "" ? null : Number(values[param.name])}
-          onValueChange={(value) => onChange(param.name, value === null ? "" : String(value))}
+          value={numberValue(values[param.name] ?? "")}
+          onValueChange={(value) => onChange(param.name, numberText(value))}
           rules={[(value) => validateParam(param, value === null ? "" : String(value))]}
         />
       ))}

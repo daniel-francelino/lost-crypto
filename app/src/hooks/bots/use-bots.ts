@@ -5,7 +5,6 @@ import {
   getDivergence,
   getExecutionQuality,
   getInterventions,
-  getOverview,
   getBacktestComparison,
   getParity,
   getPerformance,
@@ -28,13 +27,6 @@ export const EQUITY_LIMIT = 500;
 
 export const useBots = () =>
   useQuery({ queryKey: QueryKey.Bots.list(), queryFn: ({ signal }) => listBots(signal) });
-
-export const useOverview = () =>
-  useQuery({
-    queryKey: QueryKey.Bots.overview(),
-    queryFn: ({ signal }) => getOverview(signal),
-    refetchInterval: Poll.Overview,
-  });
 
 export const useInterventions = (id: string, days = 30) =>
   useQuery({

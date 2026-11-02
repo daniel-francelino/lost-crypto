@@ -36,7 +36,7 @@ import {
   toBacktestInput,
 } from "@/lib/backtests/form";
 import { useRangeCoverage } from "@/hooks/shared/use-coverage";
-import { formatInteger } from "@/lib/shared/format";
+import { formatInteger, numberText, numberValue } from "@/lib/shared/format";
 import { gapsOverLimit } from "@/lib/shared/market-data/gaps";
 import { useStrategies } from "@/hooks/shared/use-catalog";
 import { useCapabilities } from "@/hooks/shared/use-system";
@@ -50,8 +50,6 @@ import { defaultParamValues } from "@/lib/shared/strategies/params";
 import type { Strategy } from "@/lib/shared/strategies/strategies.api";
 
 const TIMEFRAMES = Object.values(Timeframe).map((value) => ({ label: value, value }));
-const numberValue = (value: string): number | null => (value.trim() === "" ? null : Number(value));
-const numberText = (value: number | null): string => (value === null ? "" : String(value));
 
 type BacktestFormProps = {
   strategies: Strategy[];

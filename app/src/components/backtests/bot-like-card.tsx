@@ -1,3 +1,4 @@
+import { numberText, numberValue } from "@/lib/shared/format";
 import { FormInputMoney } from "lost-ui/forms/form-input-money";
 import { FormInputNumber } from "lost-ui/forms/form-input-number";
 import { FormSelect } from "lost-ui/forms/form-select";
@@ -21,8 +22,6 @@ type Field = {
   hint?: string;
 };
 
-const numberValue = (value: string): number | null => (value.trim() === "" ? null : Number(value));
-const numberText = (value: number | null): string => (value === null ? "" : String(value));
 const quoteCurrency = (symbol: string): string | undefined => {
   const quote = symbol.split("/")[1]?.trim().toUpperCase();
   return quote !== undefined && /^[A-Z]{3}$/.test(quote) ? quote : undefined;

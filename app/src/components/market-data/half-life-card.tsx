@@ -14,7 +14,12 @@ import {
   varianceRatioText,
 } from "@/lib/market-data/series-diagnostics";
 import { QueryKey } from "@/lib/shared/api/query-keys";
-import { formatDecimalDuration, formatInteger, formatRatio } from "@/lib/shared/format";
+import {
+  formatDecimalDuration,
+  formatInteger,
+  formatRatio,
+  numberValue,
+} from "@/lib/shared/format";
 
 type Props = {
   exchange: string;
@@ -26,7 +31,7 @@ type Props = {
 
 export function HalfLifeCard({ exchange, symbol, timeframe, start, end }: Props) {
   const [step, setStep] = useState("1");
-  const stepValue = step.trim() === "" ? null : Number(step);
+  const stepValue = numberValue(step);
   const sampleEvery = sampleEveryValue(step);
   const params = {
     exchange,

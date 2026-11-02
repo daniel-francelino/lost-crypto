@@ -1,3 +1,4 @@
+import { numberText, numberValue } from "@/lib/shared/format";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
@@ -20,7 +21,8 @@ import { backtestPrefillFromBot } from "@/lib/bots/execution";
 import { ErrorBlock, SkeletonBlock } from "@/components/shared/feedback/query-boundary";
 import { IconCardTitle } from "@/components/shared/metrics/icon-card-title";
 import { StrategyFields } from "@/components/shared/strategy/strategy-fields";
-import { useBot, useOrders, useOverview, usePerformance } from "@/hooks/bots/use-bots";
+import { useBot, useOrders, usePerformance } from "@/hooks/bots/use-bots";
+import { useOverview } from "@/hooks/shared/use-overview";
 import { useConnections, useStrategies } from "@/hooks/shared/use-catalog";
 import { useCapabilities } from "@/hooks/shared/use-system";
 import { type Bot, createBot, updateBot } from "@/lib/bots/bots.api";
@@ -49,8 +51,6 @@ const MODE_ITEMS = [
 ];
 const TIMEFRAME_ITEMS = Object.values(Timeframe).map((value) => ({ label: value, value }));
 const MAX_NAME = 60;
-const numberValue = (value: string): number | null => (value.trim() === "" ? null : Number(value));
-const numberText = (value: number | null): string => (value === null ? "" : String(value));
 const quoteCurrency = (symbol: string): string | undefined => {
   const quote = symbol.split("/")[1]?.trim().toUpperCase();
   return quote !== undefined && /^[A-Z]{3}$/.test(quote) ? quote : undefined;

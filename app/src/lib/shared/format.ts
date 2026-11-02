@@ -111,3 +111,8 @@ export const formatFraction = (value: string | null | undefined): string =>
 
 export const trimDecimalZeros = (value: string): string =>
   isDecimal(value) && value.includes(".") ? value.replace(/0+$/, "").replace(/\.$/, "") : value;
+
+export const numberValue = (value: string): number | null =>
+  value.trim() === "" ? null : Number(value);
+
+export const numberText = (value: number | null): string => (value === null ? "" : String(value));
