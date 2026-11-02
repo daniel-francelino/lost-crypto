@@ -10,6 +10,7 @@ from core.security.vault import VaultError, VaultNotConfigured
 from modules.audit.models import AuditEvent
 from modules.bots.domain.models import Bot, BotState, ExecutionMode
 from modules.exchanges.application.connections import ConnectionResolver, InvalidConnection
+from modules.exchanges.domain.models import TradingProduct
 from modules.exchanges.errors import AuthenticationFailed
 from modules.risk_management.domain.models import KillSwitchState
 from modules.strategies.domain.registry import StrategyRegistry
@@ -149,6 +150,8 @@ class BotSupervisor:
         a worker restarted with a safeguard switched off must stop a bot that was already
         running, never keep trading it."""
         mode = bot.config.mode
+        if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
+            return "USD-M futures are disabled until the futures ledger and worker are released"
         if mode is ExecutionMode.TESTNET and not self._testnet_enabled:
             return "testnet trading is disabled (set TESTNET_TRADING_ENABLED=true on the worker)"
         if mode is ExecutionMode.LIVE:
@@ -195,6 +198,16 @@ class BotSupervisor:
             return f"exchange connection unusable: {type(exc).__name__}: {exc}"
         if bot.config.mode is ExecutionMode.TESTNET and not exchange.capabilities.has_testnet:
             return f"{bot.config.exchange} has no testnet"
+        if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
+            try:
+                await exchange.prepare_market_configuration(
+                    bot.config.product,
+                    bot.config.symbol,
+                    bot.config.leverage,
+                    bot.config.margin_mode,
+                )
+            except Exception as exc:
+                return f"futures account or market configuration refused: {exc}"
         return None
 
     async def _enter_error(self, bot: Bot, message: str) -> None:

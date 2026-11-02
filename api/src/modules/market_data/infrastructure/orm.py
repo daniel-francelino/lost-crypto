@@ -39,6 +39,36 @@ class CandleRow(Base):
     )
 
 
+class PerpetualMarkCandleRow(Base):
+    __tablename__ = "perpetual_mark_candles"
+
+    exchange: Mapped[str] = mapped_column(Text, primary_key=True)
+    symbol: Mapped[str] = mapped_column(Text, primary_key=True)
+    timeframe: Mapped[str] = mapped_column(Text, primary_key=True)
+    open_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    open: Mapped[Decimal] = mapped_column(MONEY)
+    high: Mapped[Decimal] = mapped_column(MONEY)
+    low: Mapped[Decimal] = mapped_column(MONEY)
+    close: Mapped[Decimal] = mapped_column(MONEY)
+    volume: Mapped[Decimal] = mapped_column(MONEY)
+    ingested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class PerpetualFundingRateRow(Base):
+    __tablename__ = "perpetual_funding_rates"
+
+    exchange: Mapped[str] = mapped_column(Text, primary_key=True)
+    symbol: Mapped[str] = mapped_column(Text, primary_key=True)
+    funding_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    rate: Mapped[Decimal] = mapped_column(MONEY)
+    mark_price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
+    ingested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class CandleImportJobRow(Base):
     __tablename__ = "candle_import_jobs"
     __table_args__ = (

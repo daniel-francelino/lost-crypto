@@ -76,8 +76,8 @@ class MeanReversionZScoreStrategy(Strategy[MeanReversionState]):
     NAME = "Z-score mean reversion"
     STYLE = StrategyStyle.MEAN_REVERSION
     DESCRIPTION = (
-        "Long-only. Buys when the close is entry_z standard deviations below the mean of the "
-        "last lookback closes and sells when it is back to exit_z (the mean by default)."
+        "Long-only by default. With short mode enabled, also sells when the close is entry_z "
+        "standard deviations above the mean and covers when it returns to the opposite exit band."
     )
     PARAMETERS = (
         ParamSpec("lookback", "integer", 20, "Candles in the window, current one included", 5),
@@ -132,7 +132,7 @@ class MeanReversionZScoreStrategy(Strategy[MeanReversionState]):
 
         z = z_score(window)
         signals: tuple[Signal, ...] = ()
-        if z is not None and ctx.position_quantity <= 0 and z <= -p.entry_z:
+        if z is not None and ctx.is_flat and z <= -p.entry_z:
             stop, _ = percent_below_above(close, p.stop_loss_pct, None)
             signals = (
                 Signal(
@@ -143,7 +143,7 @@ class MeanReversionZScoreStrategy(Strategy[MeanReversionState]):
                     stop_loss=stop,
                 ),
             )
-        elif z is not None and ctx.position_quantity > 0 and z >= p.exit_z:
+        elif z is not None and ctx.is_long and z >= p.exit_z:
             signals = (
                 Signal(
                     Side.SELL,
@@ -154,7 +154,7 @@ class MeanReversionZScoreStrategy(Strategy[MeanReversionState]):
             )
         if (
             not signals
-            and ctx.position_quantity > 0
+            and ctx.is_long
             and p.max_holding_candles is not None
             and bars_held >= p.max_holding_candles
         ):
@@ -166,4 +166,38 @@ class MeanReversionZScoreStrategy(Strategy[MeanReversionState]):
                     f"holding limit of {p.max_holding_candles} candles reached",
                 ),
             )
+        if not signals and ctx.allow_short and z is not None:
+            if ctx.is_flat and z >= p.entry_z:
+                stop = close * (1 + p.stop_loss_pct / 100) if p.stop_loss_pct else None
+                signals = (
+                    Signal(
+                        Side.SELL,
+                        ctx.symbol,
+                        SignalKind.ENTRY,
+                        f"z-score {z:.2f} >= {p.entry_z} over {p.lookback} candles",
+                        stop_loss=stop,
+                    ),
+                )
+            elif ctx.is_short and z <= -p.exit_z:
+                signals = (
+                    Signal(
+                        Side.BUY,
+                        ctx.symbol,
+                        SignalKind.EXIT,
+                        f"short z-score {z:.2f} returned to {-p.exit_z}",
+                    ),
+                )
+            elif (
+                ctx.is_short
+                and p.max_holding_candles is not None
+                and bars_held >= p.max_holding_candles
+            ):
+                signals = (
+                    Signal(
+                        Side.BUY,
+                        ctx.symbol,
+                        SignalKind.EXIT,
+                        f"holding limit of {p.max_holding_candles} candles reached",
+                    ),
+                )
         return StrategyResult(signals, new_state)

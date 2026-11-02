@@ -3,8 +3,8 @@ from decimal import Decimal
 from typing import Protocol
 
 from modules.exchanges.domain.models import (
-    ExchangeCapabilities,
     MAX_PERPETUAL_LEVERAGE,
+    ExchangeCapabilities,
     MarginMode,
     PositionSide,
     TradingProduct,
@@ -34,10 +34,10 @@ class MarketOrderRequest:
             return
         if self.position_side is None:
             raise ValueError("perpetual orders must specify long or short position side")
+        if self.margin_mode is not MarginMode.ISOLATED:
+            raise ValueError("perpetual orders currently require isolated margin")
         if not 1 <= self.leverage <= MAX_PERPETUAL_LEVERAGE:
-            raise ValueError(
-                f"perpetual leverage must be between 1x and {MAX_PERPETUAL_LEVERAGE}x"
-            )
+            raise ValueError(f"perpetual leverage must be between 1x and {MAX_PERPETUAL_LEVERAGE}x")
         expected_side = (
             (Side.SELL if self.position_side is PositionSide.LONG else Side.BUY)
             if self.reduce_only
@@ -52,12 +52,29 @@ class MarketOrderRequest:
 
 @dataclass(frozen=True, slots=True)
 class StopOrderRequest:
-    """A protective sell that rests on the exchange and fires at ``stop_price`` (market)."""
+    """A protective stop-market order, optionally reducing one perpetual position."""
 
     client_order_id: str
     symbol: str
     quantity: Decimal
     stop_price: Decimal
+    side: Side = Side.SELL
+    product: TradingProduct = TradingProduct.SPOT
+    position_side: PositionSide | None = None
+    reduce_only: bool = False
+
+    def __post_init__(self) -> None:
+        if self.quantity <= 0 or self.stop_price <= 0:
+            raise ValueError("stop quantity and trigger price must be positive")
+        if self.product is TradingProduct.SPOT:
+            if self.side is not Side.SELL or self.position_side is not None or self.reduce_only:
+                raise ValueError("spot protective stops must be sell orders without position flags")
+            return
+        if self.position_side is None or not self.reduce_only:
+            raise ValueError("perpetual protective stops must identify and reduce a position")
+        expected_side = Side.SELL if self.position_side is PositionSide.LONG else Side.BUY
+        if self.side is not expected_side:
+            raise ValueError("perpetual protective stop side must reduce its position")
 
 
 @dataclass(frozen=True, slots=True)

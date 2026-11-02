@@ -7,6 +7,11 @@ from enum import StrEnum
 from typing import Any
 
 from core.errors import DomainError
+from modules.exchanges.domain.models import (
+    MAX_PERPETUAL_LEVERAGE,
+    MarginMode,
+    TradingProduct,
+)
 from modules.execution.domain.fills import SlippageModel
 from modules.execution.domain.orders import Fill
 from modules.market_data.domain.models import Candle, Timeframe
@@ -59,10 +64,31 @@ class BacktestConfig:
     slippage_model: SlippageModel = SlippageModel.FIXED
     slippage_k_range: Decimal = Decimal(0)
     slippage_k_size: Decimal = Decimal(0)
+    product: TradingProduct = TradingProduct.SPOT
+    leverage: int = 1
+    margin_mode: MarginMode | None = None
+    allow_short: bool = False
 
     def __post_init__(self) -> None:
         if self.start >= self.end:
             raise InvalidBacktestConfig("start must be before end")
+        if self.product is TradingProduct.SPOT:
+            if (
+                self.leverage != 1
+                or self.margin_mode is not None
+                or self.allow_short
+                or ":" in self.symbol
+            ):
+                raise InvalidBacktestConfig("spot backtests must be long-only at 1x")
+        else:
+            if self.margin_mode is not MarginMode.ISOLATED:
+                raise InvalidBacktestConfig("perpetual backtests require isolated margin")
+            if not 1 <= self.leverage <= MAX_PERPETUAL_LEVERAGE:
+                raise InvalidBacktestConfig(
+                    f"perpetual leverage must be between 1x and {MAX_PERPETUAL_LEVERAGE}x"
+                )
+            if not self.symbol.endswith(":USDT"):
+                raise InvalidBacktestConfig("linear perpetual symbols must include USDT settlement")
         if self.initial_capital <= 0:
             raise InvalidBacktestConfig("initial_capital must be positive")
         if not (0 <= self.fee_rate < 1):

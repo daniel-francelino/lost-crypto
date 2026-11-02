@@ -37,6 +37,11 @@ class BacktestRunRow(Base):
     __tablename__ = "backtest_runs"
     __table_args__ = (
         CheckConstraint("status IN ('queued','running','completed','failed')", name="status_valid"),
+        CheckConstraint(
+            "(product = 'spot' AND margin_mode IS NULL) OR "
+            "(product = 'linear_perpetual' AND margin_mode = 'isolated')",
+            name="margin_valid",
+        ),
         Index("ix_backtest_runs_status_created_at", "status", "created_at"),
     )
 
@@ -44,6 +49,10 @@ class BacktestRunRow(Base):
     status: Mapped[str] = mapped_column(Text)
     exchange: Mapped[str] = mapped_column(Text)
     symbol: Mapped[str] = mapped_column(Text)
+    product: Mapped[str] = mapped_column(Text, server_default="spot")
+    leverage: Mapped[int] = mapped_column(Integer, server_default="1")
+    margin_mode: Mapped[str | None] = mapped_column(Text, nullable=True)
+    allow_short: Mapped[bool] = mapped_column(Boolean, server_default="false")
     timeframe: Mapped[str] = mapped_column(Text)
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

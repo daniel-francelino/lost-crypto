@@ -92,6 +92,8 @@ class TrendQualityState:
     bars_held: int = 0
     # Highest close since the entry signal; None while flat.
     peak_close: Decimal | None = None
+    # Lowest close since a short entry; None while flat or long.
+    trough_close: Decimal | None = None
 
 
 class TrendQualityBreakoutStrategy(Strategy[TrendQualityState]):
@@ -99,9 +101,8 @@ class TrendQualityBreakoutStrategy(Strategy[TrendQualityState]):
     STYLE = StrategyStyle.TREND
     NAME = "Trend quality breakout (trend following)"
     DESCRIPTION = (
-        "Long-only. Buys a close above the highest high of the last entry_period candles when the "
-        "efficiency ratio shows a clean trend, with a stop atr_multiple ATRs below and no profit "
-        "target; sells a close below the lowest low of the last exit_period candles."
+        "Long-only by default. Optional short mode mirrors the breakout, channel exit, stop and "
+        "trailing exit rules for downward trends."
     )
     PARAMETERS = (
         ParamSpec("entry_period", "integer", 40, "Candles in the breakout-up channel", 2),
@@ -155,6 +156,7 @@ class TrendQualityBreakoutStrategy(Strategy[TrendQualityState]):
             "ranges": [str(r) for r in state.ranges],
             "bars_held": state.bars_held,
             "peak_close": None if state.peak_close is None else str(state.peak_close),
+            "trough_close": None if state.trough_close is None else str(state.trough_close),
         }
 
     def deserialize_state(self, raw: dict[str, Any]) -> TrendQualityState:
@@ -164,6 +166,7 @@ class TrendQualityBreakoutStrategy(Strategy[TrendQualityState]):
             tuple(Decimal(r) for r in raw["ranges"]),
             int(raw.get("bars_held", 0)),
             None if raw.get("peak_close") is None else Decimal(raw["peak_close"]),
+            None if raw.get("trough_close") is None else Decimal(raw["trough_close"]),
         )
 
     def evaluate(
@@ -178,46 +181,86 @@ class TrendQualityBreakoutStrategy(Strategy[TrendQualityState]):
         signals: tuple[Signal, ...] = ()
         peak = (
             max(state.peak_close if state.peak_close is not None else candle.close, candle.close)
-            if ctx.position_quantity > 0
+            if ctx.is_long
+            else None
+        )
+        trough = (
+            min(
+                state.trough_close if state.trough_close is not None else candle.close,
+                candle.close,
+            )
+            if ctx.is_short
             else None
         )
 
         if len(state.history) >= p.entry_period:
             highest = max(high for high, _ in state.history[-p.entry_period :])
-            lowest = min(low for _, low in state.history[-p.exit_period :])
-            if candle.close > highest and ctx.position_quantity <= 0:
-                signals = self._entry(ctx, closes, ranges, highest)
-            elif candle.close < lowest and ctx.position_quantity > 0:
+            highest_exit = max(high for high, _ in state.history[-p.exit_period :])
+            lowest_entry = min(low for _, low in state.history[-p.entry_period :])
+            lowest_exit = min(low for _, low in state.history[-p.exit_period :])
+            if candle.close > highest and ctx.is_flat:
+                signals = self._entry(ctx, closes, ranges, highest, short=False)
+            elif candle.close < lowest_exit and ctx.is_long:
                 signals = (
                     Signal(
                         Side.SELL,
                         ctx.symbol,
                         SignalKind.EXIT,
-                        f"close broke below the {p.exit_period}-candle low ({lowest})",
+                        f"close broke below the {p.exit_period}-candle low ({lowest_exit})",
+                    ),
+                )
+            if ctx.allow_short and candle.close < lowest_entry and ctx.is_flat and not signals:
+                signals = self._entry(ctx, closes, ranges, lowest_entry, short=True)
+            elif ctx.is_short and candle.close > highest_exit:
+                signals = (
+                    Signal(
+                        Side.BUY,
+                        ctx.symbol,
+                        SignalKind.EXIT,
+                        f"close broke above the {p.exit_period}-candle high ({highest_exit})",
                     ),
                 )
 
-        if not signals and peak is not None and p.trail_atr_multiple is not None:
+        if (
+            not signals
+            and (peak is not None or trough is not None)
+            and p.trail_atr_multiple is not None
+        ):
             atr = sum(ranges, Decimal(0)) / len(ranges)
-            level = peak - p.trail_atr_multiple * atr
-            if len(state.history) >= p.entry_period and candle.close < level:
+            if peak is not None:
+                level = peak - p.trail_atr_multiple * atr
+                reference = peak
+            else:
+                assert trough is not None
+                level = trough + p.trail_atr_multiple * atr
+                reference = trough
+            trailing_hit = candle.close < level if peak is not None else candle.close > level
+            if len(state.history) >= p.entry_period and trailing_hit:
                 signals = (
                     Signal(
-                        Side.SELL,
+                        Side.SELL if peak is not None else Side.BUY,
                         ctx.symbol,
                         SignalKind.EXIT,
-                        f"close fell below the trailing level ({level:.8f}) under the "
-                        f"highest close ({peak})",
+                        (
+                            f"close crossed the trailing level ({level:.8f}) from the "
+                            f"{'highest' if peak is not None else 'lowest'} close "
+                            f"({reference})"
+                        ),
                     ),
                 )
         if signals and signals[0].kind is SignalKind.ENTRY:
-            peak = candle.close
+            if signals[0].side is Side.BUY:
+                peak = candle.close
+            else:
+                trough = candle.close
         elif signals:
-            peak = None
+            peak = trough = None
 
         keep = max(p.entry_period, p.exit_period)
         history = (*state.history, (candle.high, candle.low))[-keep:]
-        return StrategyResult(signals, TrendQualityState(history, closes, ranges, bars_held, peak))
+        return StrategyResult(
+            signals, TrendQualityState(history, closes, ranges, bars_held, peak, trough)
+        )
 
     def _entry(
         self,
@@ -225,6 +268,8 @@ class TrendQualityBreakoutStrategy(Strategy[TrendQualityState]):
         closes: tuple[Decimal, ...],
         ranges: tuple[Decimal, ...],
         highest: Decimal,
+        *,
+        short: bool,
     ) -> tuple[Signal, ...]:
         p = self.params
         ratio = efficiency_ratio(closes) if len(closes) > p.entry_period else None
@@ -232,13 +277,17 @@ class TrendQualityBreakoutStrategy(Strategy[TrendQualityState]):
             return ()
         close = ctx.candle.close
         atr = sum(ranges, Decimal(0)) / len(ranges)
-        stop = close - p.atr_multiple * atr
+        stop = close + p.atr_multiple * atr if short else close - p.atr_multiple * atr
         return (
             Signal(
-                Side.BUY,
+                Side.SELL if short else Side.BUY,
                 ctx.symbol,
                 SignalKind.ENTRY,
-                f"close broke above the {p.entry_period}-candle high ({highest})",
-                stop_loss=stop if stop > 0 else None,
+                (
+                    f"close broke below the {p.entry_period}-candle low ({highest})"
+                    if short
+                    else f"close broke above the {p.entry_period}-candle high ({highest})"
+                ),
+                stop_loss=stop if short or stop > 0 else None,
             ),
         )

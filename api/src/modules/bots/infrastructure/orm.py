@@ -13,6 +13,7 @@ from sqlalchemy import (
     Numeric,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -45,6 +46,20 @@ class BotRow(Base):
             "observed_state IN ('stopped','running','paused','error')", name="observed_valid"
         ),
         CheckConstraint("mode IN ('paper','testnet','live')", name="mode_valid"),
+        CheckConstraint(
+            "(product = 'spot' AND margin_mode IS NULL) OR "
+            "(product = 'linear_perpetual' AND margin_mode = 'isolated')",
+            name="margin_valid",
+        ),
+        Index(
+            "uq_bots_futures_connection_symbol",
+            "exchange_connection_id",
+            "symbol",
+            unique=True,
+            postgresql_where=text(
+                "product = 'linear_perpetual' AND exchange_connection_id IS NOT NULL"
+            ),
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
@@ -56,6 +71,10 @@ class BotRow(Base):
     strategy_type: Mapped[str] = mapped_column(Text)
     strategy_params: Mapped[dict[str, Any]] = mapped_column(JSONB)
     symbol: Mapped[str] = mapped_column(Text)
+    product: Mapped[str] = mapped_column(Text, server_default="spot")
+    leverage: Mapped[int] = mapped_column(Integer, server_default="1")
+    margin_mode: Mapped[str | None] = mapped_column(Text, nullable=True)
+    allow_short: Mapped[bool] = mapped_column(Boolean, server_default="false")
     timeframe: Mapped[str] = mapped_column(Text)
     initial_capital: Mapped[Decimal] = mapped_column(MONEY)
     fee_rate: Mapped[Decimal] = mapped_column(MONEY)

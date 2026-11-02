@@ -120,15 +120,41 @@ def drawdown_stats(equity_curve: Sequence[EquityPoint]) -> DrawdownStats:
 
 
 def round_trip_pnls(fills: Sequence[Fill]) -> list[Decimal]:
-    """PnL of each completed BUY→SELL pair, net of both fees."""
+    """Realized PnL for each closed fill portion, net of its entry and exit fees.
+
+    Signed exposure supports both spot BUY→SELL trades and futures SELL→BUY shorts. Partial
+    reductions realize only the closed quantity; any remaining position keeps its cost basis.
+    """
     pnls: list[Decimal] = []
-    entry_cost: Decimal | None = None
+    position = Decimal(0)
+    average_entry = Decimal(0)
+    entry_fee_remaining = Decimal(0)
     for fill in fills:
-        if fill.side is Side.BUY:
-            entry_cost = fill.notional + fill.total_fee
-        elif entry_cost is not None:
-            pnls.append(fill.notional - fill.total_fee - entry_cost)
-            entry_cost = None
+        delta = fill.quantity if fill.side is Side.BUY else -fill.quantity
+        if position == 0 or position * delta > 0:
+            previous_abs = abs(position)
+            next_abs = previous_abs + abs(delta)
+            average_entry = (average_entry * previous_abs + fill.price * abs(delta)) / next_abs
+            entry_fee_remaining += fill.total_fee
+            position += delta
+            continue
+
+        closed = min(abs(position), abs(delta))
+        close_fraction = closed / fill.quantity
+        entry_fee = entry_fee_remaining * closed / abs(position)
+        exit_fee = fill.total_fee * close_fraction
+        direction = Decimal(1) if position > 0 else Decimal(-1)
+        pnls.append((fill.price - average_entry) * closed * direction - entry_fee - exit_fee)
+        entry_fee_remaining -= entry_fee
+        position += delta
+        if position == 0:
+            average_entry = Decimal(0)
+            entry_fee_remaining = Decimal(0)
+        elif position * delta > 0:  # the fill crossed through flat and opened a new direction
+            opened = abs(position)
+            opened_fee = fill.total_fee * (opened / fill.quantity)
+            average_entry = fill.price
+            entry_fee_remaining = opened_fee
     return pnls
 
 

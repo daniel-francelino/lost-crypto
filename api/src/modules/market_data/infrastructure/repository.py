@@ -13,6 +13,7 @@ from core.jobs import JobStatus
 from modules.market_data.application.ports import NO_ISSUES, ImportJob, ImportQuality
 from modules.market_data.domain.models import (
     Candle,
+    FundingRate,
     ListedMarket,
     Listing,
     RegimeBreak,
@@ -22,6 +23,8 @@ from modules.market_data.infrastructure.orm import (
     CandleImportJobRow,
     CandleRow,
     ExchangeListingRow,
+    PerpetualFundingRateRow,
+    PerpetualMarkCandleRow,
     RegimeBreakRow,
 )
 
@@ -30,6 +33,120 @@ LISTING_INACTIVE = "inactive"
 LISTING_DELISTED = "delisted"
 
 _UPSERT_CHUNK = 1000  # 1000 rows x 9 params stays below asyncpg's 32767 bind-parameter limit
+
+
+class SqlAlchemyPerpetualDataRepository:
+    """Auxiliary mark/funding series, stored separately from traded-price spot candles."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def upsert_mark_candles(self, exchange: str, candles: Sequence[Candle]) -> int:
+        for offset in range(0, len(candles), _UPSERT_CHUNK):
+            rows = [
+                {
+                    "exchange": exchange,
+                    "symbol": candle.symbol,
+                    "timeframe": candle.timeframe.value,
+                    "open_time": candle.open_time,
+                    "open": candle.open,
+                    "high": candle.high,
+                    "low": candle.low,
+                    "close": candle.close,
+                    "volume": candle.volume,
+                }
+                for candle in candles[offset : offset + _UPSERT_CHUNK]
+            ]
+            if not rows:
+                continue
+            statement = insert(PerpetualMarkCandleRow).values(rows)
+            await self._session.execute(
+                statement.on_conflict_do_update(
+                    index_elements=["exchange", "symbol", "timeframe", "open_time"],
+                    set_={
+                        name: statement.excluded[name]
+                        for name in ("open", "high", "low", "close", "volume")
+                    },
+                )
+            )
+        return len(candles)
+
+    async def get_mark_candles(
+        self, exchange: str, symbol: str, timeframe: Timeframe, start: datetime, end: datetime
+    ) -> list[Candle]:
+        result = await self._session.execute(
+            select(PerpetualMarkCandleRow)
+            .where(
+                PerpetualMarkCandleRow.exchange == exchange,
+                PerpetualMarkCandleRow.symbol == symbol,
+                PerpetualMarkCandleRow.timeframe == timeframe.value,
+                PerpetualMarkCandleRow.open_time >= start,
+                PerpetualMarkCandleRow.open_time < end,
+            )
+            .order_by(PerpetualMarkCandleRow.open_time)
+        )
+        return [
+            Candle(
+                symbol=row.symbol,
+                timeframe=Timeframe(row.timeframe),
+                open_time=row.open_time,
+                open=row.open,
+                high=row.high,
+                low=row.low,
+                close=row.close,
+                volume=row.volume,
+            )
+            for row in result.scalars()
+        ]
+
+    async def upsert_funding_rates(self, exchange: str, rates: Sequence[FundingRate]) -> int:
+        for offset in range(0, len(rates), _UPSERT_CHUNK):
+            rows = [
+                {
+                    "exchange": exchange,
+                    "symbol": rate.symbol,
+                    "funding_time": rate.funding_time,
+                    "rate": rate.rate,
+                    "mark_price": rate.mark_price,
+                }
+                for rate in rates[offset : offset + _UPSERT_CHUNK]
+            ]
+            if not rows:
+                continue
+            statement = insert(PerpetualFundingRateRow).values(rows)
+            await self._session.execute(
+                statement.on_conflict_do_update(
+                    index_elements=["exchange", "symbol", "funding_time"],
+                    set_={
+                        "rate": statement.excluded.rate,
+                        "mark_price": statement.excluded.mark_price,
+                    },
+                )
+            )
+        return len(rates)
+
+    async def get_funding_rates(
+        self, exchange: str, symbol: str, start: datetime, end: datetime
+    ) -> list[FundingRate]:
+        result = await self._session.execute(
+            select(PerpetualFundingRateRow)
+            .where(
+                PerpetualFundingRateRow.exchange == exchange,
+                PerpetualFundingRateRow.symbol == symbol,
+                PerpetualFundingRateRow.funding_time >= start,
+                PerpetualFundingRateRow.funding_time < end,
+            )
+            .order_by(PerpetualFundingRateRow.funding_time)
+        )
+        return [
+            FundingRate(
+                symbol=row.symbol,
+                rate=row.rate,
+                funding_time=row.funding_time,
+                mark_price=row.mark_price,
+            )
+            for row in result.scalars()
+        ]
 
 
 class SqlAlchemyCandleRepository:
@@ -178,6 +295,7 @@ class SqlAlchemyImportStore:
         self.candles = SqlAlchemyCandleRepository(session)
         self.listings = SqlAlchemyListingRepository(session)
         self.regime_breaks = SqlAlchemyRegimeBreakRepository(session)
+        self.perpetual_data = SqlAlchemyPerpetualDataRepository(session)
 
     async def add_job(self, job: ImportJob) -> None:
         self._session.add(

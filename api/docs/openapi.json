@@ -475,6 +475,48 @@
         }
       }
     },
+    "/api/v1/market-data/perpetual-data/import": {
+      "post": {
+        "tags": [
+          "market-data"
+        ],
+        "summary": "Import Perpetual Auxiliary",
+        "description": "Import mark-price candles and historical funding rates for futures backtests.",
+        "operationId": "import_perpetual_auxiliary_api_v1_market_data_perpetual_data_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PerpetualAuxiliaryImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerpetualAuxiliaryImportOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/market-data/imports/{job_id}": {
       "get": {
         "tags": [
@@ -533,9 +575,9 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[A-Z0-9]{2,15}/USDT$",
+              "pattern": "^[A-Z0-9]{2,15}/USDT(?::USDT)?$",
               "examples": [
-                "BTC/USDT"
+                "BTC/USDT:USDT"
               ],
               "title": "Symbol"
             }
@@ -645,6 +687,64 @@
         }
       }
     },
+    "/api/v1/market-data/markets": {
+      "get": {
+        "tags": [
+          "market-data"
+        ],
+        "summary": "List Market Catalog",
+        "description": "Exchange instrument catalog with product and settlement kept in the identity.",
+        "operationId": "list_market_catalog_api_v1_market_data_markets_get",
+        "parameters": [
+          {
+            "name": "exchange",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "binance",
+              "title": "Exchange"
+            }
+          },
+          {
+            "name": "active_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Active Only"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MarketCatalogOut"
+                  },
+                  "title": "Response List Market Catalog Api V1 Market Data Markets Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/market-data/coverage": {
       "get": {
         "tags": [
@@ -660,9 +760,9 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[A-Z0-9]{2,15}/USDT$",
+              "pattern": "^[A-Z0-9]{2,15}/USDT(?::USDT)?$",
               "examples": [
-                "BTC/USDT"
+                "BTC/USDT:USDT"
               ],
               "title": "Symbol"
             }
@@ -759,9 +859,9 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[A-Z0-9]{2,15}/USDT$",
+              "pattern": "^[A-Z0-9]{2,15}/USDT(?::USDT)?$",
               "examples": [
-                "BTC/USDT"
+                "BTC/USDT:USDT"
               ],
               "title": "Symbol"
             }
@@ -867,9 +967,9 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[A-Z0-9]{2,15}/USDT$",
+              "pattern": "^[A-Z0-9]{2,15}/USDT(?::USDT)?$",
               "examples": [
-                "BTC/USDT"
+                "BTC/USDT:USDT"
               ],
               "title": "Symbol"
             }
@@ -986,9 +1086,9 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "pattern": "^[A-Z0-9]{2,15}/USDT$",
+                  "pattern": "^[A-Z0-9]{2,15}/USDT(?::USDT)?$",
                   "examples": [
-                    "BTC/USDT"
+                    "BTC/USDT:USDT"
                   ]
                 },
                 {
@@ -1060,9 +1160,9 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "pattern": "^[A-Z0-9]{2,15}/USDT$",
+                  "pattern": "^[A-Z0-9]{2,15}/USDT(?::USDT)?$",
                   "examples": [
-                    "BTC/USDT"
+                    "BTC/USDT:USDT"
                   ]
                 },
                 {
@@ -1193,9 +1293,9 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[A-Z0-9]{2,15}/USDT$",
+              "pattern": "^[A-Z0-9]{2,15}/USDT(?::USDT)?$",
               "examples": [
-                "BTC/USDT"
+                "BTC/USDT:USDT"
               ],
               "title": "Symbol"
             }
@@ -4081,12 +4181,39 @@
           },
           "symbol": {
             "type": "string",
-            "pattern": "^[A-Z0-9]{2,15}/USDT$",
+            "pattern": "^[A-Z0-9]{2,15}/USDT(?::USDT)?$",
             "title": "Symbol",
             "default": "BTC/USDT",
             "examples": [
-              "BTC/USDT"
+              "BTC/USDT",
+              "BTC/USDT:USDT"
             ]
+          },
+          "product": {
+            "$ref": "#/components/schemas/TradingProduct",
+            "default": "spot"
+          },
+          "leverage": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Leverage",
+            "default": 1
+          },
+          "margin_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarginMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "allow_short": {
+            "type": "boolean",
+            "title": "Allow Short",
+            "default": false
           },
           "timeframe": {
             "$ref": "#/components/schemas/Timeframe",
@@ -4302,6 +4429,27 @@
           "symbol": {
             "type": "string",
             "title": "Symbol"
+          },
+          "product": {
+            "$ref": "#/components/schemas/TradingProduct"
+          },
+          "leverage": {
+            "type": "integer",
+            "title": "Leverage"
+          },
+          "margin_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarginMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "allow_short": {
+            "type": "boolean",
+            "title": "Allow Short"
           },
           "timeframe": {
             "$ref": "#/components/schemas/Timeframe"
@@ -4618,6 +4766,10 @@
           "strategy_params",
           "exchange",
           "symbol",
+          "product",
+          "leverage",
+          "margin_mode",
+          "allow_short",
           "timeframe",
           "start",
           "end",
@@ -4791,12 +4943,39 @@
           },
           "symbol": {
             "type": "string",
-            "pattern": "^[A-Z0-9]{2,15}/USDT$",
+            "pattern": "^[A-Z0-9]{2,15}/USDT(?::USDT)?$",
             "title": "Symbol",
             "default": "BTC/USDT",
             "examples": [
-              "BTC/USDT"
+              "BTC/USDT",
+              "BTC/USDT:USDT"
             ]
+          },
+          "product": {
+            "$ref": "#/components/schemas/TradingProduct",
+            "default": "spot"
+          },
+          "leverage": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Leverage",
+            "default": 1
+          },
+          "margin_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarginMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "allow_short": {
+            "type": "boolean",
+            "title": "Allow Short",
+            "default": false
           },
           "timeframe": {
             "$ref": "#/components/schemas/Timeframe",
@@ -4907,6 +5086,27 @@
             "type": "string",
             "title": "Symbol"
           },
+          "product": {
+            "$ref": "#/components/schemas/TradingProduct"
+          },
+          "leverage": {
+            "type": "integer",
+            "title": "Leverage"
+          },
+          "margin_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarginMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "allow_short": {
+            "type": "boolean",
+            "title": "Allow Short"
+          },
           "timeframe": {
             "$ref": "#/components/schemas/Timeframe"
           },
@@ -5008,6 +5208,10 @@
           "strategy_type",
           "strategy_params",
           "symbol",
+          "product",
+          "leverage",
+          "margin_mode",
+          "allow_short",
           "timeframe",
           "initial_capital",
           "fee_rate",
@@ -5201,9 +5405,10 @@
             "anyOf": [
               {
                 "type": "string",
-                "pattern": "^[A-Z0-9]{2,15}/USDT$",
+                "pattern": "^[A-Z0-9]{2,15}/USDT(?::USDT)?$",
                 "examples": [
-                  "BTC/USDT"
+                  "BTC/USDT",
+                  "BTC/USDT:USDT"
                 ]
               },
               {
@@ -5211,6 +5416,50 @@
               }
             ],
             "title": "Symbol"
+          },
+          "product": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TradingProduct"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leverage": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leverage"
+          },
+          "margin_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarginMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "allow_short": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allow Short"
           },
           "timeframe": {
             "anyOf": [
@@ -6810,11 +7059,11 @@
           },
           "symbol": {
             "type": "string",
-            "pattern": "^[A-Z0-9]{2,15}/USDT$",
+            "pattern": "^[A-Z0-9]{2,15}/USDT(?::USDT)?$",
             "title": "Symbol",
             "default": "BTC/USDT",
             "examples": [
-              "BTC/USDT"
+              "BTC/USDT:USDT"
             ]
           },
           "timeframe": {
@@ -7141,6 +7390,14 @@
         ],
         "title": "LoginIn"
       },
+      "MarginMode": {
+        "type": "string",
+        "enum": [
+          "isolated",
+          "cross"
+        ],
+        "title": "MarginMode"
+      },
       "MarkedOut": {
         "properties": {
           "marked": {
@@ -7153,6 +7410,75 @@
           "marked"
         ],
         "title": "MarkedOut"
+      },
+      "MarketCatalogOut": {
+        "properties": {
+          "exchange": {
+            "type": "string",
+            "title": "Exchange"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "base": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base"
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote"
+          },
+          "settlement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settlement"
+          },
+          "product": {
+            "type": "string",
+            "title": "Product"
+          },
+          "contract_size": {
+            "type": "string",
+            "title": "Contract Size"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "exchange",
+          "symbol",
+          "base",
+          "quote",
+          "settlement",
+          "product",
+          "contract_size",
+          "active"
+        ],
+        "title": "MarketCatalogOut"
       },
       "MetricsOut": {
         "properties": {
@@ -7980,6 +8306,72 @@
         ],
         "title": "PermissionsOut"
       },
+      "PerpetualAuxiliaryImportOut": {
+        "properties": {
+          "exchange": {
+            "type": "string",
+            "title": "Exchange"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "mark_candles_imported": {
+            "type": "integer",
+            "title": "Mark Candles Imported"
+          },
+          "funding_events_imported": {
+            "type": "integer",
+            "title": "Funding Events Imported"
+          }
+        },
+        "type": "object",
+        "required": [
+          "exchange",
+          "symbol",
+          "mark_candles_imported",
+          "funding_events_imported"
+        ],
+        "title": "PerpetualAuxiliaryImportOut"
+      },
+      "PerpetualAuxiliaryImportRequest": {
+        "properties": {
+          "exchange": {
+            "type": "string",
+            "title": "Exchange",
+            "default": "binance-usdm"
+          },
+          "symbol": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{2,15}/USDT(?::USDT)?$",
+            "title": "Symbol",
+            "default": "BTC/USDT:USDT",
+            "examples": [
+              "BTC/USDT:USDT"
+            ]
+          },
+          "timeframe": {
+            "$ref": "#/components/schemas/Timeframe",
+            "default": "1h"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "PerpetualAuxiliaryImportRequest"
+      },
       "PortfolioOut": {
         "properties": {
           "initial_capital": {
@@ -8569,9 +8961,9 @@
             "anyOf": [
               {
                 "type": "string",
-                "pattern": "^[A-Z0-9]{2,15}/USDT$",
+                "pattern": "^[A-Z0-9]{2,15}/USDT(?::USDT)?$",
                 "examples": [
-                  "BTC/USDT"
+                  "BTC/USDT:USDT"
                 ]
               },
               {
@@ -9673,12 +10065,39 @@
           },
           "symbol": {
             "type": "string",
-            "pattern": "^[A-Z0-9]{2,15}/USDT$",
+            "pattern": "^[A-Z0-9]{2,15}/USDT(?::USDT)?$",
             "title": "Symbol",
             "default": "BTC/USDT",
             "examples": [
-              "BTC/USDT"
+              "BTC/USDT",
+              "BTC/USDT:USDT"
             ]
+          },
+          "product": {
+            "$ref": "#/components/schemas/TradingProduct",
+            "default": "spot"
+          },
+          "leverage": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Leverage",
+            "default": 1
+          },
+          "margin_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarginMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "allow_short": {
+            "type": "boolean",
+            "title": "Allow Short",
+            "default": false
           },
           "timeframe": {
             "$ref": "#/components/schemas/Timeframe",
@@ -10439,6 +10858,14 @@
           "notional"
         ],
         "title": "TradeOut"
+      },
+      "TradingProduct": {
+        "type": "string",
+        "enum": [
+          "spot",
+          "linear_perpetual"
+        ],
+        "title": "TradingProduct"
       },
       "UnprotectedPositionOut": {
         "properties": {

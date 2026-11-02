@@ -10,6 +10,7 @@ from container import Container
 from core.jobs import JobStatus
 from core.security.auth import Principal, require_auth
 from modules.analytics.domain.mean_reversion import suggested_windows
+from modules.exchanges.errors import UnknownExchangeError
 from modules.market_data.application.ports import ImportJob
 from modules.market_data.application.service import REFERENCE_SYMBOL, InvalidImportRequest
 from modules.market_data.domain.models import RegimeBreak, Timeframe
@@ -17,7 +18,10 @@ from modules.market_data.domain.pairs import SUPPORTED_PAIRS
 
 router = APIRouter(prefix="/market-data", tags=["market-data"])
 
-Symbol = Annotated[str, Field(pattern=r"^[A-Z0-9]{2,15}/USDT$", examples=["BTC/USDT"])]
+Symbol = Annotated[
+    str,
+    Field(pattern=r"^[A-Z0-9]{2,15}/USDT(?::USDT)?$", examples=["BTC/USDT:USDT"]),
+]
 
 
 class ImportRequest(BaseModel):
@@ -26,6 +30,21 @@ class ImportRequest(BaseModel):
     timeframe: Timeframe = Timeframe.H1
     start: AwareDatetime = Field(description="Inclusive, timezone-aware (UTC recommended)")
     end: AwareDatetime = Field(description="Exclusive. Candles still in progress are skipped")
+
+
+class PerpetualAuxiliaryImportRequest(BaseModel):
+    exchange: str = "binance-usdm"
+    symbol: Symbol = "BTC/USDT:USDT"
+    timeframe: Timeframe = Timeframe.H1
+    start: AwareDatetime
+    end: AwareDatetime
+
+
+class PerpetualAuxiliaryImportOut(BaseModel):
+    exchange: str
+    symbol: str
+    mark_candles_imported: int
+    funding_events_imported: int
 
 
 class ImportJobOut(BaseModel):
@@ -171,6 +190,30 @@ async def request_import(body: ImportRequest, request: Request) -> ImportJobOut:
     return _job_out(job)
 
 
+@router.post(
+    "/perpetual-data/import",
+    response_model=PerpetualAuxiliaryImportOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def import_perpetual_auxiliary(
+    body: PerpetualAuxiliaryImportRequest, request: Request
+) -> PerpetualAuxiliaryImportOut:
+    """Import mark-price candles and historical funding rates for futures backtests."""
+    container: Container = request.app.state.container
+    try:
+        mark_count, funding_count = await container.market_data.import_perpetual_auxiliary(
+            body.exchange, body.symbol, body.timeframe, body.start, body.end
+        )
+    except InvalidImportRequest as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    return PerpetualAuxiliaryImportOut(
+        exchange=body.exchange,
+        symbol=body.symbol,
+        mark_candles_imported=mark_count,
+        funding_events_imported=funding_count,
+    )
+
+
 @router.get("/imports", response_model=list[ImportJobOut])
 async def list_imports(
     request: Request, limit: Annotated[int, Query(ge=1, le=200)] = 50
@@ -221,12 +264,51 @@ class SupportedPairOut(BaseModel):
     name: str
 
 
+class MarketCatalogOut(BaseModel):
+    exchange: str
+    symbol: str
+    base: str | None
+    quote: str | None
+    settlement: str | None
+    product: str
+    contract_size: Decimal
+    active: bool
+
+
 @router.get("/symbols", response_model=list[SupportedPairOut])
 async def list_symbols() -> list[SupportedPairOut]:
     """The USDT pairs offered in the selectors (the quote is always USDT)."""
     return [
         SupportedPairOut(symbol=p.symbol, base=p.base, quote="USDT", name=p.name)
         for p in SUPPORTED_PAIRS
+    ]
+
+
+@router.get("/markets", response_model=list[MarketCatalogOut])
+async def list_market_catalog(
+    request: Request,
+    exchange: str = "binance",
+    active_only: bool = True,
+) -> list[MarketCatalogOut]:
+    """Exchange instrument catalog with product and settlement kept in the identity."""
+    container: Container = request.app.state.container
+    try:
+        markets = await container.exchanges.exchange(exchange).list_markets()
+    except UnknownExchangeError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return [
+        MarketCatalogOut(
+            exchange=exchange,
+            symbol=market.symbol,
+            base=market.base,
+            quote=market.quote,
+            settlement=market.settlement,
+            product=market.product,
+            contract_size=market.contract_size,
+            active=market.active,
+        )
+        for market in markets
+        if market.active or not active_only
     ]
 
 

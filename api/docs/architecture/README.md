@@ -23,6 +23,8 @@ Architectural reference for the Lost Crypto backend. **Documentation only** — 
 | 13 | [Live trading](13-live-trading.md) | Real-money safeguards and the path to the first live order |
 | 14 | [Authentication](14-authentication.md) | Login, sessions, roles: what the frontend uses |
 | 15 | [Derivatives and perpetual futures](15-derivatives.md) | Product and position boundaries, leverage ceiling, and futures rollout requirements |
+| 16 | [Futures delivery plan](16-futures-delivery-plan.md) | Phased implementation plan and release gates for operational Binance USDⓈ-M futures |
+| 17 | [Binance USD-M perpetual v1 decision](17-usdm-v1-adr.md) | Product identity, account invariants, margin mode and release constraints |
 
 ## Key decisions (summary)
 

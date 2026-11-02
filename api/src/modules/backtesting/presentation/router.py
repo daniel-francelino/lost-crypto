@@ -26,6 +26,7 @@ from modules.backtesting.application.ports import BacktestRun
 from modules.backtesting.application.service import START_OFFSET_KEY, BacktestNotFound
 from modules.backtesting.domain.models import BacktestConfig, FillTiming
 from modules.backtesting.domain.robustness import assess
+from modules.exchanges.domain.models import MarginMode, TradingProduct
 from modules.execution.domain.fills import SlippageModel
 from modules.market_data.domain.models import Timeframe
 from modules.risk_management.presentation.schemas import RiskLimitsIn
@@ -33,7 +34,10 @@ from modules.strategies.domain.types import Side
 
 router = APIRouter(prefix="/backtests", tags=["backtests"])
 
-Symbol = Annotated[str, Field(pattern=r"^[A-Z0-9]{2,15}/USDT$", examples=["BTC/USDT"])]
+Symbol = Annotated[
+    str,
+    Field(pattern=r"^[A-Z0-9]{2,15}/USDT(?::USDT)?$", examples=["BTC/USDT", "BTC/USDT:USDT"]),
+]
 
 
 class BacktestCreate(BaseModel):
@@ -43,6 +47,10 @@ class BacktestCreate(BaseModel):
         default_factory=dict, examples=[{"fast_period": 9, "slow_period": 21}]
     )
     symbol: Symbol = "BTC/USDT"
+    product: TradingProduct = TradingProduct.SPOT
+    leverage: int = Field(default=1, ge=1, le=10)
+    margin_mode: MarginMode | None = None
+    allow_short: bool = False
     timeframe: Timeframe = Timeframe.H1
     start: AwareDatetime
     end: AwareDatetime
@@ -424,6 +432,10 @@ class BacktestOut(BaseModel):
     strategy_params: dict[str, Any]
     exchange: str
     symbol: str
+    product: TradingProduct
+    leverage: int
+    margin_mode: MarginMode | None
+    allow_short: bool
     timeframe: Timeframe
     start: datetime
     end: datetime
@@ -535,6 +547,10 @@ def _out(run: BacktestRun) -> BacktestOut:
         strategy_params=dict(c.strategy_params),
         exchange=c.exchange,
         symbol=c.symbol,
+        product=c.product,
+        leverage=c.leverage,
+        margin_mode=c.margin_mode,
+        allow_short=c.allow_short,
         timeframe=c.timeframe,
         start=c.start,
         end=c.end,
@@ -583,6 +599,10 @@ def _config(body: BacktestCreate, container: Container) -> BacktestConfig:
     return BacktestConfig(
         exchange=body.exchange,
         symbol=body.symbol,
+        product=body.product,
+        leverage=body.leverage,
+        margin_mode=body.margin_mode,
+        allow_short=body.allow_short,
         timeframe=body.timeframe,
         start=body.start,
         end=body.end,

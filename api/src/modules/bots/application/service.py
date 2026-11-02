@@ -27,6 +27,7 @@ from modules.bots.domain.interventions import (
 from modules.bots.domain.models import Bot, BotConfig, BotState, ExecutionMode
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.exchanges.domain.connections import ConnectionStatus, Environment
+from modules.exchanges.domain.models import TradingProduct
 from modules.execution.application.ports import SignalRecord
 from modules.execution.domain.orders import Order
 from modules.portfolio.domain.models import PortfolioState
@@ -136,7 +137,20 @@ class BotService:
         return self._exchanges.profile(exchange).fees.taker_rate
 
     async def create(self, config: BotConfig) -> Bot:
-        self._exchanges.require(config.exchange, config.timeframe)
+        if config.product is not TradingProduct.SPOT:
+            raise ConflictError(
+                "futures trading is not enabled: portfolio ledger and worker execution support "
+                "must be completed first"
+            )
+        profile = self._exchanges.require(config.exchange, config.timeframe)
+        if config.product not in profile.capabilities.products:
+            raise ConflictError(
+                f"{config.exchange} does not support {config.product.value} trading"
+            )
+        if config.leverage > profile.capabilities.max_leverage:
+            raise ConflictError(
+                f"{config.exchange} supports up to {profile.capabilities.max_leverage}x leverage"
+            )
         self._registry.create(config.strategy_type, config.strategy_params)  # validates
         now = self._clock.now()
         bot = Bot(
@@ -172,7 +186,21 @@ class BotService:
             bot.ensure_editable()
             old_config = bot.config
             config = replace(old_config, **changes)
-            self._exchanges.require(config.exchange, config.timeframe)
+            if config.product is not TradingProduct.SPOT:
+                raise ConflictError(
+                    "futures trading is not enabled: portfolio ledger and worker execution "
+                    "support must be completed first"
+                )
+            profile = self._exchanges.require(config.exchange, config.timeframe)
+            if config.product not in profile.capabilities.products:
+                raise ConflictError(
+                    f"{config.exchange} does not support {config.product.value} trading"
+                )
+            if config.leverage > profile.capabilities.max_leverage:
+                raise ConflictError(
+                    f"{config.exchange} supports up to "
+                    f"{profile.capabilities.max_leverage}x leverage"
+                )
             self._registry.create(config.strategy_type, config.strategy_params)
             await self._check_connection(store, config)
             version = bot.config_version + 1
@@ -253,6 +281,9 @@ class BotService:
         The virtual portfolio restarts from the allocated capital (the real account is the
         source of truth now); the paper history that earned the promotion is kept.
         """
+        bot = await self.get(bot_id)
+        if bot.config.product is not TradingProduct.SPOT:
+            raise ConflictError("live futures promotion is not enabled")
         async with self._stores() as store:
             current = await store.portfolio.get(bot_id)
         if current is not None and current.quantity > 0:
@@ -286,6 +317,9 @@ class BotService:
             bot.ensure_editable()
             if bot.config.mode is ExecutionMode.LIVE:
                 raise ConflictError("a live bot is kept for the record and cannot be deleted")
+            perpetual = await store.perpetual_portfolio.get(bot_id)
+            if perpetual is not None and perpetual.position is not None:
+                raise ConflictError("close the open futures position before deleting the bot")
             portfolio = await store.portfolio.get(bot_id)
             if portfolio is not None and portfolio.quantity > 0:
                 raise ConflictError("close the open position before deleting the bot")
@@ -309,6 +343,8 @@ class BotService:
         async with self._stores() as store:
             bot = await self._get(store, bot_id)
             bot.ensure_editable()
+            if bot.config.product is not TradingProduct.SPOT:
+                raise ConflictError("futures portfolio reset is not enabled yet")
             await store.portfolio.reset(bot_id, bot.config.initial_capital)
             payload = {"reason": reason.strip()} if reason and reason.strip() else {}
             await store.audit.add(self._event("bot.portfolio_reset", bot, payload, actor))
@@ -333,6 +369,8 @@ class BotService:
     async def portfolio(self, bot_id: UUID) -> PortfolioView:
         async with self._stores() as store:
             bot = await self._get(store, bot_id)
+            if bot.config.product is not TradingProduct.SPOT:
+                raise ConflictError("futures portfolio view is not enabled yet")
             state = await store.portfolio.get(bot_id) or PortfolioState.new(
                 bot_id, bot.config.initial_capital
             )

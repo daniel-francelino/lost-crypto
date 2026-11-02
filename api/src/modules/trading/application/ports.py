@@ -6,7 +6,9 @@ from modules.audit.models import AuditRepository
 from modules.bots.application.ports import BotRepository
 from modules.exchanges.application.connections import ConnectionRepository
 from modules.execution.application.ports import OrderRepository, SignalRepository
+from modules.market_data.application.perpetual_ports import PerpetualDataRepository
 from modules.market_data.application.ports import CandleRepository
+from modules.portfolio.application.perpetual_ports import PerpetualPortfolioRepository
 from modules.portfolio.application.ports import PortfolioRepository
 from modules.risk_management.application.ports import SystemFlagsRepository
 from modules.trading.application.parity_store import ParityRepository
@@ -48,6 +50,9 @@ class TradingStore(Protocol):
     def signals(self) -> SignalRepository: ...
     @property
     def portfolio(self) -> PortfolioRepository: ...
+
+    @property
+    def perpetual_portfolio(self) -> PerpetualPortfolioRepository: ...
     @property
     def flags(self) -> SystemFlagsRepository: ...
     @property
@@ -58,6 +63,9 @@ class TradingStore(Protocol):
     def reconciliations(self) -> ReconciliationRepository: ...
     @property
     def candles(self) -> CandleRepository: ...
+
+    @property
+    def perpetual_data(self) -> PerpetualDataRepository: ...
     @property
     def parity(self) -> ParityRepository: ...
 

@@ -3,7 +3,7 @@ import logging
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -19,6 +19,7 @@ from modules.exchanges.application.registry import ExchangeRegistry
 from modules.market_data.application.ports import ImportJob, ImportQuality, ImportStore
 from modules.market_data.domain.models import (
     Candle,
+    FundingRate,
     Gap,
     Listing,
     RangeCoverage,
@@ -124,6 +125,66 @@ class MarketDataService:
             await store.add_job(job)
             await store.commit()
         return job
+
+    async def import_perpetual_auxiliary(
+        self,
+        exchange: str,
+        symbol: str,
+        timeframe: Timeframe,
+        start: datetime,
+        end: datetime,
+    ) -> tuple[int, int]:
+        """Fetch exact historical mark candles and funding events into their separate stores."""
+        from modules.exchanges.domain.models import TradingProduct
+
+        if start >= end:
+            raise InvalidImportRequest("start must be before end")
+        profile = self._exchanges.require(exchange, timeframe)
+        if TradingProduct.LINEAR_PERPETUAL not in profile.capabilities.products:
+            raise InvalidImportRequest(f"{exchange} does not provide perpetual market data")
+        source = self._exchanges.exchange(exchange)
+        fetch_mark_candles = getattr(source, "fetch_mark_candles", None)
+        fetch_funding_rates = getattr(source, "fetch_funding_rates", None)
+        if not callable(fetch_mark_candles) or not callable(fetch_funding_rates):
+            raise InvalidImportRequest(f"{exchange} has no mark-price or funding history source")
+
+        marks: list[Candle] = []
+        cursor = floor_to_timeframe(start, timeframe)
+        while cursor < end:
+            page = await fetch_mark_candles(symbol, timeframe, cursor, 1000)
+            page = sorted(
+                (c for c in page if start <= c.open_time < end), key=lambda c: c.open_time
+            )
+            if not page:
+                break
+            marks.extend(page)
+            next_cursor = page[-1].open_time + timeframe.delta
+            if next_cursor <= cursor:
+                raise InvalidImportRequest("mark-price history pagination did not advance")
+            cursor = next_cursor
+
+        rates: list[FundingRate] = []
+        funding_cursor = start
+        while funding_cursor < end:
+            page = await fetch_funding_rates(symbol, funding_cursor, 1000)
+            page = sorted(
+                (r for r in page if start <= r.funding_time < end), key=lambda r: r.funding_time
+            )
+            if not page:
+                break
+            rates.extend(page)
+            next_cursor = page[-1].funding_time + timedelta(milliseconds=1)
+            if next_cursor <= funding_cursor:
+                raise InvalidImportRequest("funding history pagination did not advance")
+            funding_cursor = next_cursor
+
+        if not marks:
+            raise InvalidImportRequest("exchange returned no mark-price candles for this range")
+        async with self._stores() as store:
+            await store.perpetual_data.upsert_mark_candles(exchange, marks)
+            await store.perpetual_data.upsert_funding_rates(exchange, rates)
+            await store.commit()
+        return len(marks), len(rates)
 
     async def get_import(self, job_id: UUID) -> ImportJob | None:
         async with self._stores() as store:

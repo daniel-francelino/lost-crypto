@@ -266,6 +266,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/market-data/perpetual-data/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Perpetual Auxiliary
+         * @description Import mark-price candles and historical funding rates for futures backtests.
+         */
+        post: operations["import_perpetual_auxiliary_api_v1_market_data_perpetual_data_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/market-data/imports/{job_id}": {
         parameters: {
             query?: never;
@@ -315,6 +335,26 @@ export interface paths {
          * @description The USDT pairs offered in the selectors (the quote is always USDT).
          */
         get: operations["list_symbols_api_v1_market_data_symbols_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market-data/markets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Market Catalog
+         * @description Exchange instrument catalog with product and settlement kept in the identity.
+         */
+        get: operations["list_market_catalog_api_v1_market_data_markets_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1482,8 +1522,22 @@ export interface components {
              * Symbol
              * @default BTC/USDT
              * @example BTC/USDT
+             * @example BTC/USDT:USDT
              */
             symbol: string;
+            /** @default spot */
+            product: components["schemas"]["TradingProduct"];
+            /**
+             * Leverage
+             * @default 1
+             */
+            leverage: number;
+            margin_mode?: components["schemas"]["MarginMode"] | null;
+            /**
+             * Allow Short
+             * @default false
+             */
+            allow_short: boolean;
             /** @default 1h */
             timeframe: components["schemas"]["Timeframe"];
             /**
@@ -1593,6 +1647,12 @@ export interface components {
             exchange: string;
             /** Symbol */
             symbol: string;
+            product: components["schemas"]["TradingProduct"];
+            /** Leverage */
+            leverage: number;
+            margin_mode: components["schemas"]["MarginMode"] | null;
+            /** Allow Short */
+            allow_short: boolean;
             timeframe: components["schemas"]["Timeframe"];
             /**
              * Start
@@ -1722,8 +1782,22 @@ export interface components {
              * Symbol
              * @default BTC/USDT
              * @example BTC/USDT
+             * @example BTC/USDT:USDT
              */
             symbol: string;
+            /** @default spot */
+            product: components["schemas"]["TradingProduct"];
+            /**
+             * Leverage
+             * @default 1
+             */
+            leverage: number;
+            margin_mode?: components["schemas"]["MarginMode"] | null;
+            /**
+             * Allow Short
+             * @default false
+             */
+            allow_short: boolean;
             /** @default 1h */
             timeframe: components["schemas"]["Timeframe"];
             /**
@@ -1773,6 +1847,12 @@ export interface components {
             };
             /** Symbol */
             symbol: string;
+            product: components["schemas"]["TradingProduct"];
+            /** Leverage */
+            leverage: number;
+            margin_mode: components["schemas"]["MarginMode"] | null;
+            /** Allow Short */
+            allow_short: boolean;
             timeframe: components["schemas"]["Timeframe"];
             /** Initial Capital */
             initial_capital: string;
@@ -1869,6 +1949,12 @@ export interface components {
             } | null;
             /** Symbol */
             symbol?: string | null;
+            product?: components["schemas"]["TradingProduct"] | null;
+            /** Leverage */
+            leverage?: number | null;
+            margin_mode?: components["schemas"]["MarginMode"] | null;
+            /** Allow Short */
+            allow_short?: boolean | null;
             timeframe?: components["schemas"]["Timeframe"] | null;
             /** Initial Capital */
             initial_capital?: number | string | null;
@@ -2510,7 +2596,7 @@ export interface components {
             /**
              * Symbol
              * @default BTC/USDT
-             * @example BTC/USDT
+             * @example BTC/USDT:USDT
              */
             symbol: string;
             /** @default 1h */
@@ -2637,10 +2723,34 @@ export interface components {
              */
             password: string;
         };
+        /**
+         * MarginMode
+         * @enum {string}
+         */
+        MarginMode: "isolated" | "cross";
         /** MarkedOut */
         MarkedOut: {
             /** Marked */
             marked: number;
+        };
+        /** MarketCatalogOut */
+        MarketCatalogOut: {
+            /** Exchange */
+            exchange: string;
+            /** Symbol */
+            symbol: string;
+            /** Base */
+            base: string | null;
+            /** Quote */
+            quote: string | null;
+            /** Settlement */
+            settlement: string | null;
+            /** Product */
+            product: string;
+            /** Contract Size */
+            contract_size: string;
+            /** Active */
+            active: boolean;
         };
         /** MetricsOut */
         MetricsOut: {
@@ -2944,6 +3054,43 @@ export interface components {
             can_transfer: boolean;
             /** Ip Restricted */
             ip_restricted: boolean;
+        };
+        /** PerpetualAuxiliaryImportOut */
+        PerpetualAuxiliaryImportOut: {
+            /** Exchange */
+            exchange: string;
+            /** Symbol */
+            symbol: string;
+            /** Mark Candles Imported */
+            mark_candles_imported: number;
+            /** Funding Events Imported */
+            funding_events_imported: number;
+        };
+        /** PerpetualAuxiliaryImportRequest */
+        PerpetualAuxiliaryImportRequest: {
+            /**
+             * Exchange
+             * @default binance-usdm
+             */
+            exchange: string;
+            /**
+             * Symbol
+             * @default BTC/USDT:USDT
+             * @example BTC/USDT:USDT
+             */
+            symbol: string;
+            /** @default 1h */
+            timeframe: components["schemas"]["Timeframe"];
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
         };
         /** PortfolioOut */
         PortfolioOut: {
@@ -3584,8 +3731,22 @@ export interface components {
              * Symbol
              * @default BTC/USDT
              * @example BTC/USDT
+             * @example BTC/USDT:USDT
              */
             symbol: string;
+            /** @default spot */
+            product: components["schemas"]["TradingProduct"];
+            /**
+             * Leverage
+             * @default 1
+             */
+            leverage: number;
+            margin_mode?: components["schemas"]["MarginMode"] | null;
+            /**
+             * Allow Short
+             * @default false
+             */
+            allow_short: boolean;
             /** @default 1h */
             timeframe: components["schemas"]["Timeframe"];
             /**
@@ -3878,6 +4039,11 @@ export interface components {
             /** Notional */
             notional: string;
         };
+        /**
+         * TradingProduct
+         * @enum {string}
+         */
+        TradingProduct: "spot" | "linear_perpetual";
         /** UnprotectedPositionOut */
         UnprotectedPositionOut: {
             /** Bot Id */
@@ -4366,6 +4532,39 @@ export interface operations {
             };
         };
     };
+    import_perpetual_auxiliary_api_v1_market_data_perpetual_data_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PerpetualAuxiliaryImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerpetualAuxiliaryImportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_import_api_v1_market_data_imports__job_id__get: {
         parameters: {
             query?: never;
@@ -4449,6 +4648,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SupportedPairOut"][];
+                };
+            };
+        };
+    };
+    list_market_catalog_api_v1_market_data_markets_get: {
+        parameters: {
+            query?: {
+                exchange?: string;
+                active_only?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketCatalogOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

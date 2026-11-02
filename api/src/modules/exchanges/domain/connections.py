@@ -25,6 +25,7 @@ class ApiPermissions:
     can_withdraw: bool
     can_transfer: bool  # internal / universal transfers: also a way to move funds out
     ip_restricted: bool
+    can_trade_derivatives: bool = False
 
 
 def permission_problem(permissions: ApiPermissions, require_ip_restriction: bool) -> str | None:
@@ -82,6 +83,7 @@ def permissions_to_dict(permissions: ApiPermissions) -> dict[str, bool]:
         "can_withdraw": permissions.can_withdraw,
         "can_transfer": permissions.can_transfer,
         "ip_restricted": permissions.ip_restricted,
+        "can_trade_derivatives": permissions.can_trade_derivatives,
     }
 
 
@@ -92,4 +94,5 @@ def permissions_from_dict(raw: dict[str, bool]) -> ApiPermissions:
         can_withdraw=bool(raw.get("can_withdraw")),
         can_transfer=bool(raw.get("can_transfer")),
         ip_restricted=bool(raw.get("ip_restricted")),
+        can_trade_derivatives=bool(raw.get("can_trade_derivatives")),
     )

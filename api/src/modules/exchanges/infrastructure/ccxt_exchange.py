@@ -56,6 +56,8 @@ _USED_WEIGHT_WARN = 3000  # half of Binance's 6000/min IP budget
 
 
 class CcxtExchange(Exchange):
+    CCXT_EXCHANGE_ID = "binance"
+
     def __init__(
         self,
         client: Any | None = None,
@@ -67,7 +69,7 @@ class CcxtExchange(Exchange):
             config: dict[str, Any] = {"enableRateLimit": True}
             if credentials is not None:
                 config.update(apiKey=credentials.api_key, secret=credentials.api_secret)
-            client = getattr(ccxt_async, self.PROFILE.exchange_id)(config)
+            client = getattr(ccxt_async, self.CCXT_EXCHANGE_ID)(config)
             if sandbox:
                 client.set_sandbox_mode(True)  # the exchange's test environment, fake money
             # An adapter serves exactly one environment. Verify the client really points where
@@ -89,6 +91,9 @@ class CcxtExchange(Exchange):
         """
         return None
 
+    def is_supported_market(self, market: dict[str, Any]) -> bool:
+        return bool(market.get("spot"))
+
     def client_order_params(self, client_order_id: str) -> dict[str, Any]:
         """Extra order params carrying our client order id (exchanges name it differently)."""
         return {"newClientOrderId": client_order_id}
@@ -96,6 +101,12 @@ class CcxtExchange(Exchange):
     def lookup_params(self, client_order_id: str) -> dict[str, Any]:
         """Params to find/cancel an order by our client order id."""
         return {"origClientOrderId": client_order_id}
+
+    def stop_order_type(self, request: StopOrderRequest) -> str:
+        return "STOP_LOSS"
+
+    def stop_order_params(self, request: StopOrderRequest) -> dict[str, Any]:
+        return {}
 
     # --- market data -------------------------------------------------------------------------
 
@@ -126,12 +137,20 @@ class CcxtExchange(Exchange):
         return datetime.fromtimestamp(int(millis) / 1000, UTC)
 
     async def list_markets(self) -> list[ListedMarket]:
-        """Spot pairs the exchange lists today (used by the daily listing snapshot)."""
+        """Supported spot or linear-perpetual instruments from this exchange's catalog."""
         await self._call(self._client.load_markets)
         return [
-            ListedMarket(str(m["symbol"]), bool(m.get("active")))
+            ListedMarket(
+                symbol=str(m["symbol"]),
+                active=bool(m.get("active")),
+                product=("linear_perpetual" if m.get("swap") and m.get("linear") else "spot"),
+                base=str(m["base"]) if m.get("base") else None,
+                quote=str(m["quote"]) if m.get("quote") else None,
+                settlement=str(m["settle"]) if m.get("settle") else None,
+                contract_size=Decimal(str(m.get("contractSize") or 1)),
+            )
             for m in self._client.markets.values()
-            if m.get("spot")
+            if self.is_supported_market(m)
         ]
 
     async def fetch_market_info(self, symbol: str) -> MarketInfo:
@@ -165,7 +184,9 @@ class CcxtExchange(Exchange):
                 f"leverage {request.leverage}x exceeds this exchange adapter's "
                 f"{self.capabilities.max_leverage}x limit"
             )
+        await self.prepare_market_order(request)
         params = self.client_order_params(request.client_order_id)
+        params.update(self.market_order_params(request))
         try:
             raw = await self._client.create_order(
                 request.symbol, "market", request.side.value, float(request.quantity), None, params
@@ -180,15 +201,29 @@ class CcxtExchange(Exchange):
             raise self._write_error(exc) from exc
         return await self._complete(raw, request.symbol)
 
+    async def prepare_market_order(self, request: MarketOrderRequest) -> None:
+        return None
+
+    def market_order_params(self, request: MarketOrderRequest) -> dict[str, Any]:
+        return {}
+
     async def create_stop_order(self, request: StopOrderRequest) -> VenueOrder:
         self._require_authentication()
-        params = {
-            **self.client_order_params(request.client_order_id),
-            "stopPrice": float(request.stop_price),
-        }
+        if request.product not in self.capabilities.products:
+            raise ExchangeRejected(
+                f"{self.PROFILE.exchange_id} does not support {request.product.value} stops"
+            )
+        params = self.client_order_params(request.client_order_id)
+        params["stopPrice"] = float(request.stop_price)
+        params.update(self.stop_order_params(request))
         try:
             raw = await self._client.create_order(
-                request.symbol, "STOP_LOSS", "sell", float(request.quantity), None, params
+                request.symbol,
+                self.stop_order_type(request),
+                request.side.value,
+                float(request.quantity),
+                None,
+                params,
             )
         except ccxt.InvalidOrder as exc:
             if _is_duplicate(exc):

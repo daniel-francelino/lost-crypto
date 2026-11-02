@@ -14,11 +14,13 @@ from modules.backtesting.infrastructure.orm import (
     BacktestSweepRow,
     BacktestTradeRow,
 )
+from modules.exchanges.domain.models import MarginMode, TradingProduct
 from modules.execution.domain.fills import SlippageModel
 from modules.execution.domain.orders import Fill
 from modules.market_data.domain.models import MarketInfo, Timeframe
 from modules.market_data.infrastructure.repository import (
     SqlAlchemyCandleRepository,
+    SqlAlchemyPerpetualDataRepository,
     SqlAlchemyRegimeBreakRepository,
 )
 from modules.risk_management.domain.models import limits_from_dict, limits_to_dict
@@ -52,6 +54,10 @@ def _to_run(row: BacktestRunRow) -> BacktestRun:
         config=BacktestConfig(
             exchange=row.exchange,
             symbol=row.symbol,
+            product=TradingProduct(row.product),
+            leverage=row.leverage,
+            margin_mode=MarginMode(row.margin_mode) if row.margin_mode else None,
+            allow_short=row.allow_short,
             timeframe=Timeframe(row.timeframe),
             start=row.start_at,
             end=row.end_at,
@@ -100,6 +106,7 @@ class SqlAlchemyBacktestStore:
         self._session = session
         self.candles = SqlAlchemyCandleRepository(session)
         self.regime_breaks = SqlAlchemyRegimeBreakRepository(session)
+        self.perpetual_data = SqlAlchemyPerpetualDataRepository(session)
 
     async def add_run(self, run: BacktestRun) -> None:
         c = run.config
@@ -109,6 +116,10 @@ class SqlAlchemyBacktestStore:
                 status=run.status.value,
                 exchange=c.exchange,
                 symbol=c.symbol,
+                product=c.product.value,
+                leverage=c.leverage,
+                margin_mode=c.margin_mode.value if c.margin_mode else None,
+                allow_short=c.allow_short,
                 timeframe=c.timeframe.value,
                 start_at=c.start,
                 end_at=c.end,

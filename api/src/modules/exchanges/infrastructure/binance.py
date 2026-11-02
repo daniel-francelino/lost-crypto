@@ -38,6 +38,7 @@ BINANCE_PROFILE = ExchangeProfile(
 
 class BinanceExchange(CcxtExchange):
     PROFILE = BINANCE_PROFILE
+    CCXT_EXCHANGE_ID = "binance"
 
     async def fetch_api_permissions(self) -> ApiPermissions:
         """Binance's ``GET /sapi/v1/account/apiRestrictions`` (mainnet only; not on the testnet)."""

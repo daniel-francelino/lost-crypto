@@ -21,8 +21,13 @@ from modules.exchanges.application.ports import (
     VenueOrder,
 )
 from modules.exchanges.domain.connections import ApiPermissions
-from modules.exchanges.domain.models import ExchangeCapabilities, ExchangeProfile
-from modules.market_data.domain.models import Candle, MarketInfo, Timeframe
+from modules.exchanges.domain.models import (
+    ExchangeCapabilities,
+    ExchangeProfile,
+    MarginMode,
+    TradingProduct,
+)
+from modules.market_data.domain.models import Candle, ListedMarket, MarketInfo, Timeframe
 
 
 class Exchange(ABC):
@@ -49,6 +54,10 @@ class Exchange(ABC):
     @abstractmethod
     async def fetch_market_info(self, symbol: str) -> MarketInfo:
         """Trading rules for a symbol: lot size, tick size, minimum quantity and notional."""
+
+    async def list_markets(self) -> list[ListedMarket]:
+        """Active and inactive instruments supported by this adapter."""
+        raise NotImplementedError("market catalog is not implemented for this exchange")
 
     # --- trading (needs credentials once real orders are enabled) ----------------------------
 
@@ -88,6 +97,21 @@ class Exchange(ABC):
         """What the credentials this integration was built with may do (trade? withdraw? from
         which IPs?). Used to refuse live keys that are more powerful than a trading bot needs.
         Raises ``ExchangeError`` if the exchange cannot tell (e.g. a testnet)."""
+
+    async def prepare_market_configuration(
+        self,
+        product: TradingProduct,
+        symbol: str,
+        leverage: int,
+        margin_mode: MarginMode | None,
+    ) -> None:
+        """Validate and configure the account and exact market before a session starts.
+
+        Spot adapters need no account configuration. Derivatives adapters must override this to
+        verify permissions, position mode, margin, leverage and conflicting account exposure.
+        """
+        if product is not TradingProduct.SPOT:
+            raise NotImplementedError("this exchange adapter has no derivatives start checks")
 
     # --- lifecycle ---------------------------------------------------------------------------
 

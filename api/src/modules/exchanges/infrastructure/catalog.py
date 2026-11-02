@@ -11,9 +11,11 @@ from modules.exchanges.application.exchange import Exchange
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.exchanges.errors import ExchangeConfigurationError
 from modules.exchanges.infrastructure.binance import BinanceExchange
+from modules.exchanges.infrastructure.binance_usdm import BinanceUsdmExchange
 
 AVAILABLE_EXCHANGES: dict[str, type[Exchange]] = {
     "binance": BinanceExchange,
+    "binance-usdm": BinanceUsdmExchange,
 }
 
 

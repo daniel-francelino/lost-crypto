@@ -32,12 +32,18 @@ from modules.backtesting.domain.data_quality import (
     sample_check,
 )
 from modules.backtesting.domain.engine import risk_report, run_backtest
-from modules.backtesting.domain.models import BacktestConfig, EquityPoint, hash_candles
+from modules.backtesting.domain.models import (
+    BacktestConfig,
+    EquityPoint,
+    InvalidBacktestConfig,
+    hash_candles,
+)
 from modules.backtesting.domain.periods import compute_periods
 from modules.backtesting.domain.random_entries import random_entries_block
 from modules.backtesting.domain.segments import compute_segments
 from modules.bots.domain.models import BotConfig
 from modules.exchanges.application.registry import ExchangeRegistry
+from modules.exchanges.domain.models import TradingProduct
 from modules.execution.domain.orders import Fill
 from modules.market_data.domain.models import range_coverage
 from modules.strategies.domain.registry import StrategyRegistry
@@ -91,7 +97,20 @@ class BacktestService:
         self._ids = ids
 
     async def create(self, config: BacktestConfig) -> BacktestRun:
-        self._exchanges.require(config.exchange, config.timeframe)
+        if config.product is not TradingProduct.SPOT:
+            raise InvalidBacktestConfig(
+                "futures backtests are not enabled until funding and liquidation "
+                "accounting is available"
+            )
+        profile = self._exchanges.require(config.exchange, config.timeframe)
+        if config.product not in profile.capabilities.products:
+            raise InvalidBacktestConfig(
+                f"{config.exchange} does not support {config.product.value} backtests"
+            )
+        if config.leverage > profile.capabilities.max_leverage:
+            raise InvalidBacktestConfig(
+                f"{config.exchange} supports up to {profile.capabilities.max_leverage}x leverage"
+            )
         self._registry.create(config.strategy_type, config.strategy_params)  # validates
         run = BacktestRun(
             id=self._ids.new_id(),
@@ -112,7 +131,20 @@ class BacktestService:
 
         Also returns the number of earlier runs on the same strategy and data (prior trials).
         """
-        self._exchanges.require(base.exchange, base.timeframe)
+        if base.product is not TradingProduct.SPOT:
+            raise InvalidSweep(
+                "futures backtest sweeps are not enabled until funding and liquidation "
+                "accounting is available"
+            )
+        profile = self._exchanges.require(base.exchange, base.timeframe)
+        if base.product not in profile.capabilities.products:
+            raise InvalidSweep(
+                f"{base.exchange} does not support {base.product.value} backtest sweeps"
+            )
+        if base.leverage > profile.capabilities.max_leverage:
+            raise InvalidSweep(
+                f"{base.exchange} supports up to {profile.capabilities.max_leverage}x leverage"
+            )
         if base.cost_sensitivity:
             raise InvalidSweep("cost sensitivity is per backtest; open the chosen run instead")
         offsets = self._start_offsets(grid)

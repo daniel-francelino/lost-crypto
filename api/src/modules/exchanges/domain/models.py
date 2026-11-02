@@ -7,7 +7,6 @@ from enum import StrEnum
 from core.errors import DomainError
 from modules.market_data.domain.models import Timeframe
 
-
 MAX_PERPETUAL_LEVERAGE = 10
 
 

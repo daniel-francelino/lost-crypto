@@ -64,6 +64,32 @@ class Candle:
 
 
 @dataclass(frozen=True, slots=True)
+class MarkPrice:
+    symbol: str
+    price: Decimal
+    timestamp: datetime
+    source: str = "exchange_mark_price"
+
+    def __post_init__(self) -> None:
+        if self.price <= 0 or self.timestamp.tzinfo is None:
+            raise ValueError("mark price must be positive and timestamp timezone-aware")
+
+
+@dataclass(frozen=True, slots=True)
+class FundingRate:
+    symbol: str
+    rate: Decimal
+    funding_time: datetime
+    mark_price: Decimal | None = None
+
+    def __post_init__(self) -> None:
+        if self.funding_time.tzinfo is None:
+            raise ValueError("funding time must be timezone-aware")
+        if self.mark_price is not None and self.mark_price <= 0:
+            raise ValueError("funding mark price must be positive when present")
+
+
+@dataclass(frozen=True, slots=True)
 class MarketInfo:
     """Exchange trading rules for a symbol (used to normalise orders)."""
 
@@ -146,6 +172,11 @@ def range_coverage(
 class ListedMarket:
     symbol: str
     active: bool  # listed but halted (e.g. Binance "BREAK") is inactive
+    product: str = "spot"
+    base: str | None = None
+    quote: str | None = None
+    settlement: str | None = None
+    contract_size: Decimal = Decimal(1)
 
 
 @dataclass(frozen=True, slots=True)

@@ -5,6 +5,7 @@ from typing import Any, Protocol
 from uuid import UUID
 
 from core.jobs import JobStatus
+from modules.market_data.application.perpetual_ports import PerpetualDataRepository
 from modules.market_data.domain.models import (
     Candle,
     ListedMarket,
@@ -126,6 +127,9 @@ class ImportStore(Protocol):
 
     @property
     def regime_breaks(self) -> RegimeBreakRepository: ...
+
+    @property
+    def perpetual_data(self) -> PerpetualDataRepository: ...
 
     async def add_job(self, job: ImportJob) -> None: ...
     async def get_job(self, job_id: UUID) -> ImportJob | None: ...

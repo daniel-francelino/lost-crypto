@@ -7,6 +7,7 @@ from modules.audit.models import AuditRepository
 from modules.bots.domain.models import Bot, BotConfig, BotState
 from modules.exchanges.application.connections import ConnectionRepository
 from modules.execution.application.ports import OrderRepository, SignalRepository
+from modules.portfolio.application.perpetual_ports import PerpetualPortfolioRepository
 from modules.portfolio.application.ports import PortfolioRepository
 from modules.trading.application.parity_store import ParityRepository
 
@@ -78,6 +79,9 @@ class BotStore(Protocol):
     def signals(self) -> SignalRepository: ...
     @property
     def portfolio(self) -> PortfolioRepository: ...
+
+    @property
+    def perpetual_portfolio(self) -> PerpetualPortfolioRepository: ...
     @property
     def audit(self) -> AuditRepository: ...
     @property

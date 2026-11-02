@@ -7,6 +7,7 @@ from typing import Any
 from uuid import UUID
 
 from core.errors import ConflictError, DomainError
+from modules.exchanges.domain.models import MarginMode, TradingProduct
 from modules.market_data.domain.models import Timeframe
 from modules.risk_management.domain.models import RiskLimits
 
@@ -51,6 +52,10 @@ class BotConfig:
     mode: ExecutionMode = ExecutionMode.PAPER
     exchange: str = "binance"
     connection_id: UUID | None = None  # credentials used by testnet bots
+    product: TradingProduct = TradingProduct.SPOT
+    leverage: int = 1
+    margin_mode: MarginMode | None = None
+    allow_short: bool = False
 
     def __post_init__(self) -> None:
         if not self.name.strip():
@@ -67,6 +72,20 @@ class BotConfig:
             )
         if self.mode is ExecutionMode.PAPER and self.connection_id is not None:
             raise InvalidBotConfig("paper bots do not use an exchange connection")
+        if self.product is TradingProduct.SPOT:
+            if self.leverage != 1 or self.margin_mode is not None or self.allow_short:
+                raise InvalidBotConfig("spot bots must use 1x, no margin mode, and long-only")
+            if ":" in self.symbol:
+                raise InvalidBotConfig("spot bots must use a spot symbol without settlement suffix")
+        else:
+            if self.margin_mode is not MarginMode.ISOLATED:
+                raise InvalidBotConfig("futures bots currently require isolated margin")
+            if not 1 <= self.leverage <= 10:
+                raise InvalidBotConfig("futures leverage must be between 1x and 10x")
+            if not self.symbol.endswith(":USDT"):
+                raise InvalidBotConfig("linear perpetual symbols must include USDT settlement")
+            if self.mode is ExecutionMode.LIVE:
+                raise InvalidBotConfig("live futures trading is not enabled")
 
 
 @dataclass(slots=True)

@@ -12,6 +12,7 @@ from core.security.auth import Principal, require_auth
 from modules.analytics.presentation.schemas import MetricsOut
 from modules.audit.schemas import NoteIn, NoteOut
 from modules.bots.domain.models import Bot, BotConfig, BotState, ExecutionMode
+from modules.exchanges.domain.models import MarginMode, TradingProduct
 from modules.execution.domain.orders import OrderStatus, latency_ms, realized_slippage_bps
 from modules.market_data.domain.models import Timeframe
 from modules.risk_management.domain.models import RiskLimits
@@ -23,7 +24,10 @@ from modules.trading.domain.diagnosis import VOLUME_MARKER, checklist, execution
 
 router = APIRouter(prefix="/bots", tags=["bots"])
 
-Symbol = Annotated[str, Field(pattern=r"^[A-Z0-9]{2,15}/USDT$", examples=["BTC/USDT"])]
+Symbol = Annotated[
+    str,
+    Field(pattern=r"^[A-Z0-9]{2,15}/USDT(?::USDT)?$", examples=["BTC/USDT", "BTC/USDT:USDT"]),
+]
 Limit = Annotated[int, Query(ge=1, le=500)]
 
 
@@ -71,6 +75,10 @@ class BotCreate(BaseModel):
     strategy_type: str = Field(examples=["trend_quality_breakout"])
     strategy_params: dict[str, Any] = Field(default_factory=dict)
     symbol: Symbol = "BTC/USDT"
+    product: TradingProduct = TradingProduct.SPOT
+    leverage: int = Field(default=1, ge=1, le=10)
+    margin_mode: MarginMode | None = None
+    allow_short: bool = False
     timeframe: Timeframe = Timeframe.H1
     initial_capital: Decimal = Field(default=Decimal(1000), gt=0)
     fee_rate: Decimal | None = Field(
@@ -92,6 +100,10 @@ class BotUpdate(BaseModel):
     strategy_type: str | None = None
     strategy_params: dict[str, Any] | None = None
     symbol: Symbol | None = None
+    product: TradingProduct | None = None
+    leverage: int | None = Field(default=None, ge=1, le=10)
+    margin_mode: MarginMode | None = None
+    allow_short: bool | None = None
     timeframe: Timeframe | None = None
     initial_capital: Decimal | None = Field(default=None, gt=0)
     fee_rate: Decimal | None = Field(default=None, ge=0, lt=1)
@@ -109,6 +121,10 @@ class BotOut(BaseModel):
     strategy_type: str
     strategy_params: dict[str, Any]
     symbol: str
+    product: TradingProduct
+    leverage: int
+    margin_mode: MarginMode | None
+    allow_short: bool
     timeframe: Timeframe
     initial_capital: Decimal
     fee_rate: Decimal
@@ -231,6 +247,10 @@ def _out(bot: Bot) -> BotOut:
         strategy_type=c.strategy_type,
         strategy_params=dict(c.strategy_params),
         symbol=c.symbol,
+        product=c.product,
+        leverage=c.leverage,
+        margin_mode=c.margin_mode,
+        allow_short=c.allow_short,
         timeframe=c.timeframe,
         initial_capital=c.initial_capital,
         fee_rate=c.fee_rate,
@@ -269,6 +289,10 @@ async def create_bot(body: BotCreate, request: Request) -> BotOut:
         strategy_type=body.strategy_type,
         strategy_params=body.strategy_params,
         symbol=body.symbol,
+        product=body.product,
+        leverage=body.leverage,
+        margin_mode=body.margin_mode,
+        allow_short=body.allow_short,
         timeframe=body.timeframe,
         initial_capital=body.initial_capital,
         fee_rate=(
@@ -753,6 +777,10 @@ async def _regime(
             run.periods
             and c.strategy_type == cfg.strategy_type
             and c.symbol == cfg.symbol
+            and c.product is cfg.product
+            and c.leverage == cfg.leverage
+            and c.margin_mode == cfg.margin_mode
+            and c.allow_short == cfg.allow_short
             and c.timeframe is cfg.timeframe
             and dict(c.strategy_params) == dict(cfg.strategy_params)
         ):

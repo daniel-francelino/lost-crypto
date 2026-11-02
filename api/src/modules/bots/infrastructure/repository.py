@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from modules.bots.application.ports import LiveApproval
 from modules.bots.domain.models import Bot, BotConfig, BotState, ExecutionMode
 from modules.bots.infrastructure.orm import BotRow, LiveApprovalRow
+from modules.exchanges.domain.models import MarginMode, TradingProduct
 from modules.market_data.domain.models import Timeframe
 from modules.risk_management.domain.models import DrawdownAction, RiskLimits
 
@@ -21,6 +22,10 @@ def _to_bot(row: BotRow) -> Bot:
             strategy_type=row.strategy_type,
             strategy_params=row.strategy_params,
             symbol=row.symbol,
+            product=TradingProduct(row.product),
+            leverage=row.leverage,
+            margin_mode=MarginMode(row.margin_mode) if row.margin_mode else None,
+            allow_short=row.allow_short,
             timeframe=Timeframe(row.timeframe),
             initial_capital=row.initial_capital,
             fee_rate=row.fee_rate,
@@ -60,6 +65,10 @@ def _config_values(config: BotConfig) -> dict[str, object]:
         "strategy_type": config.strategy_type,
         "strategy_params": dict(config.strategy_params),
         "symbol": config.symbol,
+        "product": config.product.value,
+        "leverage": config.leverage,
+        "margin_mode": config.margin_mode.value if config.margin_mode else None,
+        "allow_short": config.allow_short,
         "timeframe": config.timeframe.value,
         "initial_capital": config.initial_capital,
         "fee_rate": config.fee_rate,
@@ -86,6 +95,9 @@ _DELETE_STATEMENTS = (
     "DELETE FROM trading_signals WHERE bot_id = :bot",
     "DELETE FROM portfolio_snapshots WHERE bot_id = :bot",
     "DELETE FROM bot_portfolios WHERE bot_id = :bot",
+    "DELETE FROM perpetual_portfolio_snapshots WHERE bot_id = :bot",
+    "DELETE FROM bot_perpetual_ledger_entries WHERE bot_id = :bot",
+    "DELETE FROM bot_perpetual_portfolios WHERE bot_id = :bot",
     "DELETE FROM live_approvals WHERE bot_id = :bot",
     "DELETE FROM parity_runs WHERE bot_id = :bot",
     "DELETE FROM trading_sessions WHERE bot_id = :bot",

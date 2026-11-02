@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
 
+from modules.exchanges.domain.models import PositionSide
 from modules.market_data.domain.models import Candle
 
 
@@ -35,6 +36,20 @@ class StrategyContext:
     symbol: str
     candle: Candle
     position_quantity: Decimal
+    position_side: PositionSide | None = None
+    allow_short: bool = False
+
+    @property
+    def is_long(self) -> bool:
+        return self.position_quantity > 0 and self.position_side is not PositionSide.SHORT
+
+    @property
+    def is_short(self) -> bool:
+        return self.position_quantity > 0 and self.position_side is PositionSide.SHORT
+
+    @property
+    def is_flat(self) -> bool:
+        return self.position_quantity <= 0
 
 
 @dataclass(frozen=True, slots=True)

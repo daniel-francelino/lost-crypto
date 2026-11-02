@@ -14,8 +14,14 @@ from modules.execution.infrastructure.repository import (
     SqlAlchemyOrderRepository,
     SqlAlchemySignalRepository,
 )
-from modules.market_data.infrastructure.repository import SqlAlchemyCandleRepository
+from modules.market_data.infrastructure.repository import (
+    SqlAlchemyCandleRepository,
+    SqlAlchemyPerpetualDataRepository,
+)
 from modules.notifications.infrastructure.repository import SqlAlchemyAlertRepository
+from modules.portfolio.infrastructure.perpetual_repository import (
+    SqlAlchemyPerpetualPortfolioRepository,
+)
 from modules.portfolio.infrastructure.repository import SqlAlchemyPortfolioRepository
 from modules.risk_management.infrastructure.repository import SqlAlchemySystemFlagsRepository
 from modules.trading.infrastructure.repository import (
@@ -38,11 +44,13 @@ class SqlAlchemyStore:
         self.orders = SqlAlchemyOrderRepository(session)
         self.signals = SqlAlchemySignalRepository(session)
         self.portfolio = SqlAlchemyPortfolioRepository(session)
+        self.perpetual_portfolio = SqlAlchemyPerpetualPortfolioRepository(session)
         self.flags = SqlAlchemySystemFlagsRepository(session)
         self.audit = SqlAlchemyAuditRepository(session)
         self.connections = SqlAlchemyConnectionRepository(session)
         self.reconciliations = SqlAlchemyReconciliationRepository(session)
         self.candles = SqlAlchemyCandleRepository(session)
+        self.perpetual_data = SqlAlchemyPerpetualDataRepository(session)
         self.parity = SqlAlchemyParityRepository(session)
         self.users = SqlAlchemyUserRepository(session)
         self.live_approvals = SqlAlchemyLiveApprovalRepository(session)

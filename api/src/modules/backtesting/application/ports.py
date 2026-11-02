@@ -6,6 +6,7 @@ from uuid import UUID
 from core.jobs import JobStatus
 from modules.backtesting.domain.models import BacktestConfig, EquityPoint
 from modules.execution.domain.orders import Fill
+from modules.market_data.application.perpetual_ports import PerpetualDataRepository
 from modules.market_data.application.ports import CandleRepository, RegimeBreakRepository
 from modules.market_data.domain.models import MarketInfo, Timeframe
 
@@ -56,6 +57,9 @@ class BacktestStore(Protocol):
 
     @property
     def regime_breaks(self) -> RegimeBreakRepository: ...
+
+    @property
+    def perpetual_data(self) -> PerpetualDataRepository: ...
 
     async def add_run(self, run: BacktestRun) -> None: ...
     async def get_run(self, run_id: UUID) -> BacktestRun | None: ...
