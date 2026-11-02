@@ -105,8 +105,12 @@ class Reconciler:
             await store.reconciliations.add(
                 connection_id,
                 started,
-                "unavailable",
-                {"error_type": error_type, "bots": [str(bot.id) for bot in futures]},
+                "mismatch",
+                {
+                    "kind": "unavailable",
+                    "error_type": error_type,
+                    "bots": [str(bot.id) for bot in futures],
+                },
             )
             for bot in futures:
                 await store.bots.set_desired(bot.id, BotState.PAUSED)
@@ -234,16 +238,60 @@ class Reconciler:
                         expected_quantity=str(local.quantity),
                         exchange_quantity=str(actual.quantity),
                     )
+                if actual.entry_price is None or abs(actual.entry_price - local.entry_price) > max(
+                    _ABSOLUTE_TOLERANCE, local.entry_price * _RELATIVE_TOLERANCE
+                ):
+                    differences.update(
+                        expected_entry_price=str(local.entry_price),
+                        exchange_entry_price=(
+                            str(actual.entry_price) if actual.entry_price is not None else None
+                        ),
+                    )
                 if actual.leverage is not None and actual.leverage != local.leverage:
                     differences.update(
                         expected_leverage=local.leverage, exchange_leverage=actual.leverage
                     )
                 if actual.margin_mode is not None and actual.margin_mode.value != "isolated":
                     differences["exchange_margin_mode"] = actual.margin_mode.value
+                if actual.mark_price is None:
+                    differences["exchange_mark_price"] = "unavailable"
                 if differences:
                     problems.append(
                         {"kind": "futures_position_mismatch", "symbol": symbol, **differences}
                     )
+                    continue
+                if ledger is not None and actual.mark_price is not None:
+                    notional = actual.notional or actual.quantity * actual.mark_price
+                    tiers = await exchange.fetch_leverage_tiers(symbol)
+                    tier = next(
+                        (
+                            item
+                            for item in tiers
+                            if item.min_notional <= notional < item.max_notional
+                            and item.max_leverage >= local.leverage
+                        ),
+                        None,
+                    )
+                    if tier is None:
+                        problems.append(
+                            {
+                                "kind": "futures_leverage_tier_unavailable",
+                                "symbol": symbol,
+                                "notional": str(notional),
+                                "leverage": local.leverage,
+                            }
+                        )
+                        continue
+                    ledger.mark(
+                        actual.mark_price,
+                        self._clock.now(),
+                        tier.maintenance_margin_rate,
+                        source="binance_exchange_mark_price",
+                    )
+                    ledger.exchange_liquidation_price = actual.liquidation_price
+                    ledger.exchange_position_id = symbol
+                    ledger.reconciled_at = self._clock.now()
+                    await store.perpetual_portfolio.save(ledger)
         for symbol, positions in remote_by_symbol.items():
             for position in positions:
                 problems.append(

@@ -1,7 +1,14 @@
 import type { BacktestInput, RiskInput } from "@/lib/backtests/backtests.api";
 import { type BacktestPrefill, parseJsonRecord } from "@/lib/shared/backtest-prefill";
 import { dayEndUtcIso, dayStartUtcIso, daysAgoString } from "@/lib/shared/dates";
-import { DrawdownAction, FillTiming, SlippageModel, Timeframe } from "@/lib/shared/enums";
+import {
+  DrawdownAction,
+  FillTiming,
+  MarginMode,
+  SlippageModel,
+  Timeframe,
+  TradingProduct,
+} from "@/lib/shared/enums";
 import { compareDecimal, trimDecimalZeros } from "@/lib/shared/format";
 import {
   type ParamValues,
@@ -23,6 +30,10 @@ export const DEFAULT_CAPITAL = "1000";
 
 export type BacktestFormValues = {
   exchange: string;
+  connectionId: string;
+  product: string;
+  leverage: string;
+  allowShort: boolean;
   symbol: string;
   timeframe: string;
   start: string;
@@ -55,6 +66,7 @@ export type RiskValues = {
   maxDrawdownPct: string;
   maxConsecutiveLosses: string;
   maxRiskPerTradePct: string;
+  minLiquidationDistancePct: string;
   requireStopLoss: boolean;
   maxCandleRangePct: string;
   maxOrderPctOfVolume: string;
@@ -69,6 +81,7 @@ export const DEFAULT_RISK: RiskValues = {
   maxDrawdownPct: "",
   maxConsecutiveLosses: "",
   maxRiskPerTradePct: "",
+  minLiquidationDistancePct: "",
   requireStopLoss: false,
   maxCandleRangePct: "25",
   maxOrderPctOfVolume: "",
@@ -81,6 +94,10 @@ export const defaultBacktestValues = (
   now?: number,
 ): BacktestFormValues => ({
   exchange: "binance",
+  connectionId: "",
+  product: TradingProduct.Spot,
+  leverage: "1",
+  allowShort: false,
   symbol: "BTC/USDT",
   timeframe: Timeframe.H1,
   start: daysAgoString(DEFAULT_DAYS, now),
@@ -154,6 +171,11 @@ export const toBacktestInput = (
   const toleranceDays = values.toleranceDrawdownDays.trim();
   return {
     exchange: values.exchange,
+    connection_id: values.connectionId || null,
+    product: values.product,
+    leverage: Number.parseInt(values.leverage || "1", 10),
+    margin_mode: values.product === TradingProduct.LinearPerpetual ? MarginMode.Isolated : null,
+    allow_short: values.product === TradingProduct.LinearPerpetual && values.allowShort,
     strategy_type: values.strategyType,
     strategy_params: buildStrategyParams(strategy, values.params),
     symbol: values.symbol.trim().toUpperCase(),
@@ -213,6 +235,7 @@ export const riskInput = (risk: RiskValues): RiskInput => ({
   max_consecutive_losses:
     risk.maxConsecutiveLosses.trim() === "" ? null : Number.parseInt(risk.maxConsecutiveLosses, 10),
   max_risk_per_trade_pct: blankToNull(risk.maxRiskPerTradePct),
+  min_liquidation_distance_pct: blankToNull(risk.minLiquidationDistancePct),
   require_stop_loss: risk.requireStopLoss,
   max_candle_range_pct: blankToNull(risk.maxCandleRangePct),
   max_order_pct_of_volume: blankToNull(risk.maxOrderPctOfVolume),
@@ -230,6 +253,7 @@ export const riskValuesFrom = (raw: Record<string, unknown>): RiskValues => ({
   maxDrawdownPct: textOf(raw["max_drawdown_pct"]),
   maxConsecutiveLosses: textOf(raw["max_consecutive_losses"]),
   maxRiskPerTradePct: textOf(raw["max_risk_per_trade_pct"]),
+  minLiquidationDistancePct: textOf(raw["min_liquidation_distance_pct"]),
   requireStopLoss: raw["require_stop_loss"] === true,
   maxCandleRangePct: textOf(raw["max_candle_range_pct"]),
   maxOrderPctOfVolume: textOf(raw["max_order_pct_of_volume"]),

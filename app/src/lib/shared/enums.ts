@@ -15,6 +15,15 @@ export const ExecutionMode = {
 } as const;
 export type ExecutionMode = ValueOf<typeof ExecutionMode>;
 
+export const TradingProduct = {
+  Spot: "spot",
+  LinearPerpetual: "linear_perpetual",
+} as const;
+export type TradingProduct = ValueOf<typeof TradingProduct>;
+
+export const MarginMode = { Isolated: "isolated" } as const;
+export type MarginMode = ValueOf<typeof MarginMode>;
+
 export const Role = {
   Admin: "admin",
   Viewer: "viewer",

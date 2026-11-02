@@ -13,6 +13,7 @@ import {
   SkeletonBlock,
 } from "@/components/shared/feedback/query-boundary";
 import { CostLadderCard } from "@/components/backtests/cost-ladder-card";
+import { PerpetualSummaryCard } from "@/components/backtests/perpetual-summary-card";
 import { DataQualityCard } from "@/components/backtests/data-quality-card";
 import { RiskReportCard } from "@/components/backtests/risk-report-card";
 import { SignificanceCard } from "@/components/backtests/significance-card";
@@ -162,6 +163,7 @@ export function BacktestDetailPage({ runId }: { runId: string }) {
         <DataQualityCard run={run} quality={run.data_quality} />
       )}
       <RiskReportCard run={run} />
+      <PerpetualSummaryCard run={run} />
       <SignificanceCard significance={run.significance ?? null} />
       <ExcursionCard run={run} />
       <NotesPanel target={NoteTarget.Backtest} entityId={run.id} />

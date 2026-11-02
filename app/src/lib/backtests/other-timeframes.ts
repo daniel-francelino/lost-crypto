@@ -17,9 +17,14 @@ const numericParams = (params: Record<string, unknown>): Record<string, number> 
 export type RunSource = Pick<
   Backtest,
   | "exchange"
+  | "connection_id"
   | "strategy_type"
   | "strategy_params"
   | "symbol"
+  | "product"
+  | "leverage"
+  | "margin_mode"
+  | "allow_short"
   | "start"
   | "end"
   | "initial_capital"
@@ -39,6 +44,11 @@ export type RunSource = Pick<
 
 export const inputWithTimeframe = (run: RunSource, timeframe: string): BacktestInput => ({
   exchange: run.exchange,
+  connection_id: run.connection_id ?? null,
+  product: run.product ?? "spot",
+  leverage: run.leverage ?? 1,
+  margin_mode: run.margin_mode ?? null,
+  allow_short: run.allow_short ?? false,
   strategy_type: run.strategy_type,
   strategy_params: numericParams(run.strategy_params),
   symbol: run.symbol,

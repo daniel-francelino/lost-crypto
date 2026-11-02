@@ -27,10 +27,11 @@ from modules.bots.domain.interventions import (
 from modules.bots.domain.models import Bot, BotConfig, BotState, ExecutionMode
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.exchanges.domain.connections import ConnectionStatus, Environment
-from modules.exchanges.domain.models import TradingProduct
+from modules.exchanges.domain.models import PositionSide, TradingProduct
 from modules.execution.application.ports import SignalRecord
 from modules.execution.domain.orders import Order
 from modules.portfolio.domain.models import PortfolioState
+from modules.portfolio.domain.perpetuals import PerpetualLedger
 from modules.strategies.domain.registry import StrategyRegistry
 
 BotStoreFactory = Callable[[], AbstractAsyncContextManager[BotStore]]
@@ -51,6 +52,14 @@ class PortfolioView:
     take_profit_price: Decimal | None
     reserved_cash: Decimal
     native_stop_active: bool
+    product: TradingProduct = TradingProduct.SPOT
+    position_side: PositionSide | None = None
+    leverage: int = 1
+    isolated_margin: Decimal = Decimal(0)
+    reserved_margin: Decimal = Decimal(0)
+    liquidation_price: Decimal | None = None
+    funding_paid: Decimal = Decimal(0)
+    funding_received: Decimal = Decimal(0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,7 +102,11 @@ def summarize(rows: list[tuple[BotOverview, Decimal]]) -> list[PortfolioSummary]
     """Group overview rows (with each bot's initial capital) by mode and quote currency."""
     groups: dict[tuple[ExecutionMode, str], list[tuple[BotOverview, Decimal]]] = {}
     for row, capital in rows:
-        quote = row.bot.config.symbol.split("/")[-1]
+        quote = (
+            "USDT"
+            if row.bot.config.product is TradingProduct.LINEAR_PERPETUAL
+            else row.bot.config.symbol.split("/")[-1]
+        )
         groups.setdefault((row.bot.config.mode, quote), []).append((row, capital))
     return [
         PortfolioSummary(
@@ -269,6 +282,7 @@ class BotService:
     ) -> Bot:
         async with self._stores() as store:
             bot = await self._get(store, bot_id)
+            await self._check_perpetual_owner(store, bot)
             if bot.config.mode is ExecutionMode.LIVE:
                 await self._live.consume(store, bot, confirmation_token, actor)
             bot.request_start()
@@ -276,6 +290,33 @@ class BotService:
             await store.audit.add(self._event("bot.start_requested", bot, {}, actor))
             await store.commit()
         return bot
+
+    @staticmethod
+    async def _check_perpetual_owner(store: BotStore, bot: Bot) -> None:
+        """Serialize starts by exchange connection, then enforce one active bot per contract.
+
+        The connection row is the transaction lock shared by every start using the same
+        account. This closes the race where two API requests both observe an unowned contract.
+        """
+        config = bot.config
+        if config.product is not TradingProduct.LINEAR_PERPETUAL:
+            return
+        if config.connection_id is None:
+            # Paper ledgers do not share exchange exposure. Exchange modes are validated by
+            # BotConfig and always carry a connection id.
+            return
+        locked = await store.connections.lock(config.connection_id)
+        if locked is None:
+            raise InvalidBotConnection("the exchange connection does not exist")
+        await BotService._check_connection(store, config)
+        owner = await store.bots.find_active_perpetual_owner(
+            config.connection_id, config.symbol, bot.id
+        )
+        if owner is not None:
+            raise ConflictError(
+                f"{config.exchange} {config.symbol} is already owned by active futures bot "
+                f"{owner.config.name!r}; stop and fully close it before starting another"
+            )
 
     async def live_readiness(self, bot_id: UUID) -> Readiness:
         _, readiness = await self._live.evaluate(bot_id)
@@ -314,6 +355,29 @@ class BotService:
         return await self._command(bot_id, "pause", Bot.request_pause, reason=reason, actor=actor)
 
     async def stop(self, bot_id: UUID, *, reason: str | None = None, actor: str = "api") -> Bot:
+        current = await self.get(bot_id)
+        if current.config.product is TradingProduct.LINEAR_PERPETUAL:
+            async with self._stores() as store:
+                bot = await self._get(store, bot_id)
+                if bot.config.connection_id is not None:
+                    await store.connections.lock(bot.config.connection_id)
+                ledger = await store.perpetual_portfolio.get(bot_id)
+                if ledger is not None and ledger.position is not None:
+                    raise ConflictError(
+                        "close the futures position before stopping the bot; the active bot "
+                        "must retain ownership of its exchange symbol"
+                    )
+                if ledger is not None and ledger.reserved_margin > 0:
+                    raise ConflictError("resolve pending futures orders before stopping the bot")
+                if await store.orders.count_unresolved(bot_id):
+                    raise ConflictError("resolve pending futures orders before stopping the bot")
+                bot.request_stop()
+                await store.bots.set_desired(bot_id, bot.desired_state)
+                payload = {"reason": reason.strip()} if reason and reason.strip() else {}
+                await store.audit.add(self._event("bot.stop_requested", bot, payload, actor))
+                await store.bots.set_live_approval(bot_id, None, None)
+                await store.commit()
+            return bot
         bot = await self._command(bot_id, "stop", Bot.request_stop, reason=reason, actor=actor)
         async with self._stores() as store:  # stopping ends the live approval, whatever the mode
             await store.bots.set_live_approval(bot_id, None, None)
@@ -331,6 +395,10 @@ class BotService:
             perpetual = await store.perpetual_portfolio.get(bot_id)
             if perpetual is not None and perpetual.position is not None:
                 raise ConflictError("close the open futures position before deleting the bot")
+            if perpetual is not None and perpetual.reserved_margin > 0:
+                raise ConflictError("resolve futures orders before deleting the bot")
+            if await store.orders.count_unresolved(bot_id):
+                raise ConflictError("resolve pending orders before deleting the bot")
             portfolio = await store.portfolio.get(bot_id)
             if portfolio is not None and portfolio.quantity > 0:
                 raise ConflictError("close the open position before deleting the bot")
@@ -354,9 +422,17 @@ class BotService:
         async with self._stores() as store:
             bot = await self._get(store, bot_id)
             bot.ensure_editable()
-            if bot.config.product is not TradingProduct.SPOT:
-                raise ConflictError("futures portfolio reset is not enabled yet")
-            await store.portfolio.reset(bot_id, bot.config.initial_capital)
+            if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
+                ledger = await store.perpetual_portfolio.get(bot_id)
+                if ledger is not None and ledger.position is not None:
+                    raise ConflictError("close the open futures position before resetting")
+                if ledger is not None and ledger.reserved_margin > 0:
+                    raise ConflictError("resolve futures orders before resetting the portfolio")
+                if await store.orders.count_unresolved(bot_id):
+                    raise ConflictError("resolve pending orders before resetting the portfolio")
+                await store.perpetual_portfolio.reset(bot_id, bot.config.initial_capital)
+            else:
+                await store.portfolio.reset(bot_id, bot.config.initial_capital)
             payload = {"reason": reason.strip()} if reason and reason.strip() else {}
             await store.audit.add(self._event("bot.portfolio_reset", bot, payload, actor))
             await store.commit()
@@ -380,8 +456,41 @@ class BotService:
     async def portfolio(self, bot_id: UUID) -> PortfolioView:
         async with self._stores() as store:
             bot = await self._get(store, bot_id)
-            if bot.config.product is not TradingProduct.SPOT:
-                raise ConflictError("futures portfolio view is not enabled yet")
+            if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
+                ledger = await store.perpetual_portfolio.get(bot_id) or PerpetualLedger.new(
+                    bot_id, bot.config.initial_capital
+                )
+                snapshots = await store.perpetual_portfolio.list_snapshots(bot_id, limit=1)
+                mark = snapshots[-1].mark_price if snapshots else ledger.mark_price
+                position = ledger.position
+                return PortfolioView(
+                    initial_capital=bot.config.initial_capital,
+                    cash=ledger.wallet_balance,
+                    quantity=position.quantity if position else Decimal(0),
+                    avg_entry_price=position.entry_price if position else Decimal(0),
+                    last_price=mark,
+                    equity=ledger.equity(mark) if mark is not None else ledger.wallet_balance,
+                    unrealized_pnl=(position.unrealized_pnl(mark)
+                                    if position is not None and mark is not None else Decimal(0)),
+                    realized_pnl=ledger.realized_pnl,
+                    fees_paid=ledger.fees_paid,
+                    stop_price=position.stop_price if position else None,
+                    take_profit_price=position.take_profit_price if position else None,
+                    reserved_cash=Decimal(0),
+                    native_stop_active=False,
+                    product=TradingProduct.LINEAR_PERPETUAL,
+                    position_side=position.side if position else None,
+                    leverage=position.leverage if position else bot.config.leverage,
+                    isolated_margin=position.isolated_margin if position else Decimal(0),
+                    reserved_margin=ledger.reserved_margin,
+                    liquidation_price=ledger.exchange_liquidation_price or (
+                        ledger.liquidation_estimate(ledger.maintenance_margin_rate)
+                        if position is not None and ledger.maintenance_margin_rate > 0
+                        else None
+                    ),
+                    funding_paid=ledger.funding_paid,
+                    funding_received=ledger.funding_received,
+                )
             state = await store.portfolio.get(bot_id) or PortfolioState.new(
                 bot_id, bot.config.initial_capital
             )
@@ -456,9 +565,14 @@ class BotService:
 
     async def equity_curve(self, bot_id: UUID, limit: int = 2000) -> list[EquityPoint]:
         async with self._stores() as store:
-            await self._get(store, bot_id)
-            snapshots = await store.portfolio.list_snapshots(bot_id, limit=limit)
-        return [EquityPoint(s.taken_at, s.equity) for s in snapshots]
+            bot = await self._get(store, bot_id)
+            if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
+                snapshots = await store.perpetual_portfolio.list_snapshots(
+                    bot_id, limit=limit
+                )
+                return [EquityPoint(s.taken_at, s.equity) for s in snapshots]
+            spot_snapshots = await store.portfolio.list_snapshots(bot_id, limit=limit)
+            return [EquityPoint(s.taken_at, s.equity) for s in spot_snapshots]
 
     async def _command(
         self,

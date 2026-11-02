@@ -4,6 +4,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "lost-ui/ui/sel
 import { CoinIcon } from "@/components/shared/market-data/coin-icon";
 import { useSupportedPairs } from "@/hooks/shared/use-supported-pairs";
 import { withCurrent } from "@/lib/shared/market-data/coins";
+import { TradingProduct } from "@/lib/shared/enums";
+import { useMarketCatalog } from "@/hooks/shared/use-market-catalog";
 
 type Props = {
   value: string;
@@ -12,6 +14,8 @@ type Props = {
   required?: boolean | undefined;
   errorMessage?: string | undefined;
   className?: string | undefined;
+  exchange?: string | undefined;
+  product?: string | undefined;
 };
 
 export function SymbolSelect({
@@ -21,14 +25,31 @@ export function SymbolSelect({
   required = false,
   errorMessage = "",
   className = "",
+  exchange = "binance",
+  product = TradingProduct.Spot,
 }: Props) {
   const pairs = useSupportedPairs();
+  const catalog = useMarketCatalog(exchange, product !== TradingProduct.Spot);
   const id = useId();
-  const items = withCurrent(pairs.data ?? [], value).map((pair) => ({
-    label: `${pair.base} · ${pair.name}`,
+  const available =
+    product === TradingProduct.Spot
+      ? (pairs.data ?? [])
+      : (catalog.data ?? [])
+          .filter((market) => market.product === TradingProduct.LinearPerpetual)
+          .map((market) => ({
+            symbol: market.symbol,
+            base: market.base ?? market.symbol.split("/")[0] ?? "",
+            quote: market.settlement ?? "USDT",
+            name: `${market.base ?? market.symbol.split("/")[0]} Perp`,
+          }));
+  const options = withCurrent(available, value).map((pair) => ({
+    label:
+      product === TradingProduct.Spot
+        ? `${pair.base} · ${pair.name}`
+        : `${pair.base} · perp (${pair.quote})`,
     value: pair.symbol,
   }));
-  const selected = items.find((item) => item.value === value);
+  const selected = options.find((item) => item.value === value);
   return (
     <FormField
       label={label}
@@ -52,7 +73,7 @@ export function SymbolSelect({
           </span>
         </SelectTrigger>
         <SelectContent>
-          {items.map((item) => (
+          {options.map((item) => (
             <SelectItem key={item.value} value={item.value}>
               <span className="flex items-center gap-2">
                 <CoinIcon symbol={item.value} size={20} />

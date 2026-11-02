@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func, or_, select, text, update
+from sqlalchemy import exists, func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,7 +9,10 @@ from modules.bots.application.ports import LiveApproval
 from modules.bots.domain.models import Bot, BotConfig, BotState, ExecutionMode
 from modules.bots.infrastructure.orm import BotRow, LiveApprovalRow
 from modules.exchanges.domain.models import MarginMode, TradingProduct
+from modules.execution.domain.orders import OrderStatus
+from modules.execution.infrastructure.orm import OrderRow
 from modules.market_data.domain.models import Timeframe
+from modules.portfolio.infrastructure.orm import PerpetualPortfolioRow
 from modules.risk_management.domain.models import DrawdownAction, RiskLimits
 
 
@@ -154,6 +157,53 @@ class SqlAlchemyBotRepository:
             .order_by(BotRow.created_at)
         )
         return [_to_bot(r) for r in result.scalars()]
+
+    async def find_active_perpetual_owner(
+        self, connection_id: UUID, symbol: str, exclude_bot_id: UUID
+    ) -> Bot | None:
+        open_exposure = exists(
+            select(1).where(
+                PerpetualPortfolioRow.bot_id == BotRow.id,
+                or_(
+                    PerpetualPortfolioRow.quantity > 0,
+                    PerpetualPortfolioRow.reserved_margin > 0,
+                ),
+            )
+        )
+        unresolved_orders = exists(
+            select(1).where(
+                OrderRow.bot_id == BotRow.id,
+                OrderRow.product == TradingProduct.LINEAR_PERPETUAL.value,
+                OrderRow.status.in_(
+                    [
+                        OrderStatus.INTENT.value,
+                        OrderStatus.SUBMITTING.value,
+                        OrderStatus.OPEN.value,
+                        OrderStatus.PARTIALLY_FILLED.value,
+                        OrderStatus.UNKNOWN.value,
+                    ]
+                ),
+            )
+        )
+        result = await self._session.execute(
+            select(BotRow)
+            .where(
+                BotRow.id != exclude_bot_id,
+                BotRow.exchange_connection_id == connection_id,
+                BotRow.symbol == symbol,
+                BotRow.product == TradingProduct.LINEAR_PERPETUAL.value,
+                or_(
+                    BotRow.desired_state != BotState.STOPPED.value,
+                    BotRow.observed_state != BotState.STOPPED.value,
+                    open_exposure,
+                    unresolved_orders,
+                ),
+            )
+            .order_by(BotRow.created_at)
+            .limit(1)
+        )
+        row = result.scalar_one_or_none()
+        return _to_bot(row) if row else None
 
     async def update_config(self, bot_id: UUID, config: BotConfig, config_version: int) -> bool:
         try:

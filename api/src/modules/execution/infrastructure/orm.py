@@ -2,7 +2,17 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Numeric, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base
@@ -15,6 +25,12 @@ class OrderRow(Base):
     __table_args__ = (
         UniqueConstraint("bot_id", "client_order_id"),
         CheckConstraint("filled_quantity >= 0 AND filled_quantity <= quantity", name="fill_bounds"),
+        CheckConstraint(
+            "(product = 'spot' AND position_side IS NULL AND leverage = 1 AND NOT reduce_only) "
+            "OR (product = 'linear_perpetual' AND position_side IN ('long','short') "
+            "AND leverage BETWEEN 1 AND 10)",
+            name="product_intent_valid",
+        ),
         Index("ix_orders_bot_id_created_at", "bot_id", "created_at"),
     )
 
@@ -34,6 +50,11 @@ class OrderRow(Base):
     stop_price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     reserved_cash: Mapped[Decimal] = mapped_column(MONEY, server_default="0")
     reserved_quantity: Mapped[Decimal] = mapped_column(MONEY, server_default="0")
+    reserved_margin: Mapped[Decimal] = mapped_column(MONEY, server_default="0")
+    product: Mapped[str] = mapped_column(Text, server_default="spot")
+    position_side: Mapped[str | None] = mapped_column(Text, nullable=True)
+    leverage: Mapped[int] = mapped_column(Integer, server_default="1")
+    reduce_only: Mapped[bool] = mapped_column(Boolean, server_default="false")
     planned_stop_price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     planned_take_profit_price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     bar_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))

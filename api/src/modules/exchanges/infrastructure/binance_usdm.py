@@ -161,11 +161,12 @@ class BinanceUsdmExchange(CcxtExchange):
                     raise ExchangeError("Binance USD-M returned an open position without a side")
                 raw_side = PositionSide.LONG.value if amount > 0 else PositionSide.SHORT.value
             raw_margin_mode = raw.get("marginMode")
-            margin_mode = (
-                MarginMode(raw_margin_mode)
-                if raw_margin_mode in {mode.value for mode in MarginMode}
-                else None
-            )
+            try:
+                margin_mode = MarginMode(raw_margin_mode) if raw_margin_mode is not None else None
+            except ValueError:
+                raise ExchangeError(
+                    "Binance USD-M returned an unknown position margin mode"
+                ) from None
             isolated_margin = (
                 _optional_decimal(info.get("isolatedWallet"))
                 if margin_mode is MarginMode.ISOLATED
@@ -294,7 +295,14 @@ class BinanceUsdmExchange(CcxtExchange):
             return super().stop_order_params(request)
         if not request.reduce_only or request.position_side is None:
             raise ExchangeRejected("Binance USD-M protective stops must reduce a position")
-        return {"reduceOnly": True, "workingType": "MARK_PRICE"}
+        # CCXT uses this flag to route conditional USD-M orders through Binance's
+        # current Algo Order API (POST /fapi/v1/algoOrder). Without it, a
+        # stopPrice is translated to the retired conditional-order endpoint.
+        return {
+            "reduceOnly": True,
+            "workingType": "MARK_PRICE",
+            "isAlgoOrder": True,
+        }
 
     def market_order_params(self, request: MarketOrderRequest) -> dict[str, Any]:
         return {"reduceOnly": True} if request.reduce_only else {}

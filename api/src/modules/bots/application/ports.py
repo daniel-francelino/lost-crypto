@@ -23,6 +23,12 @@ class BotRepository(Protocol):
         """Bots the worker must look at: anything not fully stopped, or asked to run."""
         ...
 
+    async def find_active_perpetual_owner(
+        self, connection_id: UUID, symbol: str, exclude_bot_id: UUID
+    ) -> Bot | None:
+        """Find another active or exposed futures bot owning this connection/symbol pair."""
+        ...
+
     async def update_config(self, bot_id: UUID, config: BotConfig, config_version: int) -> bool:
         """Persist a new configuration; False when the name collides with another bot."""
         ...

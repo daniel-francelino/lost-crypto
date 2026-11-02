@@ -25,6 +25,8 @@ class LinearPerpetualPosition:
     entry_price: Decimal
     leverage: int
     isolated_margin: Decimal
+    stop_price: Decimal | None = None
+    take_profit_price: Decimal | None = None
 
     def __post_init__(self) -> None:
         if self.quantity <= 0 or self.entry_price <= 0 or self.isolated_margin <= 0:
@@ -33,6 +35,22 @@ class LinearPerpetualPosition:
             raise InvalidPerpetualPosition(
                 f"leverage must be between 1x and {MAX_PERPETUAL_LEVERAGE}x"
             )
+        if self.stop_price is not None:
+            valid_stop = (
+                0 < self.stop_price < self.entry_price
+                if self.side is PositionSide.LONG
+                else self.stop_price > self.entry_price
+            )
+            if not valid_stop:
+                raise InvalidPerpetualPosition("stop price is on the wrong side of the entry")
+        if self.take_profit_price is not None:
+            valid_target = (
+                self.take_profit_price > self.entry_price
+                if self.side is PositionSide.LONG
+                else 0 < self.take_profit_price < self.entry_price
+            )
+            if not valid_target:
+                raise InvalidPerpetualPosition("take profit is on the wrong side of the entry")
 
     @property
     def notional(self) -> Decimal:
@@ -91,6 +109,7 @@ class PerpetualLedger:
     marked_at: datetime | None = None
     mark_source: str = "exchange_mark_price"
     maintenance_margin_rate: Decimal = Decimal(0)
+    stop_order_client_id: str | None = None
     exchange_position_id: str | None = None
     exchange_liquidation_price: Decimal | None = None
     reconciled_at: datetime | None = None
@@ -140,6 +159,8 @@ class PerpetualLedger:
         entry_price: Decimal,
         leverage: int,
         fee: Decimal = Decimal(0),
+        stop_price: Decimal | None = None,
+        take_profit_price: Decimal | None = None,
     ) -> LinearPerpetualPosition:
         if self.position is not None:
             raise InvalidPerpetualPosition("close the current position before opening another")
@@ -147,11 +168,57 @@ class PerpetualLedger:
         margin = notional / leverage
         if fee < 0 or margin + fee > self.available_balance:
             raise InvalidPerpetualPosition("insufficient collateral for margin and entry fee")
-        position = LinearPerpetualPosition(side, quantity, entry_price, leverage, margin)
+        position = LinearPerpetualPosition(
+            side,
+            quantity,
+            entry_price,
+            leverage,
+            margin,
+            stop_price,
+            take_profit_price,
+        )
         self.wallet_balance -= margin + fee
         self.fees_paid += fee
         self.position = position
         return position
+
+    def increase_position(
+        self,
+        side: PositionSide,
+        quantity: Decimal,
+        entry_price: Decimal,
+        leverage: int,
+        fee: Decimal = Decimal(0),
+    ) -> LinearPerpetualPosition:
+        """Add to an existing same-side position, preserving its leverage."""
+        current = self.position
+        if current is None:
+            return self.open_position(side, quantity, entry_price, leverage, fee)
+        if current.side is not side or current.leverage != leverage:
+            raise InvalidPerpetualPosition(
+                "cannot increase position with different side or leverage"
+            )
+        if quantity <= 0 or entry_price <= 0 or fee < 0:
+            raise InvalidPerpetualPosition("increase quantity, price, or fee is invalid")
+        added_margin = quantity * entry_price / leverage
+        if added_margin + fee > self.available_balance:
+            raise InvalidPerpetualPosition("insufficient collateral for added margin and fee")
+        total_quantity = current.quantity + quantity
+        average_entry = (
+            current.quantity * current.entry_price + quantity * entry_price
+        ) / total_quantity
+        self.wallet_balance -= added_margin + fee
+        self.fees_paid += fee
+        self.position = LinearPerpetualPosition(
+            side,
+            total_quantity,
+            average_entry,
+            leverage,
+            current.isolated_margin + added_margin,
+            current.stop_price,
+            current.take_profit_price,
+        )
+        return self.position
 
     def close_position(
         self, quantity: Decimal, exit_price: Decimal, fee: Decimal = Decimal(0)
@@ -178,34 +245,61 @@ class PerpetualLedger:
                 position.entry_price,
                 position.leverage,
                 position.isolated_margin - released_margin,
+                position.stop_price,
+                position.take_profit_price,
             )
         )
+        if self.position is None:
+            self.stop_order_client_id = None
         return realized
 
-    def apply_funding(self, mark_price: Decimal, funding_rate: Decimal) -> Decimal:
+    def apply_funding(
+        self,
+        mark_price: Decimal,
+        funding_rate: Decimal,
+        *,
+        liquidation_fee_rate: Decimal = Decimal(0),
+        cumulative_maintenance_amount: Decimal = Decimal(0),
+        check_maintenance_margin: bool = False,
+    ) -> Decimal:
         if self.position is None:
             return Decimal(0)
+        if not 0 <= liquidation_fee_rate < 1 or cumulative_maintenance_amount < 0:
+            raise InvalidPerpetualPosition("funding liquidation parameters are invalid")
         position = self.position
         payment = position.funding_pnl(mark_price, funding_rate)
         updated_margin = position.isolated_margin + payment
-        if updated_margin <= 0:
-            # Funding can exhaust isolated collateral. Settle at the event mark; any
-            # overrun remains a loss on this isolated position and never debits free wallet cash.
-            payout = max(Decimal(0), updated_margin + position.unrealized_pnl(mark_price))
-            self.wallet_balance += payout
-            self.realized_pnl += payout - position.isolated_margin
-            self.position = None
-        else:
-            self.position = replace(position, isolated_margin=updated_margin)
+        liquidation_fee = position.quantity * mark_price * liquidation_fee_rate
         if payment < 0:
             self.funding_paid -= payment
         else:
             self.funding_received += payment
+        if updated_margin <= 0:
+            # Settle only isolated collateral; funding plus close-out fees cannot debit the
+            # free wallet balance. The position is liquidated at the funding event mark.
+            payout = max(
+                Decimal(0), updated_margin + position.unrealized_pnl(mark_price) - liquidation_fee
+            )
+            self.wallet_balance += payout
+            self.realized_pnl += payout - position.isolated_margin
+            self.fees_paid += liquidation_fee
+            self.position = None
+            self.stop_order_client_id = None
+        else:
+            self.position = replace(position, isolated_margin=updated_margin)
+            if check_maintenance_margin and self.liquidation_breached(
+                mark_price,
+                self.maintenance_margin_rate,
+                cumulative_maintenance_amount,
+            ):
+                self.liquidate(mark_price, liquidation_fee)
         return payment
 
     def equity(self, mark_price: Decimal) -> Decimal:
         if self.position is None:
-            return self.wallet_balance + self.reserved_margin
+            # Reserved collateral is still part of wallet_balance; it is only unavailable
+            # for new orders and must not be counted as a second asset.
+            return self.wallet_balance
         return (
             self.wallet_balance
             + self.position.isolated_margin

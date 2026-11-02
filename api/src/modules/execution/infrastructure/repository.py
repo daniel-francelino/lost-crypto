@@ -5,6 +5,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from modules.exchanges.domain.models import PositionSide, TradingProduct
 from modules.execution.application.ports import SignalRecord
 from modules.execution.domain.orders import Fill, Order, OrderStatus
 from modules.execution.infrastructure.orm import OrderFillRow, OrderRow, TradingSignalRow
@@ -38,6 +39,10 @@ def _to_order(row: OrderRow, fills: Sequence[Fill] = ()) -> Order:
         bar_time=row.bar_time,
         created_at=row.created_at,
         status=OrderStatus(row.status),
+        product=TradingProduct(row.product),
+        position_side=PositionSide(row.position_side) if row.position_side else None,
+        leverage=row.leverage,
+        reduce_only=row.reduce_only,
         filled_quantity=row.filled_quantity,
         avg_fill_price=row.avg_fill_price,
         reject_reason=row.reject_reason,
@@ -47,6 +52,7 @@ def _to_order(row: OrderRow, fills: Sequence[Fill] = ()) -> Order:
         exchange_order_id=row.exchange_order_id,
         reserved_cash=row.reserved_cash,
         reserved_quantity=row.reserved_quantity,
+        reserved_margin=row.reserved_margin,
         planned_stop_price=row.planned_stop_price,
         planned_take_profit_price=row.planned_take_profit_price,
         reference_price=row.reference_price,
@@ -79,6 +85,11 @@ class SqlAlchemyOrderRepository:
                 stop_price=order.stop_price,
                 reserved_cash=order.reserved_cash,
                 reserved_quantity=order.reserved_quantity,
+                reserved_margin=order.reserved_margin,
+                product=order.product.value,
+                position_side=order.position_side.value if order.position_side else None,
+                leverage=order.leverage,
+                reduce_only=order.reduce_only,
                 planned_stop_price=order.planned_stop_price,
                 planned_take_profit_price=order.planned_take_profit_price,
                 bar_time=order.bar_time,
@@ -114,6 +125,7 @@ class SqlAlchemyOrderRepository:
                 exchange_order_id=order.exchange_order_id,
                 reserved_cash=order.reserved_cash,
                 reserved_quantity=order.reserved_quantity,
+                reserved_margin=order.reserved_margin,
                 submitted_at=order.submitted_at,
                 first_fill_at=order.first_fill_at,
             )

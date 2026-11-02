@@ -2922,6 +2922,12 @@ export interface components {
             /** Symbol */
             symbol: string;
             side: components["schemas"]["Side"];
+            product: components["schemas"]["TradingProduct"];
+            position_side: components["schemas"]["PositionSide"] | null;
+            /** Leverage */
+            leverage: number;
+            /** Reduce Only */
+            reduce_only: boolean;
             /** Quantity */
             quantity: string;
             status: components["schemas"]["OrderStatus"];
@@ -3149,6 +3155,36 @@ export interface components {
             reserved_cash: string;
             /** Native Stop Active */
             native_stop_active: boolean;
+            /** @default spot */
+            product: components["schemas"]["TradingProduct"];
+            position_side?: components["schemas"]["PositionSide"] | null;
+            /**
+             * Leverage
+             * @default 1
+             */
+            leverage: number;
+            /**
+             * Isolated Margin
+             * @default 0
+             */
+            isolated_margin: string;
+            /**
+             * Reserved Margin
+             * @default 0
+             */
+            reserved_margin: string;
+            /** Liquidation Price */
+            liquidation_price?: string | null;
+            /**
+             * Funding Paid
+             * @default 0
+             */
+            funding_paid: string;
+            /**
+             * Funding Received
+             * @default 0
+             */
+            funding_received: string;
         };
         /** PortfolioSummaryOut */
         PortfolioSummaryOut: {
@@ -3172,6 +3208,11 @@ export interface components {
             /** Return Pct */
             return_pct: string;
         };
+        /**
+         * PositionSide
+         * @enum {string}
+         */
+        PositionSide: "long" | "short";
         /** PromoteIn */
         PromoteIn: {
             /**

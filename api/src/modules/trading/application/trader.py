@@ -27,6 +27,7 @@ from modules.audit.models import AuditEvent
 from modules.bots.domain.models import Bot, BotState, ExecutionMode
 from modules.exchanges.application.ports import ExchangeGateway, MarketOrderRequest
 from modules.exchanges.application.registry import ExchangeRegistry
+from modules.exchanges.domain.models import PositionSide, TradingProduct
 from modules.exchanges.errors import ExchangeRejected
 from modules.execution.application.ports import SignalRecord
 from modules.execution.domain.fills import slipped_price
@@ -35,6 +36,11 @@ from modules.execution.venues.paper import PaperExchangeGateway, StaticPriceFeed
 from modules.market_data.domain.models import Candle, MarketInfo, floor_to_timeframe
 from modules.market_data.domain.quality import CandleProblem, candle_problems
 from modules.portfolio.domain.models import InsufficientFunds, PortfolioSnapshot, PortfolioState
+from modules.portfolio.domain.perpetual_ledger import (
+    PerpetualLedgerEntry,
+    PerpetualLedgerEventKind,
+)
+from modules.portfolio.domain.perpetuals import InvalidPerpetualPosition
 from modules.risk_management.domain.models import (
     DrawdownAction,
     GlobalExposure,
@@ -617,6 +623,39 @@ class BotTrader:
     ) -> None:
         """Phase 1: persist the order as SUBMITTING and reserve its capital (no network)."""
         cfg = bot.config
+        position_side: PositionSide | None = None
+        reduce_only = False
+        ledger = None
+        if cfg.product is TradingProduct.LINEAR_PERPETUAL:
+            ledger = await store.perpetual_portfolio.get(bot.id)
+            if ledger is None:
+                raise RuntimeError("perpetual portfolio has not been initialized")
+            position = ledger.position
+            if signal.kind is SignalKind.EXIT:
+                if position is None:
+                    logger.warning("ignoring futures exit without an open position for %s", bot.id)
+                    return
+                position_side = position.side
+                expected_side = Side.SELL if position.side is PositionSide.LONG else Side.BUY
+                if signal.side is not expected_side:
+                    logger.warning(
+                        "ignoring futures exit that would increase exposure for %s", bot.id
+                    )
+                    return
+                quantity = min(quantity, position.quantity)
+                reduce_only = True
+            else:
+                if position is not None:
+                    logger.warning(
+                        "ignoring futures entry while a position is already open for %s", bot.id
+                    )
+                    return
+                position_side = (
+                    PositionSide.LONG if signal.side is Side.BUY else PositionSide.SHORT
+                )
+                if position_side is PositionSide.SHORT and not cfg.allow_short:
+                    logger.warning("ignoring short entry while shorting is disabled for %s", bot.id)
+                    return
         order = Order(
             id=self._ids.new_id(),
             bot_id=bot.id,
@@ -627,25 +666,49 @@ class BotTrader:
             quantity=quantity,
             bar_time=candle.open_time,
             created_at=now,
-            planned_stop_price=signal.stop_loss if signal.side is Side.BUY else None,
-            planned_take_profit_price=signal.take_profit if signal.side is Side.BUY else None,
+            product=cfg.product,
+            position_side=position_side,
+            leverage=cfg.leverage,
+            reduce_only=reduce_only,
+            planned_stop_price=(
+                signal.stop_loss if signal.kind is SignalKind.ENTRY else None
+            ),
+            planned_take_profit_price=(
+                signal.take_profit if signal.kind is SignalKind.ENTRY else None
+            ),
             reference_price=reference_price,
         )
         try:
-            OrderExecutor.reserve(
-                order,
-                portfolio,
-                slipped_price(signal.side, reference_price, slippage_bps),
-                cfg.fee_rate,
-            )
-        except InsufficientFunds as exc:
+            reserve_price = slipped_price(signal.side, reference_price, slippage_bps)
+            if cfg.product is TradingProduct.LINEAR_PERPETUAL:
+                assert ledger is not None
+                OrderExecutor.reserve_perpetual(order, ledger, reserve_price, cfg.fee_rate)
+            else:
+                OrderExecutor.reserve(order, portfolio, reserve_price, cfg.fee_rate)
+        except (InsufficientFunds, InvalidPerpetualPosition, ValueError) as exc:
             logger.warning("order %s not created: %s", order.client_order_id, exc)
             return
         order.submit()
         if not await store.orders.add_if_absent(order):
-            portfolio.release(order.reserved_cash, order.reserved_quantity)
+            if cfg.product is TradingProduct.SPOT:
+                portfolio.release(order.reserved_cash, order.reserved_quantity)
             logger.warning("duplicate order %s ignored", order.client_order_id)
             return
+        if ledger is not None and order.reserved_margin:
+            inserted = await store.perpetual_portfolio.append_entry(
+                PerpetualLedgerEntry(
+                    id=self._ids.new_id(),
+                    bot_id=bot.id,
+                    occurred_at=now,
+                    kind=PerpetualLedgerEventKind.MARGIN_RESERVED,
+                    reserved_margin_delta=order.reserved_margin,
+                    source="worker_order_intent",
+                    external_reference=f"order:{order.client_order_id}:margin-reserve",
+                )
+            )
+            if not inserted:
+                raise RuntimeError("duplicate perpetual margin reservation event")
+            await store.perpetual_portfolio.save(ledger)
         self._pending.append(order.id)
         await store.audit.add(
             AuditEvent(
@@ -658,6 +721,10 @@ class BotTrader:
                     "client_order_id": order.client_order_id,
                     "side": order.side.value,
                     "quantity": str(order.quantity),
+                    "product": order.product.value,
+                    "position_side": order.position_side.value if order.position_side else None,
+                    "leverage": order.leverage,
+                    "reduce_only": order.reduce_only,
                 },
             )
         )

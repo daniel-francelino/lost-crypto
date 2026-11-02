@@ -6,6 +6,7 @@ from enum import StrEnum
 from uuid import UUID
 
 from core.errors import ConflictError
+from modules.exchanges.domain.models import MAX_PERPETUAL_LEVERAGE, PositionSide, TradingProduct
 from modules.strategies.domain.types import Side
 
 
@@ -101,6 +102,10 @@ class Order:
     quantity: Decimal
     bar_time: datetime
     created_at: datetime
+    product: TradingProduct = TradingProduct.SPOT
+    position_side: PositionSide | None = None
+    leverage: int = 1
+    reduce_only: bool = False
     status: OrderStatus = OrderStatus.INTENT
     filled_quantity: Decimal = Decimal(0)
     avg_fill_price: Decimal | None = None
@@ -112,6 +117,7 @@ class Order:
     # Capital held while the order is in flight (released when it reaches a final state).
     reserved_cash: Decimal = Decimal(0)
     reserved_quantity: Decimal = Decimal(0)
+    reserved_margin: Decimal = Decimal(0)
     # Protective levels of the position this BUY opens, applied once it fills.
     planned_stop_price: Decimal | None = None
     planned_take_profit_price: Decimal | None = None
@@ -120,6 +126,28 @@ class Order:
     reference_price: Decimal | None = None
     submitted_at: datetime | None = None
     first_fill_at: datetime | None = None
+
+    def __post_init__(self) -> None:
+        if self.quantity <= 0:
+            raise ValueError("order quantity must be positive")
+        if self.product is TradingProduct.SPOT:
+            if self.position_side is not None or self.leverage != 1 or self.reduce_only:
+                raise ValueError("spot orders cannot contain futures position controls")
+            return
+        if self.position_side is None:
+            raise ValueError("perpetual orders must identify their position side")
+        if not 1 <= self.leverage <= MAX_PERPETUAL_LEVERAGE:
+            raise ValueError(
+                f"perpetual order leverage must be between 1x and {MAX_PERPETUAL_LEVERAGE}x"
+            )
+        expected_side = (
+            (Side.SELL if self.position_side is PositionSide.LONG else Side.BUY)
+            if self.reduce_only
+            else (Side.BUY if self.position_side is PositionSide.LONG else Side.SELL)
+        )
+        if self.side is not expected_side:
+            action = "reduce" if self.reduce_only else "open"
+            raise ValueError(f"{self.side.value} cannot {action} a {self.position_side.value}")
 
     @property
     def is_final(self) -> bool:

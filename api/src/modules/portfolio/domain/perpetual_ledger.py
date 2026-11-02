@@ -12,7 +12,9 @@ from modules.exchanges.domain.models import PositionSide
 class PerpetualLedgerEventKind(StrEnum):
     COLLATERAL_ADDED = "collateral_added"
     MARGIN_RESERVED = "margin_reserved"
+    MARGIN_RELEASED = "margin_released"
     POSITION_OPENED = "position_opened"
+    POSITION_INCREASED = "position_increased"
     POSITION_REDUCED = "position_reduced"
     FUNDING_SETTLED = "funding_settled"
     FEE_CHARGED = "fee_charged"
@@ -30,6 +32,7 @@ class PerpetualLedgerEntry:
     kind: PerpetualLedgerEventKind
     wallet_delta: Decimal = Decimal(0)
     isolated_margin_delta: Decimal = Decimal(0)
+    reserved_margin_delta: Decimal = Decimal(0)
     realized_pnl_delta: Decimal = Decimal(0)
     fee: Decimal = Decimal(0)
     funding: Decimal = Decimal(0)  # positive = received, negative = paid
@@ -42,6 +45,16 @@ class PerpetualLedgerEntry:
     def __post_init__(self) -> None:
         if self.occurred_at.tzinfo is None:
             raise ValueError("perpetual ledger event time must be timezone-aware")
+        if (
+            self.kind is PerpetualLedgerEventKind.MARGIN_RESERVED
+            and self.reserved_margin_delta <= 0
+        ):
+            raise ValueError("margin reservation events require a positive reserved delta")
+        if (
+            self.kind is PerpetualLedgerEventKind.MARGIN_RELEASED
+            and self.reserved_margin_delta >= 0
+        ):
+            raise ValueError("margin release events require a negative reserved delta")
         if self.fee < 0 or (self.quantity is not None and self.quantity <= 0):
             raise ValueError("ledger fee or quantity is invalid")
         if self.price is not None and self.price <= 0:

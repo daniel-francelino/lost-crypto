@@ -6,7 +6,7 @@ import { FormSwitch } from "lost-ui/forms/form-switch";
 import { Card, CardContent, CardDescription, CardHeader } from "lost-ui/ui/card";
 import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-card-title";
 import type { BacktestFormValues, RiskValues } from "@/lib/backtests/form";
-import { FillTiming } from "@/lib/shared/enums";
+import { FillTiming, TradingProduct } from "@/lib/shared/enums";
 import { decimalError, integerError } from "@/lib/shared/validators";
 
 const TIMINGS = [
@@ -20,6 +20,7 @@ type Field = {
   integer?: boolean;
   money?: boolean;
   hint?: string;
+  futuresOnly?: boolean;
 };
 
 const quoteCurrency = (symbol: string): string | undefined => {
@@ -34,6 +35,12 @@ const FIELDS: Field[] = [
   { key: "maxDrawdownPct", label: "Drawdown máximo (%)" },
   { key: "maxConsecutiveLosses", label: "Perdas consecutivas máximas", integer: true },
   { key: "maxRiskPerTradePct", label: "Risco máximo por operação (%)" },
+  {
+    key: "minLiquidationDistancePct",
+    label: "Buffer mínimo até liquidação (%)",
+    hint: "Recusa entradas se a liquidação estimada ficar mais perto que este percentual do preço de entrada.",
+    futuresOnly: true,
+  },
   { key: "maxCandleRangePct", label: "Amplitude máxima do candle (%)" },
   {
     key: "maxOrderPctOfVolume",
@@ -80,7 +87,9 @@ export function BotLikeCard({ values, onChange }: BotLikeCardProps) {
         />
         {values.riskEnabled ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {FIELDS.map((field) => {
+            {FIELDS.filter(
+              (field) => !field.futuresOnly || values.product === TradingProduct.LinearPerpetual,
+            ).map((field) => {
               const common = {
                 label: field.label,
                 description: field.hint ?? "Vazio desliga.",

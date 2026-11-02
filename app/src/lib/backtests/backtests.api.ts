@@ -172,7 +172,12 @@ export const backtestSchema = z.object({
   strategy_type: z.string(),
   strategy_params: z.record(z.string(), z.unknown()),
   exchange: z.string(),
+  connection_id: z.string().nullable().optional(),
   symbol: z.string(),
+  product: z.string().optional(),
+  leverage: z.number().optional(),
+  margin_mode: z.string().nullable().optional(),
+  allow_short: z.boolean().optional(),
   timeframe: z.string(),
   start: z.string(),
   end: z.string(),
@@ -272,6 +277,11 @@ export type Sweep = z.infer<typeof sweepSchema>;
 
 export type BacktestInput = {
   exchange: string;
+  connection_id: string | null;
+  product: string;
+  leverage: number;
+  margin_mode: string | null;
+  allow_short: boolean;
   strategy_type: string;
   strategy_params: Record<string, number>;
   symbol: string;

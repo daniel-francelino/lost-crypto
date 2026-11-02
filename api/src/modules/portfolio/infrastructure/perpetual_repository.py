@@ -45,6 +45,8 @@ class SqlAlchemyPerpetualPortfolioRepository:
                 entry_price=row.entry_price,
                 leverage=row.leverage,
                 isolated_margin=row.isolated_margin,
+                stop_price=row.stop_price,
+                take_profit_price=row.take_profit_price,
             )
             if row.position_side is not None
             else None
@@ -62,6 +64,7 @@ class SqlAlchemyPerpetualPortfolioRepository:
             marked_at=row.marked_at,
             mark_source=row.mark_source,
             maintenance_margin_rate=row.maintenance_margin_rate,
+            stop_order_client_id=row.stop_order_client_id,
             exchange_position_id=row.exchange_position_id,
             exchange_liquidation_price=row.exchange_liquidation_price,
             reconciled_at=row.reconciled_at,
@@ -81,10 +84,13 @@ class SqlAlchemyPerpetualPortfolioRepository:
             "entry_price": position.entry_price if position else Decimal(0),
             "leverage": position.leverage if position else 1,
             "isolated_margin": position.isolated_margin if position else Decimal(0),
+            "stop_price": position.stop_price if position else None,
+            "take_profit_price": position.take_profit_price if position else None,
             "mark_price": ledger.mark_price,
             "marked_at": ledger.marked_at,
             "mark_source": ledger.mark_source,
             "maintenance_margin_rate": ledger.maintenance_margin_rate,
+            "stop_order_client_id": ledger.stop_order_client_id,
             "exchange_position_id": ledger.exchange_position_id,
             "exchange_liquidation_price": ledger.exchange_liquidation_price,
             "reconciled_at": ledger.reconciled_at,
@@ -104,6 +110,7 @@ class SqlAlchemyPerpetualPortfolioRepository:
                 kind=entry.kind.value,
                 wallet_delta=entry.wallet_delta,
                 isolated_margin_delta=entry.isolated_margin_delta,
+                reserved_margin_delta=entry.reserved_margin_delta,
                 realized_pnl_delta=entry.realized_pnl_delta,
                 fee=entry.fee,
                 funding=entry.funding,
@@ -117,6 +124,15 @@ class SqlAlchemyPerpetualPortfolioRepository:
             .returning(PerpetualLedgerEntryRow.id)
         )
         result = await self._session.execute(statement)
+        return result.scalar_one_or_none() is not None
+
+    async def has_entry(self, bot_id: UUID, external_reference: str) -> bool:
+        result = await self._session.execute(
+            select(PerpetualLedgerEntryRow.id).where(
+                PerpetualLedgerEntryRow.bot_id == bot_id,
+                PerpetualLedgerEntryRow.external_reference == external_reference,
+            )
+        )
         return result.scalar_one_or_none() is not None
 
     async def list_entries(
@@ -137,6 +153,7 @@ class SqlAlchemyPerpetualPortfolioRepository:
                 kind=PerpetualLedgerEventKind(row.kind),
                 wallet_delta=row.wallet_delta,
                 isolated_margin_delta=row.isolated_margin_delta,
+                reserved_margin_delta=row.reserved_margin_delta,
                 realized_pnl_delta=row.realized_pnl_delta,
                 fee=row.fee,
                 funding=row.funding,

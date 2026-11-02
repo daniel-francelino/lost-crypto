@@ -29,18 +29,16 @@ from modules.execution.domain.orders import Fill
 from modules.market_data.domain.models import Candle, FundingRate, MarketInfo
 from modules.portfolio.domain.perpetuals import (
     InvalidPerpetualPosition,
-    LinearPerpetualPosition,
     PerpetualLedger,
 )
 from modules.risk_management.domain.models import (
     RiskLimits,
     average_quote_volume,
-    candle_range_pct,
-    close_jump_pct,
     consecutive_losses_breached,
     daily_loss_breached,
     drawdown_breached,
 )
+from modules.risk_management.domain.perpetual import size_linear_perpetual_entry
 from modules.strategies.domain.base import Strategy
 from modules.strategies.domain.types import Side, Signal, SignalKind, StrategyContext
 
@@ -103,105 +101,25 @@ class _PerpetualRiskGuard:
         if self.paused is not None:
             raise OrderRejected(f"bot paused: {self.paused[1]}")
         limits = self.limits
-        if limits.max_candle_range_pct is not None:
-            range_pct = candle_range_pct(candle.high, candle.low)
-            if range_pct > limits.max_candle_range_pct:
-                raise OrderRejected(
-                    f"candle range {range_pct:.1f}% exceeds "
-                    f"{limits.max_candle_range_pct}% (suspect data)"
-                )
         prior_close = (
             self._previous_close if self._last_open_time == candle.open_time else self._last_close
         )
-        jump = close_jump_pct(candle.close, prior_close)
-        if (
-            limits.max_close_jump_pct is not None
-            and jump is not None
-            and jump > limits.max_close_jump_pct
-        ):
-            raise OrderRejected(
-                f"close moved {jump:.1f}% from the previous close, above "
-                f"{limits.max_close_jump_pct}% (suspect data)"
-            )
-        if limits.require_stop_loss and signal.stop_loss is None:
-            raise OrderRejected("a stop-loss is required but the signal has none")
-
-        side = PositionSide.LONG if signal.side is Side.BUY else PositionSide.SHORT
-        if signal.stop_loss is not None:
-            valid_stop = (
-                signal.stop_loss < reference
-                if side is PositionSide.LONG
-                else signal.stop_loss > reference
-            )
-            if not valid_stop:
-                raise OrderRejected("stop-loss is on the wrong side of the entry")
-        entry = reference * (
-            1 + slippage_bps / Decimal(10_000)
-            if signal.side is Side.BUY
-            else 1 - slippage_bps / Decimal(10_000)
-        )
         equity = ledger.equity(reference)
-        collateral_budget = min(ledger.available_balance, equity * limits.max_position_fraction)
-        max_notional = (
-            collateral_budget
-            * self.config.leverage
-            / (1 + self.config.fee_rate * self.config.leverage)
+        return size_linear_perpetual_entry(
+            signal,
+            equity=equity,
+            available_collateral=ledger.available_balance,
+            reference_price=reference,
+            leverage=self.config.leverage,
+            fee_rate=self.config.fee_rate,
+            slippage_bps=slippage_bps,
+            limits=limits,
+            candle=candle,
+            average_quote_volume=average_quote_volume(self._volumes),
+            leverage_tiers=self.config.leverage_tiers,
+            allow_short=self.config.allow_short,
+            previous_close=prior_close,
         )
-        if limits.max_order_notional is not None:
-            max_notional = min(max_notional, limits.max_order_notional)
-        average_volume = average_quote_volume(self._volumes)
-        if limits.max_order_pct_of_volume is not None and average_volume is not None:
-            max_notional = min(
-                max_notional, average_volume * limits.max_order_pct_of_volume / Decimal(100)
-            )
-        if max_notional <= 0:
-            raise OrderRejected("no collateral remains for a new position")
-        quantity = max_notional / entry
-
-        if limits.max_risk_per_trade_pct is not None:
-            if signal.stop_loss is None:
-                raise OrderRejected("risk-per-trade sizing requires a stop-loss")
-            distance = abs(entry - signal.stop_loss)
-            round_trip_fees = (entry + signal.stop_loss) * self.config.fee_rate
-            per_unit_risk = distance + round_trip_fees
-            if per_unit_risk <= 0:
-                raise OrderRejected("stop-loss risk distance must be positive")
-            risk_budget = equity * limits.max_risk_per_trade_pct / Decimal(100)
-            quantity = min(quantity, risk_budget / per_unit_risk)
-
-        if limits.min_liquidation_distance_pct is not None:
-            notional = quantity * entry
-            tier = next(
-                (
-                    item
-                    for item in self.config.leverage_tiers
-                    if item.min_notional <= notional < item.max_notional
-                ),
-                None,
-            )
-            if tier is None or tier.max_leverage < self.config.leverage:
-                raise OrderRejected("no supported leverage tier covers the sized position")
-            position = LinearPerpetualPosition(
-                side,
-                quantity,
-                entry,
-                self.config.leverage,
-                notional / self.config.leverage,
-            )
-            liquidation_price = position.estimated_liquidation_price(
-                tier.maintenance_margin_rate, tier.cumulative_maintenance_amount
-            )
-            distance_pct = (
-                (entry - liquidation_price) / entry * Decimal(100)
-                if side is PositionSide.LONG
-                else (liquidation_price - entry) / entry * Decimal(100)
-            )
-            if distance_pct < limits.min_liquidation_distance_pct:
-                raise OrderRejected(
-                    f"estimated liquidation buffer {distance_pct:.2f}% is below configured "
-                    f"{limits.min_liquidation_distance_pct}%"
-                )
-        return quantity
 
     def after_mark(self, equity: Decimal, at: datetime) -> None:
         day = at.date()
@@ -259,7 +177,7 @@ def run_perpetual_backtest(
 
     ordered_funding = sorted(funding_rates, key=lambda item: item.funding_time)
     if any(
-        item.funding_time <= mark_candles[0].open_time
+        item.funding_time < mark_candles[0].open_time
         or item.funding_time > mark_candles[-1].close_time
         for item in ordered_funding
     ):
@@ -325,7 +243,13 @@ def run_perpetual_backtest(
                     signal.side, wanted, reference, config.fee_rate, slippage, market, at
                 )
                 ledger.open_position(
-                    side, executed.quantity, executed.price, config.leverage, executed.fee
+                    side,
+                    executed.quantity,
+                    executed.price,
+                    config.leverage,
+                    executed.fee,
+                    signal.stop_loss,
+                    signal.take_profit,
                 )
                 active_tier = tier_for(executed.notional)
                 if active_tier.max_leverage < config.leverage:
@@ -386,11 +310,36 @@ def run_perpetual_backtest(
             and ordered_funding[funding_index].funding_time <= mark.close_time
         ):
             event = ordered_funding[funding_index]
-            if event.funding_time > mark.open_time and ledger.position is not None:
+            if event.funding_time >= mark.open_time and ledger.position is not None:
                 assert event.mark_price is not None
-                ledger.apply_funding(event.mark_price, event.rate)
+                before_funding = ledger.position
+                funding_tier = tier_for(before_funding.quantity * event.mark_price)
+                ledger.maintenance_margin_rate = funding_tier.maintenance_margin_rate
+                ledger.apply_funding(
+                    event.mark_price,
+                    event.rate,
+                    liquidation_fee_rate=liquidation_fee_rate,
+                    cumulative_maintenance_amount=funding_tier.cumulative_maintenance_amount,
+                    check_maintenance_margin=True,
+                )
                 if ledger.position is None:
                     liquidation_times.append(event.funding_time.isoformat())
+                    fills.append(
+                        Fill(
+                            time=event.funding_time,
+                            side=(
+                                Side.SELL
+                                if before_funding.side is PositionSide.LONG
+                                else Side.BUY
+                            ),
+                            quantity=before_funding.quantity,
+                            price=event.mark_price,
+                            fee=before_funding.quantity * event.mark_price * liquidation_fee_rate,
+                        )
+                    )
+                    if guard is not None:
+                        guard.after_exit(fills, event.funding_time)
+                    stop_price = take_profit_price = None
             funding_index += 1
 
         position = ledger.position

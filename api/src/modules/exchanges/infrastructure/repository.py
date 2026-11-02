@@ -63,6 +63,15 @@ class SqlAlchemyConnectionRepository:
         row = await self._session.get(ExchangeConnectionRow, connection_id)
         return _to_connection(row) if row else None
 
+    async def lock(self, connection_id: UUID) -> ExchangeConnection | None:
+        result = await self._session.execute(
+            select(ExchangeConnectionRow)
+            .where(ExchangeConnectionRow.id == connection_id)
+            .with_for_update()
+        )
+        row = result.scalar_one_or_none()
+        return _to_connection(row) if row else None
+
     async def get_sealed(self, connection_id: UUID) -> bytes | None:
         result = await self._session.execute(
             select(ExchangeConnectionRow.credentials_encrypted).where(

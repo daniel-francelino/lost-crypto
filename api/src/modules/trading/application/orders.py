@@ -18,7 +18,7 @@ import asyncio
 import logging
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager, suppress
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -30,6 +30,7 @@ from modules.bots.domain.models import Bot, BotState, ExecutionMode
 from modules.exchanges.application.connections import ConnectionResolver
 from modules.exchanges.application.exchange import Exchange
 from modules.exchanges.application.ports import MarketOrderRequest, StopOrderRequest, VenueOrder
+from modules.exchanges.domain.models import MarginMode, PositionSide, TradingProduct
 from modules.exchanges.errors import (
     AuthenticationFailed,
     ExchangeRejected,
@@ -45,6 +46,8 @@ from modules.execution.domain.orders import (
     make_stop_client_order_id,
 )
 from modules.portfolio.domain.models import PortfolioState
+from modules.portfolio.domain.perpetual_ledger import PerpetualLedgerEntry, PerpetualLedgerEventKind
+from modules.portfolio.domain.perpetuals import PerpetualLedger
 from modules.risk_management.domain.models import LiveLimits, consecutive_losses_breached
 from modules.strategies.domain.types import Side
 from modules.trading.application.ports import TradingStore
@@ -83,6 +86,25 @@ class OrderExecutor:
             order.reserved_quantity = order.quantity
             portfolio.reserve(quantity=order.quantity)
 
+    @staticmethod
+    def reserve_perpetual(
+        order: Order, ledger: PerpetualLedger, price: Decimal, fee_rate: Decimal
+    ) -> None:
+        """Reserve isolated collateral for an opening perpetual order before submission."""
+        if order.product is not TradingProduct.LINEAR_PERPETUAL:
+            raise ValueError("perpetual reservation requires a perpetual order and ledger")
+        if order.reserved_margin:
+            raise ValueError("order already has a perpetual margin reservation")
+        if order.reduce_only:
+            if ledger.position is None or order.quantity > ledger.position.quantity:
+                raise ValueError("reduce-only order exceeds the open perpetual position")
+            return
+        if price <= 0 or fee_rate < 0:
+            raise ValueError("reservation price and fee rate are invalid")
+        order.reserved_margin = order.quantity * price / order.leverage
+        order.reserved_margin += order.quantity * price * fee_rate
+        ledger.reserve(order.reserved_margin)
+
     # --- phase 2 -----------------------------------------------------------------------------
 
     async def submit(self, bot: Bot, order_id: UUID) -> None:
@@ -95,31 +117,61 @@ class OrderExecutor:
         async with self._stores() as store:
             order = await store.orders.get(order_id)
             portfolio = await store.portfolio.get(bot.id)
+            perpetual = await store.perpetual_portfolio.get(bot.id)
         if order is None or order.status is not OrderStatus.SUBMITTING:
             return
 
         # Independent of how the order came to be: no live entry may exceed the hard cap.
         cap = self._live_limits.max_order_notional
+        opening_order = (
+            not order.reduce_only
+            if order.product is TradingProduct.LINEAR_PERPETUAL
+            else order.side is Side.BUY
+        )
+        reserved_notional = (
+            order.quantity * (order.reference_price or Decimal(0))
+            if order.product is TradingProduct.LINEAR_PERPETUAL
+            else order.reserved_cash
+        )
         if (
             bot.config.mode is ExecutionMode.LIVE
-            and order.side is Side.BUY
-            and (cap is None or order.reserved_cash > cap * Decimal("1.02"))
+            and opening_order
+            and (cap is None or reserved_notional > cap * Decimal("1.02"))
         ):
             await self._reject(bot, order_id, "exceeds the live per-order hard cap")
             return
 
-        stop_cid = portfolio.stop_order_client_id if portfolio is not None else None
-        # The resting stop locks the coins: take it off first (or learn it already fired).
+        stop_cid = (
+            portfolio.stop_order_client_id
+            if order.product is TradingProduct.SPOT and portfolio is not None
+            else (
+                perpetual.stop_order_client_id
+                if order.product is TradingProduct.LINEAR_PERPETUAL and perpetual is not None
+                else None
+            )
+        )
+        # Cancel the resting protective order before a manual close to avoid competing exits.
         if (
-            order.side is Side.SELL
+            (order.side is Side.SELL if order.product is TradingProduct.SPOT else order.reduce_only)
             and stop_cid
+            and order.order_type != "stop_loss"
             and await self._cancel_native_stop(bot, exchange, stop_cid)
         ):
             await self._reject(bot, order_id, "position already closed by the protective stop")
+            if order.product is TradingProduct.LINEAR_PERPETUAL:
+                await self.ensure_native_stop(bot, order.client_order_id)
             return
 
         request = MarketOrderRequest(
-            order.client_order_id, order.symbol, order.side, order.quantity
+            order.client_order_id,
+            order.symbol,
+            order.side,
+            order.quantity,
+            product=order.product,
+            position_side=order.position_side,
+            leverage=order.leverage,
+            margin_mode=bot.config.margin_mode or MarginMode.ISOLATED,
+            reduce_only=order.reduce_only,
         )
         order.submitted_at = self._clock.now()
         async with self._stores() as store:  # when it really left for the exchange
@@ -142,7 +194,10 @@ class OrderExecutor:
             await self._mark_unknown(bot, order_id, f"{type(exc).__name__}: {exc}")
         else:
             await self._apply(bot, order_id, venue)
-            if order.side is Side.BUY and venue.fills:
+            if venue.fills and (
+                order.product is TradingProduct.LINEAR_PERPETUAL
+                or (order.product is TradingProduct.SPOT and order.side is Side.BUY)
+            ):
                 await self.ensure_native_stop(bot, order.client_order_id)
 
     async def resolve(self, bot: Bot, order: Order) -> None:
@@ -151,7 +206,10 @@ class OrderExecutor:
         venue = await exchange.fetch_order(order.symbol, order.client_order_id)
         if venue is not None:
             await self._apply(bot, order.id, venue)
-            if order.side is Side.BUY and venue.fills:
+            if venue.fills and (
+                order.product is TradingProduct.LINEAR_PERPETUAL
+                or (order.product is TradingProduct.SPOT and order.side is Side.BUY)
+            ):
                 await self.ensure_native_stop(bot, order.client_order_id)
         elif self._clock.now() - order.created_at >= self._absent_after:
             await self._reject(
@@ -163,50 +221,108 @@ class OrderExecutor:
     async def ensure_native_stop(self, bot: Bot, entry_client_order_id: str) -> None:
         """Rest the position's stop-loss on the exchange when it supports that.
 
-        Failing to place it is not fatal: the bot keeps monitoring the stop itself.
+        Futures cannot fall back to a local-only stop on a worker outage; missing native-stop
+        support pauses the bot while leaving the position visible for operator intervention.
         """
         exchange = await self._exchange(bot)
         if not exchange.capabilities.native_stop_orders:
+            if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
+                async with self._stores() as store:
+                    await self._pause(
+                        store,
+                        bot,
+                        "risk.futures_stop_unavailable",
+                        "exchange does not support native futures stops",
+                    )
+                    await store.commit()
             return
         symbol = bot.config.symbol
-        market = await exchange.fetch_market_info(symbol)
+        try:
+            market = await exchange.fetch_market_info(symbol)
+        except Exception as exc:
+            if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
+                async with self._stores() as store:
+                    await self._pause(
+                        store,
+                        bot,
+                        "risk.futures_stop_placement_failed",
+                        f"could not load market rules for the futures stop: {exc}",
+                    )
+                    await store.commit()
+                return
+            raise
         async with self._stores() as store:
-            portfolio = await store.portfolio.get(bot.id)
-            if (
-                portfolio is None
-                or portfolio.quantity <= 0
-                or portfolio.stop_price is None
-                or portfolio.stop_order_client_id is not None
-            ):
+            futures = bot.config.product is TradingProduct.LINEAR_PERPETUAL
+            portfolio = None if futures else await store.portfolio.get(bot.id)
+            ledger = await store.perpetual_portfolio.get(bot.id) if futures else None
+            position = ledger.position if ledger is not None else None
+            quantity_value = position.quantity if position else (
+                portfolio.quantity if portfolio is not None else Decimal(0)
+            )
+            stop_price = position.stop_price if position else (
+                portfolio.stop_price if portfolio is not None else None
+            )
+            existing_stop = ledger.stop_order_client_id if ledger is not None else (
+                portfolio.stop_order_client_id if portfolio is not None else None
+            )
+            if quantity_value <= 0 or stop_price is None or existing_stop is not None:
                 return
             try:
-                quantity = normalize_quantity(portfolio.quantity, portfolio.stop_price, market)
+                quantity = normalize_quantity(quantity_value, stop_price, market)
             except OrderRejected as exc:
                 await self._audit(store, bot, "stop.placement_failed", {"reason": str(exc)})
+                if futures:
+                    await self._pause(
+                        store,
+                        bot,
+                        "risk.futures_stop_placement_failed",
+                        "futures protective stop violates market quantity rules",
+                    )
                 await store.commit()
                 return
+            if futures:
+                if position is None:
+                    raise RuntimeError("perpetual position disappeared while placing its stop")
+                stop_side = Side.SELL if position.side is PositionSide.LONG else Side.BUY
+            else:
+                stop_side = Side.SELL
             stop = Order(
                 id=self._ids.new_id(),
                 bot_id=bot.id,
                 session_id=(await self._session_id(store, bot)),
                 client_order_id=make_stop_client_order_id(entry_client_order_id),
                 symbol=symbol,
-                side=Side.SELL,
+                side=stop_side,
                 quantity=quantity,
                 bar_time=self._clock.now(),
                 created_at=self._clock.now(),
+                product=bot.config.product,
+                position_side=position.side if position is not None else None,
+                leverage=position.leverage if position is not None else 1,
+                reduce_only=futures,
                 order_type="stop_loss",
-                stop_price=portfolio.stop_price,
-                reference_price=portfolio.stop_price,
+                stop_price=stop_price,
+                reference_price=stop_price,
                 submitted_at=self._clock.now(),
             )
-            stop_price = portfolio.stop_price
             stop.submit()
             if not await store.orders.add_if_absent(stop):
                 return  # already placed (or being resolved): idempotent
+            if futures and ledger is not None:
+                ledger.stop_order_client_id = stop.client_order_id
+                await store.perpetual_portfolio.save(ledger)
             await store.commit()
 
-        request = StopOrderRequest(stop.client_order_id, symbol, quantity, stop_price)
+        request = StopOrderRequest(
+            stop.client_order_id,
+            symbol,
+            quantity,
+            stop_price,
+            side=stop.side,
+            product=stop.product,
+            position_side=stop.position_side,
+            reduce_only=stop.reduce_only,
+        )
         try:
             venue = await asyncio.shield(exchange.create_stop_order(request))
         except (ExchangeRejected, TransientExchangeError) as exc:
@@ -219,16 +335,36 @@ class OrderExecutor:
     async def sync_native_stop(self, bot: Bot) -> None:
         """Notice a stop that fired (or vanished) while we were not looking."""
         async with self._stores() as store:
-            portfolio = await store.portfolio.get(bot.id)
-        if portfolio is None or portfolio.stop_order_client_id is None:
+            if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
+                ledger = await store.perpetual_portfolio.get(bot.id)
+                stop_cid = ledger.stop_order_client_id if ledger is not None else None
+            else:
+                portfolio = await store.portfolio.get(bot.id)
+                stop_cid = portfolio.stop_order_client_id if portfolio is not None else None
+        if stop_cid is None:
             return
         exchange = await self._exchange(bot)
-        venue = await exchange.fetch_order(bot.config.symbol, portfolio.stop_order_client_id)
+        venue = await exchange.fetch_order(bot.config.symbol, stop_cid)
+        if venue is None and bot.config.product is TradingProduct.LINEAR_PERPETUAL:
+            async with self._stores() as store:
+                await self._pause(
+                    store,
+                    bot,
+                    "risk.futures_stop_unavailable",
+                    "exchange no longer reports the tracked protective futures stop",
+                )
+                await store.commit()
+            return
         async with self._stores() as store:
-            stop = await store.orders.get_by_client_id(bot.id, portfolio.stop_order_client_id)
+            stop = await store.orders.get_by_client_id(bot.id, stop_cid)
         if stop is None or venue is None or venue.status in (OrderStatus.OPEN, stop.status):
             return
         await self._apply(bot, stop.id, venue)
+        if (
+            bot.config.product is TradingProduct.LINEAR_PERPETUAL
+            and venue.status in (OrderStatus.CANCELED, OrderStatus.EXPIRED)
+        ):
+            await self.ensure_native_stop(bot, stop.client_order_id)
 
     async def _cancel_native_stop(self, bot: Bot, exchange: Exchange, stop_cid: str) -> bool:
         """Cancel the resting stop; True when it had already closed the position."""
@@ -241,7 +377,9 @@ class OrderExecutor:
                 stop = await store.orders.get_by_client_id(bot.id, stop_cid)
             if stop is not None and not stop.is_final:
                 await self._apply(bot, stop.id, venue)
-        return venue is not None and venue.status is OrderStatus.FILLED
+        return venue is not None and (
+            venue.status is OrderStatus.FILLED or venue.filled_quantity > 0
+        )
 
     # --- applying results --------------------------------------------------------------------
 
@@ -273,6 +411,9 @@ class OrderExecutor:
         min_quantity: Decimal,
     ) -> bool:
         """Fold the exchange's view of ``order`` into it and the portfolio. True if it sold."""
+        if order.product is TradingProduct.LINEAR_PERPETUAL:
+            return await self._apply_perpetual_fills(store, bot, order, venue)
+
         portfolio = await store.portfolio.get(bot.id) or PortfolioState.new(
             bot.id, bot.config.initial_capital
         )
@@ -334,6 +475,170 @@ class OrderExecutor:
         )
         return any(f.side is Side.SELL for f in applied)
 
+    async def _apply_perpetual_fills(
+        self, store: TradingStore, bot: Bot, order: Order, venue: VenueOrder
+    ) -> bool:
+        """Apply futures executions to the isolated ledger, never to the Spot portfolio."""
+        if (
+            venue.client_order_id != order.client_order_id
+            or venue.symbol != order.symbol
+        ):
+            raise RuntimeError("exchange response does not match the perpetual order intent")
+        ledger = await store.perpetual_portfolio.get(bot.id)
+        if ledger is None:
+            raise RuntimeError("perpetual portfolio has not been initialized")
+        known_ids = {fill.trade_id for fill in order.fills if fill.trade_id is not None}
+        known_signatures = {
+            (fill.time, fill.side, fill.quantity, fill.price, fill.fee, fill.fee_base)
+            for fill in order.fills
+        }
+        new_fills = [
+            fill for fill in venue.fills
+            if (fill.trade_id is not None and fill.trade_id not in known_ids)
+            or (fill.trade_id is None and
+                (fill.time, fill.side, fill.quantity, fill.price, fill.fee, fill.fee_base)
+                not in known_signatures)
+        ]
+        order.exchange_order_id = venue.exchange_order_id or order.exchange_order_id
+        applied: list[Fill] = []
+        for fill in new_fills:
+            if order.is_final:
+                break
+            if fill.side is not order.side:
+                raise RuntimeError("perpetual fill side does not match its order intent")
+            fill_reference = (
+                f"order:{order.client_order_id}:trade:{fill.trade_id}"
+                if fill.trade_id
+                else (
+                    f"order:{order.client_order_id}:fill:{fill.time.isoformat()}:"
+                    f"{fill.quantity}:{fill.price}"
+                )
+            )
+            if order.reserved_margin:
+                consumed = min(
+                    order.reserved_margin,
+                    fill.notional / order.leverage + fill.total_fee,
+                )
+                ledger.release(consumed)
+                order.reserved_margin -= consumed
+                await self._append_margin_release(
+                    store,
+                    bot,
+                    consumed,
+                    fill.time,
+                    f"{fill_reference}:margin-release",
+                )
+            order.apply_fill(fill)
+            side = order.position_side
+            if side is None:
+                raise RuntimeError("perpetual order has no position side")
+            fee = fill.total_fee
+            if order.reduce_only:
+                position = ledger.position
+                if position is None or position.side is not side:
+                    raise RuntimeError(
+                        "reduce-only fill does not match the open perpetual position"
+                    )
+                released = position.isolated_margin * fill.quantity / position.quantity
+                realized = ledger.close_position(fill.quantity, fill.price, fee)
+                kind = PerpetualLedgerEventKind.POSITION_REDUCED
+                wallet_delta = released + realized
+                margin_delta = -released
+                pnl_delta = realized
+            else:
+                existing = ledger.position
+                if existing is None:
+                    ledger.open_position(
+                        side,
+                        fill.quantity,
+                        fill.price,
+                        order.leverage,
+                        fee,
+                        order.planned_stop_price,
+                        order.planned_take_profit_price,
+                    )
+                    kind = PerpetualLedgerEventKind.POSITION_OPENED
+                else:
+                    ledger.increase_position(side, fill.quantity, fill.price, order.leverage, fee)
+                    kind = PerpetualLedgerEventKind.POSITION_INCREASED
+                wallet_delta = -(fill.notional / order.leverage + fee)
+                margin_delta = fill.notional / order.leverage
+                pnl_delta = Decimal(0)
+            inserted = await store.perpetual_portfolio.append_entry(
+                PerpetualLedgerEntry(
+                    id=self._ids.new_id(), bot_id=bot.id, occurred_at=fill.time, kind=kind,
+                    wallet_delta=wallet_delta, isolated_margin_delta=margin_delta,
+                    realized_pnl_delta=pnl_delta, fee=fee, quantity=fill.quantity,
+                    side=side, price=fill.price, source="exchange_fill",
+                    external_reference=fill_reference,
+                )
+            )
+            if not inserted:
+                raise RuntimeError("duplicate perpetual fill ledger entry")
+            applied.append(fill)
+
+        if not order.is_final and venue.status is not order.status:
+            target = (
+                OrderStatus.OPEN
+                if venue.status is OrderStatus.PARTIALLY_FILLED and not order.filled_quantity
+                else venue.status
+            )
+            try:
+                order.transition(target)
+            except InvalidOrderTransition:
+                logger.warning("ignoring %s -> %s for %s", order.status, target, order.id)
+        if order.order_type == "stop_loss":
+            if order.is_final and ledger.stop_order_client_id == order.client_order_id:
+                ledger.stop_order_client_id = None
+            elif not order.is_final:
+                ledger.stop_order_client_id = order.client_order_id
+        if order.is_final and order.reserved_margin:
+            released = order.reserved_margin
+            ledger.release(released)
+            await self._append_margin_release(
+                store,
+                bot,
+                released,
+                self._clock.now(),
+                f"order:{order.client_order_id}:margin-release:terminal",
+            )
+            order.reserved_margin = Decimal(0)
+        await store.perpetual_portfolio.save(ledger)
+        await store.orders.update(order, applied)
+        await self._audit(store, bot, self._event_for(order), {
+            "client_order_id": order.client_order_id,
+            "product": order.product.value,
+            "position_side": order.position_side.value if order.position_side else None,
+            "status": order.status.value,
+            "filled_quantity": str(order.filled_quantity),
+            "avg_price": None if order.avg_fill_price is None else str(order.avg_fill_price),
+        })
+        return order.reduce_only and bool(applied)
+
+    async def _append_margin_release(
+        self,
+        store: TradingStore,
+        bot: Bot,
+        amount: Decimal,
+        occurred_at: datetime,
+        external_reference: str,
+    ) -> None:
+        if amount <= 0:
+            return
+        inserted = await store.perpetual_portfolio.append_entry(
+            PerpetualLedgerEntry(
+                id=self._ids.new_id(),
+                bot_id=bot.id,
+                occurred_at=occurred_at,
+                kind=PerpetualLedgerEventKind.MARGIN_RELEASED,
+                reserved_margin_delta=-amount,
+                source="exchange_order",
+                external_reference=external_reference,
+            )
+        )
+        if not inserted:
+            raise RuntimeError("duplicate perpetual margin release event")
+
     @staticmethod
     def _event_for(order: Order) -> str:
         if order.order_type == "stop_loss":
@@ -352,11 +657,39 @@ class OrderExecutor:
             order = await store.orders.get(order_id)
             if order is None or order.is_final:
                 return
-            portfolio = await store.portfolio.get(bot.id)
             order.reject(reason)
-            if portfolio is not None:
-                portfolio.release(order.reserved_cash, order.reserved_quantity)
-                await store.portfolio.save(portfolio)
+            if order.product is TradingProduct.LINEAR_PERPETUAL:
+                ledger = await store.perpetual_portfolio.get(bot.id)
+                if ledger is not None and order.reserved_margin:
+                    released = order.reserved_margin
+                    ledger.release(released)
+                    await self._append_margin_release(
+                        store,
+                        bot,
+                        released,
+                        self._clock.now(),
+                        f"order:{order.client_order_id}:margin-release:rejected",
+                    )
+                    await store.perpetual_portfolio.save(ledger)
+                if (
+                    ledger is not None
+                    and order.order_type == "stop_loss"
+                    and ledger.stop_order_client_id == order.client_order_id
+                ):
+                    ledger.stop_order_client_id = None
+                    await store.perpetual_portfolio.save(ledger)
+                    await self._pause(
+                        store,
+                        bot,
+                        "risk.futures_stop_placement_failed",
+                        f"native futures stop was rejected: {reason}",
+                    )
+                order.reserved_margin = Decimal(0)
+            else:
+                portfolio = await store.portfolio.get(bot.id)
+                if portfolio is not None:
+                    portfolio.release(order.reserved_cash, order.reserved_quantity)
+                    await store.portfolio.save(portfolio)
             order.reserved_cash = order.reserved_quantity = Decimal(0)
             await store.orders.update(order, [])
             await self._audit(

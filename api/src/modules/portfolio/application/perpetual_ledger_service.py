@@ -24,6 +24,62 @@ class PerpetualLedgerService:
     def __init__(self, repository: PerpetualPortfolioRepository) -> None:
         self._repository = repository
 
+    async def reserve_margin(
+        self,
+        bot_id: UUID,
+        *,
+        amount: Decimal,
+        occurred_at: datetime,
+        external_reference: str,
+        source: str = "worker",
+    ) -> bool:
+        ledger = await self._require_ledger(bot_id)
+        if await self._repository.has_entry(bot_id, external_reference):
+            return False
+        ledger.reserve(amount)
+        inserted = await self._repository.append_entry(
+            PerpetualLedgerEntry(
+                id=uuid4(),
+                bot_id=bot_id,
+                occurred_at=occurred_at,
+                kind=PerpetualLedgerEventKind.MARGIN_RESERVED,
+                reserved_margin_delta=amount,
+                source=source,
+                external_reference=external_reference,
+            )
+        )
+        if inserted:
+            await self._repository.save(ledger)
+        return inserted
+
+    async def release_margin(
+        self,
+        bot_id: UUID,
+        *,
+        amount: Decimal,
+        occurred_at: datetime,
+        external_reference: str,
+        source: str = "worker",
+    ) -> bool:
+        ledger = await self._require_ledger(bot_id)
+        if await self._repository.has_entry(bot_id, external_reference):
+            return False
+        ledger.release(amount)
+        inserted = await self._repository.append_entry(
+            PerpetualLedgerEntry(
+                id=uuid4(),
+                bot_id=bot_id,
+                occurred_at=occurred_at,
+                kind=PerpetualLedgerEventKind.MARGIN_RELEASED,
+                reserved_margin_delta=-amount,
+                source=source,
+                external_reference=external_reference,
+            )
+        )
+        if inserted:
+            await self._repository.save(ledger)
+        return inserted
+
     async def open_position(
         self,
         bot_id: UUID,
@@ -33,12 +89,18 @@ class PerpetualLedgerService:
         price: Decimal,
         leverage: int,
         fee: Decimal,
+        stop_price: Decimal | None = None,
+        take_profit_price: Decimal | None = None,
         occurred_at: datetime,
         external_reference: str,
         source: str = "worker",
     ) -> bool:
         ledger = await self._require_ledger(bot_id)
-        position = ledger.open_position(side, quantity, price, leverage, fee)
+        if await self._repository.has_entry(bot_id, external_reference):
+            return False
+        position = ledger.open_position(
+            side, quantity, price, leverage, fee, stop_price, take_profit_price
+        )
         inserted = await self._repository.append_entry(
             PerpetualLedgerEntry(
                 id=uuid4(),
@@ -72,6 +134,8 @@ class PerpetualLedgerService:
         liquidated: bool = False,
     ) -> bool:
         ledger = await self._require_ledger(bot_id)
+        if await self._repository.has_entry(bot_id, external_reference):
+            return False
         position = ledger.position
         if position is None:
             raise DomainError("there is no open perpetual position")
@@ -114,6 +178,8 @@ class PerpetualLedgerService:
         source: str = "exchange",
     ) -> bool:
         ledger = await self._require_ledger(bot_id)
+        if await self._repository.has_entry(bot_id, external_reference):
+            return False
         position = ledger.position
         if position is None:
             return False

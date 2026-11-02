@@ -94,8 +94,14 @@ class ExchangePosition:
     notional: Decimal | None
 
     def __post_init__(self) -> None:
+        if not self.symbol.strip():
+            raise ValueError("exchange position symbol must not be empty")
         if not self.quantity.is_finite() or self.quantity <= 0:
             raise ValueError("exchange position quantity must be positive")
+        if not self.unrealized_pnl.is_finite():
+            raise ValueError("exchange position unrealized PnL must be finite")
+        if self.leverage is not None and self.leverage < 1:
+            raise ValueError("exchange position leverage must be positive")
         for name in (
             "entry_price",
             "mark_price",

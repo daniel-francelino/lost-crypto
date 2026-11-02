@@ -49,6 +49,7 @@ from modules.trading.application.deterioration import DeteriorationWatch
 from modules.trading.application.operations import OperationsMonitor
 from modules.trading.application.orders import OrderExecutor
 from modules.trading.application.parity import ParityExecutor, ParityService
+from modules.trading.application.perpetual_close import PerpetualCloseService
 from modules.trading.application.ports import TradingStore
 from modules.trading.application.reconciler import Reconciler
 from modules.trading.application.status import StatusService
@@ -83,6 +84,7 @@ class Container:
     parity: ParityService
     comparison: ComparisonService
     connections: ConnectionService
+    perpetual_close: PerpetualCloseService
     resolver: ConnectionResolver
     auth: AuthService
 
@@ -114,6 +116,25 @@ def build_container(
     resolver = ConnectionResolver(trading_stores, vault, exchanges, clock)
     backtests = BacktestService(backtest_stores, registry, exchanges, clock, ids, resolver)
     bots = BotService(trading_stores, registry, exchanges, clock, ids, live)
+    live_limits = LiveLimits(
+        max_order_notional=settings.live_max_order_notional,
+        max_total_exposure=settings.live_max_total_exposure,
+        max_daily_loss=settings.live_max_daily_loss,
+    )
+    perpetual_close = PerpetualCloseService(
+        trading_stores,
+        resolver,
+        OrderExecutor(
+            trading_stores,
+            resolver,
+            clock,
+            ids,
+            timedelta(seconds=settings.reconcile_absent_after_seconds),
+            live_limits,
+        ),
+        clock,
+        ids,
+    )
     return Container(
         settings=settings,
         engine=engine,
@@ -159,6 +180,7 @@ def build_container(
             ids,
             live_allowed=settings.app_env is AppEnv.PROD,
         ),
+        perpetual_close=perpetual_close,
         resolver=resolver,
         parity=ParityService(trading_stores, clock, ids),
         comparison=ComparisonService(trading_stores, bots, backtests),

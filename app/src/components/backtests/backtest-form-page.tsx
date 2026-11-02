@@ -20,6 +20,7 @@ import { DEFAULT_OFFSETS, START_OFFSET_KEY } from "@/lib/backtests/start-sensiti
 import { BreaksWarning } from "@/components/shared/market-data/breaks-warning";
 import { StrategyFields } from "@/components/shared/strategy/strategy-fields";
 import { createBacktest, createSweep } from "@/lib/backtests/backtests.api";
+import { requestPerpetualAuxiliaryImport } from "@/lib/shared/market-data/perpetual-data.api";
 import { BotLikeCard } from "@/components/backtests/bot-like-card";
 import type { BacktestPrefill } from "@/lib/shared/backtest-prefill";
 import {
@@ -38,13 +39,19 @@ import {
 import { useRangeCoverage } from "@/hooks/shared/use-coverage";
 import { formatInteger, numberText, numberValue } from "@/lib/shared/format";
 import { gapsOverLimit } from "@/lib/shared/market-data/gaps";
-import { useStrategies } from "@/hooks/shared/use-catalog";
+import { useConnections, useStrategies } from "@/hooks/shared/use-catalog";
 import { useCapabilities } from "@/hooks/shared/use-system";
 import { errorMessage } from "@/lib/shared/api/messages";
 import { QueryKey } from "@/lib/shared/api/query-keys";
 import { decimalError, integerError } from "@/lib/shared/validators";
 import { isDayString } from "@/lib/shared/dates";
-import { SlippageModel, Timeframe } from "@/lib/shared/enums";
+import {
+  ConnectionStatus,
+  Environment,
+  SlippageModel,
+  Timeframe,
+  TradingProduct,
+} from "@/lib/shared/enums";
 import { slippageModelLabel } from "@/lib/shared/labels";
 import { defaultParamValues } from "@/lib/shared/strategies/params";
 import type { Strategy } from "@/lib/shared/strategies/strategies.api";
@@ -64,7 +71,15 @@ function BacktestForm({ strategies, exchanges, prefill }: BacktestFormProps) {
     applyBacktestPrefill(defaultBacktestValues(strategies[0]), prefill, strategies),
   );
   const [error, setError] = useState<string | null>(null);
+  const [auxiliaryImportResult, setAuxiliaryImportResult] = useState<string | null>(null);
   const strategy = strategies.find((item) => item.type_key === values.strategyType);
+  const connections = useConnections();
+  const demoFuturesConnections = (connections.data ?? []).filter(
+    (item) =>
+      item.exchange === "binance-usdm" &&
+      item.environment === Environment.Demo &&
+      item.status === ConnectionStatus.Active,
+  );
   const set = <K extends keyof BacktestFormValues>(key: K, value: BacktestFormValues[K]) =>
     setValues((current) => ({ ...current, [key]: value }));
 
@@ -83,6 +98,22 @@ function BacktestForm({ strategies, exchanges, prefill }: BacktestFormProps) {
 
   const grid = values.sweep ? buildGrid(strategy, values.grid) : {};
   const gridProblem = typeof grid === "string" ? grid : values.sweep ? gridError(grid) : undefined;
+
+  const auxiliaryImport = useMutation({
+    mutationFn: () =>
+      requestPerpetualAuxiliaryImport({
+        exchange: values.exchange,
+        symbol: values.symbol,
+        timeframe: values.timeframe,
+        start: `${values.start}T00:00:00Z`,
+        end: `${values.end}T23:59:59Z`,
+      }),
+    onSuccess: (result) =>
+      setAuxiliaryImportResult(
+        `Importados ${result.mark_candles_imported} candles de mark price e ${result.funding_events_imported} eventos de funding.`,
+      ),
+    onError: (failure) => setError(errorMessage(failure)),
+  });
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -135,16 +166,44 @@ function BacktestForm({ strategies, exchanges, prefill }: BacktestFormProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <FormSelect
+              label="Produto"
+              items={[
+                { label: "Spot", value: TradingProduct.Spot },
+                { label: "USDⓈ-M Perp", value: TradingProduct.LinearPerpetual },
+              ]}
+              value={values.product}
+              onValueChange={(product) =>
+                setValues((current) => ({
+                  ...current,
+                  product,
+                  exchange: product === TradingProduct.LinearPerpetual ? "binance-usdm" : "binance",
+                  symbol:
+                    product === TradingProduct.LinearPerpetual
+                      ? `${current.symbol.split("/")[0] ?? "BTC"}/USDT:USDT`
+                      : current.symbol.replace(":USDT", ""),
+                  connectionId: "",
+                }))
+              }
+            />
             <FormSelect
               label="Exchange"
-              items={exchanges.map((value) => ({ label: value, value }))}
+              items={
+                values.product === TradingProduct.LinearPerpetual
+                  ? [{ label: "binance-usdm", value: "binance-usdm" }]
+                  : exchanges
+                      .filter((value) => value === "binance")
+                      .map((value) => ({ label: value, value }))
+              }
               value={values.exchange}
               onValueChange={(value) => set("exchange", value)}
             />
             <SymbolSelect
               label="Par"
               required
+              exchange={values.exchange}
+              product={values.product}
               value={values.symbol}
               onValueChange={(value) => set("symbol", value)}
             />
@@ -172,6 +231,70 @@ function BacktestForm({ strategies, exchanges, prefill }: BacktestFormProps) {
               ]}
             />
           </div>
+          {values.product === TradingProduct.LinearPerpetual ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <FormInputNumber
+                label="Alavancagem (1x–10x)"
+                required
+                step={1}
+                min={1}
+                max={10}
+                value={numberValue(values.leverage)}
+                onValueChange={(value) => set("leverage", numberText(value))}
+                rules={[(value) => integerError(numberText(value))]}
+              />
+              <FormSelect
+                label="Margem"
+                items={[{ label: "Isolada", value: "isolated" }]}
+                value="isolated"
+                onValueChange={() => undefined}
+              />
+              <FormSwitch
+                label="Permitir posições short"
+                value={values.allowShort}
+                onValueChange={(value) => set("allowShort", value)}
+              />
+              <FormSelect
+                label="Conta Futures Demo (tiers de margem)"
+                placeholder={
+                  demoFuturesConnections.length ? "Escolha a conta" : "Cadastre uma conexão Demo"
+                }
+                items={demoFuturesConnections.map((item) => ({
+                  label: `${item.label} (${item.api_key_hint})`,
+                  value: item.id,
+                }))}
+                value={values.connectionId}
+                onValueChange={(value) => set("connectionId", value)}
+                rules={[(value) => (value ? undefined : "Selecione uma conta Futures Demo.")]}
+              />
+              <p className="text-sm text-muted-foreground sm:col-span-2 lg:col-span-4">
+                Futuros usam contratos USDⓈ-M, margem isolada e os tiers da conta Demo escolhida. O
+                backtest exige candles de mark price e eventos históricos de funding para o mesmo
+                período.
+              </p>
+              <div className="flex flex-wrap items-center gap-3 sm:col-span-2 lg:col-span-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!validRange || auxiliaryImport.isPending}
+                  onClick={() => {
+                    setError(null);
+                    setAuxiliaryImportResult(null);
+                    auxiliaryImport.mutate();
+                  }}
+                >
+                  {auxiliaryImport.isPending
+                    ? "Importando dados auxiliares…"
+                    : "Importar mark price e funding"}
+                </Button>
+                {auxiliaryImportResult ? (
+                  <span role="status" className="text-sm text-muted-foreground">
+                    {auxiliaryImportResult}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
           {validRange ? (
             <CoverageNotice
               exchange={values.exchange}

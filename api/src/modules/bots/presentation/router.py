@@ -12,7 +12,7 @@ from core.security.auth import Principal, require_auth
 from modules.analytics.presentation.schemas import MetricsOut
 from modules.audit.schemas import NoteIn, NoteOut
 from modules.bots.domain.models import Bot, BotConfig, BotState, ExecutionMode
-from modules.exchanges.domain.models import MarginMode, TradingProduct
+from modules.exchanges.domain.models import MarginMode, PositionSide, TradingProduct
 from modules.execution.domain.orders import OrderStatus, latency_ms, realized_slippage_bps
 from modules.market_data.domain.models import Timeframe
 from modules.risk_management.domain.models import RiskLimits
@@ -150,6 +150,10 @@ class OrderOut(BaseModel):
     exchange_order_id: str | None
     symbol: str
     side: Side
+    product: TradingProduct
+    position_side: PositionSide | None
+    leverage: int
+    reduce_only: bool
     quantity: Decimal
     status: OrderStatus
     filled_quantity: Decimal
@@ -192,6 +196,14 @@ class PortfolioOut(BaseModel):
     take_profit_price: Decimal | None
     reserved_cash: Decimal
     native_stop_active: bool
+    product: TradingProduct = TradingProduct.SPOT
+    position_side: PositionSide | None = None
+    leverage: int = 1
+    isolated_margin: Decimal = Decimal(0)
+    reserved_margin: Decimal = Decimal(0)
+    liquidation_price: Decimal | None = None
+    funding_paid: Decimal = Decimal(0)
+    funding_received: Decimal = Decimal(0)
 
 
 class BotOverviewOut(BaseModel):
@@ -479,6 +491,53 @@ async def stop_bot(
     )
 
 
+@router.post(
+    "/{bot_id}/close-position",
+    response_model=OrderOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def close_futures_position(
+    bot_id: UUID,
+    request: Request,
+    body: ReasonIn | None = None,
+    principal: Principal = Depends(require_auth),
+) -> OrderOut:
+    """Pause a Binance Demo Futures bot and submit a reduce-only market close."""
+    order = await _container(request).perpetual_close.close(
+        bot_id,
+        actor=principal.username,
+        reason=body.reason if body else None,
+    )
+    return OrderOut(
+        id=order.id,
+        client_order_id=order.client_order_id,
+        order_type=order.order_type,
+        exchange_order_id=order.exchange_order_id,
+        symbol=order.symbol,
+        side=order.side,
+        product=order.product,
+        position_side=order.position_side,
+        leverage=order.leverage,
+        reduce_only=order.reduce_only,
+        quantity=order.quantity,
+        status=order.status,
+        filled_quantity=order.filled_quantity,
+        avg_fill_price=order.avg_fill_price,
+        reject_reason=order.reject_reason,
+        bar_time=order.bar_time,
+        created_at=order.created_at,
+        reference_price=order.reference_price,
+        submitted_at=order.submitted_at,
+        first_fill_at=order.first_fill_at,
+        slippage_bps=(
+            None
+            if (bps := realized_slippage_bps(order)) is None
+            else bps.quantize(Decimal("0.01"))
+        ),
+        latency_ms=latency_ms(order),
+    )
+
+
 @router.delete("/{bot_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_bot(
     bot_id: UUID,
@@ -531,6 +590,10 @@ async def get_orders(
             exchange_order_id=o.exchange_order_id,
             symbol=o.symbol,
             side=o.side,
+            product=o.product,
+            position_side=o.position_side,
+            leverage=o.leverage,
+            reduce_only=o.reduce_only,
             quantity=o.quantity,
             status=o.status,
             filled_quantity=o.filled_quantity,
@@ -588,6 +651,14 @@ async def get_portfolio(bot_id: UUID, request: Request) -> PortfolioOut:
         take_profit_price=view.take_profit_price,
         reserved_cash=view.reserved_cash,
         native_stop_active=view.native_stop_active,
+        product=view.product,
+        position_side=view.position_side,
+        leverage=view.leverage,
+        isolated_margin=view.isolated_margin,
+        reserved_margin=view.reserved_margin,
+        liquidation_price=view.liquidation_price,
+        funding_paid=view.funding_paid,
+        funding_received=view.funding_received,
     )
 
 

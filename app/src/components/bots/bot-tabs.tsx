@@ -163,6 +163,24 @@ export function OrdersTab({ bot }: { bot: Bot }) {
       cell: (row) => formatDateTime(row.created_at),
     },
     { id: "side", header: "Lado", accessor: "side", cell: (row) => <SideBadge side={row.side} /> },
+    {
+      id: "intent",
+      header: "Intenção",
+      accessor: "product",
+      cell: (row) =>
+        row.product === "linear_perpetual" ? (
+          <div>
+            <div>
+              {row.reduce_only ? "Reduz" : "Abre"} {row.position_side ?? "posição"}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {row.reduce_only ? "Reduce-only" : `${row.leverage}x`}
+            </div>
+          </div>
+        ) : (
+          "Spot"
+        ),
+    },
     { id: "type", header: "Tipo", accessor: "order_type" },
     {
       id: "qty",
