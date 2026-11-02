@@ -339,6 +339,7 @@ def build_job_runner(container: Container) -> JobRunner:
             executor=executor,
             reconciler=reconciler,
             testnet_enabled=settings.testnet_trading_enabled,
+            futures_paper_enabled=settings.futures_paper_enabled,
             live_enabled=settings.live_trading_enabled,
             is_production=settings.app_env is AppEnv.PROD,
             live_caps_configured=live_limits.complete,

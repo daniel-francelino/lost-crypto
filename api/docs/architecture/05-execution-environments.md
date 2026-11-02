@@ -27,20 +27,20 @@ A `RunProfile` bundles the adapters for a mode and is assembled by `ExecutionVen
 | Mode | MarketDataProvider | Clock | ExecutionVenue | Credentials | Real orders? |
 |---|---|---|---|---|---|
 | `backtest` | Historical (DB/Parquet) | Simulated, advanced per candle | `BacktestVenue` (fill model, fees, slippage) | None | No |
-| `paper` | Live (real market data) | System | `PaperVenue` (simulated matching vs. live prices/order book) | None (public data) | No |
-| `testnet` | Live (testnet or mainnet data) | System | `CcxtVenue` bound to testnet base URL | Testnet keys | Fake money on exchange sandbox |
+| `paper` | Live (real market data) | System | `PaperVenue` (simulated fills); USDⓈ-M uses mark candles, funding, and account tiers | None for Spot; active Binance USDⓈ-M Demo read key for Futures tiers | No |
+| `testnet` | Live (testnet or mainnet data) | System | `CcxtVenue` bound to selected Demo/testnet URL | Matching Demo/testnet keys | Fake money on exchange sandbox |
 | `live` | Live | System | `CcxtVenue` bound to production | Production trade-only keys | **Yes** |
 
 ### Differences that matter
 
-| Aspect | Backtest | Paper | Testnet | Live |
+| Aspect | Backtest | Paper | Demo / testnet | Live |
 |---|---|---|---|---|
 | Data | Historical, closed candles | Real-time | Real-time (testnet liquidity is unrealistic) | Real-time |
 | Fill realism | Model: next-bar open ± slippage, fees | Model against live book/last price; latency optional | Exchange matching engine, but thin/artificial book | Real |
 | Network failure modes | None | None (simulated optionally for chaos tests) | Real | Real |
 | Rate limits | Not applicable | Not applicable | Real | Real |
 | Speed | As fast as possible | Real time | Real time | Real time |
-| Purpose | Hypothesis testing | Behaviour under live data, no risk | Validate integration & order lifecycle | Real execution |
+| Purpose | Hypothesis testing | Behaviour under live data, no exchange orders | Validate integration & order lifecycle | Real execution |
 
 Caveat to document in UI/API: paper and backtest results **overestimate** achievable performance (no queue position, no market impact, optimistic fills). Testnet validates plumbing, not profitability.
 

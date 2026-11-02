@@ -1,5 +1,11 @@
 import type { Bot, BotInput } from "@/lib/bots/bots.api";
-import { DrawdownAction, ExecutionMode, Timeframe } from "@/lib/shared/enums";
+import {
+  DrawdownAction,
+  ExecutionMode,
+  MarginMode,
+  Timeframe,
+  TradingProduct,
+} from "@/lib/shared/enums";
 import {
   type ParamValues,
   buildStrategyParams,
@@ -14,6 +20,9 @@ const DEFAULT_SYMBOL = "BTC/USDT";
 export type BotFormValues = {
   name: string;
   exchange: string;
+  product: TradingProduct;
+  leverage: string;
+  allowShort: boolean;
   symbol: string;
   timeframe: string;
   strategyType: string;
@@ -27,6 +36,7 @@ export type BotFormValues = {
   maxDrawdownPct: string;
   maxConsecutiveLosses: string;
   maxRiskPerTradePct: string;
+  minLiquidationDistancePct: string;
   requireStopLoss: boolean;
   maxCandleRangePct: string;
   maxOrderPctOfVolume: string;
@@ -39,6 +49,9 @@ export type BotFormValues = {
 export const defaultFormValues = (strategy: Strategy | undefined): BotFormValues => ({
   name: "",
   exchange: DEFAULT_EXCHANGE,
+  product: TradingProduct.Spot,
+  leverage: "1",
+  allowShort: false,
   symbol: DEFAULT_SYMBOL,
   timeframe: Timeframe.H1,
   strategyType: strategy?.type_key ?? "",
@@ -52,6 +65,7 @@ export const defaultFormValues = (strategy: Strategy | undefined): BotFormValues
   maxDrawdownPct: "",
   maxConsecutiveLosses: "",
   maxRiskPerTradePct: "",
+  minLiquidationDistancePct: "",
   requireStopLoss: false,
   maxCandleRangePct: "25",
   maxOrderPctOfVolume: "",
@@ -66,6 +80,9 @@ const text = (value: string | number | null): string => (value === null ? "" : S
 export const formFromBot = (bot: Bot, strategy: Strategy | undefined): BotFormValues => ({
   name: bot.name,
   exchange: bot.exchange,
+  product: bot.product ?? TradingProduct.Spot,
+  leverage: String(bot.leverage ?? 1),
+  allowShort: bot.allow_short ?? false,
   symbol: bot.symbol,
   timeframe: bot.timeframe,
   strategyType: bot.strategy_type,
@@ -79,6 +96,7 @@ export const formFromBot = (bot: Bot, strategy: Strategy | undefined): BotFormVa
   maxDrawdownPct: text(bot.risk.max_drawdown_pct),
   maxConsecutiveLosses: text(bot.risk.max_consecutive_losses),
   maxRiskPerTradePct: text(bot.risk.max_risk_per_trade_pct),
+  minLiquidationDistancePct: text(bot.risk.min_liquidation_distance_pct ?? null),
   requireStopLoss: bot.risk.require_stop_loss,
   maxCandleRangePct: text(bot.risk.max_candle_range_pct),
   maxOrderPctOfVolume: text(bot.risk.max_order_pct_of_volume ?? null),
@@ -93,6 +111,10 @@ const nullable = (value: string): string | null => (value.trim() === "" ? null :
 export const toBotInput = (values: BotFormValues, strategy: Strategy | undefined): BotInput => ({
   name: values.name.trim(),
   exchange: values.exchange,
+  product: values.product,
+  leverage: Number.parseInt(values.leverage, 10),
+  margin_mode: values.product === TradingProduct.LinearPerpetual ? MarginMode.Isolated : null,
+  allow_short: values.product === TradingProduct.LinearPerpetual && values.allowShort,
   strategy_type: values.strategyType,
   strategy_params: buildStrategyParams(strategy, values.params),
   symbol: values.symbol.trim().toUpperCase(),
@@ -110,6 +132,10 @@ export const toBotInput = (values: BotFormValues, strategy: Strategy | undefined
         ? null
         : Number.parseInt(values.maxConsecutiveLosses, 10),
     max_risk_per_trade_pct: nullable(values.maxRiskPerTradePct),
+    min_liquidation_distance_pct:
+      values.product === TradingProduct.LinearPerpetual
+        ? nullable(values.minLiquidationDistancePct)
+        : null,
     require_stop_loss: values.requireStopLoss,
     max_candle_range_pct: nullable(values.maxCandleRangePct),
     max_order_pct_of_volume: nullable(values.maxOrderPctOfVolume),
@@ -117,5 +143,8 @@ export const toBotInput = (values: BotFormValues, strategy: Strategy | undefined
     drawdown_action: values.drawdownAction,
   },
   mode: values.mode,
-  connection_id: values.mode === ExecutionMode.Paper ? null : nullable(values.connectionId),
+  connection_id:
+    values.mode === ExecutionMode.Paper && values.product !== TradingProduct.LinearPerpetual
+      ? null
+      : nullable(values.connectionId),
 });

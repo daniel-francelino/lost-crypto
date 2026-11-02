@@ -51,7 +51,8 @@ export const formatSignedPercent = (value: string | null | undefined): string =>
 export const formatInteger = (value: number): string =>
   new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 0 }).format(value);
 
-export const quoteCurrency = (symbol: string): string => symbol.split("/").at(-1) ?? symbol;
+export const quoteCurrency = (symbol: string): string =>
+  (symbol.split("/").at(-1) ?? symbol).split(":")[0] ?? symbol;
 
 export const Sign = {
   Positive: "positive",

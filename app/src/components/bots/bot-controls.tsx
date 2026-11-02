@@ -41,7 +41,7 @@ export function BotControls({ bot }: { bot: Bot }) {
   const isDemoFutures =
     bot.exchange === "binance-usdm" &&
     bot.product === "linear_perpetual" &&
-    bot.mode === ExecutionMode.Testnet;
+    (bot.mode === ExecutionMode.Paper || bot.mode === ExecutionMode.Testnet);
   const hasPosition = Number(portfolio.data?.quantity ?? 0) > 0;
   const wantsRunning = bot.desired_state === BotState.Running;
   const settledStopped =
@@ -182,7 +182,11 @@ export function BotControls({ bot }: { bot: Bot }) {
         onOpenChange={(open) => setDialog(open ? DialogKind.ClosePosition : null)}
         destructive
         title={`Fechar a posição Futures de ${bot.name}?`}
-        description="Será enviada uma ordem a mercado reduce-only para encerrar a quantidade aberta na Binance Demo. O bot será pausado; confira o status da ordem depois do envio."
+        description={
+          bot.mode === ExecutionMode.Paper
+            ? "A posição simulada será fechada ao mark price atual com taxas e slippage. O bot será pausado; nenhuma ordem será enviada à Binance."
+            : "Será enviada uma ordem a mercado reduce-only para encerrar a quantidade aberta na Binance Demo. O bot será pausado; confira o status da ordem depois do envio."
+        }
         confirmLabel="Fechar posição"
         reasonLabel="Motivo (opcional)"
         reasonDescription="Não escreva senhas nem chaves."
@@ -191,7 +195,11 @@ export function BotControls({ bot }: { bot: Bot }) {
             command: BotCommand.ClosePosition,
             reason,
           });
-          toast("Fechamento enviado; confira o status da ordem.");
+          toast(
+            bot.mode === ExecutionMode.Paper
+              ? "Posição simulada fechada."
+              : "Fechamento enviado; confira o status da ordem.",
+          );
         }}
       />
       <ConfirmDialog

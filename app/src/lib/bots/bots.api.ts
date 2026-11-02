@@ -14,12 +14,14 @@ import {
   DivergenceStep,
   ExecutionMode,
   JobStatus,
+  MarginMode,
   OrderStatus,
   ParityClass,
   ParityVerdict,
   StepState,
   Side,
   SignalKind,
+  TradingProduct,
   type Timeframe,
 } from "@/lib/shared/enums";
 
@@ -46,7 +48,10 @@ export const botSchema = z.object({
   strategy_type: z.string(),
   strategy_params: z.record(z.string(), z.unknown()),
   symbol: z.string(),
-  product: z.string().optional(),
+  product: lenientEnum(TradingProduct),
+  leverage: z.number(),
+  margin_mode: lenientEnum(MarginMode).nullable(),
+  allow_short: z.boolean(),
   timeframe: z.string(),
   initial_capital: decimalSchema,
   fee_rate: decimalSchema,
@@ -96,6 +101,14 @@ const portfolioSchema = z.object({
   take_profit_price: nullableDecimalSchema,
   reserved_cash: decimalSchema,
   native_stop_active: z.boolean(),
+  product: lenientEnum(TradingProduct).optional(),
+  position_side: z.string().nullable().optional(),
+  leverage: z.number().optional(),
+  isolated_margin: nullableDecimalSchema.optional(),
+  reserved_margin: decimalSchema.optional(),
+  liquidation_price: nullableDecimalSchema.optional(),
+  funding_paid: decimalSchema.optional(),
+  funding_received: decimalSchema.optional(),
 });
 export type Portfolio = z.infer<typeof portfolioSchema>;
 
@@ -166,6 +179,10 @@ export type BotInput = {
   strategy_type: string;
   strategy_params: Record<string, number>;
   symbol: string;
+  product: TradingProduct;
+  leverage: number;
+  margin_mode: MarginMode | null;
+  allow_short: boolean;
   timeframe: Timeframe;
   initial_capital: string;
   fee_rate: string | null;

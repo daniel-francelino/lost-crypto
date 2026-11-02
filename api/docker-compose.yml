@@ -26,6 +26,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:5173"]}
       CREDENTIAL_MASTER_KEYS: ${CREDENTIAL_MASTER_KEYS:-}
       TESTNET_TRADING_ENABLED: ${TESTNET_TRADING_ENABLED:-false}
+      FUTURES_PAPER_ENABLED: ${FUTURES_PAPER_ENABLED:-false}
       # LIVE TRADING (real money): off unless you set every one of these on purpose.
       LIVE_TRADING_ENABLED: ${LIVE_TRADING_ENABLED:-false}
       LIVE_MAX_ORDER_NOTIONAL: ${LIVE_MAX_ORDER_NOTIONAL:-}

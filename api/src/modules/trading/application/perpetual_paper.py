@@ -34,6 +34,7 @@ from modules.market_data.domain.models import (
     Timeframe,
     floor_to_timeframe,
 )
+from modules.market_data.domain.quality import candle_problems
 from modules.portfolio.domain.perpetual_ledger import (
     PerpetualLedgerEntry,
     PerpetualLedgerEventKind,
@@ -108,6 +109,15 @@ class PerpetualPaperTrader:
         )
         if not candles:
             return
+        if any(c.symbol != cfg.symbol or c.timeframe is not cfg.timeframe for c in candles):
+            raise ConflictError("signal candle identity does not match the Futures bot")
+        if any(candle_problems(candle) for candle in candles):
+            raise ConflictError("signal candle data failed quality checks; Futures cycle stopped")
+        if any(
+            later.open_time - earlier.open_time != cfg.timeframe.delta
+            for earlier, later in pairwise(candles)
+        ):
+            raise ConflictError("signal candle history has a gap; Futures cycle stopped")
         fetch_marks = getattr(source, "fetch_mark_candles", None)
         fetch_funding = getattr(source, "fetch_funding_rates", None)
         if not callable(fetch_marks) or not callable(fetch_funding):
@@ -119,6 +129,10 @@ class PerpetualPaperTrader:
                 "mark-price candle coverage is incomplete; Futures paper cycle stopped"
             )
         aligned_marks = [marks[candle.open_time] for candle in candles]
+        if any(candle_problems(mark) for mark in aligned_marks):
+            raise ConflictError(
+                "mark-price candle data failed quality checks; Futures cycle stopped"
+            )
         if any(
             mark.symbol != candle.symbol
             or mark.timeframe is not candle.timeframe
@@ -127,13 +141,15 @@ class PerpetualPaperTrader:
         ):
             raise ConflictError("mark-price candles do not align with signal candles")
 
-        start = last + cfg.timeframe.delta if last is not None else candles[0].open_time
-        rates = await fetch_funding(cfg.symbol, start, _FUNDING_PAGE)
-        end = candles[-1].close_time
-        rates = sorted(
-            (rate for rate in rates if start <= rate.funding_time <= end),
-            key=lambda rate: rate.funding_time,
+        start = (
+            last + cfg.timeframe.delta + timedelta(milliseconds=1)
+            if last is not None
+            else candles[0].open_time
         )
+        end = candles[-1].close_time
+        rates = await self._funding_history(fetch_funding, cfg.symbol, start, end)
+        if any(rate.symbol != cfg.symbol for rate in rates):
+            raise ConflictError("funding history symbol does not match the Futures bot")
         if any(rate.mark_price is None for rate in rates):
             raise ConflictError("funding history lacks event-time mark prices; cycle stopped")
         if any(a.funding_time == b.funding_time for a, b in pairwise(rates)):
@@ -182,6 +198,37 @@ class PerpetualPaperTrader:
         self._tier_cache[key] = (now, supported)
         return supported
 
+    @staticmethod
+    async def _funding_history(
+        fetch_funding: Any,
+        symbol: str,
+        start: datetime,
+        end: datetime,
+    ) -> list[FundingRate]:
+        """Page every funding event needed for this candle batch; never silently truncate."""
+        events: dict[datetime, FundingRate] = {}
+        cursor = start
+        while cursor <= end:
+            page = await fetch_funding(symbol, cursor, _FUNDING_PAGE)
+            if not page:
+                break
+            ordered = sorted(page, key=lambda rate: rate.funding_time)
+            for rate in ordered:
+                if start <= rate.funding_time <= end:
+                    if rate.funding_time in events:
+                        raise ConflictError("funding history contains duplicate event timestamps")
+                    events[rate.funding_time] = rate
+            newest = ordered[-1].funding_time
+            if newest < cursor:
+                raise ConflictError("funding history pagination moved backwards")
+            if len(page) < _FUNDING_PAGE or newest >= end:
+                break
+            next_cursor = newest + timedelta(milliseconds=1)
+            if next_cursor <= cursor:
+                raise ConflictError("funding history pagination made no progress")
+            cursor = next_cursor
+        return [events[at] for at in sorted(events)]
+
     async def _store_inputs(
         self,
         bot: Bot,
@@ -215,15 +262,26 @@ class PerpetualPaperTrader:
             ledger = await store.perpetual_portfolio.get(bot.id) or PerpetualLedger.new(
                 bot.id, cfg.initial_capital
             )
+            latest_bot = await store.bots.get(bot.id)
+            if latest_bot is None or latest_bot.desired_state is not BotState.RUNNING:
+                return state, True
             risk_history = await store.perpetual_portfolio.list_snapshots(bot.id)
             exited = False
-            funding_cursor = 0
             for rate in funding_rates:
-                funding_cursor += 1
                 if ledger.position is None:
                     continue
                 assert rate.mark_price is not None
+                funding_reference = f"funding:{cfg.symbol}:{rate.funding_time.isoformat()}"
+                if await store.perpetual_portfolio.has_entry(bot.id, funding_reference):
+                    continue
                 before = ledger.position
+                funding_tier = _tier_for(tiers, before.quantity * rate.mark_price, before.leverage)
+                ledger.mark(
+                    rate.mark_price,
+                    rate.funding_time,
+                    funding_tier.maintenance_margin_rate,
+                    source="binance_funding_event_mark_price",
+                )
                 wallet_before = ledger.wallet_balance
                 margin_before = before.isolated_margin
                 realized_before = ledger.realized_pnl
@@ -232,9 +290,7 @@ class PerpetualPaperTrader:
                     rate.mark_price,
                     rate.rate,
                     liquidation_fee_rate=cfg.fee_rate,
-                    cumulative_maintenance_amount=_tier_for(
-                        tiers, before.quantity * rate.mark_price, cfg.leverage
-                    ).cumulative_maintenance_amount,
+                    cumulative_maintenance_amount=funding_tier.cumulative_maintenance_amount,
                     check_maintenance_margin=True,
                 )
                 event_kind = (
@@ -261,7 +317,7 @@ class PerpetualPaperTrader:
                         side=before.side,
                         price=rate.mark_price,
                         source="binance_funding_history",
-                        external_reference=f"funding:{cfg.symbol}:{rate.funding_time.isoformat()}",
+                        external_reference=funding_reference,
                     )
                 )
                 if ledger.position is None:
@@ -304,9 +360,9 @@ class PerpetualPaperTrader:
                 )
                 if liq_hit:
                     reference = (
-                        max(mark.open, liq_price)
+                        min(mark.open, liq_price)
                         if position.side is PositionSide.LONG
-                        else min(mark.open, liq_price)
+                        else max(mark.open, liq_price)
                     )
                     await self._close(
                         store,
@@ -355,7 +411,7 @@ class PerpetualPaperTrader:
                             market,
                             position.quantity,
                             reference,
-                            cfg.fee_rate if stop_hit else Decimal(0),
+                            cfg.fee_rate,
                             False,
                             "protective stop" if stop_hit else "take profit",
                         )
@@ -377,8 +433,6 @@ class PerpetualPaperTrader:
                 blocked_reason = None
                 if not fresh:
                     blocked_reason = "signal candle is stale"
-                elif funding_cursor != len(funding_rates):
-                    blocked_reason = "funding data does not cover the processed candle"
                 elif await store.orders.count_unresolved(bot.id):
                     blocked_reason = "an earlier order is unresolved"
 

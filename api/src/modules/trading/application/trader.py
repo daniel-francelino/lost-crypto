@@ -25,8 +25,8 @@ from core.ids import IdGenerator
 from modules.analytics.domain.metrics import round_trip_pnls
 from modules.audit.models import AuditEvent
 from modules.bots.domain.models import Bot, BotState, ExecutionMode
-from modules.exchanges.application.ports import ExchangeGateway, MarketOrderRequest
 from modules.exchanges.application.connections import ConnectionResolver
+from modules.exchanges.application.ports import ExchangeGateway, MarketOrderRequest
 from modules.exchanges.application.registry import ExchangeRegistry
 from modules.exchanges.domain.models import PositionSide, TradingProduct
 from modules.exchanges.errors import ExchangeRejected
@@ -664,9 +664,7 @@ class BotTrader:
                         "ignoring futures entry while a position is already open for %s", bot.id
                     )
                     return
-                position_side = (
-                    PositionSide.LONG if signal.side is Side.BUY else PositionSide.SHORT
-                )
+                position_side = PositionSide.LONG if signal.side is Side.BUY else PositionSide.SHORT
                 if position_side is PositionSide.SHORT and not cfg.allow_short:
                     logger.warning("ignoring short entry while shorting is disabled for %s", bot.id)
                     return
@@ -684,9 +682,7 @@ class BotTrader:
             position_side=position_side,
             leverage=cfg.leverage,
             reduce_only=reduce_only,
-            planned_stop_price=(
-                signal.stop_loss if signal.kind is SignalKind.ENTRY else None
-            ),
+            planned_stop_price=(signal.stop_loss if signal.kind is SignalKind.ENTRY else None),
             planned_take_profit_price=(
                 signal.take_profit if signal.kind is SignalKind.ENTRY else None
             ),

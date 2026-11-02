@@ -13,8 +13,8 @@ from modules.risk_management.domain.models import RiskLimits
 
 
 class ExecutionMode(StrEnum):
-    PAPER = "paper"  # simulated fills at real prices, no exchange account
-    TESTNET = "testnet"  # real orders on the exchange sandbox (fake money), needs a connection
+    PAPER = "paper"  # simulated fills; futures reads account tiers from a Demo connection
+    TESTNET = "testnet"  # real orders on a Demo/testnet account, needs a connection
     LIVE = "live"  # REAL MONEY: only behind the safeguards of doc 05 / doc 13
 
     @property
@@ -51,7 +51,7 @@ class BotConfig:
     risk: RiskLimits = field(default_factory=RiskLimits)
     mode: ExecutionMode = ExecutionMode.PAPER
     exchange: str = "binance"
-    connection_id: UUID | None = None  # credentials used by testnet bots
+    connection_id: UUID | None = None  # Demo credentials for perpetual tiers or exchange bots
     product: TradingProduct = TradingProduct.SPOT
     leverage: int = 1
     margin_mode: MarginMode | None = None
@@ -70,7 +70,11 @@ class BotConfig:
             raise InvalidBotConfig(
                 f"a {self.mode.value} bot needs an exchange connection (connection_id)"
             )
-        if self.mode is ExecutionMode.PAPER and self.connection_id is not None:
+        if (
+            self.mode is ExecutionMode.PAPER
+            and self.product is TradingProduct.SPOT
+            and self.connection_id is not None
+        ):
             raise InvalidBotConfig("paper bots do not use an exchange connection")
         if self.product is TradingProduct.SPOT:
             if self.leverage != 1 or self.margin_mode is not None or self.allow_short:
@@ -78,6 +82,10 @@ class BotConfig:
             if ":" in self.symbol:
                 raise InvalidBotConfig("spot bots must use a spot symbol without settlement suffix")
         else:
+            if self.connection_id is None:
+                raise InvalidBotConfig("Futures bots need an active Binance Demo connection")
+            if self.exchange != "binance-usdm":
+                raise InvalidBotConfig("linear perpetual bots require the binance-usdm exchange")
             if self.margin_mode is not MarginMode.ISOLATED:
                 raise InvalidBotConfig("futures bots currently require isolated margin")
             if not 1 <= self.leverage <= 10:

@@ -88,7 +88,8 @@ class BotCreate(BaseModel):
     risk: RiskIn = Field(default_factory=RiskIn)
     mode: Literal["paper", "testnet"] = "paper"  # live is not available yet
     connection_id: UUID | None = Field(
-        default=None, description="Required for testnet bots: the exchange connection to use"
+        default=None,
+        description="Required for testnet bots and Futures paper (active Binance Demo connection)",
     )
 
 
@@ -530,9 +531,7 @@ async def close_futures_position(
         submitted_at=order.submitted_at,
         first_fill_at=order.first_fill_at,
         slippage_bps=(
-            None
-            if (bps := realized_slippage_bps(order)) is None
-            else bps.quantize(Decimal("0.01"))
+            None if (bps := realized_slippage_bps(order)) is None else bps.quantize(Decimal("0.01"))
         ),
         latency_ms=latency_ms(order),
     )

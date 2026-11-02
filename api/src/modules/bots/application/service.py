@@ -150,11 +150,6 @@ class BotService:
         return self._exchanges.profile(exchange).fees.taker_rate
 
     async def create(self, config: BotConfig) -> Bot:
-        if config.product is not TradingProduct.SPOT:
-            raise ConflictError(
-                "futures trading is not enabled: portfolio ledger and worker execution support "
-                "must be completed first"
-            )
         profile = self._exchanges.require(config.exchange, config.timeframe)
         if config.product not in profile.capabilities.products:
             raise ConflictError(
@@ -199,11 +194,6 @@ class BotService:
             bot.ensure_editable()
             old_config = bot.config
             config = replace(old_config, **changes)
-            if config.product is not TradingProduct.SPOT:
-                raise ConflictError(
-                    "futures trading is not enabled: portfolio ledger and worker execution "
-                    "support must be completed first"
-                )
             profile = self._exchanges.require(config.exchange, config.timeframe)
             if config.product not in profile.capabilities.products:
                 raise ConflictError(
@@ -239,8 +229,12 @@ class BotService:
 
     @staticmethod
     async def _check_connection(store: BotStore, config: BotConfig) -> None:
-        """A testnet bot must point at an active testnet connection of its own exchange."""
-        if not config.mode.uses_exchange:
+        """Exchange bots and all perpetual bots require a matching active connection.
+
+        Futures paper uses the Binance Demo account only to read account-specific tiers; it
+        never sends exchange orders. Spot paper remains independent of exchange credentials.
+        """
+        if not config.mode.uses_exchange and config.product is TradingProduct.SPOT:
             return
         assert config.connection_id is not None  # guaranteed by BotConfig
         allowed_environments = (
@@ -470,8 +464,11 @@ class BotService:
                     avg_entry_price=position.entry_price if position else Decimal(0),
                     last_price=mark,
                     equity=ledger.equity(mark) if mark is not None else ledger.wallet_balance,
-                    unrealized_pnl=(position.unrealized_pnl(mark)
-                                    if position is not None and mark is not None else Decimal(0)),
+                    unrealized_pnl=(
+                        position.unrealized_pnl(mark)
+                        if position is not None and mark is not None
+                        else Decimal(0)
+                    ),
                     realized_pnl=ledger.realized_pnl,
                     fees_paid=ledger.fees_paid,
                     stop_price=position.stop_price if position else None,
@@ -483,7 +480,8 @@ class BotService:
                     leverage=position.leverage if position else bot.config.leverage,
                     isolated_margin=position.isolated_margin if position else Decimal(0),
                     reserved_margin=ledger.reserved_margin,
-                    liquidation_price=ledger.exchange_liquidation_price or (
+                    liquidation_price=ledger.exchange_liquidation_price
+                    or (
                         ledger.liquidation_estimate(ledger.maintenance_margin_rate)
                         if position is not None and ledger.maintenance_margin_rate > 0
                         else None
@@ -544,32 +542,45 @@ class BotService:
         """Same metrics as backtests, from the bot's snapshots and fills (net of fees)."""
         async with self._stores() as store:
             bot = await self._get(store, bot_id)
-            snapshots = await store.portfolio.list_snapshots(bot_id)
+            futures = bot.config.product is TradingProduct.LINEAR_PERPETUAL
             fills = await store.orders.list_fills(bot_id)
             rejected = await store.signals.count_rejected(bot_id)
-            state = await store.portfolio.get(bot_id)
-        if not snapshots:
-            return None
+            if futures:
+                futures_snapshots = await store.perpetual_portfolio.list_snapshots(bot_id)
+                if not futures_snapshots:
+                    return None
+                future_state = await store.perpetual_portfolio.get(bot_id)
+                equity_curve = [EquityPoint(s.taken_at, s.equity) for s in futures_snapshots]
+                prices = [s.mark_price for s in futures_snapshots]
+                in_market = [s.position_side is not None for s in futures_snapshots]
+                open_position = future_state is not None and future_state.position is not None
+            else:
+                spot_snapshots = await store.portfolio.list_snapshots(bot_id)
+                if not spot_snapshots:
+                    return None
+                spot_state = await store.portfolio.get(bot_id)
+                equity_curve = [EquityPoint(s.taken_at, s.equity) for s in spot_snapshots]
+                prices = [snapshot.price for snapshot in spot_snapshots]
+                in_market = [snapshot.quantity > 0 for snapshot in spot_snapshots]
+                open_position = spot_state is not None and spot_state.quantity > 0
         return compute_metrics(
             initial_capital=bot.config.initial_capital,
-            equity_curve=[EquityPoint(s.taken_at, s.equity) for s in snapshots],
+            equity_curve=equity_curve,
             fills=fills,
-            first_price=snapshots[0].price,
-            last_price=snapshots[-1].price,
-            open_position=state is not None and state.quantity > 0,
+            first_price=prices[0],
+            last_price=prices[-1],
+            open_position=open_position,
             rejected_signals=rejected,
             bar=bot.config.timeframe.delta,
-            benchmark_prices=[s.price for s in snapshots],
-            in_market=[s.quantity > 0 for s in snapshots],
+            benchmark_prices=prices,
+            in_market=in_market,
         )
 
     async def equity_curve(self, bot_id: UUID, limit: int = 2000) -> list[EquityPoint]:
         async with self._stores() as store:
             bot = await self._get(store, bot_id)
             if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
-                snapshots = await store.perpetual_portfolio.list_snapshots(
-                    bot_id, limit=limit
-                )
+                snapshots = await store.perpetual_portfolio.list_snapshots(bot_id, limit=limit)
                 return [EquityPoint(s.taken_at, s.equity) for s in snapshots]
             spot_snapshots = await store.portfolio.list_snapshots(bot_id, limit=limit)
             return [EquityPoint(s.taken_at, s.equity) for s in spot_snapshots]

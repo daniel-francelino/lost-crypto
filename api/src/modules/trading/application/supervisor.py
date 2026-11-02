@@ -2,7 +2,6 @@
 
 import logging
 from datetime import datetime, timedelta
-from decimal import Decimal
 from uuid import UUID
 
 from core.clock import Clock
@@ -47,6 +46,7 @@ class BotSupervisor:
         executor: OrderExecutor | None = None,
         reconciler: Reconciler | None = None,
         testnet_enabled: bool = False,
+        futures_paper_enabled: bool = False,
         live_enabled: bool = False,
         is_production: bool = False,
         live_caps_configured: bool = False,
@@ -65,6 +65,7 @@ class BotSupervisor:
         self._executor = executor
         self._reconciler = reconciler
         self._testnet_enabled = testnet_enabled
+        self._futures_paper_enabled = futures_paper_enabled
         self._live_enabled = live_enabled
         self._is_production = is_production
         self._live_caps_configured = live_caps_configured
@@ -153,11 +154,13 @@ class BotSupervisor:
         running, never keep trading it."""
         mode = bot.config.mode
         if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
-            return "USD-M futures are disabled until the futures ledger and worker are released"
+            if mode is not ExecutionMode.PAPER:
+                return "USD-M Futures exchange order execution is not released"
+            if not self._futures_paper_enabled:
+                return "Futures paper is disabled (set FUTURES_PAPER_ENABLED=true on the worker)"
         if mode is ExecutionMode.TESTNET and not self._testnet_enabled:
             return (
-                "demo/testnet trading is disabled "
-                "(set TESTNET_TRADING_ENABLED=true on the worker)"
+                "demo/testnet trading is disabled (set TESTNET_TRADING_ENABLED=true on the worker)"
             )
         if mode is ExecutionMode.LIVE:
             if not self._live_enabled:
@@ -211,6 +214,20 @@ class BotSupervisor:
                 return f"{bot.config.exchange} has no Demo Mode API"
         if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
             try:
+                markets = await exchange.list_markets()
+                market = next(
+                    (
+                        item
+                        for item in markets
+                        if item.symbol == bot.config.symbol
+                        and item.product == TradingProduct.LINEAR_PERPETUAL.value
+                        and item.settlement == "USDT"
+                    ),
+                    None,
+                )
+                if market is None or not market.active:
+                    return "Futures symbol is not an active Binance USD-M USDT perpetual"
+                await exchange.fetch_market_info(bot.config.symbol)
                 max_notional = (
                     bot.config.initial_capital
                     * bot.config.risk.max_position_fraction
@@ -218,15 +235,11 @@ class BotSupervisor:
                 )
                 if bot.config.risk.max_order_notional is not None:
                     max_notional = min(max_notional, bot.config.risk.max_order_notional)
-                await exchange.prepare_market_configuration(
-                    bot.config.product,
-                    bot.config.symbol,
-                    bot.config.leverage,
-                    bot.config.margin_mode,
-                    max_notional=max_notional or Decimal(0),
-                )
+                tiers = await exchange.fetch_leverage_tiers(bot.config.symbol)
+                if not any(tier.supports(max_notional, bot.config.leverage) for tier in tiers):
+                    return "Binance Demo leverage tiers do not support the configured notional"
             except Exception as exc:
-                return f"futures account or market configuration refused: {exc}"
+                return f"Futures Demo market or account validation failed: {exc}"
         return None
 
     async def _enter_error(self, bot: Bot, message: str) -> None:
@@ -249,7 +262,10 @@ class BotSupervisor:
     async def _start(self, bot: Bot) -> bool:
         """Start (or resume) the bot. False when it was refused and put in the error state."""
         self._registry.create(bot.config.strategy_type, bot.config.strategy_params)  # validates
-        if bot.config.mode.uses_exchange and (problem := await self._connection_problem(bot)):
+        needs_connection = bot.config.mode.uses_exchange or (
+            bot.config.product is TradingProduct.LINEAR_PERPETUAL
+        )
+        if needs_connection and (problem := await self._connection_problem(bot)):
             await self._enter_error(bot, problem)
             return False
         resumed = bot.observed_state is BotState.PAUSED

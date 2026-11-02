@@ -38,6 +38,7 @@ import {
   DrawdownAction,
   Environment,
   ExecutionMode,
+  TradingProduct,
   Timeframe,
 } from "@/lib/shared/enums";
 import { drawdownActionLabel } from "@/lib/shared/labels";
@@ -47,12 +48,16 @@ import type { Strategy } from "@/lib/shared/strategies/strategies.api";
 
 const MODE_ITEMS = [
   { label: "PAPER (simulado, sem exchange)", value: ExecutionMode.Paper },
-  { label: "TESTNET (dinheiro fictício na exchange)", value: ExecutionMode.Testnet },
+  { label: "DEMO / TESTNET (ordens com dinheiro fictício)", value: ExecutionMode.Testnet },
 ];
 const TIMEFRAME_ITEMS = Object.values(Timeframe).map((value) => ({ label: value, value }));
+const PRODUCT_ITEMS = [
+  { label: "Spot", value: TradingProduct.Spot },
+  { label: "USDⓈ-M Perp (USDT)", value: TradingProduct.LinearPerpetual },
+];
 const MAX_NAME = 60;
 const quoteCurrency = (symbol: string): string | undefined => {
-  const quote = symbol.split("/")[1]?.trim().toUpperCase();
+  const quote = symbol.split("/")[1]?.split(":")[0]?.trim().toUpperCase();
   return quote !== undefined && /^[A-Z]{3}$/.test(quote) ? quote : undefined;
 };
 const quoteCurrencyProps = (symbol: string): { currency?: string } => {
@@ -110,6 +115,7 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
   const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmEdit, setConfirmEdit] = useState(false);
+  const [futuresRiskConfirmed, setFuturesRiskConfirmed] = useState(false);
   const orderHistory = useOrders(bot?.id ?? "", 1, 0, bot !== null);
   const overview = useOverview();
   const performance = usePerformance(bot?.id ?? "", bot !== null);
@@ -135,11 +141,19 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
           }));
   const set = <K extends keyof BotFormValues>(key: K, value: BotFormValues[K]) =>
     setValues((current) => ({ ...current, [key]: value }));
-  const testnetConnections = (connections.data ?? []).filter(
+  const isFutures = values.product === TradingProduct.LinearPerpetual;
+  const availableConnections = (connections.data ?? []).filter(
     (item) =>
-      (item.environment === Environment.Demo || item.environment === Environment.Testnet) &&
-      item.status === ConnectionStatus.Active,
+      item.status === ConnectionStatus.Active &&
+      item.exchange === values.exchange &&
+      (isFutures
+        ? item.environment === Environment.Demo && item.exchange === "binance-usdm"
+        : item.environment === Environment.Demo || item.environment === Environment.Testnet),
   );
+  const needsConnection = values.mode !== ExecutionMode.Paper || isFutures;
+  const modeItems = isFutures
+    ? MODE_ITEMS.filter((item) => item.value === ExecutionMode.Paper)
+    : MODE_ITEMS;
 
   const mutation = useMutation({
     mutationFn: (reason?: string) => {
@@ -170,6 +184,10 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
   const submit = () => {
     setServerErrors({});
     setFormError(null);
+    if (isFutures && !futuresRiskConfirmed) {
+      setFormError("Confirme que compreende os riscos de alavancagem e liquidação.");
+      return;
+    }
     if (bot === null) mutation.mutate(undefined);
     else setConfirmEdit(true);
   };
@@ -210,9 +228,30 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
               value={values.exchange}
               onValueChange={(value) => set("exchange", value)}
             />
+            <FormSelect
+              label="Produto"
+              items={PRODUCT_ITEMS}
+              value={values.product}
+              onValueChange={(value) => {
+                const futures = value === TradingProduct.LinearPerpetual;
+                setValues((current) => ({
+                  ...current,
+                  product: value,
+                  exchange: futures ? "binance-usdm" : "binance",
+                  symbol: futures ? "BTC/USDT:USDT" : "BTC/USDT",
+                  mode: ExecutionMode.Paper,
+                  connectionId: "",
+                  leverage: "1",
+                  allowShort: false,
+                }));
+                setFuturesRiskConfirmed(false);
+              }}
+            />
             <SymbolSelect
               label="Par"
               required
+              exchange={values.exchange}
+              product={values.product}
               value={values.symbol}
               onValueChange={(value) => set("symbol", value)}
               errorMessage={err("symbol") ?? ""}
@@ -262,6 +301,34 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
             </IconCardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-3">
+            {isFutures ? (
+              <>
+                <FormInputNumber
+                  label="Alavancagem (máximo 10x)"
+                  required
+                  step={1}
+                  min={1}
+                  max={10}
+                  value={numberValue(values.leverage)}
+                  onValueChange={(value) => set("leverage", numberText(value))}
+                  rules={[(value) => integerError(numberText(value))]}
+                />
+                <FormSwitch
+                  label="Permitir posições short"
+                  value={values.allowShort}
+                  onValueChange={(value) => set("allowShort", value)}
+                />
+                <FormSwitch
+                  label="Compreendo os riscos de margem, funding e liquidação"
+                  value={futuresRiskConfirmed}
+                  onValueChange={setFuturesRiskConfirmed}
+                />
+                <div className="text-sm text-muted-foreground">
+                  Margem isolada. A simulação usa tiers da conta Demo escolhida; não envia ordens à
+                  Binance.
+                </div>
+              </>
+            ) : null}
             <FormInputMoney
               label="Capital inicial"
               required
@@ -305,6 +372,16 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {isFutures ? (
+              <FormInputNumber
+                label="Distância mínima de liquidação (%)"
+                showControls={false}
+                description="Recusa entradas quando a liquidação estimada fica demasiado próxima."
+                value={numberValue(values.minLiquidationDistancePct)}
+                onValueChange={(value) => set("minLiquidationDistancePct", numberText(value))}
+                rules={[(value) => decimalError(numberText(value), false)]}
+              />
+            ) : null}
             <FormInputNumber
               label="Fração máxima por posição"
               required
@@ -415,17 +492,17 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <FormSelect
                 label="Modo"
-                items={MODE_ITEMS}
+                items={modeItems}
                 value={values.mode}
                 onValueChange={(value) => set("mode", value)}
               />
-              {values.mode === ExecutionMode.Paper ? null : (
+              {needsConnection ? (
                 <FormSelect
-                  label="Conexão Demo/testnet ativa"
+                  label={isFutures ? "Conexão Binance Futures Demo" : "Conexão Demo/testnet ativa"}
                   placeholder={
-                    testnetConnections.length === 0 ? "Nenhuma conexão ativa" : "Escolha"
+                    availableConnections.length === 0 ? "Nenhuma conexão ativa" : "Escolha"
                   }
-                  items={testnetConnections.map((item) => ({
+                  items={availableConnections.map((item) => ({
                     label: `${item.label} (${item.api_key_hint})`,
                     value: item.id,
                   }))}
@@ -433,7 +510,16 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
                   onValueChange={(value) => set("connectionId", value)}
                   rules={[rules.required("Escolha a conexão.")]}
                 />
-              )}
+              ) : null}
+              {isFutures ? (
+                <Alert className="sm:col-span-2">
+                  <AlertTitle>Simulação Futures paper</AlertTitle>
+                  <AlertDescription>
+                    Usa dados de mercado e tiers de margem da conexão Demo para calcular long,
+                    short, funding e liquidação. Nenhuma ordem é enviada à Binance.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
             </CardContent>
           </Card>
         )}

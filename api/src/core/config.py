@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     live_trading_enabled: bool = False
     # Testnet orders (fake money on the exchange sandbox) also need an explicit opt-in.
     testnet_trading_enabled: bool = False
+    # Futures paper simulation reads Binance Demo data and tiers but sends no exchange orders.
+    futures_paper_enabled: bool = False
     # --- Live trading (REAL MONEY). Off unless every one of these is deliberately set. ----
     # Hard caps independent of any bot's own limits; all three are required for a live bot to run.
     live_max_order_notional: Decimal | None = None  # quote currency, per order

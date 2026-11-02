@@ -24,7 +24,7 @@ import {
 } from "@/hooks/bots/use-bots";
 import type { Bot, Order, Signal } from "@/lib/bots/bots.api";
 import { formatDateTime, formatUtcShort } from "@/lib/shared/dates";
-import { DrawdownAction, ExecutionMode } from "@/lib/shared/enums";
+import { DrawdownAction, ExecutionMode, TradingProduct } from "@/lib/shared/enums";
 import { ExecutionQualityCard } from "@/components/bots/bot-execution";
 import {
   compareDecimal,
@@ -76,6 +76,15 @@ export function SummaryTab({ bot }: { bot: Bot }) {
     <div className="space-y-4">
       <ConnectionWarning bot={bot} />
       <ExecutionQualityCard bot={bot} />
+      {bot.product === TradingProduct.LinearPerpetual && bot.mode === ExecutionMode.Paper ? (
+        <Alert>
+          <AlertTitle>Futures paper · Binance Demo</AlertTitle>
+          <AlertDescription>
+            Valores simulados com mark price e tiers da conexão Demo. Nenhuma ordem foi enviada à
+            exchange.
+          </AlertDescription>
+        </Alert>
+      ) : null}
       {portfolio.data !== undefined &&
       usesExchange(bot.mode) &&
       compareDecimal(portfolio.data.quantity, "0") > 0 &&
@@ -93,16 +102,43 @@ export function SummaryTab({ bot }: { bot: Bot }) {
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
             <StatTile label="Capital (equity)" value={formatMoney(data.equity, quote)} />
             <StatTile
-              label="Caixa"
+              label={data.product === TradingProduct.LinearPerpetual ? "Saldo livre" : "Caixa"}
               value={formatMoney(data.cash, quote)}
-              hint={`Reservado: ${formatMoney(data.reserved_cash, quote)}`}
+              hint={
+                data.product === TradingProduct.LinearPerpetual
+                  ? `Margem reservada: ${formatMoney(data.reserved_margin ?? "0", quote)}`
+                  : `Reservado: ${formatMoney(data.reserved_cash, quote)}`
+              }
             />
             <StatTile
-              label="Posição"
+              label={
+                data.product === TradingProduct.LinearPerpetual
+                  ? `Posição ${data.position_side ?? "flat"}`
+                  : "Posição"
+              }
               value={formatQuantity(data.quantity)}
               hint={`Preço médio: ${formatPrice(data.avg_entry_price)}`}
             />
             <StatTile label="Último preço" value={formatPrice(data.last_price)} />
+            {data.product === TradingProduct.LinearPerpetual ? (
+              <>
+                <StatTile label="Alavancagem" value={`${data.leverage ?? bot.leverage}x`} />
+                <StatTile
+                  label="Margem isolada"
+                  value={formatMoney(data.isolated_margin ?? "0", quote)}
+                  hint="Colateral associado à posição aberta"
+                />
+                <StatTile
+                  label="Liquidação estimada"
+                  value={formatPrice(data.liquidation_price)}
+                  hint="Estimativa local; o preço da exchange é autoridade em execução real."
+                />
+                <StatTile
+                  label="Funding pago / recebido"
+                  value={`${formatMoney(data.funding_paid ?? "0", quote)} / ${formatMoney(data.funding_received ?? "0", quote)}`}
+                />
+              </>
+            ) : null}
             <StatTile
               label="Resultado não realizado"
               value={
@@ -125,7 +161,13 @@ export function SummaryTab({ bot }: { bot: Bot }) {
             <StatTile
               label="Stop / alvo"
               value={`${formatPrice(data.stop_price)} / ${formatPrice(data.take_profit_price)}`}
-              hint={data.native_stop_active ? "Stop nativo ativo na exchange" : "Sem stop nativo"}
+              hint={
+                data.native_stop_active
+                  ? "Stop nativo ativo na exchange"
+                  : data.product === TradingProduct.LinearPerpetual
+                    ? "Monitorados pelo simulador paper"
+                    : "Sem stop nativo"
+              }
             />
           </div>
         )}
