@@ -2,7 +2,7 @@ import asyncio
 import json
 from types import SimpleNamespace
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 import pytest
 
@@ -82,14 +82,12 @@ def _exchange(events: list[dict[str, Any]]) -> tuple[BinanceUsdmExchange, _Clien
     return exchange, client
 
 
-async def test_user_stream_uses_demo_private_route_and_yields_wrapped_events() -> None:
-    exchange, client = _exchange(
-        [{"subscriptionId": "sub-1", "event": {"e": "ACCOUNT_UPDATE", "E": 123}}]
-    )
+async def test_user_stream_uses_demo_private_route_and_yields_user_events() -> None:
+    exchange, client = _exchange([{"e": "ACCOUNT_UPDATE", "E": 123}])
     # End the stream with the documented expiry event so the adapter returns for recovery.
     client.session.websocket._events = iter(
         [
-            {"subscriptionId": "sub-1", "event": {"e": "ACCOUNT_UPDATE", "E": 123}},
+            {"e": "ACCOUNT_UPDATE", "E": 123},
             {"e": "listenKeyExpired", "E": 124},
         ]
     )
@@ -101,9 +99,8 @@ async def test_user_stream_uses_demo_private_route_and_yields_wrapped_events() -
     assert client.closed == 1
     parsed = urlparse(client.session.url or "")
     assert parsed.netloc == "demo-fstream.binance.com"
-    assert parsed.path == "/private/ws"
-    assert parse_qs(parsed.query)["listenKey"] == ["test-listen-key"]
-    assert "ALGO_UPDATE" in parse_qs(parsed.query)["events"][0]
+    assert parsed.path == "/private/ws/test-listen-key"
+    assert parsed.query == ""
     assert client.session.options == {"heartbeat": 30}
 
 

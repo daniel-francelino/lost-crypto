@@ -2,13 +2,16 @@
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 from uuid import uuid4
 
 import pytest
 
 from core.config import AppEnv, Settings
+from core.errors import ConflictError
 from factories import T0
+from modules.bots.application.service import BotService
 from modules.bots.domain.models import (
     Bot,
     BotConfig,
@@ -16,7 +19,8 @@ from modules.bots.domain.models import (
     ExecutionMode,
     InvalidBotConfig,
 )
-from modules.exchanges.domain.connections import ApiPermissions, permission_problem
+from modules.exchanges.domain.connections import ApiPermissions, Environment, permission_problem
+from modules.exchanges.domain.models import MarginMode, TradingProduct
 from modules.exchanges.errors import ExchangeConfigurationError
 from modules.exchanges.infrastructure.binance import BinanceExchange
 from modules.market_data.domain.models import Timeframe
@@ -195,3 +199,256 @@ def test_testnet_and_paper_guards() -> None:
     assert _supervisor(testnet_enabled=True)._mode_problem(testnet) is None
     assert _supervisor()._mode_problem(paper) is None  # paper needs no permission at all
     assert AppEnv.PROD.value == "prod"
+
+
+def test_usdm_demo_execution_needs_its_worker_opt_in() -> None:
+    connection_id = uuid4()
+    bot = Bot(
+        uuid4(),
+        BotConfig(
+            name="USD-M safety gate",
+            strategy_type="mean_reversion_zscore",
+            strategy_params={},
+            symbol="BTC/USDT:USDT",
+            timeframe=Timeframe.H1,
+            initial_capital=Decimal("1000"),
+            fee_rate=Decimal("0.001"),
+            slippage_bps=Decimal("0"),
+            mode=ExecutionMode.TESTNET,
+            exchange="binance-usdm",
+            connection_id=connection_id,
+            product=TradingProduct.LINEAR_PERPETUAL,
+            leverage=10,
+            margin_mode=MarginMode.ISOLATED,
+            allow_short=True,
+        ),
+        BotState.RUNNING,
+        BotState.RUNNING,
+        7,
+        T0,
+        T0,
+    )
+    assert "TESTNET_TRADING_ENABLED" in (_supervisor()._mode_problem(bot) or "")
+    assert _supervisor(testnet_enabled=True)._mode_problem(bot) is None
+
+
+@pytest.mark.parametrize(
+    (
+        "remote_position",
+        "remote_order",
+        "has_local_position",
+        "keep_local_position",
+        "unresolved",
+        "success",
+    ),
+    [
+        (False, False, True, False, 0, True),
+        (True, False, True, False, 0, False),
+        (False, True, True, False, 0, False),
+        (False, False, True, True, 0, False),
+        (False, False, True, False, 1, False),
+        (True, False, False, False, 0, False),
+        (False, True, False, False, 0, False),
+    ],
+)
+async def test_futures_kill_close_is_only_audited_after_exchange_and_ledger_are_flat(
+    remote_position: bool,
+    remote_order: bool,
+    has_local_position: bool,
+    keep_local_position: bool,
+    unresolved: int,
+    success: bool,
+) -> None:
+    from contextlib import asynccontextmanager
+
+    from modules.execution.domain.orders import OrderStatus
+    from modules.risk_management.domain.models import KillSwitchState
+
+    connection_id = uuid4()
+    bot = Bot(
+        uuid4(),
+        BotConfig(
+            name="kill close",
+            strategy_type="mean_reversion_zscore",
+            strategy_params={},
+            symbol="BTC/USDT:USDT",
+            timeframe=Timeframe.H1,
+            initial_capital=Decimal("1000"),
+            fee_rate=Decimal("0.001"),
+            slippage_bps=Decimal(0),
+            mode=ExecutionMode.TESTNET,
+            exchange="binance-usdm",
+            connection_id=connection_id,
+            product=TradingProduct.LINEAR_PERPETUAL,
+            leverage=2,
+            margin_mode=MarginMode.ISOLATED,
+            allow_short=True,
+        ),
+        BotState.PAUSED,
+        BotState.PAUSED,
+        1,
+        T0,
+        T0,
+    )
+    ledger = SimpleNamespace(position=object()) if has_local_position else None
+    audit_events: list[Any] = []
+    order = SimpleNamespace(
+        id=uuid4(),
+        status=OrderStatus.FILLED,
+        is_unresolved=False,
+        client_order_id="close-1",
+    )
+
+    class Exchange:
+        async def fetch_positions(self, _symbols: list[str]) -> list[Any]:
+            return [object()] if remote_position else []
+
+        async def fetch_open_orders(self, _symbol: str) -> list[Any]:
+            return [object()] if remote_order else []
+
+    class Resolver:
+        async def environment_for(self, _connection_id: Any) -> Environment:
+            return Environment.DEMO
+
+        async def exchange_for(self, _connection_id: Any) -> Exchange:
+            return Exchange()
+
+    class Executor:
+        async def cancel_opening_perpetual_orders(self, _bot: Bot) -> None:
+            return None
+
+    class Closer:
+        async def close(self, *_args: Any, **_kwargs: Any) -> Any:
+            if ledger is not None and not keep_local_position:
+                ledger.position = None
+            return order
+
+    class Portfolio:
+        async def get(self, _bot_id: Any) -> Any:
+            return ledger
+
+    class Orders:
+        async def count_unresolved(self, _bot_id: Any) -> int:
+            return unresolved
+
+    class Audit:
+        async def add(self, event: Any) -> None:
+            audit_events.append(event)
+
+    store = SimpleNamespace(
+        perpetual_portfolio=Portfolio(),
+        orders=Orders(),
+        audit=Audit(),
+        commit=_no_op,
+    )
+
+    @asynccontextmanager
+    async def stores() -> Any:
+        yield store
+
+    supervisor = _supervisor(
+        resolver=Resolver(), executor=Executor(), perpetual_closer=Closer()
+    )
+    supervisor._stores = stores
+    supervisor._clock = SimpleNamespace(now=lambda: T0)
+    await supervisor._close_futures_for_kill_switch(
+        bot, KillSwitchState(active=True, reason="test", close_futures_positions=True)
+    )
+
+    event_names = [event.event_type for event in audit_events]
+    if success:
+        assert "system.kill_switch_futures_closed" in event_names
+        assert "system.kill_switch_futures_close_failed" not in event_names
+    else:
+        assert "system.kill_switch_futures_closed" not in event_names
+        assert "system.kill_switch_futures_close_failed" in event_names
+
+
+async def _no_op() -> None:
+    return None
+
+
+def test_usdm_live_bot_configuration_is_rejected_even_with_live_flags_enabled() -> None:
+    with pytest.raises(InvalidBotConfig, match="live futures trading is not enabled"):
+        BotConfig(
+            name="USD-M live gate",
+            strategy_type="mean_reversion_zscore",
+            strategy_params={},
+            symbol="BTC/USDT:USDT",
+            timeframe=Timeframe.H1,
+            initial_capital=Decimal("1000"),
+            fee_rate=Decimal("0.001"),
+            slippage_bps=Decimal("0"),
+            mode=ExecutionMode.LIVE,
+            exchange="binance-usdm",
+            connection_id=uuid4(),
+            product=TradingProduct.LINEAR_PERPETUAL,
+            leverage=10,
+            margin_mode=MarginMode.ISOLATED,
+            allow_short=True,
+        )
+
+
+async def test_usdm_paper_bot_cannot_be_promoted_through_the_live_api_service() -> None:
+    bot = Bot(
+        uuid4(),
+        BotConfig(
+            name="USD-M paper promotion gate",
+            strategy_type="mean_reversion_zscore",
+            strategy_params={},
+            symbol="BTC/USDT:USDT",
+            timeframe=Timeframe.H1,
+            initial_capital=Decimal("1000"),
+            fee_rate=Decimal("0.001"),
+            slippage_bps=Decimal("0"),
+            mode=ExecutionMode.PAPER,
+            exchange="binance-usdm",
+            connection_id=uuid4(),
+            product=TradingProduct.LINEAR_PERPETUAL,
+            leverage=3,
+            margin_mode=MarginMode.ISOLATED,
+        ),
+        BotState.STOPPED,
+        BotState.STOPPED,
+        1,
+        T0,
+        T0,
+    )
+
+    async def get_bot(_bot_id: Any) -> Bot:
+        return bot
+
+    with pytest.raises(ConflictError, match="live futures promotion is not enabled"):
+        await BotService.promote_to_live(
+            cast(BotService, SimpleNamespace(get=get_bot)), bot.id, uuid4()
+        )
+
+
+def test_usdm_paper_requires_its_explicit_worker_opt_in() -> None:
+    bot = Bot(
+        uuid4(),
+        BotConfig(
+            name="USD-M paper gate",
+            strategy_type="mean_reversion_zscore",
+            strategy_params={},
+            symbol="BTC/USDT:USDT",
+            timeframe=Timeframe.H1,
+            initial_capital=Decimal("1000"),
+            fee_rate=Decimal("0.001"),
+            slippage_bps=Decimal("0"),
+            mode=ExecutionMode.PAPER,
+            exchange="binance-usdm",
+            connection_id=uuid4(),
+            product=TradingProduct.LINEAR_PERPETUAL,
+            leverage=10,
+            margin_mode=MarginMode.ISOLATED,
+            allow_short=True,
+        ),
+        BotState.RUNNING,
+        BotState.RUNNING,
+        1,
+        T0,
+        T0,
+    )
+    assert "FUTURES_PAPER_ENABLED" in (_supervisor()._mode_problem(bot) or "")
+    assert _supervisor(futures_paper_enabled=True)._mode_problem(bot) is None

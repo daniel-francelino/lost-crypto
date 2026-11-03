@@ -120,7 +120,12 @@ export function SummaryTab({ bot }: { bot: Bot }) {
               value={formatQuantity(data.quantity)}
               hint={`Preço médio: ${formatPrice(data.avg_entry_price)}`}
             />
-            <StatTile label="Último preço" value={formatPrice(data.last_price)} />
+            <StatTile
+              label={
+                data.product === TradingProduct.LinearPerpetual ? "Mark price" : "Último preço"
+              }
+              value={formatPrice(data.last_price)}
+            />
             {data.product === TradingProduct.LinearPerpetual ? (
               <>
                 <StatTile label="Alavancagem" value={`${data.leverage ?? bot.leverage}x`} />
@@ -130,9 +135,17 @@ export function SummaryTab({ bot }: { bot: Bot }) {
                   hint="Colateral associado à posição aberta"
                 />
                 <StatTile
-                  label="Liquidação estimada"
+                  label={
+                    data.liquidation_price_source === "exchange_reported"
+                      ? "Liquida\u00e7\u00e3o informada pela Binance"
+                      : "Liquida\u00e7\u00e3o estimada"
+                  }
                   value={formatPrice(data.liquidation_price)}
-                  hint="Estimativa local; o preço da exchange é autoridade em execução real."
+                  hint={
+                    data.liquidation_price_source === "exchange_reported"
+                      ? "Pre\u00e7o reportado pela Binance Demo."
+                      : "Estimativa local; o pre\u00e7o da exchange \u00e9 autoridade em execu\u00e7\u00e3o real."
+                  }
                 />
                 <StatTile
                   label="Funding pago / recebido"
@@ -164,9 +177,13 @@ export function SummaryTab({ bot }: { bot: Bot }) {
               value={`${formatPrice(data.stop_price)} / ${formatPrice(data.take_profit_price)}`}
               hint={
                 data.native_stop_active
-                  ? "Stop nativo ativo na exchange"
+                  ? data.product === TradingProduct.LinearPerpetual
+                    ? "Stop nativo ativo na Binance Demo"
+                    : "Stop nativo ativo na exchange"
                   : data.product === TradingProduct.LinearPerpetual
-                    ? "Monitorados pelo simulador paper"
+                    ? bot.mode === ExecutionMode.Paper
+                      ? "Monitorados pelo simulador paper"
+                      : "Sem stop confirmado na Binance Demo"
                     : "Sem stop nativo"
               }
             />

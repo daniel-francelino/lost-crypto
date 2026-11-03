@@ -1,4 +1,4 @@
-import { numberText, numberValue } from "@/lib/shared/format";
+import { formatMoney, numberText, numberValue } from "@/lib/shared/format";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
@@ -27,7 +27,13 @@ import { useOverview } from "@/hooks/shared/use-overview";
 import { useConnections, useStrategies } from "@/hooks/shared/use-catalog";
 import { useCapabilities } from "@/hooks/shared/use-system";
 import { type Bot, createBot, updateBot } from "@/lib/bots/bots.api";
-import { type BotFormValues, defaultFormValues, formFromBot, toBotInput } from "@/lib/bots/form";
+import {
+  type BotFormValues,
+  defaultFormValues,
+  formFromBot,
+  futuresEntryEstimate,
+  toBotInput,
+} from "@/lib/bots/form";
 import { ApiError } from "@/lib/shared/api/api-error";
 import { errorMessage } from "@/lib/shared/api/messages";
 import { QueryKey } from "@/lib/shared/api/query-keys";
@@ -141,6 +147,8 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
   const set = <K extends keyof BotFormValues>(key: K, value: BotFormValues[K]) =>
     setValues((current) => ({ ...current, [key]: value }));
   const isFutures = values.product === TradingProduct.LinearPerpetual;
+  const futuresEstimate = isFutures ? futuresEntryEstimate(values) : null;
+  const futuresQuote = quoteCurrency(values.symbol) ?? "USDT";
   const availableConnections = (connections.data ?? []).filter(
     (item) =>
       item.status === ConnectionStatus.Active &&
@@ -151,7 +159,11 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
   );
   const needsConnection = values.mode !== ExecutionMode.Paper || isFutures;
   const modeItems = isFutures
-    ? MODE_ITEMS.filter((item) => item.value === ExecutionMode.Paper)
+    ? MODE_ITEMS.filter(
+        (item) =>
+          item.value === ExecutionMode.Paper ||
+          (bot?.mode === ExecutionMode.Testnet && item.value === ExecutionMode.Testnet),
+      )
     : MODE_ITEMS;
 
   const mutation = useMutation({
@@ -326,9 +338,24 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
                   value={futuresRiskConfirmed}
                   onValueChange={setFuturesRiskConfirmed}
                 />
-                <div className="text-sm text-muted-foreground">
-                  Margem isolada. A simulação usa tiers da conta Demo escolhida; não envia ordens à
-                  Binance.
+                <div className="rounded-md bg-muted p-3 text-sm sm:col-span-3" role="status">
+                  <p className="font-medium">Estimativa da entrada</p>
+                  {futuresEstimate === null ? (
+                    <p className="text-muted-foreground">
+                      Preencha capital, fração por posição e alavancagem para calcular.
+                    </p>
+                  ) : (
+                    <p>
+                      Notional até {formatMoney(futuresEstimate.notional, futuresQuote)}; margem
+                      estimada {formatMoney(futuresEstimate.collateral, futuresQuote)}.
+                    </p>
+                  )}
+                  <p className="mt-1 text-muted-foreground">
+                    Margem isolada. Estimativa inclui taxa de entrada, mas não filtros do contrato,
+                    limites de volume, risco por operacao, funding ou slippage; os filtros de risco
+                    e as tiers da conta Demo podem reduzir ou rejeitar a entrada. A simulação paper
+                    não envia ordens.
+                  </p>
                 </div>
               </>
             ) : null}
@@ -402,10 +429,15 @@ function BotForm({ bot, strategies, exchanges, prefill }: FormProps) {
               ) : null}
               {isFutures ? (
                 <Alert className="sm:col-span-2">
-                  <AlertTitle>Simulação Futures paper</AlertTitle>
+                  <AlertTitle>
+                    {values.mode === ExecutionMode.Testnet
+                      ? "Execução Futures Demo"
+                      : "Simulação Futures paper"}
+                  </AlertTitle>
                   <AlertDescription>
-                    Usa dados de mercado e tiers de margem da conexão Demo para calcular long,
-                    short, funding e liquidação. Nenhuma ordem é enviada à Binance.
+                    {values.mode === ExecutionMode.Testnet
+                      ? "Envia ordens para a conta Binance Futures Demo selecionada. Os fills, stops e posições precisam ser confirmados pela exchange."
+                      : "Usa dados de mercado e tiers de margem da conexão Demo para calcular long, short, funding e liquidação. Nenhuma ordem é enviada à Binance."}
                   </AlertDescription>
                 </Alert>
               ) : null}

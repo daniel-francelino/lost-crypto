@@ -168,7 +168,8 @@ class MarketDataService:
         while funding_cursor < end:
             page = await fetch_funding_rates(symbol, funding_cursor, 1000)
             page = sorted(
-                (r for r in page if start <= r.funding_time < end), key=lambda r: r.funding_time
+                (r for r in page if start <= r.funding_time <= end),
+                key=lambda r: r.funding_time,
             )
             if not page:
                 break

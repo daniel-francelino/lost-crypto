@@ -22,7 +22,6 @@ class PositionSide(StrEnum):
 
 class MarginMode(StrEnum):
     ISOLATED = "isolated"
-    CROSS = "cross"
 
 
 @dataclass(frozen=True, slots=True)

@@ -241,9 +241,7 @@ make master-key
   chave criada/ativada para Futures Demo. Chaves Spot e Futures não são intercambiáveis.
 - `environment=testnet` continua sendo o sandbox legado; não significa Binance Demo.
 - Não habilite saques e nunca coloque chaves em arquivos versionados, logs, screenshots ou mensagens.
-- Bots Futures continuam bloqueados pelo worker enquanto os gates de entrega não forem concluídos;
-  consulte [16-futures-delivery-plan.md](docs/architecture/16-futures-delivery-plan.md). Ter uma
-  conexão Demo não significa que a negociação automatizada Futures já esteja liberada.
+- Futures Demo possui caminho de execução separado do paper e pode ser habilitado pelo opt-in do worker, mas ainda não está aprovado como operacional até concluir os cenários de falha, recuperação e validação em conta Demo descritos em [16-futures-delivery-plan.md](docs/architecture/16-futures-delivery-plan.md). Futures live permanece bloqueado no código.
 
 Cadastre credenciais pela tela protegida de conexões. Elas são armazenadas criptografadas e não são
 retornadas pela API. O modo do bot `testnet` representa execução simulada em exchange; o campo

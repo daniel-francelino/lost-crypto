@@ -1,11 +1,20 @@
 import { z } from "zod";
+import { TradingProduct } from "@/lib/shared/enums";
 
 export const backtestPrefillSchema = z.object({
   strategy: z.string().optional().catch(undefined),
+  product: z
+    .enum([TradingProduct.Spot, TradingProduct.LinearPerpetual])
+    .optional()
+    .catch(undefined),
+  leverage: z.string().optional().catch(undefined),
+  allowShort: z.boolean().optional().catch(undefined),
+  connectionId: z.string().optional().catch(undefined),
   symbol: z.string().optional().catch(undefined),
   timeframe: z.string().optional().catch(undefined),
   params: z.string().optional().catch(undefined),
   feeRate: z.string().optional().catch(undefined),
+  initialCapital: z.string().optional().catch(undefined),
   slippageBps: z.string().optional().catch(undefined),
   fillTiming: z.string().optional().catch(undefined),
   risk: z.string().optional().catch(undefined),

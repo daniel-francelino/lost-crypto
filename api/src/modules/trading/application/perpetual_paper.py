@@ -25,7 +25,7 @@ from modules.exchanges.domain.connections import Environment
 from modules.exchanges.domain.models import LeverageTier, PositionSide, TradingProduct
 from modules.execution.application.ports import SignalRecord
 from modules.execution.domain.fills import simulate_market_fill
-from modules.execution.domain.normalizer import OrderRejected
+from modules.execution.domain.normalizer import OrderRejected, normalize_quantity, round_price
 from modules.execution.domain.orders import Fill, Order, make_client_order_id
 from modules.market_data.domain.models import (
     Candle,
@@ -40,7 +40,11 @@ from modules.portfolio.domain.perpetual_ledger import (
     PerpetualLedgerEventKind,
     PerpetualPortfolioSnapshot,
 )
-from modules.portfolio.domain.perpetuals import InvalidPerpetualPosition, PerpetualLedger
+from modules.portfolio.domain.perpetuals import (
+    InvalidPerpetualPosition,
+    LinearPerpetualPosition,
+    PerpetualLedger,
+)
 from modules.risk_management.domain.models import (
     average_quote_volume,
     consecutive_losses_breached,
@@ -51,6 +55,7 @@ from modules.risk_management.domain.perpetual import size_linear_perpetual_entry
 from modules.strategies.domain.base import Strategy
 from modules.strategies.domain.registry import StrategyRegistry
 from modules.strategies.domain.types import Side, Signal, SignalKind, StrategyContext
+from modules.trading.application.orders import OrderExecutor
 from modules.trading.application.ports import TradingStore
 from modules.trading.domain.models import WARMUP_CANDLES, TradingSession, max_signal_age
 
@@ -60,7 +65,7 @@ _FUNDING_PAGE = 1000
 _VOLUME_WINDOW = 20
 
 
-class PerpetualPaperTrader:
+class _PerpetualTrader:
     def __init__(
         self,
         stores: TradingStoreFactory,
@@ -69,6 +74,7 @@ class PerpetualPaperTrader:
         resolver: ConnectionResolver | None,
         clock: Clock,
         ids: IdGenerator,
+        executor: OrderExecutor | None = None,
     ) -> None:
         self._stores = stores
         self._strategies = strategies
@@ -76,14 +82,16 @@ class PerpetualPaperTrader:
         self._resolver = resolver
         self._clock = clock
         self._ids = ids
+        self._executor = executor
+        self._pending: list[UUID] = []
         self._tier_cache: dict[tuple[UUID, str], tuple[datetime, list[LeverageTier]]] = {}
 
     async def process(self, bot: Bot, session: TradingSession, now: datetime) -> None:
         cfg = bot.config
-        if cfg.mode is not ExecutionMode.PAPER:
-            raise ConflictError(
-                "Futures exchange execution is not released; paper mode is required"
-            )
+        if cfg.mode not in (ExecutionMode.PAPER, ExecutionMode.TESTNET):
+            raise ConflictError("live Futures exchange execution is not enabled")
+        if cfg.mode is ExecutionMode.TESTNET and self._executor is None:
+            raise ConflictError("Futures Demo requires a configured OrderExecutor")
         if cfg.product is not TradingProduct.LINEAR_PERPETUAL:
             raise ValueError("perpetual paper trader requires a linear perpetual bot")
         if cfg.connection_id is None or self._resolver is None:
@@ -120,8 +128,10 @@ class PerpetualPaperTrader:
             raise ConflictError("signal candle history has a gap; Futures cycle stopped")
         fetch_marks = getattr(source, "fetch_mark_candles", None)
         fetch_funding = getattr(source, "fetch_funding_rates", None)
-        if not callable(fetch_marks) or not callable(fetch_funding):
-            raise ConflictError("USD-M adapter must provide mark candles and historical funding")
+        if not callable(fetch_marks) or (
+            cfg.mode is ExecutionMode.PAPER and not callable(fetch_funding)
+        ):
+            raise ConflictError("USD-M adapter must provide mark candles and paper funding history")
         mark_candles = await fetch_marks(cfg.symbol, cfg.timeframe, since, 1000)
         marks = {mark.open_time: mark for mark in mark_candles}
         if any(candle.open_time not in marks for candle in candles):
@@ -147,7 +157,11 @@ class PerpetualPaperTrader:
             else candles[0].open_time
         )
         end = candles[-1].close_time
-        rates = await self._funding_history(fetch_funding, cfg.symbol, start, end)
+        rates = (
+            await self._funding_history(fetch_funding, cfg.symbol, start, end)
+            if cfg.mode is ExecutionMode.PAPER
+            else []
+        )
         if any(rate.symbol != cfg.symbol for rate in rates):
             raise ConflictError("funding history symbol does not match the Futures bot")
         if any(rate.mark_price is None for rate in rates):
@@ -174,9 +188,16 @@ class PerpetualPaperTrader:
                 if rates[funding_index].funding_time >= candle.open_time:
                     candle_rates.append(rates[funding_index])
                 funding_index += 1
+            self._pending = []
             state, paused = await self._process_candle(
                 bot, session, strategy, state, candle, mark, candle_rates, market, tiers, now
             )
+            if self._pending:
+                if self._executor is None:
+                    raise ConflictError("Futures Demo order executor is unavailable")
+                pending, self._pending = self._pending, []
+                for order_id in pending:
+                    await self._executor.submit(bot, order_id)
             if paused:
                 break
 
@@ -353,7 +374,7 @@ class PerpetualPaperTrader:
                     active_tier.maintenance_margin_rate,
                     active_tier.cumulative_maintenance_amount,
                 )
-                liq_hit = (
+                liq_hit = cfg.mode is ExecutionMode.PAPER and (
                     mark.low <= liq_price
                     if position.side is PositionSide.LONG
                     else mark.high >= liq_price
@@ -494,6 +515,17 @@ class PerpetualPaperTrader:
                             store, bot, session, candle, signal, "rejected", blocked_reason
                         )
                         continue
+                    if exited:
+                        await self._signal(
+                            store,
+                            bot,
+                            session,
+                            candle,
+                            signal,
+                            "rejected",
+                            "entry after an exit on the same candle is blocked",
+                        )
+                        continue
                     if ledger.position is not None:
                         await self._signal(
                             store, bot, session, candle, signal, "rejected", "position already open"
@@ -568,6 +600,7 @@ class PerpetualPaperTrader:
             await store.commit()
         return state, paused
 
+
     async def _signal(
         self,
         store: TradingStore,
@@ -608,6 +641,81 @@ class PerpetualPaperTrader:
     ) -> None:
         cfg = bot.config
         side = PositionSide.LONG if signal.side is Side.BUY else PositionSide.SHORT
+        if cfg.mode is ExecutionMode.TESTNET:
+            if self._executor is None:
+                raise ConflictError("Futures Demo order executor is unavailable")
+            quantity = normalize_quantity(quantity, candle.close, market)
+            if signal.stop_loss is None:
+                raise OrderRejected("Binance USD-M Demo entries require a protective stop loss")
+            stop_price = round_price(signal.stop_loss, market)
+            try:
+                # Validate the directional stop and target before persisting an intent or
+                # sending an exchange order. A bad stop discovered after a fill would leave
+                # the real position open without native protection.
+                LinearPerpetualPosition(
+                    side=side,
+                    quantity=quantity,
+                    entry_price=candle.close,
+                    leverage=cfg.leverage,
+                    isolated_margin=quantity * candle.close / cfg.leverage,
+                    stop_price=stop_price,
+                    take_profit_price=signal.take_profit,
+                )
+            except InvalidPerpetualPosition as exc:
+                raise OrderRejected(f"invalid Futures Demo protective levels: {exc}") from exc
+            order = Order(
+                id=self._ids.new_id(),
+                bot_id=bot.id,
+                session_id=session.id,
+                client_order_id=make_client_order_id(bot.id, candle.open_time, signal.side),
+                symbol=cfg.symbol,
+                side=signal.side,
+                quantity=quantity,
+                bar_time=candle.open_time,
+                created_at=self._clock.now(),
+                product=TradingProduct.LINEAR_PERPETUAL,
+                position_side=side,
+                leverage=cfg.leverage,
+                reference_price=candle.close,
+                planned_stop_price=stop_price,
+                planned_take_profit_price=signal.take_profit,
+            )
+            OrderExecutor.reserve_perpetual(order, ledger, candle.close, cfg.fee_rate)
+            order.submit()
+            if not await store.orders.add_if_absent(order):
+                raise ConflictError("duplicate Binance Demo entry intent for this candle")
+            if order.reserved_margin:
+                await store.perpetual_portfolio.append_entry(
+                    PerpetualLedgerEntry(
+                        id=self._ids.new_id(),
+                        bot_id=bot.id,
+                        occurred_at=self._clock.now(),
+                        kind=PerpetualLedgerEventKind.MARGIN_RESERVED,
+                        reserved_margin_delta=order.reserved_margin,
+                        source="binance_demo_order_intent",
+                        external_reference=f"order:{order.client_order_id}:margin-reserve",
+                    )
+                )
+            await store.perpetual_portfolio.save(ledger)
+            self._pending.append(order.id)
+            await store.audit.add(
+                AuditEvent(
+                    "order.intent_created",
+                    "order",
+                    str(order.id),
+                    actor="worker",
+                    bot_id=bot.id,
+                    payload={
+                        "product": "linear_perpetual",
+                        "mode": cfg.mode.value,
+                        "client_order_id": order.client_order_id,
+                        "position_side": side.value,
+                        "quantity": str(quantity),
+                        "reference_price": str(candle.close),
+                    },
+                )
+            )
+            return
         fill = simulate_market_fill(
             signal.side,
             quantity,
@@ -706,6 +814,51 @@ class PerpetualPaperTrader:
         if position is None:
             return
         side = Side.SELL if position.side is PositionSide.LONG else Side.BUY
+        if bot.config.mode is ExecutionMode.TESTNET:
+            if self._executor is None:
+                raise ConflictError("Futures Demo order executor is unavailable")
+            quantity = normalize_quantity(quantity, reference, market)
+            order = Order(
+                id=self._ids.new_id(),
+                bot_id=bot.id,
+                session_id=session.id,
+                client_order_id=make_client_order_id(bot.id, candle.open_time, side),
+                symbol=bot.config.symbol,
+                side=side,
+                quantity=quantity,
+                bar_time=candle.open_time,
+                created_at=self._clock.now(),
+                product=TradingProduct.LINEAR_PERPETUAL,
+                position_side=position.side,
+                leverage=position.leverage,
+                reduce_only=True,
+                reference_price=reference,
+            )
+            OrderExecutor.reserve_perpetual(order, ledger, reference, fee_rate)
+            order.submit()
+            if not await store.orders.add_if_absent(order):
+                raise ConflictError("duplicate Binance Demo reduce-only intent for this candle")
+            self._pending.append(order.id)
+            await store.audit.add(
+                AuditEvent(
+                    "order.intent_created",
+                    "order",
+                    str(order.id),
+                    actor="worker",
+                    bot_id=bot.id,
+                    payload={
+                        "product": "linear_perpetual",
+                        "mode": bot.config.mode.value,
+                        "reduce_only": True,
+                        "reason": reason,
+                        "client_order_id": order.client_order_id,
+                        "position_side": position.side.value,
+                        "quantity": str(quantity),
+                        "reference_price": str(reference),
+                    },
+                )
+            )
+            return
         fill = simulate_market_fill(
             side,
             quantity,
@@ -877,6 +1030,26 @@ class PerpetualPaperTrader:
             )
         )
         return True
+
+
+class PerpetualPaperTrader(_PerpetualTrader):
+    """Isolated-perpetual simulator; paper fills never reach an exchange."""
+
+    async def process(self, bot: Bot, session: TradingSession, now: datetime) -> None:
+        if bot.config.mode is not ExecutionMode.PAPER:
+            raise ConflictError("PerpetualPaperTrader only accepts paper-mode bots")
+        await super().process(bot, session, now)
+
+
+class PerpetualDemoTrader(_PerpetualTrader):
+    """USD-M Demo execution path sharing signal/risk logic, not the paper fill adapter."""
+
+    async def process(self, bot: Bot, session: TradingSession, now: datetime) -> None:
+        if bot.config.mode is not ExecutionMode.TESTNET:
+            raise ConflictError("PerpetualDemoTrader only accepts Binance Demo bots")
+        if self._executor is None:
+            raise ConflictError("Perpetual Demo requires an OrderExecutor")
+        await super().process(bot, session, now)
 
 
 def _floor(at: datetime, timeframe: Timeframe) -> datetime:

@@ -19,6 +19,7 @@ from typing import ClassVar
 from modules.exchanges.application.ports import (
     Balance,
     ExchangePosition,
+    FundingIncome,
     MarketOrderRequest,
     StopOrderRequest,
     VenueOrder,
@@ -104,6 +105,12 @@ class Exchange(ABC):
         """Open derivatives positions. Spot adapters have no positions to report."""
         return []
 
+    async def fetch_funding_income(
+        self, symbol: str, start: datetime, end: datetime, limit: int = 1000
+    ) -> list[FundingIncome]:
+        """Read settled funding cash flows for a derivatives symbol, if supported."""
+        raise NotImplementedError("funding income history is not implemented for this exchange")
+
     def stream_user_events(self) -> AsyncIterator[dict[str, object]]:
         """Yield authenticated private account events when the venue supports user streams."""
         raise NotImplementedError("private user-data streams are not implemented for this exchange")
@@ -121,6 +128,7 @@ class Exchange(ABC):
         leverage: int,
         margin_mode: MarginMode | None,
         max_notional: Decimal | None = None,
+        allow_existing_exposure: bool = False,
     ) -> None:
         """Validate and configure the account and exact market before a session starts.
 

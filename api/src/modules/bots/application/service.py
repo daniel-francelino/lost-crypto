@@ -29,7 +29,7 @@ from modules.exchanges.application.registry import ExchangeRegistry
 from modules.exchanges.domain.connections import ConnectionStatus, Environment
 from modules.exchanges.domain.models import PositionSide, TradingProduct
 from modules.execution.application.ports import SignalRecord
-from modules.execution.domain.orders import Order
+from modules.execution.domain.orders import Order, OrderStatus
 from modules.portfolio.domain.models import PortfolioState
 from modules.portfolio.domain.perpetuals import PerpetualLedger
 from modules.strategies.domain.registry import StrategyRegistry
@@ -58,6 +58,7 @@ class PortfolioView:
     isolated_margin: Decimal = Decimal(0)
     reserved_margin: Decimal = Decimal(0)
     liquidation_price: Decimal | None = None
+    liquidation_price_source: str | None = None
     funding_paid: Decimal = Decimal(0)
     funding_received: Decimal = Decimal(0)
 
@@ -74,6 +75,15 @@ class BotOverview:
     in_position: bool
     last_price: Decimal | None
     interventions_30d: int = 0
+    product: TradingProduct = TradingProduct.SPOT
+    position_side: PositionSide | None = None
+    leverage: int = 1
+    unrealized_pnl: Decimal = Decimal(0)
+    isolated_margin: Decimal = Decimal(0)
+    liquidation_price: Decimal | None = None
+    liquidation_price_source: str | None = None
+    funding_paid: Decimal = Decimal(0)
+    funding_received: Decimal = Decimal(0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,7 +203,11 @@ class BotService:
             bot = await self._get(store, bot_id)
             bot.ensure_editable()
             old_config = bot.config
-            config = replace(old_config, **changes)
+            effective_changes = _normalize_config_update(old_config, changes)
+            config = replace(old_config, **effective_changes)
+            await _ensure_flat_before_perpetual_config_update(
+                store, bot_id, old_config, config
+            )
             profile = self._exchanges.require(config.exchange, config.timeframe)
             if config.product not in profile.capabilities.products:
                 raise ConflictError(
@@ -215,7 +229,7 @@ class BotService:
                     "bot.config_updated",
                     bot,
                     {
-                        "fields": sorted(changes),
+                        "fields": sorted(effective_changes),
                         "version": version,
                         "changes": config_changes(old_config, config),
                         **({"reason": reason.strip()} if reason and reason.strip() else {}),
@@ -226,7 +240,6 @@ class BotService:
             await store.commit()
         bot.config, bot.config_version = config, version
         return bot
-
     @staticmethod
     async def _check_connection(store: BotStore, config: BotConfig) -> None:
         """Exchange bots and all perpetual bots require a matching active connection.
@@ -457,6 +470,12 @@ class BotService:
                 snapshots = await store.perpetual_portfolio.list_snapshots(bot_id, limit=1)
                 mark = snapshots[-1].mark_price if snapshots else ledger.mark_price
                 position = ledger.position
+                stop_order = (
+                    await store.orders.get_by_client_id(bot_id, ledger.stop_order_client_id)
+                    if bot.config.mode is ExecutionMode.TESTNET
+                    and ledger.stop_order_client_id is not None
+                    else None
+                )
                 return PortfolioView(
                     initial_capital=bot.config.initial_capital,
                     cash=ledger.wallet_balance,
@@ -474,7 +493,9 @@ class BotService:
                     stop_price=position.stop_price if position else None,
                     take_profit_price=position.take_profit_price if position else None,
                     reserved_cash=Decimal(0),
-                    native_stop_active=False,
+                    native_stop_active=stop_order is not None
+                    and stop_order.status
+                    in {OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED},
                     product=TradingProduct.LINEAR_PERPETUAL,
                     position_side=position.side if position else None,
                     leverage=position.leverage if position else bot.config.leverage,
@@ -483,6 +504,13 @@ class BotService:
                     liquidation_price=ledger.exchange_liquidation_price
                     or (
                         ledger.liquidation_estimate(ledger.maintenance_margin_rate)
+                        if position is not None and ledger.maintenance_margin_rate > 0
+                        else None
+                    ),
+                    liquidation_price_source=(
+                        "exchange_reported"
+                        if ledger.exchange_liquidation_price is not None
+                        else "local_estimate"
                         if position is not None and ledger.maintenance_margin_rate > 0
                         else None
                     ),
@@ -529,6 +557,15 @@ class BotService:
                     in_position=view.quantity > 0,
                     last_price=view.last_price,
                     interventions_30d=await self._intervention_count(bot.id),
+                    product=view.product,
+                    position_side=view.position_side,
+                    leverage=view.leverage,
+                    unrealized_pnl=view.unrealized_pnl,
+                    isolated_margin=view.isolated_margin,
+                    liquidation_price=view.liquidation_price,
+                    liquidation_price_source=view.liquidation_price_source,
+                    funding_paid=view.funding_paid,
+                    funding_received=view.funding_received,
                 )
             )
         return rows
@@ -657,3 +694,46 @@ class BotService:
         return AuditEvent(
             event_type, "bot", str(bot.id), actor=actor, bot_id=bot.id, payload=payload
         )
+
+
+def _normalize_config_update(
+    current: BotConfig, changes: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Keep Spot paper accountless while preserving the required Demo connection for Futures.
+
+    USD-M paper uses a Demo connection for authenticated leverage tiers. The Spot-only UI
+    behavior that clears a connection on ``mode=paper`` must not erase that Futures dependency.
+    """
+    normalized = dict(changes)
+    product = normalized.get("product", current.product)
+    mode = normalized.get("mode", current.mode)
+    if product is TradingProduct.SPOT and mode is ExecutionMode.PAPER:
+        normalized["connection_id"] = None
+    return normalized
+
+
+async def _ensure_flat_before_perpetual_config_update(
+    store: BotStore,
+    bot_id: UUID,
+    current: BotConfig,
+    updated: BotConfig,
+) -> None:
+    """Prevent edits/product switches from orphaning Spot or Futures positions and orders."""
+    if (
+        current.product is not TradingProduct.LINEAR_PERPETUAL
+        and updated.product is not TradingProduct.LINEAR_PERPETUAL
+    ):
+        return
+
+    perpetual = await store.perpetual_portfolio.get(bot_id)
+    if perpetual is not None and perpetual.position is not None:
+        raise ConflictError("close the open Futures position before changing bot configuration")
+    if perpetual is not None and perpetual.reserved_margin > 0:
+        raise ConflictError("resolve pending Futures orders before changing bot configuration")
+    spot = await store.portfolio.get(bot_id)
+    if spot is not None and (
+        spot.quantity > 0 or spot.reserved_cash > 0 or spot.reserved_quantity > 0
+    ):
+        raise ConflictError("close the open Spot position before switching to Futures")
+    if await store.orders.count_unresolved(bot_id):
+        raise ConflictError("resolve pending orders before changing product configuration")

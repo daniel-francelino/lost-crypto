@@ -110,6 +110,17 @@ class OrderExecutor:
 
     async def submit(self, bot: Bot, order_id: UUID) -> None:
         """Send a SUBMITTING order to the exchange and apply what comes back."""
+        if (
+            bot.config.product is TradingProduct.LINEAR_PERPETUAL
+            and bot.config.mode is ExecutionMode.LIVE
+        ):
+            await self._reject(
+                bot,
+                order_id,
+                "USD-M Futures live order execution is not enabled",
+                event="risk.futures_live_execution_blocked",
+            )
+            return
         try:
             exchange = await self._exchange(bot)
         except Exception as exc:
@@ -527,7 +538,7 @@ class OrderExecutor:
         await self._apply(bot, stop.id, venue)
         if (
             bot.config.product is TradingProduct.LINEAR_PERPETUAL
-            and venue.status in (OrderStatus.CANCELED, OrderStatus.EXPIRED)
+            and venue.status in (OrderStatus.CANCELED, OrderStatus.EXPIRED, OrderStatus.REJECTED)
         ):
             await self.ensure_native_stop(bot, stop.client_order_id)
 

@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -5,7 +6,7 @@ import pytest
 from fakes import FakeCcxtClient
 from modules.exchanges.application.ports import MarketOrderRequest, StopOrderRequest
 from modules.exchanges.domain.connections import Credentials
-from modules.exchanges.domain.models import MarginMode, PositionSide, TradingProduct
+from modules.exchanges.domain.models import LeverageTier, MarginMode, PositionSide, TradingProduct
 from modules.exchanges.errors import ExchangeRejected
 from modules.exchanges.infrastructure.binance_usdm import BinanceUsdmExchange
 from modules.execution.domain.orders import OrderStatus
@@ -50,6 +51,7 @@ def _exchange() -> tuple[BinanceUsdmExchange, FakeCcxtClient]:
 def _market(**overrides: object) -> dict[str, object]:
     return {
         "symbol": SYMBOL,
+        "id": "BTCUSDT",
         "swap": True,
         "linear": True,
         "settle": "USDT",
@@ -90,6 +92,157 @@ async def test_usdm_market_info_accepts_active_usdt_linear_contract() -> None:
 
     assert info.symbol == SYMBOL
     assert info.step_size == Decimal("0.001")
+
+
+async def test_usdm_can_list_open_orders_across_the_account() -> None:
+    exchange, client = _exchange()
+    calls: list[tuple[object, ...]] = []
+    raw = {
+        "id": "777",
+        "clientOrderId": "manual-order",
+        "symbol": SYMBOL,
+        "side": "buy",
+        "type": "limit",
+        "status": "open",
+        "amount": "0.01",
+        "filled": "0",
+        "timestamp": 1_700_000_000_000,
+    }
+
+    async def fetch_open_orders(*args: object) -> list[dict[str, object]]:
+        calls.append(args)
+        return [raw]
+
+    client.fetch_open_orders = fetch_open_orders  # type: ignore[method-assign]
+
+    orders = await exchange.fetch_all_open_orders()
+
+    assert calls == [(None,), (None, None, None, {"trigger": True})]
+    assert len(orders) == 2
+    assert all(order.symbol == SYMBOL for order in orders)
+    assert all(order.client_order_id == "manual-order" for order in orders)
+
+
+async def test_resuming_a_reconciled_position_does_not_change_its_account_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, client = _exchange()
+    exchange = BinanceUsdmExchange(client, credentials=CREDENTIALS, demo=True)
+    client.market_data = _market()
+    calls: list[str] = []
+
+    async def fetch_balance(params=None):
+        calls.append("balance")
+        return {"total": {}, "free": {}, "used": {}}
+
+    async def fetch_position_mode():
+        calls.append("position_mode")
+        return {"hedged": False}
+
+    async def fetch_multi_assets_mode():
+        calls.append("multi_assets_mode")
+        return {"multiAssetsMargin": False}
+
+    async def fetch_margin_mode(symbol):
+        calls.append("margin_mode")
+        return {"marginMode": "isolated", "info": {"leverage": "3"}}
+
+    async def set_margin_mode(mode, symbol):
+        calls.append("set_margin_mode")
+
+    async def set_leverage(leverage, symbol):
+        calls.append("set_leverage")
+
+    async def fetch_positions(symbols):
+        calls.append("fetch_positions")
+        return [{"contracts": 0.01}]
+
+    monkeypatch.setattr(client, "fetch_balance", fetch_balance, raising=False)
+    monkeypatch.setattr(client, "fetch_position_mode", fetch_position_mode, raising=False)
+    monkeypatch.setattr(
+        client, "fapiPrivateGetMultiAssetsMargin", fetch_multi_assets_mode, raising=False
+    )
+    monkeypatch.setattr(client, "fetch_margin_mode", fetch_margin_mode, raising=False)
+    monkeypatch.setattr(client, "set_margin_mode", set_margin_mode, raising=False)
+    monkeypatch.setattr(client, "set_leverage", set_leverage, raising=False)
+    monkeypatch.setattr(client, "fetch_positions", fetch_positions, raising=False)
+
+    async def fetch_leverage_tiers(symbol):
+        return _supported_tiers()
+
+    monkeypatch.setattr(exchange, "fetch_leverage_tiers", fetch_leverage_tiers)
+
+    async def unexpected_open_orders(symbol):
+        calls.append("fetch_open_orders")
+        return []
+
+    monkeypatch.setattr(exchange, "fetch_open_orders", unexpected_open_orders)
+
+    await exchange.prepare_market_configuration(
+        TradingProduct.LINEAR_PERPETUAL,
+        SYMBOL,
+        3,
+        MarginMode.ISOLATED,
+        Decimal("100"),
+        allow_existing_exposure=True,
+    )
+
+    assert calls == ["balance", "multi_assets_mode", "position_mode", "margin_mode", "margin_mode"]
+
+
+def _supported_tiers() -> list[LeverageTier]:
+    return [LeverageTier(1, Decimal(0), Decimal("1000"), 10, Decimal("0.005"))]
+
+
+async def test_usdm_fetch_funding_income_preserves_signed_cashflow_and_transaction_id() -> None:
+    exchange, client = _exchange()
+    client.market_data = _market()
+    start = datetime(2025, 1, 1, tzinfo=UTC)
+    end = start + timedelta(hours=8)
+    client.ledger_response = [
+        {
+            "id": "9001",
+            "code": "USDT",
+            "timestamp": int((start + timedelta(hours=4)).timestamp() * 1000),
+            "info": {
+                "incomeType": "FUNDING_FEE",
+                "symbol": "BTCUSDT",
+                "income": "-0.12500000",
+                "asset": "USDT",
+                "time": int((start + timedelta(hours=4)).timestamp() * 1000),
+                "tranId": 9001,
+            },
+        },
+        {
+            "info": {
+                "incomeType": "COMMISSION",
+                "symbol": "BTCUSDT",
+                "income": "-0.5",
+                "asset": "USDT",
+                "time": int((start + timedelta(hours=4)).timestamp() * 1000),
+                "tranId": 9002,
+            },
+        },
+    ]
+
+    income = await exchange.fetch_funding_income(SYMBOL, start, end)
+
+    assert len(income) == 1
+    assert income[0].transaction_id == "9001"
+    assert income[0].amount == Decimal("-0.12500000")
+    assert income[0].asset == "USDT"
+    assert income[0].occurred_at == start + timedelta(hours=4)
+    assert client.last_ledger == (
+        "USDT",
+        int(start.timestamp() * 1000),
+        1000,
+        {
+            "subType": "linear",
+            "until": int(end.timestamp() * 1000),
+            "incomeType": "FUNDING_FEE",
+            "symbol": "BTCUSDT",
+        },
+    )
 
 
 @pytest.mark.parametrize(
@@ -183,3 +336,76 @@ async def test_usdm_short_protective_stop_uses_algo_order_parameters() -> None:
         "clientAlgoId": "x-short-sl",
         "trigger": True,
     }
+
+
+async def test_installed_ccxt_routes_usdm_stop_to_algo_order_with_expected_fields() -> None:
+    import ccxt
+
+    exchange = BinanceUsdmExchange(credentials=CREDENTIALS, demo=True)
+    client = exchange._client
+    market = _market()
+    market.update(
+        type="swap",
+        spot=False,
+        future=False,
+        option=False,
+        contract=True,
+        linear=True,
+        inverse=False,
+        precision={"amount": 0.001, "price": 0.1},
+        limits={
+            "amount": {"min": 0.001, "max": 10000},
+            "price": {"min": 0.1, "max": 1000000},
+        },
+    )
+    market["info"]["orderTypes"] = ["MARKET", "STOP_MARKET"]
+    client.precisionMode = ccxt.TICK_SIZE
+    client.markets = {SYMBOL: market}
+    client.markets_by_id = {"BTCUSDT": [market]}
+    captured: dict[str, object] = {}
+
+    async def algo_order(params: dict[str, object]) -> dict[str, object]:
+        captured.update(params)
+        return {
+            "algoId": 123,
+            "clientAlgoId": "x-short-sl",
+            "algoStatus": "NEW",
+            "symbol": "BTCUSDT",
+            "side": "BUY",
+            "orderType": "STOP_MARKET",
+            "quantity": "0.01",
+            "triggerPrice": "110",
+            "workingType": "MARK_PRICE",
+            "reduceOnly": True,
+            "createTime": 1_700_000_000_000,
+        }
+
+    async def regular_order(_params: dict[str, object]) -> None:
+        raise AssertionError("conditional Futures stop must use the Algo Order endpoint")
+
+    client.fapiPrivatePostAlgoOrder = algo_order
+    client.fapiPrivatePostOrder = regular_order
+    try:
+        venue = await exchange.create_stop_order(
+            StopOrderRequest(
+                "x-short-sl",
+                SYMBOL,
+                Decimal("0.01"),
+                Decimal("110"),
+                side=Side.BUY,
+                product=TradingProduct.LINEAR_PERPETUAL,
+                position_side=PositionSide.SHORT,
+                reduce_only=True,
+            )
+        )
+    finally:
+        await exchange.aclose()
+
+    assert captured["algoType"] == "CONDITIONAL"
+    assert captured["type"] == "STOP_MARKET"
+    assert captured["clientAlgoId"] == "x-short-sl"
+    assert captured["triggerPrice"] == "110"
+    assert captured["workingType"] == "MARK_PRICE"
+    assert captured["reduceOnly"] is True
+    assert venue.status is OrderStatus.OPEN
+    assert venue.client_order_id == "x-short-sl"

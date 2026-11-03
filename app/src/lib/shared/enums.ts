@@ -212,6 +212,11 @@ export const AlertKind = {
   ExchangeRateLimited: "exchange_rate_limited",
   PerformanceDegraded: "performance_degraded",
   ProtectiveExitSlippage: "protective_exit_slippage",
+  FuturesUnprotectedPosition: "futures_unprotected_position",
+  FuturesMarkStale: "futures_mark_stale",
+  FuturesMarginBuffer: "futures_margin_buffer",
+  FuturesRecoveryRequired: "futures_recovery_required",
+  FuturesFundingCost: "futures_funding_cost",
 } as const;
 export type AlertKind = ValueOf<typeof AlertKind>;
 

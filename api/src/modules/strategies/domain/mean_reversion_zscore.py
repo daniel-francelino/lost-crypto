@@ -166,19 +166,10 @@ class MeanReversionZScoreStrategy(Strategy[MeanReversionState]):
                     f"holding limit of {p.max_holding_candles} candles reached",
                 ),
             )
-        if not signals and ctx.allow_short and z is not None:
-            if ctx.is_flat and z >= p.entry_z:
-                stop = close * (1 + p.stop_loss_pct / 100) if p.stop_loss_pct else None
-                signals = (
-                    Signal(
-                        Side.SELL,
-                        ctx.symbol,
-                        SignalKind.ENTRY,
-                        f"z-score {z:.2f} >= {p.entry_z} over {p.lookback} candles",
-                        stop_loss=stop,
-                    ),
-                )
-            elif ctx.is_short and z <= -p.exit_z:
+        if not signals and z is not None:
+            # allow_short gates new exposure only. An existing short must remain
+            # manageable even if short entries are disabled after it was opened.
+            if ctx.is_short and z <= -p.exit_z:
                 signals = (
                     Signal(
                         Side.BUY,
@@ -198,6 +189,17 @@ class MeanReversionZScoreStrategy(Strategy[MeanReversionState]):
                         ctx.symbol,
                         SignalKind.EXIT,
                         f"holding limit of {p.max_holding_candles} candles reached",
+                    ),
+                )
+            elif ctx.allow_short and ctx.is_flat and z >= p.entry_z:
+                stop = close * (1 + p.stop_loss_pct / 100) if p.stop_loss_pct else None
+                signals = (
+                    Signal(
+                        Side.SELL,
+                        ctx.symbol,
+                        SignalKind.ENTRY,
+                        f"z-score {z:.2f} >= {p.entry_z} over {p.lookback} candles",
+                        stop_loss=stop,
                     ),
                 )
         return StrategyResult(signals, new_state)

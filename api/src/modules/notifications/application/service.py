@@ -10,7 +10,8 @@ from uuid import UUID
 from core.clock import Clock
 from core.errors import NotFoundError
 from modules.bots.application.ports import BotRepository
-from modules.bots.domain.models import Bot
+from modules.bots.domain.models import Bot, ExecutionMode
+from modules.exchanges.domain.models import TradingProduct
 from modules.execution.application.ports import OrderRepository
 from modules.market_data.application.updater import UpdateReport
 from modules.notifications.application import conditions
@@ -23,6 +24,7 @@ from modules.notifications.domain.models import (
     AlertSummary,
     Condition,
 )
+from modules.portfolio.application.perpetual_ports import PerpetualPortfolioRepository
 from modules.trading.application.status import StatusService
 
 logger = logging.getLogger(__name__)
@@ -38,6 +40,11 @@ WORKER_SCOPE = frozenset(
         AlertKind.EXCHANGE_RATE_LIMITED,
         AlertKind.PERFORMANCE_DEGRADED,
         AlertKind.PROTECTIVE_EXIT_SLIPPAGE,
+        AlertKind.FUTURES_UNPROTECTED_POSITION,
+        AlertKind.FUTURES_MARK_STALE,
+        AlertKind.FUTURES_MARGIN_BUFFER,
+        AlertKind.FUTURES_RECOVERY_REQUIRED,
+        AlertKind.FUTURES_FUNDING_COST,
     }
 )
 
@@ -55,6 +62,9 @@ class MonitorStore(AlertStore, Protocol):
 
     @property
     def orders(self) -> OrderRepository: ...
+
+    @property
+    def perpetual_portfolio(self) -> PerpetualPortfolioRepository: ...
 
 
 class AlertService:
@@ -138,13 +148,25 @@ class AlertMonitor:
             status = await self._status.system_status()
             async with self._stores() as store:
                 active = await store.bots.list_active()
+                all_bots = await store.bots.list_bots(500)
                 recent = [
                     (bot, await store.orders.list_by_bot(bot.id, PROTECTIVE_ORDERS_LOOKED_AT))
                     for bot in active
                 ]
+                futures_ledgers = [
+                    (bot, ledger)
+                    for bot in all_bots
+                    if bot.config.product is TradingProduct.LINEAR_PERPETUAL
+                    and bot.config.mode is ExecutionMode.TESTNET
+                    and (ledger := await store.perpetual_portfolio.get(bot.id)) is not None
+                ]
             firing = [
                 *conditions.kill_switch(status),
                 *conditions.bots(status, active),
+                *conditions.futures_unprotected_positions(status),
+                *conditions.futures_position_risk(futures_ledgers, now),
+                *conditions.futures_funding_cost(futures_ledgers),
+                *conditions.futures_recovery_required(all_bots),
                 *(conditions.candles(self._update_report()) if self._update_report else []),
                 *await self._deterioration_firing(active, now),
                 *conditions.protective_slippage(

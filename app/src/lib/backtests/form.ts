@@ -266,11 +266,22 @@ export const applyBacktestPrefill = (
   prefill: BacktestPrefill,
   strategies: Strategy[],
 ): BacktestFormValues => {
+  const product = prefill.product ?? values.product;
   const strategy = strategies.find((item) => item.type_key === prefill.strategy);
   const risk = parseJsonRecord(prefill.risk);
   const params = parseJsonRecord(prefill.params);
   return {
     ...values,
+    product,
+    exchange:
+      prefill.product === undefined
+        ? values.exchange
+        : product === TradingProduct.LinearPerpetual
+          ? "binance-usdm"
+          : "binance",
+    connectionId: prefill.connectionId ?? values.connectionId,
+    leverage: prefill.leverage ?? values.leverage,
+    allowShort: prefill.allowShort ?? values.allowShort,
     symbol: prefill.symbol ?? values.symbol,
     timeframe: prefill.timeframe ?? values.timeframe,
     strategyType: strategy?.type_key ?? values.strategyType,
@@ -282,6 +293,10 @@ export const applyBacktestPrefill = (
             ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, textOf(v)])),
           },
     feeRate: prefill.feeRate === undefined ? values.feeRate : trimDecimalZeros(prefill.feeRate),
+    initialCapital:
+      prefill.initialCapital === undefined
+        ? values.initialCapital
+        : trimDecimalZeros(prefill.initialCapital),
     slippageBps:
       prefill.slippageBps === undefined
         ? values.slippageBps

@@ -92,6 +92,7 @@ export function UnprotectedPositions({ status }: { status: SystemStatus }) {
                 params={{ botId: position.bot_id }}
                 className="font-medium underline-offset-4 hover:underline"
               >
+                {position.product === "linear_perpetual" ? "Futures · " : ""}
                 {position.name}
               </Link>{" "}
               — <SymbolLabel symbol={position.symbol} size={16} /> ({position.mode}),{" "}

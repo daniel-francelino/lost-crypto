@@ -51,11 +51,17 @@ _ALLOWED: dict[OrderStatus, frozenset[OrderStatus]] = {
             OrderStatus.PARTIALLY_FILLED,
             OrderStatus.FILLED,
             OrderStatus.CANCELED,
+            OrderStatus.REJECTED,
             OrderStatus.EXPIRED,
         }
     ),
     OrderStatus.PARTIALLY_FILLED: frozenset(
-        {OrderStatus.PARTIALLY_FILLED, OrderStatus.FILLED, OrderStatus.CANCELED}
+        {
+            OrderStatus.PARTIALLY_FILLED,
+            OrderStatus.FILLED,
+            OrderStatus.CANCELED,
+            OrderStatus.REJECTED,
+        }
     ),
     OrderStatus.FILLED: frozenset(),
     OrderStatus.CANCELED: frozenset(),

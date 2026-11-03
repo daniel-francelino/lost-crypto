@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     )
     # Live trading is disabled unless explicitly enabled in the worker environment.
     live_trading_enabled: bool = False
-    # Testnet orders (fake money on the exchange sandbox) also need an explicit opt-in.
+    # Spot Demo/testnet orders need an explicit opt-in.
     testnet_trading_enabled: bool = False
     # Futures paper simulation reads Binance Demo data and tiers but sends no exchange orders.
     futures_paper_enabled: bool = False

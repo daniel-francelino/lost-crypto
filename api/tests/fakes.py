@@ -65,6 +65,8 @@ class FakeCcxtClient:
     my_trades: list[dict[str, Any]] | None = None
     open_orders_response: list[dict[str, Any]] | None = None
     balance_response: dict[str, Any] | None = None
+    ledger_response: list[dict[str, Any]] | None = None
+    last_ledger: tuple[Any, ...] | None = None
     last_create: tuple[Any, ...] | None = None
     last_lookup: tuple[Any, ...] | None = None
 
@@ -96,6 +98,13 @@ class FakeCcxtClient:
 
     async def fetch_balance(self) -> dict[str, Any]:
         return self.balance_response or {"total": {}, "free": {}, "used": {}}
+
+    async def fapiPrivateGetMultiAssetsMargin(self) -> dict[str, bool]:
+        return {"multiAssetsMargin": False}
+
+    async def fetch_ledger(self, *args: Any) -> list[dict[str, Any]]:
+        self.last_ledger = args
+        return self.ledger_response or []
 
 
 class FakeExchange(Exchange):

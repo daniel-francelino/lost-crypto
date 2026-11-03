@@ -13,6 +13,7 @@ import { SignedValue } from "@/components/shared/status/signed-value";
 import { useSummary } from "@/hooks/bots/use-bots";
 import { useOverview } from "@/hooks/shared/use-overview";
 import type { BotOverview, PortfolioSummary } from "@/lib/bots/bots.api";
+import { TradingProduct } from "@/lib/shared/enums";
 import { ageSeconds, formatAge } from "@/lib/shared/dates";
 import {
   formatInteger,
@@ -58,6 +59,7 @@ function SummaryGroup({ group }: { group: PortfolioSummary }) {
 
 function BotCard({ bot }: { bot: BotOverview }) {
   const quote = quoteCurrency(bot.symbol);
+  const isFutures = bot.product === TradingProduct.LinearPerpetual;
   return (
     <Card>
       <CardHeader className="space-y-2 pb-2">
@@ -88,9 +90,47 @@ function BotCard({ bot }: { bot: BotOverview }) {
           <SignedValue raw={bot.return_pct} text={formatSignedPercent(bot.return_pct)} />
         </span>
         <span className="text-muted-foreground">Posição</span>
-        <span className="text-right">{bot.in_position ? "Comprado" : "Fora"}</span>
-        <span className="text-muted-foreground">Último preço</span>
+        <span className="text-right">
+          {bot.in_position
+            ? isFutures
+              ? bot.position_side === "short"
+                ? "Short"
+                : "Long"
+              : "Comprado"
+            : "Fora"}
+        </span>
+        <span className="text-muted-foreground">
+          {isFutures ? "Mark price" : "\u00daltimo pre\u00e7o"}
+        </span>
         <span className="text-right tabular-nums">{formatPrice(bot.last_price)}</span>
+        {isFutures && (
+          <>
+            <span className="text-muted-foreground">Alavancagem / margem</span>
+            <span className="text-right tabular-nums">
+              {bot.leverage ?? 1}× · {formatMoney(bot.isolated_margin ?? "0", quote)}
+            </span>
+            <span className="text-muted-foreground">PnL não realizado</span>
+            <span className="text-right">
+              <SignedValue
+                raw={bot.unrealized_pnl ?? "0"}
+                text={formatSignedMoney(bot.unrealized_pnl ?? "0", quote)}
+              />
+            </span>
+            <span className="text-muted-foreground">
+              {bot.liquidation_price_source === "exchange_reported"
+                ? "Liquida\u00e7\u00e3o (Binance)"
+                : "Liquida\u00e7\u00e3o estimada"}
+            </span>
+            <span className="text-right tabular-nums">
+              {formatPrice(bot.liquidation_price ?? null)}
+            </span>
+            <span className="text-muted-foreground">Funding pago / recebido</span>
+            <span className="text-right tabular-nums">
+              {formatMoney(bot.funding_paid ?? "0", quote)} /{" "}
+              {formatMoney(bot.funding_received ?? "0", quote)}
+            </span>
+          </>
+        )}
         <span className="text-muted-foreground">Heartbeat</span>
         <span className="text-right">{formatAge(ageSeconds(bot.last_heartbeat_at))}</span>
         <span className="text-muted-foreground">Intervenções (30 d)</span>

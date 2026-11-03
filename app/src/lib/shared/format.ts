@@ -28,6 +28,48 @@ export const formatMoney = (value: string | null | undefined, quote: string): st
   return text === EMPTY ? EMPTY : `${text} ${quote}`;
 };
 
+export type LeveragedEntryEstimate = { notional: string; collateral: string };
+
+export const estimateLeveragedEntry = (
+  capitalText: string,
+  positionFractionText: string,
+  leverageText: string,
+  feeRateText: string,
+  orderCapText: string,
+): LeveragedEntryEstimate | null => {
+  const capital = isDecimal(capitalText) ? Number(capitalText) : Number.NaN;
+  const positionFraction = isDecimal(positionFractionText)
+    ? Number(positionFractionText)
+    : Number.NaN;
+  const leverage = isDecimal(leverageText) ? Number(leverageText) : Number.NaN;
+  const feeRate = isDecimal(feeRateText) ? Number(feeRateText) : Number.NaN;
+  let orderCap: number | null = null;
+  if (orderCapText !== "") orderCap = isDecimal(orderCapText) ? Number(orderCapText) : NaN;
+  if (
+    !Number.isFinite(capital) ||
+    capital <= 0 ||
+    !Number.isFinite(positionFraction) ||
+    positionFraction <= 0 ||
+    positionFraction > 1 ||
+    !Number.isInteger(leverage) ||
+    leverage < 1 ||
+    leverage > 10 ||
+    !Number.isFinite(feeRate) ||
+    feeRate < 0 ||
+    (orderCap !== null && (!Number.isFinite(orderCap) || orderCap <= 0))
+  ) {
+    return null;
+  }
+
+  const collateralBudget = capital * positionFraction;
+  let notional = (collateralBudget * leverage) / (1 + feeRate * leverage);
+  if (orderCap !== null) notional = Math.min(notional, orderCap);
+  return {
+    notional: String(notional),
+    collateral: String(notional / leverage + notional * feeRate),
+  };
+};
+
 export const formatSignedMoney = (value: string | null | undefined, quote: string): string => {
   const text = decimal(value, MONEY, true);
   return text === EMPTY ? EMPTY : `${text} ${quote}`;

@@ -1431,7 +1431,7 @@ export interface components {
          * AlertKind
          * @enum {string}
          */
-        AlertKind: "worker_down" | "bot_stale" | "bot_error" | "kill_switch_active" | "candles_stale" | "exchange_rate_limited" | "performance_degraded" | "protective_exit_slippage";
+        AlertKind: "worker_down" | "bot_stale" | "bot_error" | "kill_switch_active" | "candles_stale" | "exchange_rate_limited" | "performance_degraded" | "protective_exit_slippage" | "futures_unprotected_position" | "futures_mark_stale" | "futures_margin_buffer" | "futures_recovery_required" | "futures_funding_cost";
         /** AlertOut */
         AlertOut: {
             /** Id */
@@ -1948,6 +1948,38 @@ export interface components {
             in_position: boolean;
             /** Last Price */
             last_price: string | null;
+            /** @default spot */
+            product: components["schemas"]["TradingProduct"];
+            position_side?: components["schemas"]["PositionSide"] | null;
+            /**
+             * Leverage
+             * @default 1
+             */
+            leverage: number;
+            /**
+             * Unrealized Pnl
+             * @default 0
+             */
+            unrealized_pnl: string;
+            /**
+             * Isolated Margin
+             * @default 0
+             */
+            isolated_margin: string;
+            /** Liquidation Price */
+            liquidation_price?: string | null;
+            /** Liquidation Price Source */
+            liquidation_price_source?: string | null;
+            /**
+             * Funding Paid
+             * @default 0
+             */
+            funding_paid: string;
+            /**
+             * Funding Received
+             * @default 0
+             */
+            funding_received: string;
             /** Last Heartbeat At */
             last_heartbeat_at: string | null;
             /** Interventions 30D */
@@ -2768,7 +2800,7 @@ export interface components {
          * MarginMode
          * @enum {string}
          */
-        MarginMode: "isolated" | "cross";
+        MarginMode: "isolated";
         /** MarkedOut */
         MarkedOut: {
             /** Marked */
@@ -3205,6 +3237,8 @@ export interface components {
             reserved_margin: string;
             /** Liquidation Price */
             liquidation_price?: string | null;
+            /** Liquidation Price Source */
+            liquidation_price_source?: string | null;
             /**
              * Funding Paid
              * @default 0
@@ -4171,6 +4205,11 @@ export interface components {
             symbol: string;
             /** Mode */
             mode: string;
+            /**
+             * Product
+             * @default spot
+             */
+            product: string;
             /** Quantity */
             quantity: string;
             /**

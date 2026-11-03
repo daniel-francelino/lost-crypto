@@ -204,6 +204,7 @@ class PortfolioOut(BaseModel):
     isolated_margin: Decimal = Decimal(0)
     reserved_margin: Decimal = Decimal(0)
     liquidation_price: Decimal | None = None
+    liquidation_price_source: str | None = None
     funding_paid: Decimal = Decimal(0)
     funding_received: Decimal = Decimal(0)
 
@@ -225,6 +226,15 @@ class BotOverviewOut(BaseModel):
     fees_paid: Decimal
     in_position: bool
     last_price: Decimal | None
+    product: TradingProduct = TradingProduct.SPOT
+    position_side: PositionSide | None = None
+    leverage: int = 1
+    unrealized_pnl: Decimal = Decimal(0)
+    isolated_margin: Decimal = Decimal(0)
+    liquidation_price: Decimal | None = None
+    liquidation_price_source: str | None = None
+    funding_paid: Decimal = Decimal(0)
+    funding_received: Decimal = Decimal(0)
     last_heartbeat_at: datetime | None
     interventions_30d: int
 
@@ -380,6 +390,15 @@ async def get_overview(request: Request) -> list[BotOverviewOut]:
             fees_paid=r.fees_paid,
             in_position=r.in_position,
             last_price=r.last_price,
+            product=r.product,
+            position_side=r.position_side,
+            leverage=r.leverage,
+            unrealized_pnl=r.unrealized_pnl,
+            isolated_margin=r.isolated_margin,
+            liquidation_price=r.liquidation_price,
+            liquidation_price_source=r.liquidation_price_source,
+            funding_paid=r.funding_paid,
+            funding_received=r.funding_received,
             last_heartbeat_at=r.bot.last_heartbeat_at,
             interventions_30d=r.interventions_30d,
         )
@@ -403,8 +422,6 @@ async def update_bot(
         changes["risk"] = _risk(body.risk)
     if body.mode is not None:
         changes["mode"] = ExecutionMode(body.mode)
-        if body.mode == "paper":
-            changes["connection_id"] = None  # a paper bot uses no exchange account
     return _out(
         await _container(request).bots.update(
             bot_id, changes, actor=principal.username, reason=body.change_reason
@@ -658,6 +675,7 @@ async def get_portfolio(bot_id: UUID, request: Request) -> PortfolioOut:
         isolated_margin=view.isolated_margin,
         reserved_margin=view.reserved_margin,
         liquidation_price=view.liquidation_price,
+        liquidation_price_source=view.liquidation_price_source,
         funding_paid=view.funding_paid,
         funding_received=view.funding_received,
     )

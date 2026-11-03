@@ -9,6 +9,7 @@ then a second cycle, BUY at 33 / SELL at 36 (the live trades).
 
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 import pytest
 from harness import LIVE_SETTINGS, TestnetEnv
@@ -248,11 +249,31 @@ async def test_even_a_resume_after_a_pause_needs_a_fresh_approval(live_env: Test
 
 async def test_changing_the_bot_voids_a_pending_approval(live_env: TestnetEnv) -> None:
     env = live_env
+    assert env.api_container is not None
     _, bot, _ = await _ready_bot(env)
     token = await _approve(env, bot)
 
     edit = await env.http.patch(f"/api/v1/bots/{bot}", json={"initial_capital": "900"})
     assert edit.status_code == 200 and edit.json()["config_version"] > 1
+
+    async with env.api_container.engine.connect() as conn:
+        persisted = (
+            await conn.execute(
+                text(
+                    "SELECT b.config_version AS bot_config_version, "
+                    "b.live_approved_config_version, b.live_approved_at, "
+                    "a.config_version AS token_config_version, a.used_at "
+                    "FROM bots b JOIN live_approvals a ON a.bot_id = b.id "
+                    "WHERE b.id = :bot"
+                ),
+                {"bot": UUID(bot)},
+            )
+        ).one()
+    assert persisted.bot_config_version == edit.json()["config_version"]
+    assert persisted.live_approved_config_version is None
+    assert persisted.live_approved_at is None
+    assert persisted.token_config_version < persisted.bot_config_version
+    assert persisted.used_at is None
 
     outdated = await env.http.post(f"/api/v1/bots/{bot}/start", json={"confirmation_token": token})
     assert outdated.status_code == 422 and "outdated" in outdated.json()["detail"]

@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from factories import make_candles
+from modules.exchanges.domain.models import PositionSide
 from modules.strategies.domain.base import InvalidStrategyParams, StrategyStyle
 from modules.strategies.domain.trend_quality_breakout import (
     ATR_PERIOD,
@@ -101,6 +102,40 @@ def test_it_leaves_on_the_exit_channel_low():
     series = [*_flat_then_rise([110, 120, 130, 140]), 99]
     kinds = [signal.kind for _, signal in _signals(strategy, series)]
     assert kinds == [SignalKind.ENTRY, SignalKind.EXIT]
+
+
+def test_short_breakout_has_mirrored_stop_and_exit_does_not_reverse():
+    strategy = _strategy(entry_period=10, exit_period=5)
+    candles = make_candles([100, 101] * 5 + [90, 80, 103], symbol=SYMBOL)
+    state = strategy.initial_state()
+    position_side = None
+    signals: list[tuple[int, Signal]] = []
+
+    for index, candle in enumerate(candles):
+        result = strategy.evaluate(
+            StrategyContext(
+                SYMBOL,
+                candle,
+                D(1) if position_side is PositionSide.SHORT else D(0),
+                position_side=position_side,
+                allow_short=True,
+            ),
+            state,
+        )
+        state = result.state
+        if result.signals:
+            signal = result.signals[0]
+            signals.append((index, signal))
+            position_side = (
+                PositionSide.SHORT if signal.kind is SignalKind.ENTRY else None
+            )
+
+    assert [signal.kind for _, signal in signals] == [SignalKind.ENTRY, SignalKind.EXIT]
+    entry_index, entry = signals[0]
+    assert entry_index == 10 and entry.side is Side.SELL
+    assert entry.stop_loss is not None and entry.stop_loss > candles[entry_index].close
+    exit_index, exit_signal = signals[1]
+    assert exit_index == 12 and exit_signal.side is Side.BUY
 
 
 def test_no_signals_while_warming_up():

@@ -48,6 +48,7 @@ const statusSchema = z.object({
         name: z.string(),
         symbol: z.string(),
         mode: z.string(),
+        product: z.string().optional().default("spot"),
         quantity: decimalSchema,
         stop_price: nullableDecimalSchema,
       }),

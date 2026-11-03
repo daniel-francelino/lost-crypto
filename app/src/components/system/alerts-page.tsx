@@ -129,7 +129,7 @@ export function AlertsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Alertas"
-        description="Falhas que pedem atenção: worker parado, bot com erro, candles atrasados e kill switch."
+        description="Acompanhe falhas do worker, bots, dados de mercado, posições Futures sem proteção, margem, funding e kill switch."
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <UpdatedAt updatedAtMs={query.dataUpdatedAt} failed={query.isError} />
@@ -178,6 +178,23 @@ export function AlertsPage() {
           caption="Alertas, mais recentes primeiro"
           loading={query.isPending}
           refreshing={query.isFetching && !query.isPending}
+          renderExpanded={(alert) => (
+            <div className="space-y-3">
+              {alert.bot_id !== null ? (
+                <p className="text-sm">
+                  <span className="font-medium">Bot:</span> {alert.bot_id}
+                </p>
+              ) : null}
+              <div>
+                <p className="mb-1 text-sm font-medium">Detalhes técnicos</p>
+                <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
+                  {Object.keys(alert.payload).length === 0
+                    ? "Este alerta não tem detalhes adicionais."
+                    : JSON.stringify(alert.payload, null, 2)}
+                </pre>
+              </div>
+            </div>
+          )}
           page={page}
           pageSize={PAGE_SIZE}
           total={query.data?.total ?? 0}

@@ -4,7 +4,7 @@ COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
 .PHONY: help install up down restart logs ps db dev worker migrate revision \
-        lint format typecheck test test-integration check openapi backup restore-check master-key jwt-secret create-admin test-testnet
+        lint format typecheck test test-integration check openapi backup restore-check master-key jwt-secret create-admin test-testnet test-demo-futures
 
 help: ## Lista os comandos disponíveis
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -89,6 +89,9 @@ master-key: ## Gera uma chave Fernet para CREDENTIAL_MASTER_KEYS
 
 test-testnet: ## Teste de fumaça na testnet REAL (exige TESTNET_API_KEY / TESTNET_API_SECRET)
 	$(UV) run pytest tests/smoke -m smoke -s
+
+test-demo-futures: ## Smoke USD-M Demo (ordem pequena; exige credenciais e opt-in explícito)
+	$(UV) run pytest tests/smoke/test_binance_usdm_demo.py -m smoke -s
 
 # --- Documentação da API -----------------------------------------------------
 openapi: ## Exporta o contrato OpenAPI para docs/openapi.json

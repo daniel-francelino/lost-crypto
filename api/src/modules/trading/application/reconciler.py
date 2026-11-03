@@ -6,7 +6,8 @@ Two jobs:
   intent and the call) are looked up by client order id and settled. Nothing is re-sent.
 * **Check the account.** All bots on a connection are virtual sub-accounts of one exchange
   account, so the account must hold *at least* what the bots believe they own. Holding more is
-  fine (unallocated funds); holding less, or finding a foreign order carrying our id prefix,
+  fine (unallocated funds); holding less, finding an unknown Futures order on an owned contract,
+* or a foreign Spot order carrying our id prefix,
   means the books are wrong, so the affected bots are paused and the run is recorded.
 """
 
@@ -22,7 +23,7 @@ from core.clock import Clock
 from modules.audit.models import AuditEvent
 from modules.bots.domain.models import Bot, BotState, ExecutionMode
 from modules.exchanges.application.connections import ConnectionResolver
-from modules.exchanges.domain.models import TradingProduct
+from modules.exchanges.domain.models import MarginMode, TradingProduct
 from modules.exchanges.errors import AuthenticationFailed
 from modules.trading.application.orders import OrderExecutor
 from modules.trading.application.ports import TradingStore
@@ -53,7 +54,20 @@ class Reconciler:
         """Settle every order whose outcome is unknown. Returns how many were examined."""
         async with self._stores() as store:
             pending = await store.orders.list_unresolved()
-            bots = {b.id: b for b in await store.bots.list_bots(500)}
+            if connection_id is not None:
+                list_connection_bots = getattr(store.bots, "list_connection_bots", None)
+                all_bots = (
+                    await list_connection_bots(connection_id)
+                    if callable(list_connection_bots)
+                    else await store.bots.list_bots(500)
+                )
+                bots = {b.id: b for b in all_bots}
+            else:
+                bots = {}
+                for order in pending:
+                    bot = await store.bots.get(order.bot_id)
+                    if bot is not None:
+                        bots[bot.id] = bot
         examined = 0
         for order in pending:
             bot = bots.get(order.bot_id)
@@ -68,18 +82,39 @@ class Reconciler:
                 logger.exception("could not resolve order %s", order.client_order_id)
         return examined
 
-    async def reconcile_connection(self, connection_id: UUID) -> int:
+    async def reconcile_connection(
+        self, connection_id: UUID, *, inspect_unowned_futures_orders: bool = False
+    ) -> int:
         """Reconcile one account immediately, for user-stream startup and recovery."""
         async with self._stores() as store:
+            list_connection_bots = getattr(store.bots, "list_connection_bots", None)
+            account_bots = (
+                await list_connection_bots(connection_id)
+                if callable(list_connection_bots)
+                else await store.bots.list_bots(500)
+            )
+            incomplete_scan = not callable(list_connection_bots) and len(account_bots) >= 500
             bots = [
                 bot
-                for bot in await store.bots.list_bots(500)
-                if bot.config.connection_id == connection_id and bot.config.mode.uses_exchange
+                for bot in account_bots
+                if bot.config.connection_id == connection_id
+                and bot.config.mode.uses_exchange
+                and (
+                    bot.desired_state is not BotState.STOPPED
+                    or bot.observed_state is not BotState.STOPPED
+                )
             ]
+        if inspect_unowned_futures_orders and incomplete_scan:
+            logger.error(
+                "cannot reconcile Futures connection %s: bot scan is incomplete", connection_id
+            )
+            return 1
         if not bots:
             return 0
         try:
-            return await self._reconcile_connection(connection_id, bots)
+            return await self._reconcile_connection(
+                connection_id, bots, inspect_unowned_futures_orders
+            )
         except Exception as exc:
             logger.exception("reconciliation of connection %s failed", connection_id)
             await self._reconciliation_unavailable(connection_id, bots, exc)
@@ -90,7 +125,7 @@ class Reconciler:
         async with self._stores() as store:
             bots = [
                 b
-                for b in await store.bots.list_bots(500)
+                for b in await store.bots.list_active()
                 if b.config.mode.uses_exchange and b.config.connection_id is not None
             ]
         by_connection: dict[UUID, list[Bot]] = defaultdict(list)
@@ -101,7 +136,14 @@ class Reconciler:
         mismatches = 0
         for connection_id, connection_bots in by_connection.items():
             try:
-                mismatches += await self._reconcile_connection(connection_id, connection_bots)
+                mismatches += await self._reconcile_connection(
+                    connection_id,
+                    connection_bots,
+                    inspect_unowned_futures_orders=any(
+                        bot.config.product is TradingProduct.LINEAR_PERPETUAL
+                        for bot in connection_bots
+                    ),
+                )
             except Exception as exc:
                 logger.exception("reconciliation of connection %s failed", connection_id)
                 if any(
@@ -145,28 +187,49 @@ class Reconciler:
                 )
             await store.commit()
 
-    async def _reconcile_connection(self, connection_id: UUID, bots: list[Bot]) -> int:
+    async def _reconcile_connection(
+        self,
+        connection_id: UUID,
+        bots: list[Bot],
+        inspect_unowned_futures_orders: bool = False,
+    ) -> int:
         started = self._clock.now()
+        unresolved_bots: list[UUID] = []
         async with self._stores() as store:
             for bot in bots:
                 if await store.orders.count_unresolved(bot.id):
-                    return 0  # books and exchange legitimately differ until those are settled
+                    unresolved_bots.append(bot.id)
+        if unresolved_bots:
+            # An unresolved intent means the exchange position may already have changed. Do not
+            # treat the account as clean or reconnect the private stream on that assumption.
+            await self._reconciliation_unavailable(
+                connection_id,
+                bots,
+                RuntimeError(f"unresolved exchange orders for bots: {unresolved_bots}"),
+            )
+            return 1
         exchange = await self._resolver.exchange_for(connection_id)
         futures_bots = [
             bot for bot in bots if bot.config.product is TradingProduct.LINEAR_PERPETUAL
         ]
-        futures_symbols = sorted({bot.config.symbol for bot in futures_bots})
+        futures_by_symbol = {bot.config.symbol: bot for bot in futures_bots}
         try:
             balances = await exchange.fetch_balances()
-            remote_positions = (
-                await exchange.fetch_positions(futures_symbols) if futures_symbols else []
-            )
+            # USD-M collateral and positions belong to the connection account, not only to
+            # symbols currently assigned to bots. Read all non-zero positions so manually
+            # opened or otherwise unowned contracts are visible to the mismatch gate below.
+            remote_positions = await exchange.fetch_positions() if futures_bots else []
+            remote_open_orders = []
+            fetch_all_open_orders = getattr(exchange, "fetch_all_open_orders", None)
+            if futures_bots and inspect_unowned_futures_orders and callable(fetch_all_open_orders):
+                remote_open_orders = await fetch_all_open_orders()
         except AuthenticationFailed as exc:
             await self._credentials_rejected(connection_id, bots, str(exc))
             return 1
 
         expected: dict[str, Decimal] = defaultdict(Decimal)
         foreign_orders: set[str] = set()
+        unknown_futures_orders: set[tuple[str, str]] = set()
         open_orders: dict[str, list[str]] = {}
         async with self._stores() as store:
             for bot in bots:
@@ -186,10 +249,23 @@ class Reconciler:
         async with self._stores() as store:
             for bot in bots:
                 for cid in open_orders.get(bot.config.symbol, []):
-                    if cid.startswith(OUR_ORDER_PREFIX) and (
+                    if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
+                        local_order = await store.orders.get_by_client_id(bot.id, cid)
+                        if local_order is None or local_order.is_final:
+                            unknown_futures_orders.add((bot.config.symbol, cid))
+                    elif cid.startswith(OUR_ORDER_PREFIX) and (
                         await store.orders.get_by_client_id(bot.id, cid) is None
                     ):
                         foreign_orders.add(cid)  # carries our prefix but we have no record
+            for remote_order in remote_open_orders:
+                owner = futures_by_symbol.get(remote_order.symbol)
+                known_order = (
+                    await store.orders.get_by_client_id(owner.id, remote_order.client_order_id)
+                    if owner is not None
+                    else None
+                )
+                if known_order is None or known_order.is_final:
+                    unknown_futures_orders.add((remote_order.symbol, remote_order.client_order_id))
 
         problems: list[dict[str, Any]] = []
         for asset, wanted in expected.items():
@@ -207,7 +283,6 @@ class Reconciler:
         remote_by_symbol: dict[str, list[Any]] = defaultdict(list)
         for position in remote_positions:
             remote_by_symbol[position.symbol].append(position)
-        futures_by_symbol = {bot.config.symbol: bot for bot in futures_bots}
         async with self._stores() as store:
             for symbol, bot in futures_by_symbol.items():
                 remote = remote_by_symbol.pop(symbol, [])
@@ -259,12 +334,29 @@ class Reconciler:
                             str(actual.entry_price) if actual.entry_price is not None else None
                         ),
                     )
-                if actual.leverage is not None and actual.leverage != local.leverage:
+                if actual.leverage is None or actual.leverage != local.leverage:
                     differences.update(
-                        expected_leverage=local.leverage, exchange_leverage=actual.leverage
+                        expected_leverage=local.leverage,
+                        exchange_leverage=(
+                            actual.leverage if actual.leverage is not None else "unavailable"
+                        ),
                     )
-                if actual.margin_mode is not None and actual.margin_mode.value != "isolated":
-                    differences["exchange_margin_mode"] = actual.margin_mode.value
+                if actual.margin_mode is not MarginMode.ISOLATED:
+                    differences["exchange_margin_mode"] = (
+                        actual.margin_mode.value
+                        if actual.margin_mode is not None
+                        else "unavailable"
+                    )
+                if actual.isolated_margin is None:
+                    differences["exchange_isolated_margin"] = "unavailable"
+                elif abs(actual.isolated_margin - local.isolated_margin) > max(
+                    _ABSOLUTE_TOLERANCE,
+                    local.isolated_margin * _RELATIVE_TOLERANCE,
+                ):
+                    differences.update(
+                        expected_isolated_margin=str(local.isolated_margin),
+                        exchange_isolated_margin=str(actual.isolated_margin),
+                    )
                 if actual.mark_price is None:
                     differences["exchange_mark_price"] = "unavailable"
                 if differences:
@@ -316,6 +408,10 @@ class Reconciler:
                 )
         for cid in sorted(foreign_orders):
             problems.append({"kind": "unknown_open_order", "client_order_id": cid})
+        for symbol, cid in sorted(unknown_futures_orders):
+            problems.append(
+                {"kind": "unknown_open_order", "symbol": symbol, "client_order_id": cid}
+            )
 
         status = "mismatch" if problems else "ok"
         async with self._stores() as store:

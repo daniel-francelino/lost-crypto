@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime, timedelta
+from decimal import Decimal
 from uuid import UUID
 
 from core.clock import Clock
@@ -161,9 +162,9 @@ class BotSupervisor:
         running, never keep trading it."""
         mode = bot.config.mode
         if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
-            if mode is not ExecutionMode.PAPER:
-                return "USD-M Futures exchange order execution is not released"
-            if not self._futures_paper_enabled:
+            if mode is ExecutionMode.LIVE:
+                return "USD-M Futures live order execution is not enabled"
+            if mode is ExecutionMode.PAPER and not self._futures_paper_enabled:
                 return "Futures paper is disabled (set FUTURES_PAPER_ENABLED=true on the worker)"
         if mode is ExecutionMode.TESTNET and not self._testnet_enabled:
             return (
@@ -203,7 +204,9 @@ class BotSupervisor:
         elif bot.observed_state is not BotState.STOPPED:
             await self._stop(bot)
 
-    async def _connection_problem(self, bot: Bot) -> str | None:
+    async def _connection_problem(
+        self, bot: Bot, *, allow_existing_exposure: bool = False
+    ) -> str | None:
         """Why a real-exchange bot cannot get a working connection, or None. Checked on start."""
         if self._resolver is None or bot.config.connection_id is None:
             return f"{bot.config.mode.value} bot has no usable exchange connection"
@@ -251,7 +254,54 @@ class BotSupervisor:
                     leverage=bot.config.leverage,
                     margin_mode=bot.config.margin_mode,
                     max_notional=max_notional,
+                    allow_existing_exposure=allow_existing_exposure,
                 )
+                if bot.config.mode is ExecutionMode.TESTNET:
+                    balances = await exchange.fetch_balances()
+                    usdt = balances.get("USDT")
+                    if not allow_existing_exposure and (
+                        usdt is None or usdt.free < bot.config.initial_capital
+                    ):
+                        available = usdt.free if usdt is not None else Decimal(0)
+                        return (
+                            "Binance Demo available USDT must cover this bot's allocated "
+                            f"capital ({available} available, "
+                            f"{bot.config.initial_capital} required)"
+                        )
+                    # Each bot keeps a virtual ledger, while Binance has one shared wallet.
+                    # Reserve each active Demo bot's configured capital against account equity
+                    # so starting bots on different symbols cannot allocate the same USDT twice.
+                    async with self._stores() as store:
+                        list_connection_bots = getattr(store.bots, "list_connection_bots", None)
+                        account_bots = (
+                            await list_connection_bots(bot.config.connection_id)
+                            if callable(list_connection_bots)
+                            else await store.bots.list_bots(500)
+                        )
+                    if not callable(list_connection_bots) and len(account_bots) >= 500:
+                        return (
+                            "cannot verify Futures Demo capital allocation: bot scan is incomplete"
+                        )
+                    allocated = sum(
+                        (
+                            other.config.initial_capital
+                            for other in account_bots
+                            if other.config.connection_id == bot.config.connection_id
+                            and other.config.product is TradingProduct.LINEAR_PERPETUAL
+                            and other.config.mode is ExecutionMode.TESTNET
+                            and (
+                                other.desired_state is not BotState.STOPPED
+                                or other.observed_state is not BotState.STOPPED
+                            )
+                        ),
+                        Decimal(0),
+                    )
+                    if usdt is None or allocated > usdt.total:
+                        total = usdt.total if usdt is not None else Decimal(0)
+                        return (
+                            "Binance Demo USDT equity is below the combined capital allocation "
+                            f"for active Futures bots ({total} available, {allocated} allocated)"
+                        )
             except Exception as exc:
                 return f"Futures Demo market or account validation failed: {exc}"
         return None
@@ -276,14 +326,63 @@ class BotSupervisor:
     async def _start(self, bot: Bot) -> bool:
         """Start (or resume) the bot. False when it was refused and put in the error state."""
         self._registry.create(bot.config.strategy_type, bot.config.strategy_params)  # validates
+        async with self._stores() as store:
+            existing_session = await store.sessions.get_active(bot.id)
+        allow_existing_exposure = False
+        if (
+            bot.config.product is TradingProduct.LINEAR_PERPETUAL
+            and bot.config.mode is ExecutionMode.TESTNET
+            and bot.config.connection_id is not None
+        ):
+            reconciler = self._reconciler
+            if reconciler is None:
+                await self._enter_error(bot, "Futures Demo reconciliation is not configured")
+                return False
+            await reconciler.resolve_pending(bot.config.connection_id)
+            async with self._stores() as store:
+                list_connection_bots = getattr(store.bots, "list_connection_bots", None)
+                account_bots = (
+                    await list_connection_bots(bot.config.connection_id)
+                    if callable(list_connection_bots)
+                    else await store.bots.list_bots(500)
+                )
+                unresolved = not callable(list_connection_bots) and len(account_bots) >= 500
+                for other in account_bots:
+                    if unresolved:
+                        break
+                    if (
+                        other.config.connection_id == bot.config.connection_id
+                        and other.config.mode.uses_exchange
+                        and await store.orders.count_unresolved(other.id)
+                    ):
+                        unresolved = True
+                        break
+            if unresolved:
+                await self._enter_error(
+                    bot, "cannot start Futures Demo with unresolved exchange orders"
+                )
+                return False
+            if await reconciler.reconcile_connection(
+                bot.config.connection_id, inspect_unowned_futures_orders=True
+            ):
+                await self._enter_error(
+                    bot, "cannot start Futures Demo until account reconciliation is clean"
+                )
+                return False
+            if existing_session is not None:
+                async with self._stores() as store:
+                    ledger = await store.perpetual_portfolio.get(bot.id)
+                allow_existing_exposure = ledger is not None and ledger.position is not None
         needs_connection = bot.config.mode.uses_exchange or (
             bot.config.product is TradingProduct.LINEAR_PERPETUAL
         )
-        if needs_connection and (problem := await self._connection_problem(bot)):
+        if needs_connection and (
+            problem := await self._connection_problem(
+                bot, allow_existing_exposure=allow_existing_exposure
+            )
+        ):
             await self._enter_error(bot, problem)
             return False
-        async with self._stores() as store:
-            existing_session = await store.sessions.get_active(bot.id)
         execution_snapshot = None
         if bot.config.product is TradingProduct.LINEAR_PERPETUAL and existing_session is None:
             try:
@@ -414,6 +513,26 @@ class BotSupervisor:
             async with self._stores() as store:
                 ledger = await store.perpetual_portfolio.get(bot.id)
             if ledger is None or ledger.position is None:
+                if bot.config.mode is ExecutionMode.TESTNET:
+                    connection_id = bot.config.connection_id
+                    if (
+                        connection_id is None
+                        or (await self._resolver.environment_for(connection_id))
+                        is not Environment.DEMO
+                    ):
+                        raise RuntimeError(
+                            "Futures kill switch cannot verify an untracked position outside "
+                            "Binance Demo"
+                        )
+                    exchange = await self._resolver.exchange_for(connection_id)
+                    remote_positions = await exchange.fetch_positions([bot.config.symbol])
+                    open_orders = await exchange.fetch_open_orders(bot.config.symbol)
+                    if remote_positions or open_orders:
+                        raise RuntimeError(
+                            "Binance Demo reports Futures exposure or orders without a local "
+                            "position; "
+                            "operator reconciliation is required"
+                        )
                 self._kill_close_retry_at.pop(bot.id, None)
                 return
             if (
@@ -438,6 +557,32 @@ class BotSupervisor:
                     "Futures kill close is "
                     f"{close_order.status.value}; position remains under review"
                 )
+            if bot.config.mode is ExecutionMode.TESTNET:
+                connection_id = bot.config.connection_id
+                if connection_id is None:
+                    raise RuntimeError("Futures kill close lost its Binance Demo connection")
+                exchange = await self._resolver.exchange_for(connection_id)
+                remote_positions = await exchange.fetch_positions([bot.config.symbol])
+                if remote_positions:
+                    raise RuntimeError(
+                        "Binance Demo still reports an open Futures position after the kill close"
+                    )
+                open_orders = await exchange.fetch_open_orders(bot.config.symbol)
+                if open_orders:
+                    raise RuntimeError(
+                        "Binance Demo still reports open Futures orders after the kill close"
+                    )
+                async with self._stores() as store:
+                    ledger = await store.perpetual_portfolio.get(bot.id)
+                    unresolved = await store.orders.count_unresolved(bot.id)
+                if ledger is not None and ledger.position is not None:
+                    raise RuntimeError(
+                        "local Futures ledger still reports an open position after the kill close"
+                    )
+                if unresolved:
+                    raise RuntimeError(
+                        "local Futures ledger still has unresolved orders after the kill close"
+                    )
             async with self._stores() as store:
                 await store.audit.add(
                     AuditEvent(

@@ -164,6 +164,10 @@ class PerpetualLedger:
     ) -> LinearPerpetualPosition:
         if self.position is not None:
             raise InvalidPerpetualPosition("close the current position before opening another")
+        if not 1 <= leverage <= MAX_PERPETUAL_LEVERAGE:
+            raise InvalidPerpetualPosition(
+                f"leverage must be between 1x and {MAX_PERPETUAL_LEVERAGE}x"
+            )
         notional = quantity * entry_price
         margin = notional / leverage
         if fee < 0 or margin + fee > self.available_balance:
@@ -180,6 +184,9 @@ class PerpetualLedger:
         self.wallet_balance -= margin + fee
         self.fees_paid += fee
         self.position = position
+        self.exchange_position_id = None
+        self.exchange_liquidation_price = None
+        self.reconciled_at = None
         return position
 
     def increase_position(
@@ -251,6 +258,9 @@ class PerpetualLedger:
         )
         if self.position is None:
             self.stop_order_client_id = None
+            self.exchange_position_id = None
+            self.exchange_liquidation_price = None
+            self.reconciled_at = None
         return realized
 
     def apply_funding(
@@ -268,15 +278,30 @@ class PerpetualLedger:
             raise InvalidPerpetualPosition("funding liquidation parameters are invalid")
         position = self.position
         payment = position.funding_pnl(mark_price, funding_rate)
-        updated_margin = position.isolated_margin + payment
-        liquidation_fee = position.quantity * mark_price * liquidation_fee_rate
+        updated_margin = position.isolated_margin
         if payment < 0:
-            self.funding_paid -= payment
+            # Binance charges funding to available Futures wallet balance first, then uses
+            # position margin if that balance cannot cover the full settlement. Pending order
+            # reservations are not available wallet balance and cannot be consumed here.
+            charge = -payment
+            from_wallet = min(charge, self.available_balance)
+            self.wallet_balance -= from_wallet
+            remaining_charge = charge - from_wallet
+            from_margin = min(remaining_charge, position.isolated_margin)
+            updated_margin -= from_margin
+            settled_payment = -(from_wallet + from_margin)
         else:
-            self.funding_received += payment
+            # Funding received is credited to the Futures wallet, not added to isolated margin.
+            self.wallet_balance += payment
+            settled_payment = payment
+        liquidation_fee = position.quantity * mark_price * liquidation_fee_rate
+        if settled_payment < 0:
+            self.funding_paid -= settled_payment
+        else:
+            self.funding_received += settled_payment
         if updated_margin <= 0:
-            # Settle only isolated collateral; funding plus close-out fees cannot debit the
-            # free wallet balance. The position is liquidated at the funding event mark.
+            # Any amount beyond available wallet balance and isolated margin is not charged to
+            # another bot or allowed to create a negative account balance.
             payout = max(
                 Decimal(0), updated_margin + position.unrealized_pnl(mark_price) - liquidation_fee
             )
@@ -293,7 +318,7 @@ class PerpetualLedger:
                 cumulative_maintenance_amount,
             ):
                 self.liquidate(mark_price, liquidation_fee)
-        return payment
+        return settled_payment
 
     def equity(self, mark_price: Decimal) -> Decimal:
         if self.position is None:

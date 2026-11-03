@@ -375,6 +375,7 @@ def build_job_runner(container: Container) -> JobRunner:
             container.trading_stores,
             container.resolver,
             reconciler,
+            executor,
             container.clock,
         ),
     )

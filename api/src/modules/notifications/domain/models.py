@@ -15,6 +15,11 @@ class AlertKind(StrEnum):
     EXCHANGE_RATE_LIMITED = "exchange_rate_limited"
     PERFORMANCE_DEGRADED = "performance_degraded"
     PROTECTIVE_EXIT_SLIPPAGE = "protective_exit_slippage"
+    FUTURES_UNPROTECTED_POSITION = "futures_unprotected_position"
+    FUTURES_MARK_STALE = "futures_mark_stale"
+    FUTURES_MARGIN_BUFFER = "futures_margin_buffer"
+    FUTURES_RECOVERY_REQUIRED = "futures_recovery_required"
+    FUTURES_FUNDING_COST = "futures_funding_cost"
 
 
 class AlertSeverity(StrEnum):

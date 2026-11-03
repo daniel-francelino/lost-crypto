@@ -71,6 +71,11 @@ export const alertKindLabel = (value: string): string =>
       [AlertKind.ExchangeRateLimited]: "Exchange limitando requisições",
       [AlertKind.PerformanceDegraded]: "Desempenho fora da faixa do backtest",
       [AlertKind.ProtectiveExitSlippage]: "Stop preencheu muito pior que o esperado",
+      [AlertKind.FuturesUnprotectedPosition]: "Posição Futures sem stop nativo",
+      [AlertKind.FuturesMarkStale]: "Mark price Futures desatualizado",
+      [AlertKind.FuturesMarginBuffer]: "Margem Futures próxima da liquidação",
+      [AlertKind.FuturesRecoveryRequired]: "Futures exige reconciliação",
+      [AlertKind.FuturesFundingCost]: "Custo de funding elevado",
     },
     value,
   );

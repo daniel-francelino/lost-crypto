@@ -4000,7 +4000,12 @@
           "candles_stale",
           "exchange_rate_limited",
           "performance_degraded",
-          "protective_exit_slippage"
+          "protective_exit_slippage",
+          "futures_unprotected_position",
+          "futures_mark_stale",
+          "futures_margin_buffer",
+          "futures_recovery_required",
+          "futures_funding_cost"
         ],
         "title": "AlertKind"
       },
@@ -5388,6 +5393,67 @@
               }
             ],
             "title": "Last Price"
+          },
+          "product": {
+            "$ref": "#/components/schemas/TradingProduct",
+            "default": "spot"
+          },
+          "position_side": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PositionSide"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leverage": {
+            "type": "integer",
+            "title": "Leverage",
+            "default": 1
+          },
+          "unrealized_pnl": {
+            "type": "string",
+            "title": "Unrealized Pnl",
+            "default": "0"
+          },
+          "isolated_margin": {
+            "type": "string",
+            "title": "Isolated Margin",
+            "default": "0"
+          },
+          "liquidation_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liquidation Price"
+          },
+          "liquidation_price_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liquidation Price Source"
+          },
+          "funding_paid": {
+            "type": "string",
+            "title": "Funding Paid",
+            "default": "0"
+          },
+          "funding_received": {
+            "type": "string",
+            "title": "Funding Received",
+            "default": "0"
           },
           "last_heartbeat_at": {
             "anyOf": [
@@ -7505,8 +7571,7 @@
       "MarginMode": {
         "type": "string",
         "enum": [
-          "isolated",
-          "cross"
+          "isolated"
         ],
         "title": "MarginMode"
       },
@@ -8726,6 +8791,17 @@
               }
             ],
             "title": "Liquidation Price"
+          },
+          "liquidation_price_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liquidation Price Source"
           },
           "funding_paid": {
             "type": "string",
@@ -11235,6 +11311,11 @@
           "mode": {
             "type": "string",
             "title": "Mode"
+          },
+          "product": {
+            "type": "string",
+            "title": "Product",
+            "default": "spot"
           },
           "quantity": {
             "type": "string",

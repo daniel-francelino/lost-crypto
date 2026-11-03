@@ -6,6 +6,8 @@ from decimal import Decimal
 
 from core.clock import Clock
 from modules.bots.domain.models import Bot, BotState
+from modules.exchanges.domain.models import TradingProduct
+from modules.execution.domain.orders import OrderStatus
 from modules.risk_management.domain.models import BackupRecord, KillSwitchState
 from modules.trading.application.ports import TradingStore
 from modules.trading.application.trader import MAX_LIVE_CLOCK_SKEW_MS
@@ -40,6 +42,7 @@ class UnprotectedPosition:
     mode: str
     quantity: Decimal
     stop_price: Decimal | None  # watched by the worker only, when set
+    product: str = TradingProduct.SPOT.value
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,6 +151,33 @@ class StatusService:
         for bot in bots:
             if not bot.config.mode.uses_exchange:
                 continue  # paper money cannot be lost in an outage
+            if bot.config.product is TradingProduct.LINEAR_PERPETUAL:
+                ledger = await store.perpetual_portfolio.get(bot.id)
+                if ledger is None or ledger.position is None:
+                    continue
+                position = ledger.position
+                stop_id = ledger.stop_order_client_id
+                stop = (
+                    await store.orders.get_by_client_id(bot.id, stop_id)
+                    if stop_id is not None
+                    else None
+                )
+                if stop is None or stop.status not in {
+                    OrderStatus.OPEN,
+                    OrderStatus.PARTIALLY_FILLED,
+                }:
+                    found.append(
+                        UnprotectedPosition(
+                            str(bot.id),
+                            bot.config.name,
+                            bot.config.symbol,
+                            bot.config.mode.value,
+                            position.quantity,
+                            position.stop_price,
+                            bot.config.product.value,
+                        )
+                    )
+                continue
             portfolio = await store.portfolio.get(bot.id)
             if portfolio is None or portfolio.quantity <= 0:
                 continue

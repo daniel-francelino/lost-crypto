@@ -1,4 +1,5 @@
 import type { Bot, BotInput } from "@/lib/bots/bots.api";
+import { estimateLeveragedEntry } from "@/lib/shared/format";
 import {
   DrawdownAction,
   ExecutionMode,
@@ -151,3 +152,18 @@ export const toBotInput = (values: BotFormValues, strategy: Strategy | undefined
       ? null
       : nullable(values.connectionId),
 });
+
+export type FuturesEntryEstimate = {
+  notional: string;
+  collateral: string;
+};
+
+export const futuresEntryEstimate = (values: BotFormValues): FuturesEntryEstimate | null => {
+  return estimateLeveragedEntry(
+    values.initialCapital,
+    values.maxPositionFraction,
+    values.leverage,
+    values.feeRate.trim() === "" ? "0.0005" : values.feeRate,
+    values.maxOrderNotional.trim(),
+  );
+};

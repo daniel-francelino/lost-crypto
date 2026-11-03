@@ -7,11 +7,14 @@ so an open alert is only rewritten when something meaningful changes.
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from decimal import Decimal
+from uuid import UUID
 
 from modules.bots.domain.models import Bot, BotState, ExecutionMode
+from modules.exchanges.domain.models import PositionSide, TradingProduct
 from modules.execution.domain.orders import Order, OrderStatus, realized_slippage_bps
 from modules.market_data.application.updater import UpdateReport
 from modules.notifications.domain.models import AlertKind, AlertSeverity, Condition
+from modules.portfolio.domain.perpetuals import PerpetualLedger
 from modules.trading.application.status import SystemStatus
 
 _MAX_MESSAGE = 300
@@ -82,6 +85,202 @@ def bots(status: SystemStatus, active_bots: Sequence[Bot]) -> list[Condition]:
                 _severity(bot),
                 f"Bot '{bot.config.name}': {detail}",
                 bot_id=bot.id,
+            )
+        )
+    return out
+
+
+def futures_unprotected_positions(status: SystemStatus) -> list[Condition]:
+    """Alert when a live exchange-backed perpetual has no confirmed native stop order."""
+    return [
+        Condition(
+            AlertKind.FUTURES_UNPROTECTED_POSITION,
+            f"futures_unprotected_position:{position.bot_id}",
+            AlertSeverity.WARNING,
+            f"Futures '{position.name}' está sem stop ativo na Binance; uma queda do worker pode "
+            "deixar a posição sem proteção.",
+            bot_id=UUID(position.bot_id),
+            payload={
+                "symbol": position.symbol,
+                "mode": position.mode,
+                "quantity": str(position.quantity),
+                "stop_price": str(position.stop_price) if position.stop_price is not None else None,
+            },
+        )
+        for position in status.unprotected_positions
+        if position.product == "linear_perpetual"
+    ]
+
+
+FUTURES_MARK_STALE_AFTER = timedelta(seconds=15)
+DEFAULT_LIQUIDATION_BUFFER_PCT = Decimal("10")
+FUNDING_COST_WARNING_PCT = Decimal("1")
+FUNDING_COST_CRITICAL_PCT = Decimal("2")
+
+
+def futures_position_risk(
+    bot_ledgers: Sequence[tuple[Bot, PerpetualLedger]],
+    now: datetime,
+    mark_stale_after: timedelta = FUTURES_MARK_STALE_AFTER,
+) -> list[Condition]:
+    """Report stale Demo marks and narrowing isolated-margin distance to liquidation.
+
+    The liquidation distance uses Binance's reported price when available, otherwise the local
+    estimate. The source is included in the payload so the UI never presents an estimate as an
+    exchange fact.
+    """
+    out: list[Condition] = []
+    for bot, ledger in bot_ledgers:
+        if (
+            bot.config.product is not TradingProduct.LINEAR_PERPETUAL
+            or bot.config.mode is not ExecutionMode.TESTNET
+            or ledger.position is None
+        ):
+            continue
+        position = ledger.position
+        if (
+            ledger.mark_price is None
+            or ledger.marked_at is None
+            or now - ledger.marked_at > mark_stale_after
+            or now - ledger.marked_at < timedelta(seconds=-5)
+        ):
+            out.append(
+                Condition(
+                    AlertKind.FUTURES_MARK_STALE,
+                    f"futures_mark_stale:{bot.id}",
+                    AlertSeverity.WARNING,
+                    f"Futures '{bot.config.name}' está sem uma marcação recente da Binance.",
+                    bot_id=bot.id,
+                    payload={
+                        "symbol": bot.config.symbol,
+                        "marked_at": ledger.marked_at.isoformat() if ledger.marked_at else None,
+                        "max_age_seconds": int(mark_stale_after.total_seconds()),
+                    },
+                )
+            )
+            continue
+        if ledger.mark_price is None:
+            continue
+        exchange_liquidation = ledger.exchange_liquidation_price
+        liquidation = exchange_liquidation or ledger.liquidation_estimate(
+            ledger.maintenance_margin_rate
+        )
+        if liquidation is None:
+            continue
+        distance = (
+            (ledger.mark_price - liquidation) / ledger.mark_price
+            if position.side is PositionSide.LONG
+            else (liquidation - ledger.mark_price) / ledger.mark_price
+        ) * 100
+        configured_buffer = bot.config.risk.min_liquidation_distance_pct
+        threshold = max(configured_buffer or Decimal(0), DEFAULT_LIQUIDATION_BUFFER_PCT)
+        if distance > threshold:
+            continue
+        severity = (
+            AlertSeverity.CRITICAL
+            if distance <= threshold / 2
+            else AlertSeverity.WARNING
+        )
+        source = "binance_exchange" if exchange_liquidation is not None else "local_estimate"
+        out.append(
+            Condition(
+                AlertKind.FUTURES_MARGIN_BUFFER,
+                f"futures_margin_buffer:{bot.id}",
+                severity,
+                f"Futures '{bot.config.name}' está a {distance:.2f}% do preço de liquidação.",
+                bot_id=bot.id,
+                payload={
+                    "symbol": bot.config.symbol,
+                    "side": position.side.value,
+                    "distance_pct": str(distance),
+                    "threshold_pct": str(threshold),
+                    "liquidation_price": str(liquidation),
+                    "mark_price": str(ledger.mark_price),
+                    "liquidation_price_source": source,
+                },
+            )
+        )
+    return out
+
+
+def futures_recovery_required(bots: Sequence[Bot]) -> list[Condition]:
+    """Keep stream, margin-call and reconciliation pauses visible until an operator resumes."""
+    out: list[Condition] = []
+    for bot in bots:
+        if (
+            bot.config.product is not TradingProduct.LINEAR_PERPETUAL
+            or bot.config.mode is not ExecutionMode.TESTNET
+            or bot.desired_state is BotState.STOPPED
+            or bot.last_error is None
+        ):
+            continue
+        reason = bot.last_error.lower()
+        if bot.observed_state is not BotState.ERROR and not (
+            reason.startswith("risk.futures_")
+            or "reconciliation" in reason
+            or "futures demo" in reason
+        ):
+            continue
+        cause = (
+            "O stream privado da Binance foi interrompido"
+            if "user_stream_disconnected" in reason
+            else "A Binance enviou um aviso de margem"
+            if "margin_call" in reason
+            else "A configuração Futures da conta mudou"
+            if "account_config_changed" in reason
+            else "A posição Futures precisa de reconciliação"
+        )
+        out.append(
+            Condition(
+                AlertKind.FUTURES_RECOVERY_REQUIRED,
+                f"futures_recovery_required:{bot.id}",
+                AlertSeverity.WARNING,
+                f"{cause} para '{bot.config.name}'. Revise a conta e reconcilie antes de retomar.",
+                bot_id=bot.id,
+                payload={"symbol": bot.config.symbol, "reason": bot.last_error},
+            )
+        )
+    return out
+
+
+def futures_funding_cost(
+    bot_ledgers: Sequence[tuple[Bot, PerpetualLedger]],
+) -> list[Condition]:
+    """Warn when net funding paid becomes a material share of the bot's allocated capital."""
+    out: list[Condition] = []
+    for bot, ledger in bot_ledgers:
+        if (
+            bot.config.product is not TradingProduct.LINEAR_PERPETUAL
+            or bot.config.mode is not ExecutionMode.TESTNET
+            or bot.config.initial_capital <= 0
+        ):
+            continue
+        net_paid = ledger.funding_paid - ledger.funding_received
+        net_paid_pct = net_paid / bot.config.initial_capital * 100
+        if net_paid_pct < FUNDING_COST_WARNING_PCT:
+            continue
+        severity = (
+            AlertSeverity.CRITICAL
+            if net_paid_pct >= FUNDING_COST_CRITICAL_PCT
+            else AlertSeverity.WARNING
+        )
+        out.append(
+            Condition(
+                AlertKind.FUTURES_FUNDING_COST,
+                f"futures_funding_cost:{bot.id}",
+                severity,
+                f"Funding líquido pago por '{bot.config.name}' atingiu "
+                f"{net_paid_pct:.2f}% do capital alocado.",
+                bot_id=bot.id,
+                payload={
+                    "symbol": bot.config.symbol,
+                    "funding_paid": str(ledger.funding_paid),
+                    "funding_received": str(ledger.funding_received),
+                    "net_funding_paid": str(net_paid),
+                    "net_funding_pct": str(net_paid_pct),
+                    "warning_threshold_pct": str(FUNDING_COST_WARNING_PCT),
+                    "critical_threshold_pct": str(FUNDING_COST_CRITICAL_PCT),
+                },
             )
         )
     return out

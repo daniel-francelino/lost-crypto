@@ -47,6 +47,7 @@ class UnprotectedPositionOut(BaseModel):
     name: str
     symbol: str
     mode: str
+    product: str = "spot"
     quantity: Decimal
     stop_price: Decimal | None = Field(
         description="Stop watched by the worker only (none on the exchange), when set."
@@ -206,6 +207,7 @@ async def get_status(request: Request) -> SystemStatusOut:
                 name=p.name,
                 symbol=p.symbol,
                 mode=p.mode,
+                product=p.product,
                 quantity=p.quantity,
                 stop_price=p.stop_price,
             )

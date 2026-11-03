@@ -144,6 +144,14 @@ class SqlAlchemyBotRepository:
         )
         return [_to_bot(r) for r in result.scalars()]
 
+    async def list_connection_bots(self, connection_id: UUID) -> list[Bot]:
+        result = await self._session.execute(
+            select(BotRow)
+            .where(BotRow.exchange_connection_id == connection_id)
+            .order_by(BotRow.created_at.desc())
+        )
+        return [_to_bot(r) for r in result.scalars()]
+
     async def list_active(self) -> list[Bot]:
         result = await self._session.execute(
             select(BotRow)

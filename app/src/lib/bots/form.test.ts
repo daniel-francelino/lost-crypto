@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { defaultFormValues, toBotInput } from "@/lib/bots/form";
+import { defaultFormValues, futuresEntryEstimate, toBotInput } from "@/lib/bots/form";
 import { decimalError, integerError, symbolError } from "@/lib/shared/validators";
 import type { Strategy } from "@/lib/shared/strategies/strategies.api";
+import { ExecutionMode, MarginMode, TradingProduct } from "@/lib/shared/enums";
 
 const STRATEGY: Strategy = {
   type_key: "ema_crossover",
@@ -56,6 +57,52 @@ describe("bot form", () => {
     const base = { ...defaultFormValues(STRATEGY), connectionId: "abc", maxConsecutiveLosses: "3" };
     expect(toBotInput({ ...base, mode: "testnet" }, STRATEGY).connection_id).toBe("abc");
     expect(toBotInput({ ...base, mode: "testnet" }, STRATEGY).risk.max_consecutive_losses).toBe(3);
+  });
+
+  it("keeps the Demo connection for isolated Futures paper and serializes its risk fields", () => {
+    const input = toBotInput(
+      {
+        ...defaultFormValues(STRATEGY),
+        exchange: "binance-usdm",
+        product: TradingProduct.LinearPerpetual,
+        symbol: "BTC/USDT:USDT",
+        leverage: "10",
+        allowShort: true,
+        connectionId: "demo-account",
+        minLiquidationDistancePct: "12",
+      },
+      STRATEGY,
+    );
+
+    expect(input).toMatchObject({
+      exchange: "binance-usdm",
+      product: TradingProduct.LinearPerpetual,
+      mode: ExecutionMode.Paper,
+      leverage: 10,
+      margin_mode: MarginMode.Isolated,
+      allow_short: true,
+      connection_id: "demo-account",
+      risk: { min_liquidation_distance_pct: "12" },
+    });
+  });
+
+  it("estimates Futures notional and collateral with leverage, fee and the order cap", () => {
+    const values = {
+      ...defaultFormValues(STRATEGY),
+      product: TradingProduct.LinearPerpetual,
+      leverage: "5",
+      initialCapital: "1000",
+      maxPositionFraction: "0.5",
+    };
+    expect(futuresEntryEstimate(values)).toEqual({
+      notional: expect.stringMatching(/^2493\.765586/),
+      collateral: "500",
+    });
+    expect(futuresEntryEstimate({ ...values, maxOrderNotional: "400" })).toEqual({
+      notional: "400",
+      collateral: "80.2",
+    });
+    expect(futuresEntryEstimate({ ...values, leverage: "10.5" })).toBeNull();
   });
 
   it("validates decimals, integers and symbols", () => {

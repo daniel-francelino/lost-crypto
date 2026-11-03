@@ -187,4 +187,9 @@ def test_the_new_alert_kind_is_watched_by_the_worker_and_evaluator_ignores_other
     from modules.notifications.application.service import API_SCOPE, WORKER_SCOPE
 
     assert AlertKind.PERFORMANCE_DEGRADED in WORKER_SCOPE
+    assert {
+        AlertKind.FUTURES_UNPROTECTED_POSITION,
+        AlertKind.FUTURES_MARK_STALE,
+        AlertKind.FUTURES_MARGIN_BUFFER,
+    } <= WORKER_SCOPE
     assert AlertKind.PERFORMANCE_DEGRADED not in API_SCOPE

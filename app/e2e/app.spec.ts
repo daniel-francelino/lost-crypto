@@ -158,7 +158,15 @@ test("research and system screens load", async ({ page }) => {
 test("key screens fit a 360 px phone without horizontal scroll", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 });
   await signInAdmin(page);
-  for (const path of ["/", "/bots", "/backtests", "/market-data", "/system", "/exchanges"]) {
+  for (const path of [
+    "/",
+    "/bots",
+    "/bots/new",
+    "/backtests",
+    "/market-data",
+    "/system",
+    "/exchanges",
+  ]) {
     await page.goto(path);
     await page.waitForLoadState("networkidle");
     const overflow = await page.evaluate(

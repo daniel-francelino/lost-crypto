@@ -2,11 +2,13 @@ from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
 from modules.audit.models import AuditEvent
 from modules.bots.domain.models import Bot, BotConfig, BotState, ExecutionMode
+from modules.exchanges.domain.models import MarginMode, PositionSide, TradingProduct
 from modules.market_data.application.updater import (
     RateLimitPause,
     Series,
@@ -22,10 +24,12 @@ from modules.notifications.domain.models import (
     AlertSeverity,
     Condition,
 )
+from modules.portfolio.domain.perpetuals import PerpetualLedger
 from modules.risk_management.domain.models import KillSwitchState
 from modules.trading.application.status import (
     StaleBot,
     SystemStatus,
+    UnprotectedPosition,
     WorkerStatus,
 )
 
@@ -236,6 +240,117 @@ def test_worker_down_is_critical_and_only_fires_when_the_worker_is_not_alive() -
     assert down.kind is AlertKind.WORKER_DOWN and down.severity is AlertSeverity.CRITICAL
     (never,) = conditions.worker_down(status(alive=False, last_heartbeat=None))
     assert "never" in never.message
+
+
+def test_unprotected_futures_position_generates_a_deduplicated_operational_condition() -> None:
+    position = UnprotectedPosition(
+        bot_id=str(uuid4()),
+        name="BTC perpetual",
+        symbol="BTC/USDT:USDT",
+        mode="testnet",
+        quantity=Decimal("0.02"),
+        stop_price=Decimal("59000"),
+        product="linear_perpetual",
+    )
+    found = conditions.futures_unprotected_positions(
+        replace(status(), unprotected_positions=[position])
+    )
+
+    (condition,) = found
+    assert condition.kind is AlertKind.FUTURES_UNPROTECTED_POSITION
+    assert condition.severity is AlertSeverity.WARNING
+    assert condition.dedupe_key == f"futures_unprotected_position:{position.bot_id}"
+    assert condition.payload["symbol"] == "BTC/USDT:USDT"
+
+
+def test_futures_position_risk_alerts_stale_marks_and_liquidation_buffer() -> None:
+    paper_bot = make_bot()
+    config = replace(
+        paper_bot.config,
+        exchange="binance-usdm",
+        symbol="BTC/USDT:USDT",
+        mode=ExecutionMode.TESTNET,
+        connection_id=uuid4(),
+        product=TradingProduct.LINEAR_PERPETUAL,
+        leverage=2,
+        margin_mode=MarginMode.ISOLATED,
+    )
+    bot = replace(paper_bot, config=config)
+    ledger = PerpetualLedger.new(bot.id, Decimal("1000"))
+    ledger.open_position(PositionSide.LONG, Decimal("1"), Decimal("100"), leverage=2)
+    ledger.mark_price = Decimal("55")
+    ledger.marked_at = NOW
+    ledger.exchange_liquidation_price = Decimal("50")
+
+    fresh = conditions.futures_position_risk([(bot, ledger)], NOW)
+    (buffer_alert,) = fresh
+    assert buffer_alert.kind is AlertKind.FUTURES_MARGIN_BUFFER
+    assert buffer_alert.severity is AlertSeverity.WARNING
+    assert buffer_alert.payload["liquidation_price_source"] == "binance_exchange"
+    assert Decimal(str(buffer_alert.payload["distance_pct"])) < Decimal("10")
+
+    stale = conditions.futures_position_risk([(bot, ledger)], NOW + timedelta(seconds=16))
+    assert [item.kind for item in stale] == [AlertKind.FUTURES_MARK_STALE]
+
+    ledger.mark_price = Decimal("52")
+    (critical_buffer,) = conditions.futures_position_risk([(bot, ledger)], NOW)
+    assert critical_buffer.kind is AlertKind.FUTURES_MARGIN_BUFFER
+    assert critical_buffer.severity is AlertSeverity.CRITICAL
+
+
+def test_stream_pause_keeps_a_futures_recovery_alert_until_operator_action() -> None:
+    paper_bot = make_bot(state=BotState.PAUSED, mode=ExecutionMode.TESTNET)
+    config = replace(
+        paper_bot.config,
+        exchange="binance-usdm",
+        symbol="BTC/USDT:USDT",
+        product=TradingProduct.LINEAR_PERPETUAL,
+        leverage=2,
+        margin_mode=MarginMode.ISOLATED,
+    )
+    bot = replace(
+        paper_bot,
+        config=config,
+        desired_state=BotState.PAUSED,
+        observed_state=BotState.PAUSED,
+        last_error="risk.futures_user_stream_disconnected",
+    )
+
+    (alert,) = conditions.futures_recovery_required([bot])
+    assert alert.kind is AlertKind.FUTURES_RECOVERY_REQUIRED
+    assert "stream privado" in alert.message
+    assert conditions.futures_recovery_required([replace(bot, last_error=None)]) == []
+
+
+def test_futures_funding_alert_uses_net_paid_and_materiality_thresholds() -> None:
+    paper_bot = make_bot()
+    config = replace(
+        paper_bot.config,
+        exchange="binance-usdm",
+        symbol="BTC/USDT:USDT",
+        mode=ExecutionMode.TESTNET,
+        connection_id=uuid4(),
+        product=TradingProduct.LINEAR_PERPETUAL,
+        leverage=2,
+        margin_mode=MarginMode.ISOLATED,
+    )
+    bot = replace(paper_bot, config=config)
+    ledger = PerpetualLedger.new(bot.id, Decimal("1000"))
+    ledger.funding_paid = Decimal("15")
+    ledger.funding_received = Decimal("2")
+
+    (warning,) = conditions.futures_funding_cost([(bot, ledger)])
+    assert warning.kind is AlertKind.FUTURES_FUNDING_COST
+    assert warning.severity is AlertSeverity.WARNING
+    assert Decimal(str(warning.payload["net_funding_pct"])) == Decimal("1.3")
+
+    ledger.funding_received = Decimal("7")
+    assert conditions.futures_funding_cost([(bot, ledger)]) == []
+
+    ledger.funding_paid = Decimal("25")
+    ledger.funding_received = Decimal("2")
+    (critical,) = conditions.futures_funding_cost([(bot, ledger)])
+    assert critical.severity is AlertSeverity.CRITICAL
 
 
 def test_kill_switch_condition_carries_the_reason() -> None:

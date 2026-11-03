@@ -10,6 +10,7 @@ from factories import T0
 from modules.bots.domain.models import Bot, BotConfig, BotState, ExecutionMode
 from modules.exchanges.application.ports import VenueOrder
 from modules.exchanges.domain.models import MarginMode, PositionSide, TradingProduct
+from modules.exchanges.errors import UnknownOutcome
 from modules.execution.domain.orders import Fill, Order, OrderStatus
 from modules.market_data.domain.models import MarketInfo, Timeframe
 from modules.portfolio.domain.perpetual_ledger import PerpetualLedgerEntry
@@ -49,10 +50,14 @@ class _Orders:
     async def get_by_client_id(self, bot_id, client_order_id: str) -> Order | None:
         return self.order if self.order.client_order_id == client_order_id else None
 
+    async def get(self, order_id):
+        return self.order if self.order.id == order_id else None
+
 
 class _Store:
     def __init__(self, ledger: PerpetualLedger, order: Order) -> None:
         self.perpetual_portfolio = _PerpetualPortfolio(ledger)
+        self.portfolio = self
         self.orders = _Orders(order)
         self.bots = self
         self.audit = self
@@ -74,6 +79,9 @@ class _Store:
     async def add(self, event: Any) -> None:
         self.events.append(event)
 
+    async def get(self, _bot_id):
+        return None
+
 
 class _StoreContext:
     def __init__(self, store: _Store) -> None:
@@ -90,6 +98,23 @@ class _Clock:
     @staticmethod
     def now():
         return T0
+
+
+class _Resolver:
+    def __init__(self, exchange: Any) -> None:
+        self.exchange = exchange
+
+    async def exchange_for(self, _connection_id):
+        return self.exchange
+
+
+class _AmbiguousExchange:
+    def __init__(self) -> None:
+        self.submissions = 0
+
+    async def create_market_order(self, _request) -> None:
+        self.submissions += 1
+        raise UnknownOutcome("response timed out after request submission")
 
 
 def _executor(store: _Store) -> OrderExecutor:
@@ -146,6 +171,52 @@ def _order(bot: Bot) -> Order:
         reference_price=D("100"),
     )
     return order
+
+
+@pytest.mark.asyncio
+async def test_executor_rejects_legacy_live_futures_order_before_exchange_call() -> None:
+    bot = _bot()
+    # Simulate an inconsistent legacy DB row. BotConfig correctly refuses this mode in normal
+    # construction, so bypass the frozen config guard to exercise the executor boundary itself.
+    object.__setattr__(bot.config, "mode", ExecutionMode.LIVE)
+    order = _order(bot)
+    ledger = PerpetualLedger.new(bot.id, D("1000"))
+    ledger.reserve(order.reserved_margin)
+    store = _Store(ledger, order)
+    executor = _executor(store)
+
+    await executor.submit(bot, order.id)
+
+    assert order.status is OrderStatus.REJECTED
+    assert order.reject_reason == "USD-M Futures live order execution is not enabled"
+    assert ledger.reserved_margin == 0
+    assert store.events[-1].event_type == "risk.futures_live_execution_blocked"
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_futures_order_keeps_reservation_and_is_not_resubmitted() -> None:
+    bot = _bot()
+    order = _order(bot)
+    ledger = PerpetualLedger.new(bot.id, D("1000"))
+    ledger.reserve(order.reserved_margin)
+    store = _Store(ledger, order)
+    exchange = _AmbiguousExchange()
+    executor = OrderExecutor(
+        lambda: _StoreContext(store),  # type: ignore[arg-type]
+        resolver=_Resolver(exchange),  # type: ignore[arg-type]
+        clock=_Clock(),  # type: ignore[arg-type]
+        ids=UuidGenerator(),
+        absent_after=timedelta(seconds=30),
+    )
+
+    await executor.submit(bot, order.id)
+    await executor.submit(bot, order.id)
+
+    assert exchange.submissions == 1
+    assert order.status is OrderStatus.UNKNOWN
+    assert ledger.reserved_margin == D("51")
+    assert ledger.position is None
+    assert [event.event_type for event in store.events] == ["order.unknown"]
 
 
 def _venue(order: Order, status: OrderStatus, fills: tuple[Fill, ...]) -> VenueOrder:
@@ -352,3 +423,63 @@ async def test_partial_close_replaces_the_native_stop_with_updated_quantity(
         assert store.observed_error == (
             "Binance did not confirm cancellation of the outdated Futures stop"
         )
+
+
+@pytest.mark.asyncio
+async def test_rejected_futures_stop_is_rearmed_while_position_remains_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = _bot()
+    stop_id = "futures-rejected-stop"
+    ledger = PerpetualLedger.new(bot.id, D("1000"))
+    ledger.open_position(PositionSide.LONG, D("1"), D("100"), 2, stop_price=D("90"))
+    ledger.stop_order_client_id = stop_id
+    order = Order(
+        id=uuid4(),
+        bot_id=bot.id,
+        session_id=uuid4(),
+        client_order_id=stop_id,
+        symbol=bot.config.symbol,
+        side=Side.SELL,
+        quantity=D("1"),
+        bar_time=T0,
+        created_at=T0,
+        product=TradingProduct.LINEAR_PERPETUAL,
+        position_side=PositionSide.LONG,
+        leverage=2,
+        reduce_only=True,
+        status=OrderStatus.OPEN,
+        order_type="stop_loss",
+        stop_price=D("90"),
+    )
+    store = _Store(ledger, order)
+    executor = _executor(store)
+    venue = _venue(order, OrderStatus.REJECTED, ())
+
+    class Exchange:
+        async def fetch_order(self, symbol: str, client_order_id: str):
+            assert symbol == bot.config.symbol and client_order_id == stop_id
+            return venue
+
+    async def get_exchange(bot_arg):
+        assert bot_arg.id == bot.id
+        return Exchange()
+
+    async def min_quantity(bot_arg):
+        return D("0.01")
+
+    replacements: list[str] = []
+
+    async def rearm(bot_arg, entry_client_order_id: str) -> None:
+        replacements.append(entry_client_order_id)
+
+    monkeypatch.setattr(executor, "_exchange", get_exchange)
+    monkeypatch.setattr(executor, "_min_quantity", min_quantity)
+    monkeypatch.setattr(executor, "ensure_native_stop", rearm)
+
+    await executor.sync_native_stop(bot)
+
+    assert order.status is OrderStatus.REJECTED
+    assert ledger.position is not None
+    assert ledger.stop_order_client_id is None
+    assert replacements == [stop_id]

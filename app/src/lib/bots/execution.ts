@@ -1,6 +1,13 @@
 import type { Bot, DivergenceStepResult } from "@/lib/bots/bots.api";
 import { formatInteger, formatRatio, formatSignedPercent } from "@/lib/shared/format";
-import { DivergenceStep, FillTiming, ParityClass, StepState, Unknown } from "@/lib/shared/enums";
+import {
+  DivergenceStep,
+  FillTiming,
+  ParityClass,
+  StepState,
+  TradingProduct,
+  Unknown,
+} from "@/lib/shared/enums";
 import type { BacktestPrefill } from "@/lib/shared/backtest-prefill";
 
 export const PARITY_CLASS_LABELS: Record<ParityClass | Unknown, string> = {
@@ -43,10 +50,18 @@ export const STEP_STATE_LABELS: Record<StepState | Unknown, string> = {
 
 export const backtestPrefillFromBot = (bot: Bot): BacktestPrefill => ({
   strategy: bot.strategy_type,
+  product:
+    bot.product === TradingProduct.Spot || bot.product === TradingProduct.LinearPerpetual
+      ? bot.product
+      : undefined,
+  leverage: String(bot.leverage),
+  allowShort: bot.allow_short,
+  connectionId: bot.connection_id ?? "",
   symbol: bot.symbol,
   timeframe: bot.timeframe,
   params: JSON.stringify(bot.strategy_params),
   feeRate: bot.fee_rate,
+  initialCapital: bot.initial_capital,
   slippageBps: bot.slippage_bps,
   fillTiming: FillTiming.SignalClose,
   risk: JSON.stringify(bot.risk),

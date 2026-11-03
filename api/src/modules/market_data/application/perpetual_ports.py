@@ -30,4 +30,10 @@ class PerpetualDataRepository(Protocol):
 
     async def get_funding_rates(
         self, exchange: str, symbol: str, start: datetime, end: datetime
-    ) -> list[FundingRate]: ...
+    ) -> list[FundingRate]:
+        """Return settled events in the inclusive ``[start, end]`` interval.
+
+        Funding can settle exactly at the final candle close, so unlike candle-open ranges the
+        upper boundary must be included for a faithful perpetual backtest.
+        """
+        ...

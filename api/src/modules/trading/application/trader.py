@@ -61,7 +61,7 @@ from modules.strategies.domain.base import Strategy
 from modules.strategies.domain.registry import StrategyRegistry
 from modules.strategies.domain.types import Side, Signal, SignalKind, StrategyContext
 from modules.trading.application.orders import OrderExecutor
-from modules.trading.application.perpetual_paper import PerpetualPaperTrader
+from modules.trading.application.perpetual_paper import PerpetualDemoTrader, PerpetualPaperTrader
 from modules.trading.application.ports import TradingStore
 from modules.trading.domain.models import WARMUP_CANDLES, TradingSession, max_signal_age
 
@@ -119,6 +119,11 @@ class BotTrader:
             if resolver is not None
             else None
         )
+        self._perpetual_demo = (
+            PerpetualDemoTrader(stores, registry, exchanges, resolver, clock, ids, executor)
+            if resolver is not None
+            else None
+        )
         self._pending: list[UUID] = []  # orders created this candle, sent after the commit
         # Recent traded value (volume x close) per bot, for the volume cap (book 1 ch. 5, O5).
         self._volumes: dict[UUID, deque[Decimal]] = {}
@@ -144,9 +149,18 @@ class BotTrader:
 
         now = self._clock.now()
         if cfg.product is TradingProduct.LINEAR_PERPETUAL:
-            if self._perpetual_paper is None:
-                raise RuntimeError("Futures paper trading needs a configured Demo data resolver")
-            await self._perpetual_paper.process(bot, session, now)
+            if cfg.mode is ExecutionMode.PAPER:
+                if self._perpetual_paper is None:
+                    raise RuntimeError(
+                        "Futures paper trading needs a configured Demo data resolver"
+                    )
+                await self._perpetual_paper.process(bot, session, now)
+            elif cfg.mode is ExecutionMode.TESTNET:
+                if self._perpetual_demo is None:
+                    raise RuntimeError("Futures Demo trading is not configured on this worker")
+                await self._perpetual_demo.process(bot, session, now)
+            else:
+                raise RuntimeError("live Futures trading is disabled")
             return
 
         last = session.last_processed_bar_time

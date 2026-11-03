@@ -11,6 +11,7 @@ import {
 } from "@/lib/backtests/form";
 import { toMs } from "@/lib/shared/dates";
 import { parseGridList } from "@/lib/shared/strategies/params";
+import { TradingProduct } from "@/lib/shared/enums";
 import type { Strategy } from "@/lib/shared/strategies/strategies.api";
 
 const STRATEGY: Strategy = {
@@ -131,5 +132,28 @@ describe("backtest form", () => {
     const plain = toBacktestInput(defaultBacktestValues(STRATEGY, NOW), STRATEGY);
     expect(plain.risk).toBeNull();
     expect(plain.fill_timing).toBe("next_open");
+  });
+
+  it("keeps USD-M settings when a Futures bot opens a backtest", () => {
+    const values = applyBacktestPrefill(
+      defaultBacktestValues(STRATEGY, NOW),
+      {
+        product: TradingProduct.LinearPerpetual,
+        leverage: "7",
+        allowShort: true,
+        connectionId: "demo-connection",
+        symbol: "ETH/USDT:USDT",
+        initialCapital: "2500",
+      },
+      [STRATEGY],
+    );
+
+    expect(values.product).toBe(TradingProduct.LinearPerpetual);
+    expect(values.exchange).toBe("binance-usdm");
+    expect(values.symbol).toBe("ETH/USDT:USDT");
+    expect(values.leverage).toBe("7");
+    expect(values.allowShort).toBe(true);
+    expect(values.connectionId).toBe("demo-connection");
+    expect(values.initialCapital).toBe("2500");
   });
 });

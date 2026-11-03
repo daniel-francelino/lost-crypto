@@ -86,6 +86,25 @@ describe("execution systems helpers", () => {
     });
     expect(parseJsonRecord(prefill.params)).toEqual({ fast_period: 9 });
     expect(parseJsonRecord("not json")).toEqual({});
+
+    const futuresPrefill = backtestPrefillFromBot({
+      ...BOT,
+      exchange: "binance-usdm",
+      product: "linear_perpetual",
+      leverage: 7,
+      allow_short: true,
+      connection_id: "demo-connection",
+      symbol: "BTC/USDT:USDT",
+      initial_capital: "2500",
+    });
+    expect(futuresPrefill).toMatchObject({
+      product: "linear_perpetual",
+      leverage: "7",
+      allowShort: true,
+      connectionId: "demo-connection",
+      symbol: "BTC/USDT:USDT",
+      initialCapital: "2500",
+    });
   });
 
   it("puts the bot and the replay on one time axis, from the session start", () => {

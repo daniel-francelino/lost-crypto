@@ -221,6 +221,7 @@ def run_perpetual_backtest(
     stop_price: Decimal | None = None
     take_profit_price: Decimal | None = None
     active_tier: LeverageTier | None = None
+    closed_this_candle = False
 
     def tier_for(notional: Decimal) -> LeverageTier:
         for tier in config.leverage_tiers:
@@ -239,9 +240,14 @@ def run_perpetual_backtest(
         )
 
     def fill(signal: Signal, reference: Decimal, at: datetime, candle: Candle) -> None:
-        nonlocal stop_price, take_profit_price, max_notional
+        nonlocal closed_this_candle, stop_price, take_profit_price, max_notional
         position = ledger.position
         is_entry = signal.kind is SignalKind.ENTRY
+        if is_entry and closed_this_candle:
+            rejected.append(
+                RejectedSignal(at, signal.side, "entry after an exit on the same candle is blocked")
+            )
+            return
         side = PositionSide.LONG if signal.side is Side.BUY else PositionSide.SHORT
         if is_entry:
             if position is not None:
@@ -326,8 +332,10 @@ def run_perpetual_backtest(
             guard.after_exit(fills, at)
         if ledger.position is None:
             stop_price = take_profit_price = None
+            closed_this_candle = True
 
     for candle, mark in zip(candles, mark_candles, strict=True):
+        closed_this_candle = False
         trading = trade_from is None or candle.close_time > trade_from
         for signal in pending:
             fill(signal, candle.open, candle.open_time, candle)
@@ -350,6 +358,7 @@ def run_perpetual_backtest(
                     check_maintenance_margin=True,
                 )
                 if ledger.position is None:
+                    closed_this_candle = True
                     min_liquidation_distance_pct = (
                         Decimal(0)
                         if min_liquidation_distance_pct is None
@@ -422,7 +431,9 @@ def run_perpetual_backtest(
                 ledger.liquidate(reference, fee)
                 fills.append(
                     Fill(
-                        time=candle.open_time,
+                        # OHLC mark candles only identify that liquidation happened within
+                        # this bar; use the bar close as the observable event timestamp.
+                        time=mark.close_time,
                         side=Side.SELL if position.side is PositionSide.LONG else Side.BUY,
                         quantity=position.quantity,
                         price=reference,
@@ -430,9 +441,10 @@ def run_perpetual_backtest(
                     )
                 )
                 if guard is not None:
-                    guard.after_exit(fills, candle.open_time)
-                liquidation_times.append(candle.open_time.isoformat())
+                    guard.after_exit(fills, mark.close_time)
+                liquidation_times.append(mark.close_time.isoformat())
                 stop_price = take_profit_price = None
+                closed_this_candle = True
             else:
                 stop_hit = stop_price is not None and (
                     mark.low <= stop_price
@@ -465,15 +477,17 @@ def run_perpetual_backtest(
                         config.fee_rate,
                         bps(candle, position.quantity * reference) if stop_hit else Decimal(0),
                         market,
-                        candle.open_time,
+                        # A bar does not reveal the exact intrabar trigger time.
+                        mark.close_time,
                     )
                     ledger.close_position(executed.quantity, executed.price, executed.fee)
                     fills.append(executed)
                     if guard is not None:
-                        guard.after_exit(fills, candle.open_time)
+                        guard.after_exit(fills, mark.close_time)
                     stop_price = take_profit_price = None
+                    closed_this_candle = True
 
-        if config.fill_timing is FillTiming.SIGNAL_CLOSE and trading:
+        if config.fill_timing is FillTiming.SIGNAL_CLOSE:
             result = strategy.evaluate(
                 StrategyContext(
                     candle.symbol,
@@ -485,9 +499,10 @@ def run_perpetual_backtest(
                 state,
             )
             state = result.state
-            for signal in result.signals:
-                emitted.append(EmittedSignal(candle.open_time, signal.side, signal.kind))
-                fill(signal, candle.close, candle.close_time, candle)
+            if trading:
+                for signal in result.signals:
+                    emitted.append(EmittedSignal(candle.open_time, signal.side, signal.kind))
+                    fill(signal, candle.close, candle.close_time, candle)
 
         active_tier = (
             tier_for(ledger.position.quantity * mark.close) if ledger.position is not None else None

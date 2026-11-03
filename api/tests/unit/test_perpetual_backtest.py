@@ -8,6 +8,7 @@ import pytest
 
 from modules.analytics.domain.metrics import compute_metrics
 from modules.backtesting.domain.cost_ladder import MULTIPLIERS, run_cost_ladder
+from modules.backtesting.domain.data_quality import funding_coverage_report
 from modules.backtesting.domain.engine import run_backtest
 from modules.backtesting.domain.models import BacktestConfig, FillTiming, InvalidBacktestConfig
 from modules.backtesting.domain.perpetual_engine import run_perpetual_backtest
@@ -100,6 +101,59 @@ class _EnterAndHold(_EnterOnce):
             ),
             state + 1,
         )
+
+
+class _ExitThenReverse(_EnterOnce):
+    TYPE_KEY = "test_exit_then_reverse"
+    NAME = "Test exit then reverse"
+
+    def evaluate(self, ctx: StrategyContext, state: int) -> StrategyResult[int]:
+        if state == 0:
+            return StrategyResult(
+                (Signal(Side.BUY, ctx.symbol, SignalKind.ENTRY, "initial long"),), 1
+            )
+        if state == 1 and ctx.is_long:
+            return StrategyResult(
+                (
+                    Signal(Side.SELL, ctx.symbol, SignalKind.EXIT, "close long"),
+                    Signal(Side.SELL, ctx.symbol, SignalKind.ENTRY, "reverse short"),
+                ),
+                2,
+            )
+        return StrategyResult((), state + 1)
+
+
+class _WarmupEntry(Strategy[int]):
+    TYPE_KEY = "test_warmup_entry"
+    NAME = "Test warmup entry"
+    DESCRIPTION = "Enters after four warmup evaluations."
+    STYLE = StrategyStyle.TREND
+    PARAMETERS = ()
+
+    @classmethod
+    def from_params(cls, params: Mapping[str, Any]) -> Self:
+        if params:
+            raise ValueError("this test strategy takes no parameters")
+        return cls()
+
+    def initial_state(self) -> int:
+        return 0
+
+    def evaluate(self, ctx: StrategyContext, state: int) -> StrategyResult[int]:
+        signals = (
+            (
+                Signal(Side.BUY, ctx.symbol, SignalKind.ENTRY, "warmed state entry"),
+            )
+            if state == 4 and ctx.is_flat
+            else ()
+        )
+        return StrategyResult(signals, state + 1)
+
+    def serialize_state(self, state: int) -> dict[str, Any]:
+        return {"state": state}
+
+    def deserialize_state(self, raw: dict[str, Any]) -> int:
+        return int(raw["state"])
 
 
 class _PartialExitOnce(_EnterOnce):
@@ -262,7 +316,9 @@ def test_liquidation_fill_uses_adverse_open_when_price_gaps_through_threshold(
 
     assert result.liquidation_count == 1
     assert result.final_quantity == 0
-    assert result.fills[-1].time == T0 + timedelta(hours=1)
+    # OHLC marks locate the event inside the bar, not its exact timestamp. The
+    # observable and replayable timestamp is the candle close.
+    assert result.fills[-1].time == marks[-1].close_time
     assert result.fills[-1].price == expected
     assert result.min_liquidation_distance_pct is not None
     assert result.min_liquidation_distance_pct < 0
@@ -465,6 +521,105 @@ def test_long_and_short_round_trips_mark_pnl_in_the_correct_direction(
     assert replay == result
     assert result.final_quantity == 0
     assert (result.final_cash > config.initial_capital) is profitable
+
+
+def test_signal_close_replay_warms_strategy_before_the_trading_window() -> None:
+    symbol = "BTC/USDT:USDT"
+    candles = [
+        _candle(
+            T0 + index * Timeframe.H1.delta,
+            open_="100",
+            high="100",
+            low="100",
+            close="100",
+            symbol=symbol,
+        )
+        for index in range(5)
+    ]
+    config = BacktestConfig(
+        exchange="binance-usdm",
+        symbol=symbol,
+        timeframe=Timeframe.H1,
+        start=T0,
+        end=T0 + 5 * Timeframe.H1.delta,
+        initial_capital=Decimal("1000"),
+        fee_rate=Decimal("0"),
+        slippage_bps=Decimal("0"),
+        strategy_type=_WarmupEntry.TYPE_KEY,
+        product=TradingProduct.LINEAR_PERPETUAL,
+        leverage=2,
+        margin_mode=MarginMode.ISOLATED,
+        connection_id=uuid4(),
+        leverage_tiers=(
+            LeverageTier(1, Decimal("0"), Decimal("1000000"), 10, Decimal("0.005")),
+        ),
+        fill_timing=FillTiming.SIGNAL_CLOSE,
+    )
+
+    result = run_perpetual_backtest(
+        config,
+        candles,
+        candles,
+        [],
+        MarketInfo(symbol, Decimal("0.001"), Decimal("0.01"), Decimal("0.001"), Decimal("5")),
+        _WarmupEntry(),
+        liquidation_fee_rate=Decimal("0"),
+        trade_from=candles[3].close_time,
+    )
+
+    assert len(result.signals) == 1
+    assert result.signals[0].bar_time == candles[4].open_time
+    assert result.fills and result.final_quantity > 0
+
+
+def test_perpetual_replay_blocks_reverse_entry_after_same_candle_exit() -> None:
+    symbol = "BTC/USDT:USDT"
+    candles = [
+        _candle(T0, open_="100", high="100", low="100", close="100", symbol=symbol),
+        _candle(
+            T0 + Timeframe.H1.delta,
+            open_="100",
+            high="101",
+            low="99",
+            close="100",
+            symbol=symbol,
+        ),
+    ]
+    config = BacktestConfig(
+        exchange="binance-usdm",
+        symbol=symbol,
+        timeframe=Timeframe.H1,
+        start=T0,
+        end=T0 + 2 * Timeframe.H1.delta,
+        initial_capital=Decimal("1000"),
+        fee_rate=Decimal("0"),
+        slippage_bps=Decimal("0"),
+        strategy_type=_ExitThenReverse.TYPE_KEY,
+        product=TradingProduct.LINEAR_PERPETUAL,
+        leverage=2,
+        margin_mode=MarginMode.ISOLATED,
+        allow_short=True,
+        connection_id=uuid4(),
+        leverage_tiers=(
+            LeverageTier(1, Decimal("0"), Decimal("1000000"), 10, Decimal("0.005")),
+        ),
+        fill_timing=FillTiming.SIGNAL_CLOSE,
+    )
+
+    result = run_perpetual_backtest(
+        config,
+        candles,
+        candles,
+        [],
+        MarketInfo(symbol, Decimal("0.001"), Decimal("0.01"), Decimal("0.001"), Decimal("5")),
+        _ExitThenReverse(),
+        liquidation_fee_rate=Decimal("0"),
+    )
+
+    assert result.final_quantity == 0
+    assert len(result.fills) == 2
+    assert len(result.rejected) == 1
+    assert result.rejected[0].reason == "entry after an exit on the same candle is blocked"
 
 
 @pytest.mark.parametrize("allow_short", [False, True])
@@ -800,3 +955,96 @@ def test_perpetual_backtest_refuses_incomplete_auxiliary_data(missing: str) -> N
             _EnterOnce(),
             liquidation_fee_rate=Decimal("0"),
         )
+
+
+def test_hourly_funding_schedule_is_applied_and_reported_without_certifying_completeness() -> None:
+    symbol = "BTC/USDT:USDT"
+    candles = [
+        _candle(
+            T0 + i * Timeframe.H1.delta,
+            open_="100",
+            high="100",
+            low="100",
+            close="100",
+            symbol=symbol,
+        )
+        for i in range(10)
+    ]
+    funding = [
+        FundingRate(
+            symbol=symbol,
+            rate=Decimal("0.0001"),
+            funding_time=T0 + i * Timeframe.H1.delta,
+            mark_price=Decimal("100"),
+        )
+        for i in range(1, 11)
+    ]
+    config = BacktestConfig(
+        exchange="binance-usdm",
+        symbol=symbol,
+        timeframe=Timeframe.H1,
+        start=T0,
+        end=T0 + 10 * Timeframe.H1.delta,
+        initial_capital=Decimal("1000"),
+        fee_rate=Decimal("0"),
+        slippage_bps=Decimal("0"),
+        strategy_type=_EnterAndHold.TYPE_KEY,
+        product=TradingProduct.LINEAR_PERPETUAL,
+        leverage=2,
+        margin_mode=MarginMode.ISOLATED,
+        connection_id=uuid4(),
+        leverage_tiers=(
+            LeverageTier(
+                tier=1,
+                min_notional=Decimal("0"),
+                max_notional=Decimal("1000000"),
+                max_leverage=10,
+                maintenance_margin_rate=Decimal("0.005"),
+            ),
+        ),
+        fill_timing=FillTiming.SIGNAL_CLOSE,
+    )
+    outcome = run_perpetual_backtest(
+        config,
+        candles,
+        candles,
+        funding,
+        MarketInfo(symbol, Decimal("0.001"), Decimal("0.01"), Decimal("0.001"), Decimal("5")),
+        _EnterAndHold(),
+        liquidation_fee_rate=Decimal("0"),
+    )
+
+    coverage = funding_coverage_report(candles, funding)
+    assert outcome.funding_paid > 0
+    assert coverage["event_count"] == 10
+    assert coverage["max_observed_gap_seconds"] == 60 * 60
+    assert coverage["status"] == "not_certified"
+
+
+def test_hourly_funding_gap_is_visible_even_when_it_is_below_the_eight_hour_guard() -> None:
+    symbol = "BTC/USDT:USDT"
+    candles = [
+        _candle(
+            T0 + i * Timeframe.H1.delta,
+            open_="100",
+            high="100",
+            low="100",
+            close="100",
+            symbol=symbol,
+        )
+        for i in range(10)
+    ]
+    funding = [
+        FundingRate(
+            symbol=symbol,
+            rate=Decimal("0.0001"),
+            funding_time=T0 + i * Timeframe.H1.delta,
+            mark_price=Decimal("100"),
+        )
+        for i in (1, 2, 4, 5, 6, 7, 8, 9)
+    ]
+
+    coverage = funding_coverage_report(candles, funding)
+
+    assert coverage["status"] == "not_certified"
+    assert coverage["max_observed_gap_seconds"] == 2 * 60 * 60

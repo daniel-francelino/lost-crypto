@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 from typing import Protocol
 
@@ -112,6 +113,25 @@ class ExchangePosition:
             value = getattr(self, name)
             if value is not None and (not value.is_finite() or value < 0):
                 raise ValueError(f"exchange position {name} cannot be negative")
+
+
+@dataclass(frozen=True, slots=True)
+class FundingIncome:
+    """A funding cash flow settled by a derivatives venue (positive means received)."""
+
+    transaction_id: str
+    symbol: str
+    asset: str
+    amount: Decimal
+    occurred_at: datetime
+
+    def __post_init__(self) -> None:
+        if not self.transaction_id.strip() or not self.symbol.strip() or not self.asset.strip():
+            raise ValueError("funding income identity fields must not be empty")
+        if not self.amount.is_finite():
+            raise ValueError("funding income amount must be finite")
+        if self.occurred_at.tzinfo is None:
+            raise ValueError("funding income timestamp must be timezone-aware")
 
 
 @dataclass(frozen=True, slots=True)

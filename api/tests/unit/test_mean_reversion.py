@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 
 from factories import make_candles
+from modules.exchanges.domain.models import PositionSide
 from modules.strategies.domain.base import InvalidStrategyParams, StrategyStyle
 from modules.strategies.domain.mean_reversion_zscore import (
     MeanReversionParams,
@@ -89,6 +90,76 @@ def test_holding_limit_closes_a_position_that_never_reverts():
     buy = next(i for i, s, _ in out if s is Side.BUY)
     sell = next((i, r) for i, s, r in out if s is Side.SELL)
     assert sell[0] == buy + 3 and "holding limit of 3" in sell[1]
+
+
+def test_short_position_can_exit_after_short_entries_are_disabled():
+    strategy = _strategy(lookback=5)
+    candles = make_candles([100, 100, 100, 100, 50])
+    state = strategy.initial_state()
+    for candle in candles[:-1]:
+        state = strategy.evaluate(StrategyContext(candle.symbol, candle, D(0)), state).state
+
+    result = strategy.evaluate(
+        StrategyContext(
+            candles[-1].symbol,
+            candles[-1],
+            D(1),
+            position_side=PositionSide.SHORT,
+            allow_short=False,
+        ),
+        state,
+    )
+
+    assert len(result.signals) == 1
+    assert result.signals[0].side is Side.BUY
+    assert result.signals[0].kind.value == "exit"
+    assert "short z-score" in result.signals[0].reason
+
+
+def test_short_entry_is_opt_in_and_reversion_covers_without_reversing():
+    strategy = _strategy(lookback=5, entry_z=1)
+    candles = make_candles([100, 100, 100, 100, 150, 140, 120, 100])
+
+    state = strategy.initial_state()
+    for candle in candles[:4]:
+        state = strategy.evaluate(StrategyContext(candle.symbol, candle, D(0)), state).state
+    refused = strategy.evaluate(
+        StrategyContext(candles[4].symbol, candles[4], D(0), allow_short=False), state
+    )
+    assert refused.signals == ()
+
+    state = strategy.initial_state()
+    for candle in candles[:4]:
+        state = strategy.evaluate(StrategyContext(candle.symbol, candle, D(0)), state).state
+    entry = strategy.evaluate(
+        StrategyContext(candles[4].symbol, candles[4], D(0), allow_short=True), state
+    )
+    assert len(entry.signals) == 1
+    assert entry.signals[0].side is Side.SELL
+    assert entry.signals[0].kind.value == "entry"
+
+    state = entry.state
+    position_side = PositionSide.SHORT
+    cover = None
+    for candle in candles[5:]:
+        result = strategy.evaluate(
+            StrategyContext(
+                candle.symbol,
+                candle,
+                D(1),
+                position_side=position_side,
+                allow_short=True,
+            ),
+            state,
+        )
+        state = result.state
+        if result.signals:
+            cover = result.signals[0]
+            break
+
+    assert cover is not None
+    assert cover.side is Side.BUY and cover.kind.value == "exit"
+    assert "short z-score" in cover.reason
 
 
 def test_stop_level_is_a_percentage_below_the_entry_close():

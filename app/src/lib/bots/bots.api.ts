@@ -107,6 +107,7 @@ const portfolioSchema = z.object({
   isolated_margin: nullableDecimalSchema.optional(),
   reserved_margin: decimalSchema.optional(),
   liquidation_price: nullableDecimalSchema.optional(),
+  liquidation_price_source: z.string().nullable().optional(),
   funding_paid: decimalSchema.optional(),
   funding_received: decimalSchema.optional(),
 });

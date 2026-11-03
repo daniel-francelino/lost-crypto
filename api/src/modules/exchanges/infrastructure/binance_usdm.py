@@ -7,10 +7,10 @@ from contextlib import suppress
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
-from urllib.parse import urlencode
 
 from modules.exchanges.application.ports import (
     ExchangePosition,
+    FundingIncome,
     MarketOrderRequest,
     StopOrderRequest,
     VenueOrder,
@@ -27,6 +27,7 @@ from modules.exchanges.domain.models import (
 )
 from modules.exchanges.errors import ExchangeError, ExchangeRejected
 from modules.exchanges.infrastructure.ccxt_exchange import CcxtExchange
+from modules.exchanges.infrastructure.ccxt_orders import parse_order
 from modules.market_data.domain.models import Candle, FundingRate, MarketInfo, MarkPrice, Timeframe
 
 BINANCE_USDM_ID = "binance-usdm"
@@ -166,14 +167,7 @@ class BinanceUsdmExchange(CcxtExchange):
         listen_key = response.get("listenKey") if isinstance(response, dict) else None
         if not isinstance(listen_key, str) or not listen_key:
             raise ExchangeError("Binance did not return a USD-M user stream listen key")
-        url = "wss://demo-fstream.binance.com/private/ws?" + urlencode(
-            {
-                "listenKey": listen_key,
-                "events": (
-                    "ORDER_TRADE_UPDATE,ALGO_UPDATE,ACCOUNT_UPDATE,ACCOUNT_CONFIG_UPDATE,MARGIN_CALL"
-                ),
-            }
-        )
+        url = f"wss://demo-fstream.binance.com/private/ws/{listen_key}"
 
         async def keepalive() -> None:
             # Renew on a clock, not only when the stream is idle: active accounts can emit
@@ -230,6 +224,14 @@ class BinanceUsdmExchange(CcxtExchange):
 
     async def fetch_api_permissions(self) -> ApiPermissions:
         self._require_authentication()
+        if self._demo or self._sandbox:
+            # SAPI key restrictions are only available on Binance mainnet. CCXT keeps the
+            # SAPI URL on the production host for USD-M Demo clients, so never make this call
+            # with Demo/Testnet credentials. Environment health is checked through USD-M reads.
+            raise ExchangeRejected(
+                "Binance API key restrictions are unavailable in Demo/Testnet; "
+                "use an environment-scoped USD-M account read"
+            )
         raw = await self._call(lambda: self._client.sapiGetAccountApiRestrictions())
         return ApiPermissions(
             can_read=bool(raw.get("enableReading")),
@@ -293,6 +295,64 @@ class BinanceUsdmExchange(CcxtExchange):
             )
         return positions
 
+    async def fetch_funding_income(
+        self, symbol: str, start: datetime, end: datetime, limit: int = 1000
+    ) -> list[FundingIncome]:
+        """Read Binance's settled USD-M FUNDING_FEE income, preserving its signed amount.
+
+        Binance exposes this via GET /fapi/v1/income. CCXT normalizes the ledger row while
+        retaining the original signed ``income`` and ``tranId`` in ``info``.
+        """
+        if start.tzinfo is None or end.tzinfo is None or end < start:
+            raise ValueError("funding income range must be ordered and timezone-aware")
+        if not 1 <= limit <= 1000:
+            raise ValueError("funding income page size must be between 1 and 1000")
+        self._require_authentication()
+        await self._call(self._client.load_markets)
+        try:
+            market_id = str(self._client.market(symbol)["id"])
+        except (KeyError, TypeError) as exc:
+            raise ExchangeRejected(f"unknown Binance USD-M symbol {symbol}") from exc
+        rows = await self._call(
+            lambda: self._client.fetch_ledger(
+                "USDT",
+                int(start.timestamp() * 1000),
+                limit,
+                {
+                    "subType": "linear",
+                    "until": int(end.timestamp() * 1000),
+                    "incomeType": "FUNDING_FEE",
+                    "symbol": market_id,
+                },
+            )
+        )
+        result: list[FundingIncome] = []
+        for row in rows:
+            info = row.get("info") or {}
+            if info.get("incomeType") != "FUNDING_FEE":
+                continue
+            raw_symbol = info.get("symbol")
+            raw_amount = info.get("income")
+            raw_id = info.get("tranId")
+            raw_time = info.get("time")
+            if raw_symbol != market_id or raw_amount is None or raw_id is None or raw_time is None:
+                raise ExchangeError("Binance USD-M returned a malformed funding income row")
+            amount = _optional_decimal(raw_amount)
+            if amount is None:
+                raise ExchangeError("Binance USD-M returned an empty funding income amount")
+            occurred_at = datetime.fromtimestamp(int(raw_time) / 1000, UTC)
+            if start <= occurred_at <= end:
+                result.append(
+                    FundingIncome(
+                        transaction_id=str(raw_id),
+                        symbol=symbol,
+                        asset=str(info.get("asset") or row.get("code") or "USDT"),
+                        amount=amount,
+                        occurred_at=occurred_at,
+                    )
+                )
+        return sorted(result, key=lambda item: (item.occurred_at, item.transaction_id))
+
     async def prepare_market_order(self, request: MarketOrderRequest) -> None:
         if request.product is not TradingProduct.LINEAR_PERPETUAL:
             raise ExchangeRejected("Binance USD-M accepts only linear perpetual orders")
@@ -308,6 +368,7 @@ class BinanceUsdmExchange(CcxtExchange):
         leverage: int,
         margin_mode: MarginMode | None,
         max_notional: Decimal | None = None,
+        allow_existing_exposure: bool = False,
     ) -> None:
         if product is not TradingProduct.LINEAR_PERPETUAL:
             raise ExchangeRejected("Binance USD-M accepts only linear perpetual markets")
@@ -350,22 +411,40 @@ class BinanceUsdmExchange(CcxtExchange):
             permissions = await self.fetch_api_permissions()
             if not permissions.can_read or not permissions.can_trade_derivatives:
                 raise ExchangeRejected("API key must have read and Binance Futures trading access")
+        multi_assets_mode = await self._call(self._client.fapiPrivateGetMultiAssetsMargin)
+        enabled = (
+            multi_assets_mode.get("multiAssetsMargin")
+            if isinstance(multi_assets_mode, dict)
+            else None
+        )
+        if not isinstance(enabled, bool):
+            raise ExchangeError("Binance did not confirm the USD-M collateral mode")
+        if enabled:
+            raise ExchangeRejected(
+                "Binance USD-M Multi-Assets Mode is unsupported; use Single-Asset Mode"
+            )
         position_mode = await self._call(self._client.fetch_position_mode)
         if position_mode.get("hedged"):
             raise ExchangeRejected("Binance USD-M account must use one-way position mode")
-        positions = await self._call(lambda: self._client.fetch_positions([symbol]))
-        if any(Decimal(str(position.get("contracts") or 0)) != 0 for position in positions):
-            raise ExchangeRejected(
-                f"close the existing {symbol} futures position before starting this bot"
-            )
-        orders = await self.fetch_open_orders(symbol)
-        if orders:
-            raise ExchangeRejected(f"cancel existing {symbol} futures orders before starting")
+        if not allow_existing_exposure:
+            positions = await self._call(lambda: self._client.fetch_positions([symbol]))
+            if any(Decimal(str(position.get("contracts") or 0)) != 0 for position in positions):
+                raise ExchangeRejected(
+                    f"close the existing {symbol} futures position before starting this bot"
+                )
+            orders = await self.fetch_open_orders(symbol)
+            if orders:
+                raise ExchangeRejected(f"cancel existing {symbol} futures orders before starting")
 
         current_margin = await self._call(lambda: self._client.fetch_margin_mode(symbol))
-        if current_margin.get("marginMode") != "isolated":
+        if allow_existing_exposure and current_margin.get("marginMode") != "isolated":
+            raise ExchangeRejected(
+                f"Binance position is not configured for isolated margin on {symbol}"
+            )
+        if not allow_existing_exposure and current_margin.get("marginMode") != "isolated":
             await self._call(lambda: self._client.set_margin_mode("isolated", symbol))
-        await self._call(lambda: self._client.set_leverage(leverage, symbol))
+        if not allow_existing_exposure:
+            await self._call(lambda: self._client.set_leverage(leverage, symbol))
 
         configured_margin = await self._call(lambda: self._client.fetch_margin_mode(symbol))
         raw_leverage = (configured_margin.get("info") or {}).get("leverage")
@@ -391,6 +470,21 @@ class BinanceUsdmExchange(CcxtExchange):
             lambda: self._client.fetch_open_orders(symbol, None, None, {"trigger": True})
         )
         return [*standard, *conditional]
+
+    async def fetch_all_open_orders(self) -> list[VenueOrder]:
+        """Read every standard and conditional USD-M order for account-wide reconciliation."""
+        self._require_authentication()
+        standard_raw = await self._call(lambda: self._client.fetch_open_orders(None))
+        conditional_raw = await self._call(
+            lambda: self._client.fetch_open_orders(None, None, None, {"trigger": True})
+        )
+        orders: list[VenueOrder] = []
+        for raw in [*standard_raw, *conditional_raw]:
+            symbol = str(raw.get("symbol") or "")
+            if not symbol:
+                raise ExchangeError("Binance USD-M returned an open order without a symbol")
+            orders.append(parse_order(raw, symbol, trades=[]))
+        return orders
 
     def stop_order_params(self, request: StopOrderRequest) -> dict[str, Any]:
         if request.product is not TradingProduct.LINEAR_PERPETUAL:

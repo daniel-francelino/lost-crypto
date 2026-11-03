@@ -47,6 +47,7 @@ for (const theme of THEMES) {
     for (const path of [
       "/",
       "/bots",
+      "/bots/new",
       "/backtests",
       "/backtests/new",
       "/market-data",

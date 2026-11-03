@@ -135,7 +135,7 @@ class SqlAlchemyPerpetualDataRepository:
                 PerpetualFundingRateRow.exchange == exchange,
                 PerpetualFundingRateRow.symbol == symbol,
                 PerpetualFundingRateRow.funding_time >= start,
-                PerpetualFundingRateRow.funding_time < end,
+                PerpetualFundingRateRow.funding_time <= end,
             )
             .order_by(PerpetualFundingRateRow.funding_time)
         )
