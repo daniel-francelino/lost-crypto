@@ -10,6 +10,7 @@ from sqlalchemy import text
 
 from container import Container
 from core.config import Settings
+from core.errors import DomainError
 from main import create_app
 from modules.auth.domain import Role
 
@@ -198,19 +199,16 @@ async def test_changing_the_password_signs_out_every_session(auth_env: AuthEnv) 
         await auth_env.login(phone, "gabi")
         headers = _bearer(token)
 
-        wrong = {
-            "current_password": "not my password",
-            "new_password": "a brand new long passphrase",
-        }
-        assert (
-            await laptop.post("/api/v1/auth/change-password", json=wrong, headers=headers)
-        ).status_code == 401
-        weak = {"current_password": PASSWORD, "new_password": "password1234"}
+        no_token = await laptop.post(
+            "/api/v1/auth/change-password", json={"new_password": "a brand new long passphrase"}
+        )
+        assert no_token.status_code == 401  # a signed-in session is still required
+        weak = {"new_password": "password1234"}
         assert (
             await laptop.post("/api/v1/auth/change-password", json=weak, headers=headers)
         ).status_code == 422
 
-        good = {"current_password": PASSWORD, "new_password": "a brand new long passphrase"}
+        good = {"new_password": "a brand new long passphrase"}
         assert (
             await laptop.post("/api/v1/auth/change-password", json=good, headers=headers)
         ).status_code == 204
@@ -324,3 +322,43 @@ async def test_cors_allows_the_frontend_origin_with_credentials(auth_env: AuthEn
         )
         assert preflight.headers["access-control-allow-origin"] == ORIGIN
         assert preflight.headers["access-control-allow-credentials"] == "true"
+
+
+async def test_a_forgotten_password_is_reset_by_the_operator(auth_env: AuthEnv) -> None:
+    await auth_env.make_user("forgot")
+    async with auth_env.client() as client:
+        assert (await auth_env.login(client, "forgot")).status_code == 200
+        for _ in range(3):
+            assert (
+                await auth_env.login(client, "forgot", "wrong password here")
+            ).status_code == 401
+
+    new_password = "a brand new passphrase"
+    user = await auth_env.container.auth.reset_password("itest-forgot", new_password)
+    assert user.username == "itest-forgot"
+
+    async with auth_env.client() as client:
+        assert (await auth_env.login(client, "forgot")).status_code == 401  # the old one is gone
+        assert (await auth_env.login(client, "forgot", new_password)).status_code == 200
+    async with auth_env.container.engine.connect() as conn:
+        failed = (
+            await conn.execute(
+                text("SELECT failed_logins FROM users WHERE username = 'itest-forgot'")
+            )
+        ).scalar_one()
+        events = (
+            await conn.execute(
+                text("SELECT count(*) FROM audit_events WHERE event_type = 'auth.password_reset'")
+            )
+        ).scalar_one()
+    assert failed == 0 and events == 1
+
+
+async def test_a_reset_refuses_a_weak_password_and_an_unknown_user(auth_env: AuthEnv) -> None:
+    await auth_env.make_user("weak")
+    with pytest.raises(DomainError):
+        await auth_env.container.auth.reset_password("itest-weak", "short")
+    with pytest.raises(DomainError):
+        await auth_env.container.auth.reset_password("itest-nobody", PASSWORD)
+    async with auth_env.client() as client:
+        assert (await auth_env.login(client, "weak")).status_code == 200  # unchanged

@@ -23,6 +23,15 @@ const decimal = (value: string | null | undefined, digits: Digits, signed = fals
   return formatter(digits, signed).format(value);
 };
 
+const COMPACT = new Intl.NumberFormat(LOCALE, { notation: "compact", maximumFractionDigits: 1 });
+
+export const formatCompactMoney = (value: string | null | undefined, quote: string): string => {
+  if (value === null || value === undefined || !isDecimal(value)) return EMPTY;
+  return `${COMPACT.format(value)} ${quote}`;
+};
+
+export const formatDecimal = (value: string | null | undefined): string => decimal(value, PERCENT);
+
 export const formatMoney = (value: string | null | undefined, quote: string): string => {
   const text = decimal(value, MONEY);
   return text === EMPTY ? EMPTY : `${text} ${quote}`;

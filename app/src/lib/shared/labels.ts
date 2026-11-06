@@ -17,6 +17,7 @@ import {
   TrendFrame,
   Unknown,
   ExchangeId,
+  AvailableSort,
 } from "@/lib/shared/enums";
 
 const UNKNOWN_LABEL = "Desconhecido";
@@ -187,7 +188,16 @@ export const exchangeLabel = (value: string): string =>
   pick(
     {
       [ExchangeId.Binance]: "Binance Spot",
-      [ExchangeId.BinanceUsdm]: "Binance Futuros (USD-M)",
+      [ExchangeId.BinanceUsdm]: "Binance Futuros",
+    },
+    value,
+  );
+
+export const availableSortLabel = (value: string): string =>
+  pick(
+    {
+      [AvailableSort.Volume]: "Mais negociadas",
+      [AvailableSort.Name]: "A–Z",
     },
     value,
   );

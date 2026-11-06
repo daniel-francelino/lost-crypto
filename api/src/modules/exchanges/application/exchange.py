@@ -64,6 +64,10 @@ class Exchange(ABC):
         """Active and inactive instruments supported by this adapter."""
         raise NotImplementedError("market catalog is not implemented for this exchange")
 
+    async def fetch_quote_volumes(self) -> dict[str, Decimal]:
+        """Traded volume of the last 24 hours in the quote currency, per symbol (one request)."""
+        raise NotImplementedError("24h volumes are not implemented for this exchange")
+
     async def fetch_leverage_tiers(self, symbol: str) -> list[LeverageTier]:
         """Read authenticated, account-specific contract notional and maintenance brackets."""
         raise NotImplementedError("leverage tiers are not implemented for this exchange")

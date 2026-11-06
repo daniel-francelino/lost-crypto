@@ -11,7 +11,6 @@ import { IconCardTitle as CardTitle } from "@/components/shared/metrics/icon-car
 import { toast } from "lost-ui/ui/sonner";
 import { useSessionUser } from "@/hooks/shared/use-session";
 import { changePassword } from "@/lib/auth/auth.api";
-import { ApiError, HttpStatus } from "@/lib/shared/api/api-error";
 import { errorMessage } from "@/lib/shared/api/messages";
 import { clearSession } from "@/lib/shared/api/session";
 import { formatDateTime } from "@/lib/shared/dates";
@@ -20,15 +19,9 @@ import { AppRoute } from "@/lib/shared/routes";
 
 const MIN_PASSWORD = 12;
 
-const failureText = (error: unknown): string =>
-  error instanceof ApiError && error.hasStatus(HttpStatus.Unauthorized)
-    ? "A senha atual está incorreta."
-    : errorMessage(error);
-
 export function ProfilePage() {
   const user = useSessionUser();
   const navigate = useNavigate();
-  const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [pending, setPending] = useState(false);
@@ -38,9 +31,9 @@ export function ProfilePage() {
     setPending(true);
     setError(null);
     try {
-      await changePassword(current, next);
+      await changePassword(next);
     } catch (failure) {
-      setError(failureText(failure));
+      setError(errorMessage(failure));
       setPending(false);
       return;
     }
@@ -70,14 +63,6 @@ export function ProfilePage() {
         </CardHeader>
         <CardContent>
           <Form onSubmit={() => void submit()} className="max-w-md space-y-4">
-            <FormInputPassword
-              label="Senha atual"
-              required
-              value={current}
-              onValueChange={setCurrent}
-              autoComplete="current-password"
-              rules={[rules.required("Informe a senha atual.")]}
-            />
             <FormInputPassword
               label="Nova senha"
               required

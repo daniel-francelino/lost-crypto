@@ -5,6 +5,10 @@ yet), so it is created here, on the machine that runs the backend:
     docker compose exec api python -m manage create-user admin --role admin
     make create-admin
 
+Forgot a password? Set a new one (asks for it, signs the user out everywhere):
+
+    docker compose exec api python -m manage reset-password admin
+
 ``trend-study`` runs the trend detector validation (public candles, no credentials):
 
     python -m manage trend-study BTC/USDT:USDT --since 2020-01-01
@@ -36,6 +40,23 @@ async def _create_user(username: str, role: Role) -> int:
             return 1
         user = await container.auth.create_user(username, password, role, actor="cli")
         print(f"Created {user.role.value} {user.username!r} ({user.id})")
+        return 0
+    except DomainError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        await container.engine.dispose()
+
+
+async def _reset_password(username: str) -> int:
+    container = build_container(get_settings())
+    try:
+        password = getpass.getpass("New password (min 12 characters): ")
+        if password != getpass.getpass("Repeat the new password: "):
+            print("The passwords do not match.", file=sys.stderr)
+            return 1
+        user = await container.auth.reset_password(username, password, actor="cli")
+        print(f"Password of {user.username!r} reset; every session was signed out.")
         return 0
     except DomainError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -123,6 +144,8 @@ def main() -> int:
     create = sub.add_parser("create-user", help="create a user (prompts for the password)")
     create.add_argument("username")
     create.add_argument("--role", choices=[r.value for r in Role], default=Role.ADMIN.value)
+    reset = sub.add_parser("reset-password", help="set a new password for a user (prompts for it)")
+    reset.add_argument("username")
     sub.add_parser("backup", help="dump the database into BACKUP_DIR and record it")
     sub.add_parser("restore-check", help="restore the latest backup in a scratch DB and check it")
     study = sub.add_parser("trend-study", help="validate the trend detector on real candles")
@@ -144,6 +167,8 @@ def main() -> int:
                 args.null_simulations,
             )
         )
+    if args.command == "reset-password":
+        return asyncio.run(_reset_password(args.username))
     if args.command == "backup":
         return asyncio.run(_backup())
     if args.command == "restore-check":

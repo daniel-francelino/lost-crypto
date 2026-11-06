@@ -69,7 +69,7 @@ The rule is enforced centrally on every protected router: a non-`GET` request fr
 | `POST /refresh` | cookie | new access token, rotated cookie |
 | `POST /logout` | cookie | revoke this login, clear the cookie (idempotent) |
 | `GET /me` | any user | the signed-in user, role and `can_write` (may this user change anything?) |
-| `POST /change-password` | any user | change password; signs out everywhere |
+| `POST /change-password` | any user | set a new password (the current one is not asked); signs out everywhere |
 | `GET/POST /users`, `POST /users/{id}/disable`, `.../enable` | admin | manage users (an admin cannot disable themselves) |
 
 ## First admin

@@ -2,14 +2,16 @@
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
+from decimal import Decimal
+from enum import StrEnum
 from uuid import UUID
 
 from core.clock import Clock
 from core.errors import ConflictError, DomainError, NotFoundError
 from core.ids import IdGenerator
 from modules.exchanges.application.registry import ExchangeRegistry
-from modules.exchanges.errors import UnknownSymbolError
+from modules.exchanges.errors import UnknownExchangeError, UnknownSymbolError
 from modules.market_data.domain.trend import TrendFrame
 from modules.trends.application.detector import TrendStoreFactory
 from modules.trends.domain.models import TrendRecord, WatchedSymbol, normalize_symbol
@@ -17,6 +19,29 @@ from modules.trends.domain.models import TrendRecord, WatchedSymbol, normalize_s
 
 class InvalidTrendSymbol(DomainError):
     pass
+
+
+_VOLUME_TTL = timedelta(minutes=5)
+QUOTE = "USDT"
+
+
+class AvailableSort(StrEnum):
+    VOLUME = "volume"  # most traded in the last 24 hours first
+    NAME = "name"
+
+
+@dataclass(frozen=True, slots=True)
+class AvailableSymbol:
+    symbol: str
+    base: str
+    quote_volume: Decimal | None
+    registered: bool
+
+
+@dataclass(frozen=True, slots=True)
+class AvailablePage:
+    items: list[AvailableSymbol]
+    total: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +62,7 @@ class TrendService:
         in_use: Callable[[str, str], Awaitable[bool]] | None = None,
     ) -> None:
         self._in_use = in_use
+        self._volumes: dict[str, tuple[datetime, dict[str, Decimal]]] = {}
         self._stores = stores
         self._exchanges = exchanges
         self._clock = clock
@@ -66,6 +92,67 @@ class TrendService:
             await store.trends.add_symbol(created)
             await store.commit()
             return created
+
+    async def available(
+        self,
+        exchange: str,
+        query: str = "",
+        sort: AvailableSort = AvailableSort.VOLUME,
+        limit: int = 30,
+        offset: int = 0,
+    ) -> AvailablePage:
+        """The pairs the exchange offers (USDT only), one page at a time, to pick from.
+
+        Sorted by 24h traded volume (the closest thing to "most used") or by name; ``registered``
+        marks the ones already followed."""
+        try:
+            self._exchanges.profile(exchange)
+        except UnknownExchangeError as exc:
+            raise NotFoundError(str(exc)) from exc
+        source = self._exchanges.exchange(exchange)
+        markets = await source.list_markets()
+        volumes = await self._quote_volumes(exchange)
+        perpetual = "usdm" in exchange
+        async with self._stores() as store:
+            followed = {
+                s.symbol
+                for s in await store.trends.list_symbols(active_only=True)
+                if s.exchange == exchange
+            }
+        needle = query.strip().upper()
+        rows = [
+            AvailableSymbol(
+                m.symbol,
+                m.base or m.symbol.split("/")[0],
+                volumes.get(m.symbol),
+                m.symbol in followed,
+            )
+            for m in markets
+            if m.active
+            and (
+                (m.product == "linear_perpetual" and m.settlement == QUOTE)
+                if perpetual
+                else (m.product == "spot" and m.quote == QUOTE)
+            )
+        ]
+        rows = [r for r in rows if not needle or needle in r.base.upper()]
+        if sort is AvailableSort.VOLUME:
+            rows.sort(key=lambda r: (-(r.quote_volume or Decimal(0)), r.base))
+        else:
+            rows.sort(key=lambda r: r.base)
+        return AvailablePage(rows[offset : offset + limit], len(rows))
+
+    async def _quote_volumes(self, exchange: str) -> dict[str, Decimal]:
+        now = self._clock.now()
+        cached = self._volumes.get(exchange)
+        if cached is not None and now - cached[0] < _VOLUME_TTL:
+            return cached[1]
+        try:
+            volumes = await self._exchanges.exchange(exchange).fetch_quote_volumes()
+        except NotImplementedError:
+            volumes = {}
+        self._volumes[exchange] = (now, volumes)
+        return volumes
 
     async def list_symbols(self) -> list[WatchedSymbol]:
         async with self._stores() as store:

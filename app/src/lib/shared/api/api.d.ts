@@ -1340,6 +1340,127 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/trends/symbols": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Symbols
+         * @description The symbol registry: the pairs the trend detector follows.
+         */
+        get: operations["list_symbols_api_v1_trends_symbols_get"];
+        put?: never;
+        /**
+         * Add Symbol
+         * @description Follow a pair. Its history is fetched by the worker at the next pass.
+         */
+        post: operations["add_symbol_api_v1_trends_symbols_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/trends/symbols/{symbol_id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deactivate Symbol
+         * @description Stop following a pair (its stored readings are kept).
+         */
+        post: operations["deactivate_symbol_api_v1_trends_symbols__symbol_id__deactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/trends/symbols/{symbol_id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Activate Symbol */
+        post: operations["activate_symbol_api_v1_trends_symbols__symbol_id__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/trends/available": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Available Symbols
+         * @description The USDT pairs of the exchange to pick from, most traded first (or by name), paged.
+         */
+        get: operations["available_symbols_api_v1_trends_available_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/trends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Latest Trends
+         * @description The newest reading of every timeframe (1w, 1d, 4h, 1h) of each followed pair.
+         */
+        get: operations["latest_trends_api_v1_trends_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/trends/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Trend History
+         * @description Readings of one timeframe, newest first (page backwards with ``before``).
+         */
+        get: operations["trend_history_api_v1_trends_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/exchange-connections": {
         parameters: {
             query?: never;
@@ -1514,6 +1635,35 @@ export interface components {
             payload: {
                 [key: string]: unknown;
             };
+        };
+        /** AvailablePageOut */
+        AvailablePageOut: {
+            /** Items */
+            items: components["schemas"]["AvailableSymbolOut"][];
+            /**
+             * Total
+             * @description Pairs matching the search, over all pages
+             */
+            total: number;
+        };
+        /**
+         * AvailableSort
+         * @enum {string}
+         */
+        AvailableSort: "volume" | "name";
+        /** AvailableSymbolOut */
+        AvailableSymbolOut: {
+            /** Symbol */
+            symbol: string;
+            /** Base */
+            base: string;
+            /**
+             * Quote Volume
+             * @description Traded volume of the last 24 h, in USDT
+             */
+            quote_volume: string | null;
+            /** Registered */
+            registered: boolean;
         };
         /** BacktestCreate */
         BacktestCreate: {
@@ -2125,11 +2275,6 @@ export interface components {
         };
         /** ChangePasswordIn */
         ChangePasswordIn: {
-            /**
-             * Current Password
-             * Format: password
-             */
-            current_password: string;
             /**
              * New Password
              * Format: password
@@ -3355,6 +3500,50 @@ export interface components {
             /** Checks */
             checks: components["schemas"]["CheckOut"][];
         };
+        /** ReadingOut */
+        ReadingOut: {
+            frame: components["schemas"]["TrendFrame"];
+            /**
+             * Bar Open Time
+             * Format: date-time
+             * @description Start of the bar (UTC); it closed one bar later
+             */
+            bar_open_time: string;
+            trend: components["schemas"]["Trend"];
+            previous_trend: components["schemas"]["Trend"] | null;
+            /**
+             * Confirmed
+             * @description A directional trend that passes all four checks
+             */
+            confirmed: boolean;
+            /**
+             * Checks
+             * @description distance / slope / adx / structure; null = not enough data yet
+             */
+            checks: {
+                [key: string]: boolean | null;
+            };
+            /** Close */
+            close: string | null;
+            /** Ema Fast */
+            ema_fast: string | null;
+            /** Ema Slow */
+            ema_slow: string | null;
+            /** Ema Distance Pct */
+            ema_distance_pct: string | null;
+            /** Slow Slope Pct */
+            slow_slope_pct: string | null;
+            /** Adx */
+            adx: string | null;
+            /** Atr */
+            atr: string | null;
+            structure: components["schemas"]["Trend"] | null;
+            /**
+             * Computed At
+             * Format: date-time
+             */
+            computed_at: string;
+        };
         /** RealizedSharpeOut */
         RealizedSharpeOut: {
             /**
@@ -4099,6 +4288,44 @@ export interface components {
             /** Error */
             error: string | null;
         };
+        /** SymbolCreate */
+        SymbolCreate: {
+            /**
+             * Exchange
+             * @default binance-usdm
+             */
+            exchange: string;
+            /**
+             * Symbol
+             * @description BTCUSDT or BTC/USDT:USDT; the exchange must list it
+             */
+            symbol: string;
+        };
+        /** SymbolOut */
+        SymbolOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Exchange */
+            exchange: string;
+            /** Symbol */
+            symbol: string;
+            /** Active */
+            active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** SymbolTrendsOut */
+        SymbolTrendsOut: {
+            symbol: components["schemas"]["SymbolOut"];
+            /** Readings */
+            readings: components["schemas"]["ReadingOut"][];
+        };
         /** SystemStatusOut */
         SystemStatusOut: {
             worker: components["schemas"]["WorkerOut"];
@@ -4195,6 +4422,16 @@ export interface components {
          * @enum {string}
          */
         TradingProduct: "spot" | "linear_perpetual";
+        /**
+         * Trend
+         * @enum {string}
+         */
+        Trend: "bullish" | "bearish" | "sideways";
+        /**
+         * TrendFrame
+         * @enum {string}
+         */
+        TrendFrame: "1h" | "4h" | "1d" | "1w";
         /** UnprotectedPositionOut */
         UnprotectedPositionOut: {
             /** Bot Id */
@@ -6562,6 +6799,223 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_symbols_api_v1_trends_symbols_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SymbolOut"][];
+                };
+            };
+        };
+    };
+    add_symbol_api_v1_trends_symbols_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SymbolCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SymbolOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_symbol_api_v1_trends_symbols__symbol_id__deactivate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                symbol_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SymbolOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_symbol_api_v1_trends_symbols__symbol_id__activate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                symbol_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SymbolOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    available_symbols_api_v1_trends_available_get: {
+        parameters: {
+            query?: {
+                exchange?: string;
+                q?: string;
+                sort?: components["schemas"]["AvailableSort"];
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvailablePageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    latest_trends_api_v1_trends_get: {
+        parameters: {
+            query?: {
+                exchange?: string | null;
+                symbol?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SymbolTrendsOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trend_history_api_v1_trends_history_get: {
+        parameters: {
+            query: {
+                exchange: string;
+                symbol: string;
+                frame: components["schemas"]["TrendFrame"];
+                limit?: number;
+                before?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingOut"][];
+                };
             };
             /** @description Validation Error */
             422: {

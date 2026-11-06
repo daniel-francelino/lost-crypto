@@ -20,7 +20,7 @@ Never `localStorage`/`sessionStorage`/IndexedDB for the access token, and never 
 | `POST /auth/refresh` | cookie | silent renewal; also the bootstrap on reload; rotates the cookie |
 | `POST /auth/logout` | cookie | end this login (idempotent, 204) |
 | `GET /auth/me` | bearer | role and username for the UI |
-| `POST /auth/change-password` | bearer | profile; **signs out every device** |
+| `POST /auth/change-password` | bearer | profile; only the new password is sent (no current password); **signs out every device** |
 | `GET/POST /auth/users`, `POST /auth/users/{id}/disable|enable` | bearer, admin | users screen |
 
 The three cookie endpoints (`login`, `refresh`, `logout`) are `fetch(..., { credentials: "include" })`. The browser adds the `Origin` header itself; the app's origin must be in the backend's `CORS_ORIGINS` or these answer 403.

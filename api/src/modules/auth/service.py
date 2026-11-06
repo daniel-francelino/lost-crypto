@@ -225,10 +225,9 @@ class AuthService:
         user.is_active = active
         return user
 
-    async def change_password(self, user_id: UUID, current: str, new: str) -> None:
+    async def change_password(self, user_id: UUID, new: str) -> None:
+        """Set a new password for a signed-in user (the current one is not asked again)."""
         user = await self.get_user(user_id)
-        if not await asyncio.to_thread(self._passwords.verify, user.password_hash, current):
-            raise InvalidCredentials("current password is wrong")
         validate_password(new, user.username)
         new_hash = await asyncio.to_thread(self._passwords.hash, new)
         now = self._clock.now()
@@ -239,6 +238,28 @@ class AuthService:
                 AuditEvent("auth.password_changed", "user", str(user_id), actor=user.username)
             )
             await store.commit()
+
+    async def reset_password(self, username: str, new: str, actor: str = "cli") -> User:
+        """Operator recovery for a forgotten password (there is no e-mail to send a link to).
+
+        Sets the new password, signs the user out everywhere and clears the failed-login lock."""
+        name = username.strip().lower()
+        async with self._stores() as store:
+            user = await store.users.get_by_username(name)
+        if user is None:
+            raise UserNotFound(name)
+        validate_password(new, user.username)
+        new_hash = await asyncio.to_thread(self._passwords.hash, new)
+        now = self._clock.now()
+        async with self._stores() as store:
+            await store.users.set_password(user.id, new_hash, now)
+            await store.users.set_login_state(user.id, 0, None, user.last_login_at)
+            await store.refresh_tokens.revoke_all_for_user(user.id, now)
+            await store.audit.add(
+                AuditEvent("auth.password_reset", "user", str(user.id), actor=actor)
+            )
+            await store.commit()
+        return user
 
     # --- internals ---------------------------------------------------------------------------
 

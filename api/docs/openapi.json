@@ -3944,6 +3944,93 @@
         }
       }
     },
+    "/api/v1/trends/available": {
+      "get": {
+        "tags": [
+          "trends"
+        ],
+        "summary": "Available Symbols",
+        "description": "The USDT pairs of the exchange to pick from, most traded first (or by name), paged.",
+        "operationId": "available_symbols_api_v1_trends_available_get",
+        "parameters": [
+          {
+            "name": "exchange",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "binance-usdm",
+              "title": "Exchange"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 20,
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/AvailableSort",
+              "default": "volume"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailablePageOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/trends": {
       "get": {
         "tags": [
@@ -4535,6 +4622,72 @@
           "payload"
         ],
         "title": "AuditEventOut"
+      },
+      "AvailablePageOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AvailableSymbolOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Pairs matching the search, over all pages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "AvailablePageOut"
+      },
+      "AvailableSort": {
+        "type": "string",
+        "enum": [
+          "volume",
+          "name"
+        ],
+        "title": "AvailableSort"
+      },
+      "AvailableSymbolOut": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "base": {
+            "type": "string",
+            "title": "Base"
+          },
+          "quote_volume": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote Volume",
+            "description": "Traded volume of the last 24 h, in USDT"
+          },
+          "registered": {
+            "type": "boolean",
+            "title": "Registered"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "base",
+          "quote_volume",
+          "registered"
+        ],
+        "title": "AvailableSymbolOut"
       },
       "BacktestCreate": {
         "properties": {
@@ -6255,12 +6408,6 @@
       },
       "ChangePasswordIn": {
         "properties": {
-          "current_password": {
-            "type": "string",
-            "format": "password",
-            "title": "Current Password",
-            "writeOnly": true
-          },
           "new_password": {
             "type": "string",
             "maxLength": 256,
@@ -6272,7 +6419,6 @@
         },
         "type": "object",
         "required": [
-          "current_password",
           "new_password"
         ],
         "title": "ChangePasswordIn"

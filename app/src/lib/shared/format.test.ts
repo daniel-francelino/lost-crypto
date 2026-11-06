@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   Sign,
+  formatCompactMoney,
+  formatDecimal,
   formatMoney,
   formatDuration,
   formatFraction,
@@ -81,5 +83,19 @@ describe("format", () => {
   it("formats a fraction without trailing zeros", () => {
     expect(formatFraction("0.300000000000000000")).toBe("0,3");
     expect(formatFraction("0.25")).toBe("0,25");
+  });
+});
+
+describe("formatCompactMoney and formatDecimal", () => {
+  it("shortens a big volume without turning it into a float elsewhere", () => {
+    expect(plain(formatCompactMoney("1234567890.12", "USDT"))).toBe("1,2 bi USDT");
+    expect(plain(formatCompactMoney("950000", "USDT"))).toBe("950 mil USDT");
+    expect(formatCompactMoney(null, "USDT")).toBe("—");
+    expect(formatCompactMoney("abc", "USDT")).toBe("—");
+  });
+
+  it("shows an indicator with two decimals", () => {
+    expect(formatDecimal("26.612345")).toBe("26,61");
+    expect(formatDecimal(null)).toBe("—");
   });
 });

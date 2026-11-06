@@ -22,10 +22,10 @@ export const setUserActive = (id: string, active: boolean) =>
     schema: emptySchema,
   });
 
-export const changePassword = (currentPassword: string, newPassword: string) =>
+export const changePassword = (newPassword: string) =>
   request({
     method: HttpMethod.Post,
     path: "/auth/change-password",
     schema: emptySchema,
-    body: { current_password: currentPassword, new_password: newPassword },
+    body: { new_password: newPassword },
   });

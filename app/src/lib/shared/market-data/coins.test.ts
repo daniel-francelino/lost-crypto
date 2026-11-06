@@ -3,6 +3,7 @@ import {
   baseOf,
   coinIconSources,
   coinInitial,
+  displaySymbol,
   coinName,
   withCurrent,
 } from "@/lib/shared/market-data/coins";
@@ -17,6 +18,17 @@ describe("coins", () => {
     expect(baseOf("btc/usdt")).toBe("BTC");
     expect(coinIconSources("SOL/USDT")[0]).toBe("/coins/sol.svg");
     expect(coinInitial("doge/usdt")).toBe("D");
+  });
+
+  it("shows a perpetual as base/quote, without the repeated settlement", () => {
+    expect(displaySymbol("BTC/USDT:USDT")).toBe("BTC/USDT");
+    expect(displaySymbol("ETH/USDT")).toBe("ETH/USDT");
+    expect(displaySymbol("weird")).toBe("weird");
+  });
+
+  it("uses the coin, not the contract multiplier, as the fallback initial", () => {
+    expect(coinInitial("1000MOG/USDT:USDT")).toBe("M");
+    expect(coinInitial("1INCH/USDT:USDT")).toBe("1");
   });
 
   it("falls back to the exchange logos for coins without a bundled icon", () => {

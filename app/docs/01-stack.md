@@ -9,7 +9,7 @@ Source of the analysis: `aura-creative` (`package.json`, `vite.config.ts`, `tsco
 | Framework | TanStack Start (`@tanstack/react-start`) | ^1.168 | Used in **SPA mode** (see below) |
 | Routing | TanStack Router, file-based | ^1.170 | Generates `routeTree.gen.ts`; typed links and search params |
 | Server state | TanStack Query | ^5.104 | All API data; polling; cache keys from a `QueryKey` registry |
-| UI library | `lost-ui` (installed as `"lost-ui": "npm:@danielsoaresf/lost-ui@^0.2.2"`) | 0.2.2 | See [03](03-lost-ui.md). Never run a plain `npm i lost-ui` (another package) |
+| UI library | `lost-ui` (installed as `"lost-ui": "npm:@danielsoaresf/lost-ui@^0.3.0"`) | 0.3.0 | See [03](03-lost-ui.md). Never run a plain `npm i lost-ui` (another package) |
 | Styling | Tailwind CSS 4 (`@tailwindcss/vite`) + `tw-animate-css` | ^4.3 | Tokens only, no hex, no raw palette |
 | Primitives | Radix UI (arrive through lost-ui's shadcn layer) | | Install only the peers that lost-ui components in use require |
 | Forms | lost-ui `Form` + `rules` | | `react-hook-form` is a lost-ui peer for its shadcn `Form`; install it only if needed |
@@ -27,7 +27,7 @@ Source of the analysis: `aura-creative` (`package.json`, `vite.config.ts`, `tsco
 
 ## What we drop
 
-Supabase (`@supabase/*`), `aws4fetch` (R2), Tiptap and the editor peers, `@dnd-kit/react`, `emoji-picker-react`, `simple-icons`, `nitro`, `@electric-sql/pglite`, the `db:*`, `seed:owner` and `check:docs` (SQL registries) scripts, `vercel.json`, the Vercel cron routes. Add `react-day-picker` only when a date field is built (backtest range, candle import range), and `lost-ui`'s other optional peers only when a component that needs them is imported.
+Supabase (`@supabase/*`), `aws4fetch` (R2), Tiptap and the editor peers, `@dnd-kit/react`, `emoji-picker-react`, `simple-icons`, `nitro`, `@electric-sql/pglite`, the `db:*`, `seed:owner` and `check:docs` (SQL registries) scripts, `vercel.json`, the Vercel cron routes. `react-day-picker` is installed because `lost-ui` 0.3's `DataTable` (card mode, infinite scroll, filters) imports its calendar; add `lost-ui`'s other optional peers only when a component that needs them is imported.
 
 ## Rendering mode: client-only (decision F2)
 

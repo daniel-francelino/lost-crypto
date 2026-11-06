@@ -11,9 +11,10 @@ from uuid import UUID, uuid4
 import pytest
 
 from core.errors import ConflictError, NotFoundError
-from fakes import fake_registry
+from fakes import FakeExchange, fake_registry
+from modules.exchanges.application.registry import ExchangeRegistry
 from modules.exchanges.errors import RateLimited, UnknownSymbolError
-from modules.market_data.domain.models import Candle, MarketInfo, Timeframe
+from modules.market_data.domain.models import Candle, ListedMarket, MarketInfo, Timeframe
 from modules.market_data.domain.trend import (
     DEFAULT_SETTINGS,
     FrameTrend,
@@ -24,7 +25,7 @@ from modules.market_data.domain.trend import (
     frame_floor,
 )
 from modules.trends.application.detector import DetectorConfig, TrendDetector
-from modules.trends.application.service import InvalidTrendSymbol, TrendService
+from modules.trends.application.service import AvailableSort, InvalidTrendSymbol, TrendService
 from modules.trends.domain.models import (
     FrameProgress,
     TrendRecord,
@@ -510,3 +511,91 @@ async def test_a_pair_used_by_a_running_bot_cannot_be_switched_off() -> None:
         await guarded.set_active(added.id, False)
     assert (await env.trends.get_symbol(added.id)).active is True  # type: ignore[union-attr]
     assert (await guarded.set_active(added.id, True)).active is True  # switching on is free
+
+
+# --- the pairs offered for registration ---------------------------------------------------
+
+
+class _CatalogExchange(FakeExchange):
+    """An exchange with a catalog and 24h volumes (the plain fake has neither)."""
+
+    def __init__(self, source: Any) -> None:
+        super().__init__(source)
+        self.volume_calls = 0
+
+    async def list_markets(self) -> list[ListedMarket]:
+        def market(base: str, active: bool = True, quote: str = "USDT") -> ListedMarket:
+            return ListedMarket(f"{base}/{quote}", active, "spot", base, quote)
+
+        return [
+            market("BTC"),
+            market("ETH"),
+            market("DOGE"),
+            market("PEPE"),
+            market("OLD", active=False),
+            market("BTC", quote="EUR"),
+        ]
+
+    async def fetch_quote_volumes(self) -> dict[str, Decimal]:
+        self.volume_calls += 1
+        return {
+            "BTC/USDT": Decimal(5_000),
+            "ETH/USDT": Decimal(3_000),
+            "DOGE/USDT": Decimal(900),
+        }
+
+
+def _catalog_env() -> tuple[Env, _CatalogExchange]:
+    env = Env()
+    exchange = _CatalogExchange(env.source)
+    registry = ExchangeRegistry()
+    registry.register(_CatalogExchange, lambda: exchange)
+    env.service = TrendService(env._stores, registry, env.clock, _Ids())  # type: ignore[arg-type]
+    return env, exchange
+
+
+async def test_available_pairs_come_most_traded_first_and_only_usdt() -> None:
+    env, _ = _catalog_env()
+    page = await env.service.available(EXCHANGE)
+    assert [i.base for i in page.items] == ["BTC", "ETH", "DOGE", "PEPE"]  # no volume: last
+    assert page.total == 4  # the inactive and the EUR pair are not offered
+    assert page.items[0].quote_volume == Decimal(5_000) and page.items[3].quote_volume is None
+
+
+async def test_available_pairs_can_be_sorted_by_name_searched_and_paged() -> None:
+    env, _ = _catalog_env()
+    by_name = await env.service.available(EXCHANGE, sort=AvailableSort.NAME)
+    assert [i.base for i in by_name.items] == ["BTC", "DOGE", "ETH", "PEPE"]
+    assert [i.base for i in (await env.service.available(EXCHANGE, query=" pe ")).items] == ["PEPE"]
+    first = await env.service.available(EXCHANGE, limit=2)
+    second = await env.service.available(EXCHANGE, limit=2, offset=2)
+    assert [i.base for i in first.items + second.items] == ["BTC", "ETH", "DOGE", "PEPE"]
+    assert first.total == second.total == 4
+
+
+async def test_available_pairs_say_which_are_already_followed() -> None:
+    env, _ = _catalog_env()
+    await env.service.add_symbol(EXCHANGE, "ETH/USDT")
+    page = await env.service.available(EXCHANGE)
+    assert {i.base: i.registered for i in page.items} == {
+        "BTC": False,
+        "ETH": True,
+        "DOGE": False,
+        "PEPE": False,
+    }
+
+
+async def test_volumes_are_fetched_once_per_five_minutes() -> None:
+    env, exchange = _catalog_env()
+    await env.service.available(EXCHANGE)
+    await env.service.available(EXCHANGE, offset=2)  # the next page of an infinite scroll
+    assert exchange.volume_calls == 1
+    env.clock.advance(minutes=6)
+    await env.service.available(EXCHANGE)
+    assert exchange.volume_calls == 2
+
+
+async def test_an_unknown_exchange_is_not_found() -> None:
+    env, _ = _catalog_env()
+    with pytest.raises(NotFoundError):
+        await env.service.available("nowhere")

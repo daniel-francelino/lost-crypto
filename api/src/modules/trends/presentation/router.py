@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from container import Container
 from modules.market_data.domain.trend import Trend, TrendFrame
-from modules.trends.application.service import SymbolTrends
+from modules.trends.application.service import AvailablePage, AvailableSort, SymbolTrends
 from modules.trends.domain.models import TrendRecord, WatchedSymbol
 
 router = APIRouter(prefix="/trends", tags=["trends"])
@@ -29,6 +29,18 @@ class SymbolOut(BaseModel):
     symbol: str
     active: bool
     created_at: datetime
+
+
+class AvailableSymbolOut(BaseModel):
+    symbol: str
+    base: str
+    quote_volume: Decimal | None = Field(description="Traded volume of the last 24 h, in USDT")
+    registered: bool
+
+
+class AvailablePageOut(BaseModel):
+    items: list[AvailableSymbolOut]
+    total: int = Field(description="Pairs matching the search, over all pages")
 
 
 class ReadingOut(BaseModel):
@@ -114,6 +126,30 @@ async def deactivate_symbol(symbol_id: UUID, request: Request) -> SymbolOut:
 @router.post("/symbols/{symbol_id}/activate", response_model=SymbolOut)
 async def activate_symbol(symbol_id: UUID, request: Request) -> SymbolOut:
     return _symbol(await _container(request).trends.set_active(symbol_id, True))
+
+
+@router.get("/available", response_model=AvailablePageOut)
+async def available_symbols(
+    request: Request,
+    exchange: str = "binance-usdm",
+    q: Annotated[str, Query(max_length=20)] = "",
+    sort: AvailableSort = AvailableSort.VOLUME,
+    limit: Annotated[int, Query(ge=1, le=100)] = 30,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> AvailablePageOut:
+    """The USDT pairs of the exchange to pick from, most traded first (or by name), paged."""
+    page: AvailablePage = await _container(request).trends.available(
+        exchange, q, sort, limit, offset
+    )
+    return AvailablePageOut(
+        items=[
+            AvailableSymbolOut(
+                symbol=i.symbol, base=i.base, quote_volume=i.quote_volume, registered=i.registered
+            )
+            for i in page.items
+        ],
+        total=page.total,
+    )
 
 
 @router.get("", response_model=list[SymbolTrendsOut])

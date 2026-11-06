@@ -41,6 +41,8 @@ export const QueryKey = {
     all: () => ["trends"] as const,
     symbols: () => ["trends", "symbols"] as const,
     latest: () => ["trends", "latest"] as const,
+    available: (exchange: string, query: string, sort: string) =>
+      ["trends", "available", exchange, query, sort] as const,
   },
   MarketData: {
     all: () => ["market-data"] as const,

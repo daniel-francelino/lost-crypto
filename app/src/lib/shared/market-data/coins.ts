@@ -21,8 +21,10 @@ const LOCAL_ICONS = new Set([
 const REMOTE_ICONS = "https://bin.bnbstatic.com/static/assets/logos";
 const MULTIPLIER_PREFIX = /^(?:1000000|1000|1M)(?=[A-Z])/;
 
+const iconBase = (symbol: string): string => baseOf(symbol).replace(MULTIPLIER_PREFIX, "");
+
 export const coinIconSources = (symbol: string): string[] => {
-  const base = baseOf(symbol).replace(MULTIPLIER_PREFIX, "");
+  const base = iconBase(symbol);
   if (base === "") return [];
   const local = LOCAL_ICONS.has(base.toLowerCase()) ? [`/coins/${base.toLowerCase()}.svg`] : [];
   return [...local, `${REMOTE_ICONS}/${base}.png`];
@@ -31,7 +33,12 @@ export const coinIconSources = (symbol: string): string[] => {
 export const quoteOf = (symbol: string): string =>
   symbol.split("/")[1]?.split(":")[0]?.trim().toUpperCase() ?? "";
 
-export const coinInitial = (symbol: string): string => baseOf(symbol).slice(0, 1);
+export const displaySymbol = (symbol: string): string => {
+  const quote = quoteOf(symbol);
+  return quote === "" ? symbol : `${baseOf(symbol)}/${quote}`;
+};
+
+export const coinInitial = (symbol: string): string => iconBase(symbol).slice(0, 1);
 
 export const coinName = (symbol: string, pairs: readonly SupportedPair[] | undefined): string =>
   pairs?.find((pair) => pair.symbol === symbol.trim().toUpperCase())?.name ?? baseOf(symbol);

@@ -182,6 +182,16 @@ class CcxtExchange(Exchange):
         millis = await self._call(self._client.fetch_time)
         return datetime.fromtimestamp(int(millis) / 1000, UTC)
 
+    async def fetch_quote_volumes(self) -> dict[str, Decimal]:
+        """24h quote volume of every symbol: how much of each pair is really traded."""
+        tickers = await self._call(self._client.fetch_tickers)
+        volumes: dict[str, Decimal] = {}
+        for symbol, ticker in tickers.items():
+            raw = ticker.get("quoteVolume")
+            if raw is not None:
+                volumes[str(symbol)] = Decimal(str(raw))
+        return volumes
+
     async def list_markets(self) -> list[ListedMarket]:
         """Supported spot or linear-perpetual instruments from this exchange's catalog."""
         await self._call(self._client.load_markets)

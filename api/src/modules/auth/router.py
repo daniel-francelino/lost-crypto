@@ -47,7 +47,6 @@ class TokenOut(BaseModel):
 
 
 class ChangePasswordIn(BaseModel):
-    current_password: SecretStr
     new_password: SecretStr = Field(min_length=12, max_length=256)
 
 
@@ -164,9 +163,7 @@ async def change_password(
     if principal.kind != "user":
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "only signed-in users have a password")
     await _service(request).change_password(
-        UUID(principal.subject),
-        body.current_password.get_secret_value(),
-        body.new_password.get_secret_value(),
+        UUID(principal.subject), body.new_password.get_secret_value()
     )
     response.delete_cookie(REFRESH_COOKIE, path=_COOKIE_PATH)
 

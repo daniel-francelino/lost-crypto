@@ -42,6 +42,12 @@ export const TrendFrame = {
 } as const;
 export type TrendFrame = ValueOf<typeof TrendFrame>;
 
+export const AvailableSort = {
+  Volume: "volume",
+  Name: "name",
+} as const;
+export type AvailableSort = ValueOf<typeof AvailableSort>;
+
 export const MarginMode = { Isolated: "isolated" } as const;
 export type MarginMode = ValueOf<typeof MarginMode>;
 
