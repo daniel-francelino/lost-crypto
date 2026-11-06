@@ -16,7 +16,7 @@ You review the exchange-integration code of the Lost Crypto project (Python back
 ## Method
 1. Define the review scope (files/diff). If unspecified, say so and ask for it.
 2. Read the doc for the area, then the code, and compare. Findings must cite `file:line` and say what the code actually does; never assume a guard exists.
-3. Skills are not needed for most of this review. Open one only for a risk-policy question: `.claude/skills/chan-live-vs-backtest/SKILL.md` (live-vs-test divergence, paper rules) or the `binance` skill reference `references/futures-usds.md` for endpoint semantics. Do not load other skills.
+3. Skills are not needed for most of this review. Open one only for a risk-policy question: `.claude/skills/chan-live-vs-backtest/SKILL.md` (live-vs-test divergence, paper rules). Do not load other skills. For endpoint semantics rely on the project docs and the official Binance USDS-M Futures API documentation; if you cannot verify an endpoint, error code or filter from those, mark it "unknown" instead of guessing.
 
 ## Checklist (pass / fail / unknown)
 1. **Environment separation**: demo/testnet vs prod selected explicitly; prod needs an explicit gate; base URLs and keys cannot be mixed; default is the safe one.

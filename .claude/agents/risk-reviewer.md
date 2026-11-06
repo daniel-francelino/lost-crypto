@@ -26,7 +26,7 @@ You review risk controls for the Lost Crypto project (Binance USDT-M perpetuals)
 6. **Correlation**: several bots/symbols treated as correlated (BTC/alts go to ~1 in a shock); joint-loss cap.
 7. **Mean-reversion bots**: no price stop that contradicts the thesis, but an emergency stop beyond the worst backtest adverse excursion and a hard liquidation guard. **Trend bots**: opposite signal or trailing stop; no early profit-taking that removes the tail.
 8. **Failure modes**: what happens on restart mid-position, duplicate order submission (idempotency), clock skew, API key permission loss.
-9. **Demo vs prod**: environment cannot be mixed up (`BINANCE_API_ENV`-style separation); prod requires an explicit gate.
+9. **Demo vs prod**: environment cannot be mixed up (explicit environment setting, separate keys and base URLs); prod requires an explicit gate.
 
 ## Output (max ~40 lines)
 ```
