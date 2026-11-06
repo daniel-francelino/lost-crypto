@@ -87,13 +87,22 @@ class FakeSource:
 
 class Env:
     def __init__(
-        self, opens: Sequence[int], now: datetime, followed: set[Series] | None = None
+        self,
+        opens: Sequence[int],
+        now: datetime,
+        followed: set[Series] | None = None,
+        allowed: Any = None,
     ) -> None:
         self.clock = FakeClock(now)
         self.candles = FakeCandles(opens)
         self.source = FakeSource(self.clock)
         self.updater = CandleUpdater(
-            self._stores, fake_registry(self.source), self.clock, self._followed, CONFIG
+            self._stores,
+            fake_registry(self.source),
+            self.clock,
+            self._followed,
+            CONFIG,
+            allowed,
         )
         self._set = followed or set()
 
@@ -197,3 +206,28 @@ async def test_report_flags_a_series_that_fell_behind() -> None:
     await env.updater.run_if_due()
     (stale,) = env.updater.report().stale
     assert stale.series == SERIES and stale.missing_candles == 10
+
+
+async def test_only_registered_pairs_are_updated() -> None:
+    async def nobody() -> set[tuple[str, str]]:
+        return set()
+
+    env = Env(range(10), T0 + timedelta(minutes=20, seconds=30), allowed=nobody)
+    assert await env.updater.run_if_due() == 0
+    assert env.source.calls == []  # not a single request for a pair that is not registered
+
+
+async def test_a_registered_pair_is_updated_as_usual() -> None:
+    async def only_this() -> set[tuple[str, str]]:
+        return {("binance", "TST/USDT")}
+
+    env = Env(range(10), T0 + timedelta(minutes=20, seconds=30), allowed=only_this)
+    assert await env.updater.run_if_due() == 10
+
+
+async def test_no_restriction_means_every_stored_series_is_updated() -> None:
+    async def anything() -> None:
+        return None
+
+    env = Env(range(10), T0 + timedelta(minutes=20, seconds=30), allowed=anything)
+    assert await env.updater.run_if_due() == 10

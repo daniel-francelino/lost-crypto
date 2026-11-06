@@ -3,6 +3,7 @@ import {
   Bell,
   Bot,
   ClipboardList,
+  Coins,
   Database,
   FlaskConical,
   KeyRound,
@@ -34,6 +35,7 @@ export const navigation = (user: User | null): NavSection[] => {
       label: "Operação",
       items: [
         { title: "Bots", to: AppRoute.Bots, icon: icon(Bot) },
+        { title: "Moedas", to: AppRoute.Symbols, icon: icon(Coins) },
         { title: "Conexões", to: AppRoute.Exchanges, icon: icon(KeyRound) },
       ],
     },

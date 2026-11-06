@@ -3791,6 +3791,322 @@
         }
       }
     },
+    "/api/v1/trends/symbols": {
+      "get": {
+        "tags": [
+          "trends"
+        ],
+        "summary": "List Symbols",
+        "description": "The symbol registry: the pairs the trend detector follows.",
+        "operationId": "list_symbols_api_v1_trends_symbols_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SymbolOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Symbols Api V1 Trends Symbols Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "trends"
+        ],
+        "summary": "Add Symbol",
+        "description": "Follow a pair. Its history is fetched by the worker at the next pass.",
+        "operationId": "add_symbol_api_v1_trends_symbols_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SymbolCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SymbolOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/trends/symbols/{symbol_id}/deactivate": {
+      "post": {
+        "tags": [
+          "trends"
+        ],
+        "summary": "Deactivate Symbol",
+        "description": "Stop following a pair (its stored readings are kept).",
+        "operationId": "deactivate_symbol_api_v1_trends_symbols__symbol_id__deactivate_post",
+        "parameters": [
+          {
+            "name": "symbol_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Symbol Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SymbolOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/trends/symbols/{symbol_id}/activate": {
+      "post": {
+        "tags": [
+          "trends"
+        ],
+        "summary": "Activate Symbol",
+        "operationId": "activate_symbol_api_v1_trends_symbols__symbol_id__activate_post",
+        "parameters": [
+          {
+            "name": "symbol_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Symbol Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SymbolOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/trends": {
+      "get": {
+        "tags": [
+          "trends"
+        ],
+        "summary": "Latest Trends",
+        "description": "The newest reading of every timeframe (1w, 1d, 4h, 1h) of each followed pair.",
+        "operationId": "latest_trends_api_v1_trends_get",
+        "parameters": [
+          {
+            "name": "exchange",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Exchange"
+            }
+          },
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Symbol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SymbolTrendsOut"
+                  },
+                  "title": "Response Latest Trends Api V1 Trends Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/trends/history": {
+      "get": {
+        "tags": [
+          "trends"
+        ],
+        "summary": "Trend History",
+        "description": "Readings of one timeframe, newest first (page backwards with ``before``).",
+        "operationId": "trend_history_api_v1_trends_history_get",
+        "parameters": [
+          {
+            "name": "exchange",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Exchange"
+            }
+          },
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Symbol"
+            }
+          },
+          {
+            "name": "frame",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/TrendFrame"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReadingOut"
+                  },
+                  "title": "Response Trend History Api V1 Trends History Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/exchange-connections": {
       "get": {
         "tags": [
@@ -9088,6 +9404,163 @@
         ],
         "title": "ReadinessOut"
       },
+      "ReadingOut": {
+        "properties": {
+          "frame": {
+            "$ref": "#/components/schemas/TrendFrame"
+          },
+          "bar_open_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Bar Open Time",
+            "description": "Start of the bar (UTC); it closed one bar later"
+          },
+          "trend": {
+            "$ref": "#/components/schemas/Trend"
+          },
+          "previous_trend": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Trend"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "confirmed": {
+            "type": "boolean",
+            "title": "Confirmed",
+            "description": "A directional trend that passes all four checks"
+          },
+          "checks": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Checks",
+            "description": "distance / slope / adx / structure; null = not enough data yet"
+          },
+          "close": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Close"
+          },
+          "ema_fast": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema Fast"
+          },
+          "ema_slow": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema Slow"
+          },
+          "ema_distance_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema Distance Pct"
+          },
+          "slow_slope_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slow Slope Pct"
+          },
+          "adx": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adx"
+          },
+          "atr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Atr"
+          },
+          "structure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Trend"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "computed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Computed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "frame",
+          "bar_open_time",
+          "trend",
+          "previous_trend",
+          "confirmed",
+          "checks",
+          "close",
+          "ema_fast",
+          "ema_slow",
+          "ema_distance_pct",
+          "slow_slope_pct",
+          "adx",
+          "atr",
+          "structure",
+          "computed_at"
+        ],
+        "title": "ReadingOut"
+      },
       "RealizedSharpeOut": {
         "properties": {
           "sharpe": {
@@ -11000,6 +11473,82 @@
         ],
         "title": "SweepRunOut"
       },
+      "SymbolCreate": {
+        "properties": {
+          "exchange": {
+            "type": "string",
+            "title": "Exchange",
+            "default": "binance-usdm"
+          },
+          "symbol": {
+            "type": "string",
+            "maxLength": 30,
+            "minLength": 3,
+            "title": "Symbol",
+            "description": "BTCUSDT or BTC/USDT:USDT; the exchange must list it"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol"
+        ],
+        "title": "SymbolCreate"
+      },
+      "SymbolOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "exchange": {
+            "type": "string",
+            "title": "Exchange"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "exchange",
+          "symbol",
+          "active",
+          "created_at"
+        ],
+        "title": "SymbolOut"
+      },
+      "SymbolTrendsOut": {
+        "properties": {
+          "symbol": {
+            "$ref": "#/components/schemas/SymbolOut"
+          },
+          "readings": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingOut"
+            },
+            "type": "array",
+            "title": "Readings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "readings"
+        ],
+        "title": "SymbolTrendsOut"
+      },
       "SystemStatusOut": {
         "properties": {
           "worker": {
@@ -11293,6 +11842,25 @@
           "linear_perpetual"
         ],
         "title": "TradingProduct"
+      },
+      "Trend": {
+        "type": "string",
+        "enum": [
+          "bullish",
+          "bearish",
+          "sideways"
+        ],
+        "title": "Trend"
+      },
+      "TrendFrame": {
+        "type": "string",
+        "enum": [
+          "1h",
+          "4h",
+          "1d",
+          "1w"
+        ],
+        "title": "TrendFrame"
       },
       "UnprotectedPositionOut": {
         "properties": {

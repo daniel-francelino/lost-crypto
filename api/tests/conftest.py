@@ -25,5 +25,6 @@ for _name, _value in (
     ("TESTNET_TRADING_ENABLED", "false"),
     ("FUTURES_PAPER_ENABLED", "false"),
     ("LIVE_TRADING_ENABLED", "false"),
+    ("SYMBOL_REGISTRY_ENFORCED", "false"),
 ):
     os.environ[_name] = _value

@@ -12,6 +12,7 @@ from core.clock import Clock
 from core.errors import ConflictError, DomainError, NotFoundError
 from core.ids import IdGenerator
 from core.jobs import JobStatus
+from core.symbols import AllowAnySymbol, SymbolGuard
 from modules.analytics.domain import mean_reversion
 from modules.analytics.domain.mean_reversion import HalfLife, VarianceRatio
 from modules.analytics.domain.momentum import GridCell, lagged_return_grid
@@ -95,17 +96,20 @@ class MarketDataService:
         exchanges: ExchangeRegistry,
         clock: Clock,
         ids: IdGenerator,
+        symbols: SymbolGuard | None = None,
     ) -> None:
         self._stores = stores
         self._exchanges = exchanges
         self._clock = clock
         self._ids = ids
+        self._symbols = symbols or AllowAnySymbol()
 
     async def request_import(
         self, exchange: str, symbol: str, timeframe: Timeframe, start: datetime, end: datetime
     ) -> ImportJob:
         if start >= end:
             raise InvalidImportRequest("start must be before end")
+        await self._symbols.require(exchange, symbol)
         self._exchanges.require(exchange, timeframe)
         job = ImportJob(
             id=self._ids.new_id(),

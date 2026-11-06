@@ -55,6 +55,8 @@ class UpdaterConfig:
 
 
 FollowedSeries = Callable[[], Awaitable[set[Series]]]
+# (exchange, symbol) pairs that may be updated; None = no restriction.
+AllowedPairs = Callable[[], Awaitable[set[tuple[str, str]] | None]]
 
 
 class CandleUpdater:
@@ -74,7 +76,9 @@ class CandleUpdater:
         clock: Clock,
         followed: FollowedSeries,
         config: UpdaterConfig,
+        allowed: AllowedPairs | None = None,
     ) -> None:
+        self._allowed = allowed
         self._stores = stores
         self._exchanges = exchanges
         self._clock = clock
@@ -123,12 +127,17 @@ class CandleUpdater:
 
     async def _discover(self, now: datetime) -> None:
         followed = await self._followed()
+        allowed = None if self._allowed is None else await self._allowed()
+        if allowed is not None:
+            followed = {s for s in followed if (s.exchange, s.symbol) in allowed}
         async with self._stores() as store:
             stored = await store.candles.list_series(now - self._config.max_age)
             last: dict[Series, datetime] = {
                 Series(exchange, symbol, timeframe): at
                 for exchange, symbol, timeframe, at in stored
             }
+            if allowed is not None:
+                last = {s: at for s, at in last.items() if (s.exchange, s.symbol) in allowed}
             for series in followed - last.keys():
                 at = await store.candles.last_open_time(
                     series.exchange, series.symbol, series.timeframe

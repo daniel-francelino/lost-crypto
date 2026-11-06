@@ -83,8 +83,18 @@ missing candles in the stored range make the frame wait instead of computing on 
 | GET | `/` | newest reading of each timeframe, per followed pair (`?symbol=`, `?exchange=`) |
 | GET | `/history` | readings of one timeframe, newest first (`frame`, `limit`, `before`) |
 
-Settings: `TREND_DETECTOR_ENABLED`, `TREND_DETECTOR_INTERVAL_SECONDS` (60),
+Settings: `SYMBOL_REGISTRY_ENFORCED`, `TREND_DETECTOR_ENABLED`, `TREND_DETECTOR_INTERVAL_SECONDS` (60),
 `TREND_DETECTOR_GRACE_SECONDS` (5), `TREND_WARMUP_BARS` (150).
+
+## The registry is the system's allow-list
+
+With `SYMBOL_REGISTRY_ENFORCED=true` (the default) only registered, active pairs can be used:
+
+* creating, re-pairing or starting a **bot**, creating a **backtest** or a **sweep**, and requesting a **candle import** are refused with `422` and a hint (`core/symbols.py`, `trends/application/guard.py`);
+* the **candle updater** only extends the series of registered pairs;
+* a pair cannot be **deactivated** while a bot that is not stopped uses it (`409`).
+
+Bots that were already running keep running (they are not stopped retroactively), but they cannot be started again once their pair is out of the registry. Set the variable to `false` to work with any pair (the automated tests do).
 
 ## Validating the detector
 

@@ -7,6 +7,7 @@ export const AppRoute = {
   BacktestsNew: "/backtests/new",
   BacktestsCompare: "/backtests/compare",
   MarketData: "/market-data",
+  Symbols: "/symbols",
   Exchanges: "/exchanges",
   ExchangesNew: "/exchanges/new",
   Audit: "/audit",

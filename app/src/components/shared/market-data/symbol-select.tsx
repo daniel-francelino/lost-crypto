@@ -2,10 +2,10 @@ import { useId } from "react";
 import { FormField } from "lost-ui/forms/form-field";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "lost-ui/ui/select";
 import { CoinIcon } from "@/components/shared/market-data/coin-icon";
+import { useRegisteredSymbols } from "@/hooks/shared/use-symbol-registry";
 import { useSupportedPairs } from "@/hooks/shared/use-supported-pairs";
-import { withCurrent } from "@/lib/shared/market-data/coins";
-import { TradingProduct } from "@/lib/shared/enums";
-import { useMarketCatalog } from "@/hooks/shared/use-market-catalog";
+import { baseOf, coinName, quoteOf, withCurrent } from "@/lib/shared/market-data/coins";
+import { ExchangeId, TradingProduct } from "@/lib/shared/enums";
 
 type Props = {
   value: string;
@@ -25,23 +25,20 @@ export function SymbolSelect({
   required = false,
   errorMessage = "",
   className = "",
-  exchange = "binance",
+  exchange = ExchangeId.Binance,
   product = TradingProduct.Spot,
 }: Props) {
+  const registry = useRegisteredSymbols();
   const pairs = useSupportedPairs();
-  const catalog = useMarketCatalog(exchange, product !== TradingProduct.Spot);
   const id = useId();
-  const available =
-    product === TradingProduct.Spot
-      ? (pairs.data ?? [])
-      : (catalog.data ?? [])
-          .filter((market) => market.product === TradingProduct.LinearPerpetual)
-          .map((market) => ({
-            symbol: market.symbol,
-            base: market.base ?? market.symbol.split("/")[0] ?? "",
-            quote: market.settlement ?? "USDT",
-            name: `${market.base ?? market.symbol.split("/")[0]} Perp`,
-          }));
+  const available = (registry.data ?? [])
+    .filter((item) => item.active && item.exchange === exchange)
+    .map((item) => ({
+      symbol: item.symbol,
+      base: baseOf(item.symbol),
+      quote: quoteOf(item.symbol),
+      name: coinName(item.symbol, pairs.data),
+    }));
   const options = withCurrent(available, value).map((pair) => ({
     label:
       product === TradingProduct.Spot
@@ -69,7 +66,10 @@ export function SymbolSelect({
         <SelectTrigger id={id} aria-invalid={Boolean(errorMessage)} className="w-full">
           <span className="flex min-w-0 items-center gap-2">
             {selected ? <CoinIcon symbol={selected.value} size={20} /> : null}
-            <span className="truncate">{selected?.label ?? "Selecione um par"}</span>
+            <span className="truncate">
+              {selected?.label ??
+                (options.length === 0 ? "Nenhuma moeda cadastrada" : "Selecione um par")}
+            </span>
           </span>
         </SelectTrigger>
         <SelectContent>

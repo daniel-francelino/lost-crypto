@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   baseOf,
-  coinIconSrc,
+  coinIconSources,
   coinInitial,
   coinName,
   withCurrent,
@@ -15,8 +15,22 @@ const PAIRS = [
 describe("coins", () => {
   it("finds the icon of a symbol by its base asset", () => {
     expect(baseOf("btc/usdt")).toBe("BTC");
-    expect(coinIconSrc("SOL/USDT")).toBe("/coins/sol.svg");
+    expect(coinIconSources("SOL/USDT")[0]).toBe("/coins/sol.svg");
     expect(coinInitial("doge/usdt")).toBe("D");
+  });
+
+  it("falls back to the exchange logos for coins without a bundled icon", () => {
+    expect(coinIconSources("PEPE/USDT:USDT")).toEqual([
+      "https://bin.bnbstatic.com/static/assets/logos/PEPE.png",
+    ]);
+    expect(coinIconSources("1000PEPE/USDT:USDT")).toEqual([
+      "https://bin.bnbstatic.com/static/assets/logos/PEPE.png",
+    ]);
+    expect(coinIconSources("BTC/USDT:USDT")).toEqual([
+      "/coins/btc.svg",
+      "https://bin.bnbstatic.com/static/assets/logos/BTC.png",
+    ]);
+    expect(coinIconSources("")).toEqual([]);
   });
 
   it("names a known pair and falls back to the base asset", () => {

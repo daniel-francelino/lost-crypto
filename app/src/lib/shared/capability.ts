@@ -7,6 +7,7 @@ export const Capability = {
   BotsPromoteLive: "bots.promote-live",
   BacktestsRun: "backtests.run",
   MarketDataImport: "market-data.import",
+  SymbolsManage: "symbols.manage",
   ExchangesManage: "exchanges.manage",
   SystemKillSwitch: "system.kill-switch",
   AlertsAcknowledge: "alerts.acknowledge",

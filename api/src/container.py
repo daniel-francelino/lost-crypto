@@ -16,6 +16,7 @@ from core.ids import IdGenerator, UuidGenerator
 from core.security.passwords import PasswordService
 from core.security.tokens import TokenCodec
 from core.security.vault import CredentialVault
+from core.symbols import AllowAnySymbol, SymbolGuard
 from modules.audit.service import AuditService
 from modules.auth.service import AuthConfig, AuthService
 from modules.backtesting.application.ports import BacktestStore
@@ -31,6 +32,7 @@ from modules.market_data.application.listings import ListingRecorder
 from modules.market_data.application.ports import ImportStore
 from modules.market_data.application.service import CandleImporter, MarketDataService
 from modules.market_data.application.updater import (
+    AllowedPairs,
     CandleUpdater,
     FollowedSeries,
     Series,
@@ -59,6 +61,7 @@ from modules.trading.application.supervisor import BotSupervisor
 from modules.trading.application.trader import BotTrader
 from modules.trading.infrastructure.store import SqlAlchemyStore
 from modules.trends.application.detector import DetectorConfig, TrendDetector
+from modules.trends.application.guard import RegistrySymbolGuard
 from modules.trends.application.ports import TrendStore
 from modules.trends.application.service import TrendService
 from modules.trends.infrastructure.repository import SqlAlchemyTrendStore
@@ -82,6 +85,7 @@ class Container:
     trend_stores: Callable[[], AbstractAsyncContextManager[TrendStore]]
     market_data: MarketDataService
     trends: TrendService
+    symbol_guard: RegistrySymbolGuard
     backtests: BacktestService
     bots: BotService
     kill_switch: KillSwitchService
@@ -113,6 +117,19 @@ def build_container(
     trading_stores = make_store_factory(session_factory, SqlAlchemyStore)
     alert_stores = make_store_factory(session_factory, SqlAlchemyStore)
     trend_stores = make_store_factory(session_factory, SqlAlchemyTrendStore)
+    symbol_guard = RegistrySymbolGuard(trend_stores)
+    symbols: SymbolGuard = symbol_guard if settings.symbol_registry_enforced else AllowAnySymbol()
+
+    async def symbol_in_use(exchange: str, symbol: str) -> bool:
+        async with trading_stores() as store:
+            bots = await store.bots.list_active()
+        return any(
+            b.config.exchange == exchange
+            and b.config.symbol == symbol
+            and b.desired_state is not BotState.STOPPED
+            for b in bots
+        )
+
     live = LiveService(trading_stores, settings, clock, ids)
     keys = settings.master_keys
     vault = CredentialVault(keys) if keys else None  # None: connections are unavailable
@@ -123,8 +140,8 @@ def build_container(
         timedelta(seconds=settings.worker_stale_after_seconds),
     )
     resolver = ConnectionResolver(trading_stores, vault, exchanges, clock)
-    backtests = BacktestService(backtest_stores, registry, exchanges, clock, ids, resolver)
-    bots = BotService(trading_stores, registry, exchanges, clock, ids, live)
+    backtests = BacktestService(backtest_stores, registry, exchanges, clock, ids, resolver, symbols)
+    bots = BotService(trading_stores, registry, exchanges, clock, ids, live, symbols)
     live_limits = LiveLimits(
         max_order_notional=settings.live_max_order_notional,
         max_total_exposure=settings.live_max_total_exposure,
@@ -157,8 +174,9 @@ def build_container(
         trading_stores=trading_stores,
         alert_stores=alert_stores,
         trend_stores=trend_stores,
-        market_data=MarketDataService(import_stores, exchanges, clock, ids),
-        trends=TrendService(trend_stores, exchanges, clock, ids),
+        market_data=MarketDataService(import_stores, exchanges, clock, ids, symbols),
+        trends=TrendService(trend_stores, exchanges, clock, ids, symbol_in_use),
+        symbol_guard=symbol_guard,
         backtests=backtests,
         bots=bots,
         kill_switch=KillSwitchService(trading_stores),
@@ -306,6 +324,12 @@ def build_candle_updater(container: Container) -> CandleUpdater:
 
         return series
 
+    async def registered_pairs() -> set[tuple[str, str]] | None:
+        if not settings.symbol_registry_enforced:
+            return None
+        return await container.symbol_guard.active_pairs()
+
+    allowed: AllowedPairs = registered_pairs
     return CandleUpdater(
         container.import_stores,
         container.exchanges,
@@ -318,6 +342,7 @@ def build_candle_updater(container: Container) -> CandleUpdater:
             max_age=timedelta(days=settings.candle_update_max_age_days),
             stale_after_candles=settings.candle_stale_after_candles,
         ),
+        allowed,
     )
 
 

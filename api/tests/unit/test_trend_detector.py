@@ -496,3 +496,17 @@ async def test_the_service_reads_what_the_detector_stored() -> None:
         EXCHANGE, SYMBOL, TrendFrame.H1, limit=5, before=history[-1].bar_open_time
     )
     assert older and older[0].bar_open_time < history[-1].bar_open_time
+
+
+async def test_a_pair_used_by_a_running_bot_cannot_be_switched_off() -> None:
+    env = Env()
+    added = await env.service.add_symbol(EXCHANGE, "ETH/USDT")
+
+    async def used(exchange: str, symbol: str) -> bool:
+        return (exchange, symbol) == (EXCHANGE, "ETH/USDT")
+
+    guarded = TrendService(env._stores, env.registry, env.clock, _Ids(), used)  # type: ignore[arg-type]
+    with pytest.raises(ConflictError, match="stop it first"):
+        await guarded.set_active(added.id, False)
+    assert (await env.trends.get_symbol(added.id)).active is True  # type: ignore[union-attr]
+    assert (await guarded.set_active(added.id, True)).active is True  # switching on is free

@@ -13,7 +13,10 @@ import {
   Role,
   Side,
   SignalKind,
+  Trend,
+  TrendFrame,
   Unknown,
+  ExchangeId,
 } from "@/lib/shared/enums";
 
 const UNKNOWN_LABEL = "Desconhecido";
@@ -158,3 +161,33 @@ export const CONNECTION_STATUS_HELP: Record<string, string> = {
     "A chave foi recusada ou tem permissões perigosas. Crie uma nova chave mais restrita e desative esta.",
   [ConnectionStatus.Disabled]: "Esta conexão foi desativada e não é mais usada.",
 };
+
+export const trendLabel = (value: string): string =>
+  pick(
+    {
+      [Trend.Bullish]: "Alta",
+      [Trend.Bearish]: "Baixa",
+      [Trend.Sideways]: "Lateral",
+    },
+    value,
+  );
+
+export const trendFrameLabel = (value: string): string =>
+  pick(
+    {
+      [TrendFrame.Week]: "Semanal",
+      [TrendFrame.Day]: "Diário",
+      [TrendFrame.FourHours]: "4 horas",
+      [TrendFrame.Hour]: "1 hora",
+    },
+    value,
+  );
+
+export const exchangeLabel = (value: string): string =>
+  pick(
+    {
+      [ExchangeId.Binance]: "Binance Spot",
+      [ExchangeId.BinanceUsdm]: "Binance Futuros (USD-M)",
+    },
+    value,
+  );

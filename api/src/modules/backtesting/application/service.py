@@ -14,6 +14,7 @@ from core.clock import Clock
 from core.errors import ConflictError, DomainError, NotFoundError
 from core.ids import IdGenerator
 from core.jobs import JobStatus
+from core.symbols import AllowAnySymbol, SymbolGuard
 from modules.analytics.domain import exposure
 from modules.analytics.domain.excursion import adverse_excursions
 from modules.analytics.domain.metrics import compute_metrics
@@ -98,7 +99,9 @@ class BacktestService:
         clock: Clock,
         ids: IdGenerator,
         resolver: ConnectionResolver | None = None,
+        symbols: SymbolGuard | None = None,
     ) -> None:
+        self._symbols = symbols or AllowAnySymbol()
         self._stores = stores
         self._registry = registry
         self._exchanges = exchanges
@@ -107,6 +110,7 @@ class BacktestService:
         self._resolver = resolver
 
     async def create(self, config: BacktestConfig) -> BacktestRun:
+        await self._symbols.require(config.exchange, config.symbol)
         profile = self._exchanges.require(config.exchange, config.timeframe)
         if config.product not in profile.capabilities.products:
             raise InvalidBacktestConfig(
@@ -138,6 +142,7 @@ class BacktestService:
 
         Also returns the number of earlier runs on the same strategy and data (prior trials).
         """
+        await self._symbols.require(base.exchange, base.symbol)
         profile = self._exchanges.require(base.exchange, base.timeframe)
         if base.product not in profile.capabilities.products:
             raise InvalidSweep(

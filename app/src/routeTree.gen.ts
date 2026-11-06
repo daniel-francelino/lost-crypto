@@ -25,6 +25,7 @@ import { Route as AppExchangesNewRouteImport } from './routes/_app/exchanges/new
 import { Route as AppMarketDataIndexRouteImport } from './routes/_app/market-data/index'
 import { Route as AppSettingsProfileRouteImport } from './routes/_app/settings/profile'
 import { Route as AppSettingsUsersRouteImport } from './routes/_app/settings/users'
+import { Route as AppSymbolsIndexRouteImport } from './routes/_app/symbols/index'
 import { Route as AppSystemIndexRouteImport } from './routes/_app/system/index'
 import { Route as AppBacktestsRunIdIndexRouteImport } from './routes/_app/backtests/$runId/index'
 import { Route as AppBacktestsSweepsSweepIdRouteImport } from './routes/_app/backtests/sweeps/$sweepId'
@@ -110,6 +111,11 @@ const AppSettingsUsersRoute = AppSettingsUsersRouteImport.update({
   path: '/settings/users',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSymbolsIndexRoute = AppSymbolsIndexRouteImport.update({
+  id: '/symbols/',
+  path: '/symbols/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSystemIndexRoute = AppSystemIndexRouteImport.update({
   id: '/system/',
   path: '/system/',
@@ -153,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/bots/': typeof AppBotsIndexRoute
   '/exchanges/': typeof AppExchangesIndexRoute
   '/market-data/': typeof AppMarketDataIndexRoute
+  '/symbols/': typeof AppSymbolsIndexRoute
   '/system/': typeof AppSystemIndexRoute
   '/backtests/sweeps/$sweepId': typeof AppBacktestsSweepsSweepIdRoute
   '/bots/$botId/edit': typeof AppBotsBotIdEditRoute
@@ -175,6 +182,7 @@ export interface FileRoutesByTo {
   '/bots': typeof AppBotsIndexRoute
   '/exchanges': typeof AppExchangesIndexRoute
   '/market-data': typeof AppMarketDataIndexRoute
+  '/symbols': typeof AppSymbolsIndexRoute
   '/system': typeof AppSystemIndexRoute
   '/backtests/sweeps/$sweepId': typeof AppBacktestsSweepsSweepIdRoute
   '/bots/$botId/edit': typeof AppBotsBotIdEditRoute
@@ -199,6 +207,7 @@ export interface FileRoutesById {
   '/_app/bots/': typeof AppBotsIndexRoute
   '/_app/exchanges/': typeof AppExchangesIndexRoute
   '/_app/market-data/': typeof AppMarketDataIndexRoute
+  '/_app/symbols/': typeof AppSymbolsIndexRoute
   '/_app/system/': typeof AppSystemIndexRoute
   '/_app/backtests/sweeps/$sweepId': typeof AppBacktestsSweepsSweepIdRoute
   '/_app/bots/$botId/edit': typeof AppBotsBotIdEditRoute
@@ -223,6 +232,7 @@ export interface FileRouteTypes {
     | '/bots/'
     | '/exchanges/'
     | '/market-data/'
+    | '/symbols/'
     | '/system/'
     | '/backtests/sweeps/$sweepId'
     | '/bots/$botId/edit'
@@ -245,6 +255,7 @@ export interface FileRouteTypes {
     | '/bots'
     | '/exchanges'
     | '/market-data'
+    | '/symbols'
     | '/system'
     | '/backtests/sweeps/$sweepId'
     | '/bots/$botId/edit'
@@ -268,6 +279,7 @@ export interface FileRouteTypes {
     | '/_app/bots/'
     | '/_app/exchanges/'
     | '/_app/market-data/'
+    | '/_app/symbols/'
     | '/_app/system/'
     | '/_app/backtests/sweeps/$sweepId'
     | '/_app/bots/$botId/edit'
@@ -394,6 +406,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsUsersRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/symbols/': {
+      id: '/_app/symbols/'
+      path: '/symbols'
+      fullPath: '/symbols/'
+      preLoaderRoute: typeof AppSymbolsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/system/': {
       id: '/_app/system/'
       path: '/system'
@@ -447,6 +466,7 @@ interface AppRouteChildren {
   AppBotsIndexRoute: typeof AppBotsIndexRoute
   AppExchangesIndexRoute: typeof AppExchangesIndexRoute
   AppMarketDataIndexRoute: typeof AppMarketDataIndexRoute
+  AppSymbolsIndexRoute: typeof AppSymbolsIndexRoute
   AppSystemIndexRoute: typeof AppSystemIndexRoute
   AppBacktestsSweepsSweepIdRoute: typeof AppBacktestsSweepsSweepIdRoute
   AppBotsBotIdEditRoute: typeof AppBotsBotIdEditRoute
@@ -469,6 +489,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppBotsIndexRoute: AppBotsIndexRoute,
   AppExchangesIndexRoute: AppExchangesIndexRoute,
   AppMarketDataIndexRoute: AppMarketDataIndexRoute,
+  AppSymbolsIndexRoute: AppSymbolsIndexRoute,
   AppSystemIndexRoute: AppSystemIndexRoute,
   AppBacktestsSweepsSweepIdRoute: AppBacktestsSweepsSweepIdRoute,
   AppBotsBotIdEditRoute: AppBotsBotIdEditRoute,

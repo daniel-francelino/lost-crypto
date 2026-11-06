@@ -1,5 +1,6 @@
 """API side of the trend detector: the symbol registry and reading what the detector stored."""
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
@@ -33,7 +34,9 @@ class TrendService:
         exchanges: ExchangeRegistry,
         clock: Clock,
         ids: IdGenerator,
+        in_use: Callable[[str, str], Awaitable[bool]] | None = None,
     ) -> None:
+        self._in_use = in_use
         self._stores = stores
         self._exchanges = exchanges
         self._clock = clock
@@ -69,12 +72,25 @@ class TrendService:
             return await store.trends.list_symbols(active_only=False)
 
     async def set_active(self, symbol_id: UUID, active: bool) -> WatchedSymbol:
+        if not active and self._in_use is not None:
+            current = await self._get(symbol_id)
+            if await self._in_use(current.exchange, current.symbol):
+                raise ConflictError(
+                    f"{current.symbol} is used by a bot that is not stopped: stop it first"
+                )
         async with self._stores() as store:
             if not await store.trends.set_active(symbol_id, active):
                 raise NotFoundError(f"trend symbol {symbol_id} does not exist")
             await store.commit()
             found = await store.trends.get_symbol(symbol_id)
         assert found is not None
+        return found
+
+    async def _get(self, symbol_id: UUID) -> WatchedSymbol:
+        async with self._stores() as store:
+            found = await store.trends.get_symbol(symbol_id)
+        if found is None:
+            raise NotFoundError(f"trend symbol {symbol_id} does not exist")
         return found
 
     async def latest(

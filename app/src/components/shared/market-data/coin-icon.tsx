@@ -1,12 +1,14 @@
 import { useState } from "react";
-import { coinIconSrc, coinInitial } from "@/lib/shared/market-data/coins";
+import { coinIconSources, coinInitial } from "@/lib/shared/market-data/coins";
 
 type IconProps = { symbol: string; size?: number | undefined };
 
 export function CoinIcon({ symbol, size = 24 }: IconProps) {
-  const [failed, setFailed] = useState(false);
+  const [failures, setFailures] = useState(0);
+  const sources = coinIconSources(symbol);
+  const source = sources[failures];
   const style = { width: size, height: size, borderRadius: "50%" };
-  return failed ? (
+  return source === undefined ? (
     <span
       aria-hidden="true"
       style={style}
@@ -16,13 +18,14 @@ export function CoinIcon({ symbol, size = 24 }: IconProps) {
     </span>
   ) : (
     <img
-      src={coinIconSrc(symbol)}
+      src={source}
       alt=""
       aria-hidden="true"
       loading="lazy"
       style={style}
       className="shrink-0 rounded-[50%] bg-muted object-contain"
-      onError={() => setFailed(true)}
+      referrerPolicy="no-referrer"
+      onError={() => setFailures((count) => count + 1)}
     />
   );
 }

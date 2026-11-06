@@ -6,6 +6,7 @@ export const Poll = {
   Detail: 5_000,
   Fast: 2_000,
   Slow: 30_000,
+  Trends: 60_000,
   Connections: 10_000,
 } as const;
 

@@ -9,6 +9,7 @@ from uuid import UUID
 from core.clock import Clock
 from core.errors import ConflictError
 from core.ids import IdGenerator
+from core.symbols import AllowAnySymbol, SymbolGuard
 from modules.analytics.domain.metrics import Metrics, compute_metrics
 from modules.audit.models import AuditEvent
 from modules.backtesting.domain.models import EquityPoint
@@ -147,9 +148,11 @@ class BotService:
         clock: Clock,
         ids: IdGenerator,
         live: LiveService,
+        symbols: SymbolGuard | None = None,
     ) -> None:
         self._stores = stores
         self._live = live
+        self._symbols = symbols or AllowAnySymbol()
         self._registry = registry
         self._exchanges = exchanges
         self._clock = clock
@@ -160,6 +163,7 @@ class BotService:
         return self._exchanges.profile(exchange).fees.taker_rate
 
     async def create(self, config: BotConfig) -> Bot:
+        await self._symbols.require(config.exchange, config.symbol)
         profile = self._exchanges.require(config.exchange, config.timeframe)
         if config.product not in profile.capabilities.products:
             raise ConflictError(
@@ -205,6 +209,8 @@ class BotService:
             old_config = bot.config
             effective_changes = _normalize_config_update(old_config, changes)
             config = replace(old_config, **effective_changes)
+            if (config.exchange, config.symbol) != (old_config.exchange, old_config.symbol):
+                await self._symbols.require(config.exchange, config.symbol)
             await _ensure_flat_before_perpetual_config_update(store, bot_id, old_config, config)
             profile = self._exchanges.require(config.exchange, config.timeframe)
             if config.product not in profile.capabilities.products:
@@ -288,6 +294,7 @@ class BotService:
     ) -> Bot:
         async with self._stores() as store:
             bot = await self._get(store, bot_id)
+            await self._symbols.require(bot.config.exchange, bot.config.symbol)
             await self._check_perpetual_owner(store, bot)
             if bot.config.mode is ExecutionMode.LIVE:
                 await self._live.consume(store, bot, confirmation_token, actor)

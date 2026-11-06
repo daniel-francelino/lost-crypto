@@ -2,7 +2,34 @@ import type { SupportedPair } from "@/lib/shared/market-data/pairs.api";
 
 export const baseOf = (symbol: string): string => symbol.split("/")[0]?.trim().toUpperCase() ?? "";
 
-export const coinIconSrc = (symbol: string): string => `/coins/${baseOf(symbol).toLowerCase()}.svg`;
+const LOCAL_ICONS = new Set([
+  "ada",
+  "atom",
+  "avax",
+  "bnb",
+  "btc",
+  "doge",
+  "dot",
+  "etc",
+  "eth",
+  "link",
+  "ltc",
+  "sol",
+  "trx",
+  "xrp",
+]);
+const REMOTE_ICONS = "https://bin.bnbstatic.com/static/assets/logos";
+const MULTIPLIER_PREFIX = /^(?:1000000|1000|1M)(?=[A-Z])/;
+
+export const coinIconSources = (symbol: string): string[] => {
+  const base = baseOf(symbol).replace(MULTIPLIER_PREFIX, "");
+  if (base === "") return [];
+  const local = LOCAL_ICONS.has(base.toLowerCase()) ? [`/coins/${base.toLowerCase()}.svg`] : [];
+  return [...local, `${REMOTE_ICONS}/${base}.png`];
+};
+
+export const quoteOf = (symbol: string): string =>
+  symbol.split("/")[1]?.split(":")[0]?.trim().toUpperCase() ?? "";
 
 export const coinInitial = (symbol: string): string => baseOf(symbol).slice(0, 1);
 

@@ -10,7 +10,7 @@ All authenticated screens sit under `_app` (shell with `BackofficeLayout`). Ever
 
 | Element | Behaviour |
 |---|---|
-| Sidebar sections | "Visão geral" (Dashboard) · "Operação" (Bots, Conexões) · "Pesquisa" (Backtests, Dados de mercado) · "Sistema" (Status, Auditoria) · "Configurações" (Perfil, Usuários — admin) |
+| Sidebar sections | "Visão geral" (Dashboard) · "Operação" (Bots, Moedas, Conexões) · "Pesquisa" (Backtests, Dados de mercado) · "Sistema" (Status, Auditoria) · "Configurações" (Perfil, Usuários — admin) |
 | **Safety strip** in the top bar, always visible | Kill-switch state (`GET /system/status`), worker alive/stale, `observed` bots count, environment (`local`/`prod`), and `API offline` when polling fails. Clicking opens the system screen |
 | Kill switch button (admin) | In the top bar, one click → confirmation (`AlertDialog`) → `PUT /system/kill-switch {active:true, reason}`. **Releasing** it asks for a reason too and is not a single click. See [07](07-ux-rules.md#kill-switch) |
 | User menu | name, role badge, "Meu perfil", "Sair" |
@@ -99,6 +99,15 @@ Since book 1 ch. 5 the bot detail has two more tabs: **Paridade** (`POST/GET /bo
 * "Movimentos fora do comum" (`GET /market-data/outliers`): candles beyond 4σ with the BTC/USDT move of the same candle; flags only, nothing is deleted.
 * Imports: `POST /market-data/imports` (202) with symbol/timeframe/range; list `GET /market-data/imports` with `JobStatus`, `candles_imported`, "Rejeitados" (expandable samples with the problem in Portuguese), "Alterados", `error`; polling per row until finished. Admin only for the form.
 
+## 8b. Moedas — `/symbols`
+
+The symbol registry: **only registered coins can be used by bots, backtests and candle imports** (the backend refuses anything else with a hint, and the candle updater only follows them). Reading is open to any role; registering and deactivating need an admin.
+
+* Table "Moedas cadastradas" (`GET /trends/symbols` + `GET /trends`, polled every 60 s with freshness): coin with its icon, exchange, the latest trend of each timeframe (Semanal, Diário, 4 horas, 1 hora) as `TrendBadge` (Alta / Baixa / Lateral, with an icon, never by colour alone; a check mark when the trend passes the four confirmations), status and "Desativar" / "Reativar". A coin without readings yet shows "Aguardando o worker".
+* Card "Adicionar da Binance" (admin only): tabs Binance Futuros (USD-M) / Binance Spot, a search box and the exchange's own list (`GET /market-data/markets`, only USDT pairs) with the coin icon and a checkbox; coins already registered are checked and disabled. "Adicionar N selecionada(s)" calls `POST /trends/symbols` for each pair (the backend checks that the exchange lists it) and reports the ones it refused.
+* Deactivating asks for confirmation and is refused while a bot that is not stopped uses the coin (`409`, shown verbatim).
+* Every symbol selector (`SymbolSelect`) lists only the active registered coins of its exchange; a pair saved in an old bot still appears. With an empty registry the selector says "Nenhuma moeda cadastrada".
+
 ## 9. Exchange connections — `/exchanges`, `/exchanges/new`
 
 Also: permission badges written as states ("Sem saque", "PODE SACAR"…), last check, the refusal reason in the expanded row, "Verificar agora" (`POST /exchange-connections/{id}/recheck`) on active live keys, and a banner when a key carries `permission_warning` (new entries blocked, exits continue). The live form shows how to create a trade-only Binance key and the counterparty note.
@@ -147,8 +156,8 @@ The bot summary shows interventions from the last 30 days: totals, event types, 
 
 ## Pares e ícones das moedas
 
-* O par é sempre um **seletor** (`SymbolSelect`), alimentado por `GET /market-data/symbols` (hook `useSupportedPairs`); todos são cotados em USDT. Um par antigo salvo num bot continua aparecendo no seletor, mesmo fora da lista.
-* Ícones: SVG em `public/coins/<base em minúsculas>.svg`, exibidos por `CoinIcon`/`SymbolLabel`; sem o arquivo, aparece a inicial da moeda. Para acrescentar uma moeda: adicione o par em `api/src/modules/market_data/domain/pairs.py` e o SVG correspondente. Os 14 SVGs atuais vêm de `@web3icons/core` 4.0.58 (MIT).
+* O par é sempre um **seletor** (`SymbolSelect`), alimentado pelo **registro de moedas** (`GET /trends/symbols`, hook `useRegisteredSymbols`, tela `/symbols`); todos são cotados em USDT. Um par antigo salvo num bot continua aparecendo no seletor, mesmo fora da lista. `GET /market-data/symbols` só fornece o nome legível das moedas conhecidas.
+* Ícones: `CoinIcon`/`SymbolLabel` tentam, em ordem, o SVG em `public/coins/<base em minúsculas>.svg` (14 moedas, de `@web3icons/core` 4.0.58, MIT), o logo da Binance (`https://bin.bnbstatic.com/static/assets/logos/<BASE>.png`, carregado pelo navegador, sem `referrer`; o prefixo `1000`/`1M` do contrato é ignorado) e, por fim, a inicial da moeda. Nenhum arquivo precisa ser acrescentado para uma moeda nova.
 * No formulário de backtest, o capital inicial é **100 ou 1.000 USDT** (padrão 1.000).
 
 ## Excluir bot

@@ -74,6 +74,9 @@ class Settings(BaseSettings):
     # Trend detector (worker): a pass looks for timeframes whose bar just closed; only those are
     # fetched and classified. Warm-up is the bars of history a timeframe starts from.
     trend_detector_enabled: bool = True
+    # Only pairs in the symbol registry may be used by bots, backtests and candle imports (the
+    # candle updater only follows them too). Turn off to work with any pair.
+    symbol_registry_enforced: bool = True
     trend_detector_interval_seconds: float = 60.0
     trend_detector_grace_seconds: float = 5.0
     trend_warmup_bars: int = 150

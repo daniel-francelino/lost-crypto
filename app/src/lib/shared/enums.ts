@@ -21,6 +21,27 @@ export const TradingProduct = {
 } as const;
 export type TradingProduct = ValueOf<typeof TradingProduct>;
 
+export const ExchangeId = {
+  Binance: "binance",
+  BinanceUsdm: "binance-usdm",
+} as const;
+export type ExchangeId = ValueOf<typeof ExchangeId>;
+
+export const Trend = {
+  Bullish: "bullish",
+  Bearish: "bearish",
+  Sideways: "sideways",
+} as const;
+export type Trend = ValueOf<typeof Trend>;
+
+export const TrendFrame = {
+  Week: "1w",
+  Day: "1d",
+  FourHours: "4h",
+  Hour: "1h",
+} as const;
+export type TrendFrame = ValueOf<typeof TrendFrame>;
+
 export const MarginMode = { Isolated: "isolated" } as const;
 export type MarginMode = ValueOf<typeof MarginMode>;
 

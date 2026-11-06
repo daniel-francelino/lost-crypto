@@ -37,6 +37,11 @@ export const QueryKey = {
     compare: (ids: string[]) => ["backtests", "compare", ...ids] as const,
     sweep: (id: string) => ["backtests", "sweep", id] as const,
   },
+  Trends: {
+    all: () => ["trends"] as const,
+    symbols: () => ["trends", "symbols"] as const,
+    latest: () => ["trends", "latest"] as const,
+  },
   MarketData: {
     all: () => ["market-data"] as const,
     symbols: () => ["market-data", "symbols"] as const,
