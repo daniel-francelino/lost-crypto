@@ -106,9 +106,7 @@ def size_linear_perpetual_entry(
 
     if limits.min_liquidation_distance_pct is not None:
         notional = quantity * entry
-        tier = next(
-            (item for item in leverage_tiers if item.supports(notional, leverage)), None
-        )
+        tier = next((item for item in leverage_tiers if item.supports(notional, leverage)), None)
         if tier is None:
             raise OrderRejected("no supported leverage tier covers the sized position")
         position = LinearPerpetualPosition(

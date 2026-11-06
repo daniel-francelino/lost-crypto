@@ -205,9 +205,7 @@ class BotService:
             old_config = bot.config
             effective_changes = _normalize_config_update(old_config, changes)
             config = replace(old_config, **effective_changes)
-            await _ensure_flat_before_perpetual_config_update(
-                store, bot_id, old_config, config
-            )
+            await _ensure_flat_before_perpetual_config_update(store, bot_id, old_config, config)
             profile = self._exchanges.require(config.exchange, config.timeframe)
             if config.product not in profile.capabilities.products:
                 raise ConflictError(
@@ -240,6 +238,7 @@ class BotService:
             await store.commit()
         bot.config, bot.config_version = config, version
         return bot
+
     @staticmethod
     async def _check_connection(store: BotStore, config: BotConfig) -> None:
         """Exchange bots and all perpetual bots require a matching active connection.
@@ -494,8 +493,7 @@ class BotService:
                     take_profit_price=position.take_profit_price if position else None,
                     reserved_cash=Decimal(0),
                     native_stop_active=stop_order is not None
-                    and stop_order.status
-                    in {OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED},
+                    and stop_order.status in {OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED},
                     product=TradingProduct.LINEAR_PERPETUAL,
                     position_side=position.side if position else None,
                     leverage=position.leverage if position else bot.config.leverage,
@@ -696,9 +694,7 @@ class BotService:
         )
 
 
-def _normalize_config_update(
-    current: BotConfig, changes: Mapping[str, Any]
-) -> dict[str, Any]:
+def _normalize_config_update(current: BotConfig, changes: Mapping[str, Any]) -> dict[str, Any]:
     """Keep Spot paper accountless while preserving the required Demo connection for Futures.
 
     USD-M paper uses a Demo connection for authenticated leverage tiers. The Spot-only UI

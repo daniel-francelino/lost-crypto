@@ -11,12 +11,14 @@ from typing import Any
 
 from modules.strategies.domain.base import Strategy
 from modules.strategies.domain.mean_reversion_zscore import MeanReversionZScoreStrategy
+from modules.strategies.domain.mtf_trend_pullback import MtfTrendPullbackStrategy
 from modules.strategies.domain.registry import StrategyConfigurationError, StrategyRegistry
 from modules.strategies.domain.trend_quality_breakout import TrendQualityBreakoutStrategy
 
 AVAILABLE_STRATEGIES: tuple[type[Strategy[Any]], ...] = (
     MeanReversionZScoreStrategy,
     TrendQualityBreakoutStrategy,
+    MtfTrendPullbackStrategy,
 )
 
 

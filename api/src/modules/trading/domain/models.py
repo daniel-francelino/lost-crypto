@@ -8,6 +8,15 @@ from modules.market_data.domain.models import Timeframe
 
 # Candles fetched on a fresh start only to warm the strategy up (never traded on).
 WARMUP_CANDLES = 300
+# One exchange page of candles: a strategy cannot ask for more history than this.
+MAX_WARMUP_CANDLES = 1000
+
+
+def warmup_candles(required: int) -> int:
+    """Candles to fetch on a fresh start: the default, or more if the strategy needs it."""
+    return min(max(WARMUP_CANDLES, required), MAX_WARMUP_CANDLES)
+
+
 # Orders are only placed for candles processed shortly after they closed.
 MAX_SIGNAL_AGE_CAP = timedelta(minutes=15)
 # Consecutive failures after which a bot is put in the error state.

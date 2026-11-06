@@ -126,9 +126,7 @@ def test_short_breakout_has_mirrored_stop_and_exit_does_not_reverse():
         if result.signals:
             signal = result.signals[0]
             signals.append((index, signal))
-            position_side = (
-                PositionSide.SHORT if signal.kind is SignalKind.ENTRY else None
-            )
+            position_side = PositionSide.SHORT if signal.kind is SignalKind.ENTRY else None
 
     assert [signal.kind for _, signal in signals] == [SignalKind.ENTRY, SignalKind.EXIT]
     entry_index, entry = signals[0]

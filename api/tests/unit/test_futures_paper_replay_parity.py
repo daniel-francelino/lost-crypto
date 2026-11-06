@@ -289,10 +289,7 @@ async def test_futures_paper_worker_matches_signal_close_replay(
         trade_from=session.started_at,
     )
 
-    worker_signals = [
-        (item.bar_time, item.side, item.kind)
-        for item in store.signals.items
-    ]
+    worker_signals = [(item.bar_time, item.side, item.kind) for item in store.signals.items]
     replay_signals = [(item.bar_time, item.side, item.kind) for item in replay.signals]
     assert worker_signals == replay_signals
 

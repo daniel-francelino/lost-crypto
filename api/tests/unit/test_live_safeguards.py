@@ -346,9 +346,7 @@ async def test_futures_kill_close_is_only_audited_after_exchange_and_ledger_are_
     async def stores() -> Any:
         yield store
 
-    supervisor = _supervisor(
-        resolver=Resolver(), executor=Executor(), perpetual_closer=Closer()
-    )
+    supervisor = _supervisor(resolver=Resolver(), executor=Executor(), perpetual_closer=Closer())
     supervisor._stores = stores
     supervisor._clock = SimpleNamespace(now=lambda: T0)
     await supervisor._close_futures_for_kill_switch(

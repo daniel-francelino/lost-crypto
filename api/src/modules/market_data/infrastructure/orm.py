@@ -59,9 +59,7 @@ class PerpetualMarkCandleRow(Base):
 class PerpetualFundingRateRow(Base):
     __tablename__ = "perpetual_funding_rates"
     __table_args__ = (
-        CheckConstraint(
-            "rate_type IN ('regular', 'special')", name="rate_type_valid"
-        ),
+        CheckConstraint("rate_type IN ('regular', 'special')", name="rate_type_valid"),
     )
 
     exchange: Mapped[str] = mapped_column(Text, primary_key=True)

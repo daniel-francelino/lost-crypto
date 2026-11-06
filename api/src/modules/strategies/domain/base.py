@@ -64,6 +64,13 @@ class Strategy[StateT](ABC):
         Must raise ``InvalidStrategyParams`` for unknown keys, wrong types or invalid values.
         """
 
+    def required_history_candles(self) -> int:
+        """Closed candles (of the bot's timeframe) the strategy must see before it can signal.
+
+        The live bot fetches at least this many on a fresh start; strategies that derive slower
+        timeframes from the bot's candles override it. Default: no particular need."""
+        return 0
+
     @abstractmethod
     def initial_state(self) -> StateT:
         """State before any candle was seen."""

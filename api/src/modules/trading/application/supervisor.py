@@ -631,9 +631,7 @@ class BotSupervisor:
             until = self._clock.now() + timedelta(seconds=max(wait, 1.0))
             if self._rate_limited_until is None or until > self._rate_limited_until:
                 self._rate_limited_until = until
-            logger.warning(
-                "exchange rate limit hit by bot %s; all bots wait %.0f s", bot.id, wait
-            )
+            logger.warning("exchange rate limit hit by bot %s; all bots wait %.0f s", bot.id, wait)
             return
         if isinstance(exc, _FATAL):
             logger.error("bot %s cannot continue: %s", bot.id, exc)

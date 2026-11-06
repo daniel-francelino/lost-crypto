@@ -32,7 +32,7 @@ from modules.market_data.domain.models import Candle, FundingRate, MarketInfo, f
 from modules.strategies.domain.registry import StrategyRegistry
 from modules.trading.application.parity_store import ParityRun
 from modules.trading.application.ports import TradingStore
-from modules.trading.domain.models import WARMUP_CANDLES, TradingSession
+from modules.trading.domain.models import TradingSession, warmup_candles
 from modules.trading.domain.parity import (
     BotSignal,
     Difference,
@@ -149,8 +149,11 @@ class ParityExecutor:
                 raise ParityUnavailable("the bot has not processed any candle yet")
             cfg = bot.config
             delta = cfg.timeframe.delta
+            required = self._registry.create(
+                cfg.strategy_type, cfg.strategy_params
+            ).required_history_candles()
             warm_start = floor_to_timeframe(session.started_at, cfg.timeframe) - (
-                WARMUP_CANDLES * delta
+                warmup_candles(required) * delta
             )
             end = session.last_processed_bar_time + delta
             candles = await store.candles.get_range(
@@ -325,9 +328,7 @@ class ParityExecutor:
                 trade_from=session.started_at,
             )
         else:
-            outcome = run_backtest(
-                config, candles, market, strategy, trade_from=session.started_at
-            )
+            outcome = run_backtest(config, candles, market, strategy, trade_from=session.started_at)
         traded = [p for p in outcome.equity_curve if p.time > session.started_at]
         return _return_pct(config.initial_capital, traded[-1].equity) if traded else None
 

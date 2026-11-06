@@ -63,7 +63,7 @@ from modules.strategies.domain.types import Side, Signal, SignalKind, StrategyCo
 from modules.trading.application.orders import OrderExecutor
 from modules.trading.application.perpetual_paper import PerpetualDemoTrader, PerpetualPaperTrader
 from modules.trading.application.ports import TradingStore
-from modules.trading.domain.models import WARMUP_CANDLES, TradingSession, max_signal_age
+from modules.trading.domain.models import TradingSession, max_signal_age, warmup_candles
 
 logger = logging.getLogger(__name__)
 
@@ -170,7 +170,12 @@ class BotTrader:
                 return  # the next candle has not closed yet: no network call
             since = next_bar
         else:
-            since = floor_to_timeframe(now, cfg.timeframe) - WARMUP_CANDLES * cfg.timeframe.delta
+            required = self._registry.create(
+                cfg.strategy_type, cfg.strategy_params
+            ).required_history_candles()
+            since = floor_to_timeframe(now, cfg.timeframe) - warmup_candles(required) * (
+                cfg.timeframe.delta
+            )
 
         source = self._exchanges.market_data(cfg.exchange)
         fetched = await source.fetch_candles(cfg.symbol, cfg.timeframe, since, FETCH_LIMIT)

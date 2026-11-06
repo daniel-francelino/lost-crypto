@@ -6,6 +6,7 @@ well-formed signals).
 """
 
 import json
+import math
 from decimal import Decimal
 from typing import Any
 
@@ -31,7 +32,7 @@ from reference_donchian_breakout import DonchianBreakoutStrategy, DonchianParams
 
 SYMBOL = "BTC/USDT"
 # Strategies whose entries always carry a stop, because the stop is part of the design.
-STOP_BY_DESIGN = frozenset({"trend_quality_breakout"})
+STOP_BY_DESIGN = frozenset({"trend_quality_breakout", "mtf_trend_pullback"})
 DEFAULT_PRICE_CEILING = Decimal(10_000)
 
 
@@ -59,6 +60,25 @@ def _trend() -> list[Candle]:
     return make_candles(closes)
 
 
+def _slow_trend() -> list[Candle]:
+    """The same shape as ``_trend`` on a scale of days, for strategies that read the daily trend
+    from hourly candles: a month of quiet, then a rising and a falling market, both with the
+    10-hour pullbacks a 1h entry needs."""
+    closes = [1000 + (i % 2) for i in range(30 * 24)]
+    price = float(closes[-1])
+    for i in range(40 * 24):
+        price += 0.5
+        closes.append(round(price + 8 * math.sin(2 * math.pi * i / 10)))
+    for i in range(40 * 24):
+        price -= 0.7
+        closes.append(round(price + 8 * math.sin(2 * math.pi * i / 10)))
+    return make_candles(closes)
+
+
+# Strategies that need a longer series than ``_trend`` (they warm up over days of 1h candles).
+SLOW_TREND_STRATEGIES = frozenset({"mtf_trend_pullback"})
+
+
 def _run(
     strategy: Strategy[Any],
     candles: list[Candle],
@@ -80,7 +100,9 @@ def _run(
 
 
 def _series_for(strategy_cls: type[Strategy[Any]]) -> list[Candle]:
-    return _dips() if strategy_cls.STYLE is StrategyStyle.MEAN_REVERSION else _trend()
+    if strategy_cls.STYLE is StrategyStyle.MEAN_REVERSION:
+        return _dips()
+    return _slow_trend() if strategy_cls.TYPE_KEY in SLOW_TREND_STRATEGIES else _trend()
 
 
 @pytest.fixture(params=AVAILABLE_STRATEGIES, ids=lambda s: s.TYPE_KEY)
@@ -244,6 +266,7 @@ def test_catalog_offers_every_strategy_with_unique_keys() -> None:
         "donchian_breakout",
         "mean_reversion_zscore",
         "trend_quality_breakout",
+        "mtf_trend_pullback",
     ]
     assert len(set(keys)) == len(keys)
     assert isinstance(registry.create("donchian_breakout", {}), DonchianBreakoutStrategy)

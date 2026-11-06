@@ -618,7 +618,11 @@ def _scripted_monitor(streams):
             return 0
 
     monitor = FuturesUserStreamMonitor(
-        _stores, Resolver(), Reconciler(), _Executor(), None  # type: ignore[arg-type]
+        _stores,
+        Resolver(),
+        Reconciler(),
+        _Executor(),
+        None,  # type: ignore[arg-type]
     )
 
     async def noop(*_args, **_kwargs) -> None:

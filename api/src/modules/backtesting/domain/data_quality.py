@@ -46,10 +46,7 @@ def funding_coverage_report(
     start = mark_candles[0].open_time
     end = mark_candles[-1].close_time
     gaps = [event_times[0] - start] if event_times else [end - start]
-    gaps.extend(
-        event_times[index] - event_times[index - 1]
-        for index in range(1, len(event_times))
-    )
+    gaps.extend(event_times[index] - event_times[index - 1] for index in range(1, len(event_times)))
     if event_times:
         gaps.append(end - event_times[-1])
     max_gap = max(gaps, default=timedelta(0))

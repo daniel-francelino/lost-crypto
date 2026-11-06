@@ -57,7 +57,7 @@ from modules.strategies.domain.registry import StrategyRegistry
 from modules.strategies.domain.types import Side, Signal, SignalKind, StrategyContext
 from modules.trading.application.orders import OrderExecutor
 from modules.trading.application.ports import TradingStore
-from modules.trading.domain.models import WARMUP_CANDLES, TradingSession, max_signal_age
+from modules.trading.domain.models import TradingSession, max_signal_age, warmup_candles
 
 TradingStoreFactory = Callable[[], AbstractAsyncContextManager[TradingStore]]
 _TIER_CACHE_AGE = timedelta(minutes=30)
@@ -105,10 +105,12 @@ class _PerpetualTrader:
         last = session.last_processed_bar_time
         if last is not None and now < last + 2 * cfg.timeframe.delta + _CANDLE_CLOSE_GRACE:
             return  # the next candle has not closed yet: no network call (2 s polls add up)
+        strategy = self._strategies.create(cfg.strategy_type, cfg.strategy_params)
         since = (
             last + cfg.timeframe.delta
             if last is not None
-            else _floor(now, cfg.timeframe) - WARMUP_CANDLES * cfg.timeframe.delta
+            else _floor(now, cfg.timeframe)
+            - warmup_candles(strategy.required_history_candles()) * cfg.timeframe.delta
         )
         source = self._exchanges.market_data(cfg.exchange)
         raw_candles = await source.fetch_candles(cfg.symbol, cfg.timeframe, since, 1000)
@@ -178,7 +180,6 @@ class _PerpetualTrader:
         market = await source.fetch_market_info(cfg.symbol)
         tiers = await self._leverage_tiers(bot, now)
         await self._store_inputs(bot, candles, aligned_marks, rates)
-        strategy = self._strategies.create(cfg.strategy_type, cfg.strategy_params)
         state = (
             strategy.deserialize_state(session.strategy_state)
             if session.strategy_state is not None
@@ -605,7 +606,6 @@ class _PerpetualTrader:
             )
             await store.commit()
         return state, paused
-
 
     async def _signal(
         self,

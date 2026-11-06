@@ -83,7 +83,10 @@ async def test_unknown_demo_order_is_looked_up_until_client_id_appears(
 
     exchange = Exchange()
     result = await _write_or_resolve(
-        uncertain_write(), exchange, "BTC/USDT:USDT", "lcdf-unknown"  # type: ignore[arg-type]
+        uncertain_write(),
+        exchange,
+        "BTC/USDT:USDT",
+        "lcdf-unknown",  # type: ignore[arg-type]
     )
 
     assert result is exchange.order

@@ -31,6 +31,9 @@ from modules.strategies.domain.types import (
 
 TRUNCATIONS = (10, 50, 100)
 N_CANDLES = 600
+# Strategies that read the daily trend from 1h candles warm up over weeks: give them 100 days.
+SLOW_STRATEGIES = frozenset({"mtf_trend_pullback"})
+SLOW_N_CANDLES = 2400
 
 
 def _series(n: int = N_CANDLES) -> list[str]:
@@ -95,7 +98,8 @@ CASES = [
 def test_catalog_strategies_do_not_look_ahead(
     strategy_cls: type[Strategy[Any]], params: dict[str, Any]
 ) -> None:
-    candles = make_candles(_series())
+    n = SLOW_N_CANDLES if strategy_cls.TYPE_KEY in SLOW_STRATEGIES else N_CANDLES
+    candles = make_candles(_series(n))
     _assert_no_lookahead(lambda: strategy_cls.from_params(params), candles)
 
 

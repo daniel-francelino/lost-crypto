@@ -65,9 +65,7 @@ async def test_reconciliation_reads_and_flags_positions_on_unassigned_usdm_symbo
         async def fetch_balances(self) -> dict[str, object]:
             return {}
 
-        async def fetch_positions(
-            self, symbols: list[str] | None = None
-        ) -> list[ExchangePosition]:
+        async def fetch_positions(self, symbols: list[str] | None = None) -> list[ExchangePosition]:
             observed_position_filter.append(symbols)
             return [remote_eth]
 
@@ -75,11 +73,7 @@ async def test_reconciliation_reads_and_flags_positions_on_unassigned_usdm_symbo
             return [SimpleNamespace(client_order_id="manual-btc-order")]
 
         async def fetch_all_open_orders(self) -> list[object]:
-            return [
-                SimpleNamespace(
-                    symbol="ETH/USDT:USDT", client_order_id="manual-eth-order"
-                )
-            ]
+            return [SimpleNamespace(symbol="ETH/USDT:USDT", client_order_id="manual-eth-order")]
 
     class Resolver:
         async def exchange_for(self, _connection_id: object) -> Exchange:
@@ -92,9 +86,7 @@ async def test_reconciliation_reads_and_flags_positions_on_unassigned_usdm_symbo
         async def set_desired(self, _bot_id: object, state: BotState) -> None:
             bot_states.append((state, None))
 
-        async def set_observed(
-            self, _bot_id: object, state: BotState, error: str | None
-        ) -> None:
+        async def set_observed(self, _bot_id: object, state: BotState, error: str | None) -> None:
             bot_states.append((state, error))
 
     class Orders:

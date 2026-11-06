@@ -124,4 +124,3 @@ def test_futures_risk_fields_are_in_config_changes_and_invalidate_approval_versi
     changes = config_changes(spot, futures)
 
     assert {"product", "leverage", "margin_mode", "allow_short"} <= changes.keys()
-

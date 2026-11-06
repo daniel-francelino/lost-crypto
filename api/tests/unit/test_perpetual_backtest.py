@@ -141,9 +141,7 @@ class _WarmupEntry(Strategy[int]):
 
     def evaluate(self, ctx: StrategyContext, state: int) -> StrategyResult[int]:
         signals = (
-            (
-                Signal(Side.BUY, ctx.symbol, SignalKind.ENTRY, "warmed state entry"),
-            )
+            (Signal(Side.BUY, ctx.symbol, SignalKind.ENTRY, "warmed state entry"),)
             if state == 4 and ctx.is_flat
             else ()
         )
@@ -550,9 +548,7 @@ def test_signal_close_replay_warms_strategy_before_the_trading_window() -> None:
         leverage=2,
         margin_mode=MarginMode.ISOLATED,
         connection_id=uuid4(),
-        leverage_tiers=(
-            LeverageTier(1, Decimal("0"), Decimal("1000000"), 10, Decimal("0.005")),
-        ),
+        leverage_tiers=(LeverageTier(1, Decimal("0"), Decimal("1000000"), 10, Decimal("0.005")),),
         fill_timing=FillTiming.SIGNAL_CLOSE,
     )
 
@@ -600,9 +596,7 @@ def test_perpetual_replay_blocks_reverse_entry_after_same_candle_exit() -> None:
         margin_mode=MarginMode.ISOLATED,
         allow_short=True,
         connection_id=uuid4(),
-        leverage_tiers=(
-            LeverageTier(1, Decimal("0"), Decimal("1000000"), 10, Decimal("0.005")),
-        ),
+        leverage_tiers=(LeverageTier(1, Decimal("0"), Decimal("1000000"), 10, Decimal("0.005")),),
         fill_timing=FillTiming.SIGNAL_CLOSE,
     )
 

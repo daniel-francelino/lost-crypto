@@ -176,11 +176,7 @@ def futures_position_risk(
         threshold = max(configured_buffer or Decimal(0), DEFAULT_LIQUIDATION_BUFFER_PCT)
         if distance > threshold:
             continue
-        severity = (
-            AlertSeverity.CRITICAL
-            if distance <= threshold / 2
-            else AlertSeverity.WARNING
-        )
+        severity = AlertSeverity.CRITICAL if distance <= threshold / 2 else AlertSeverity.WARNING
         source = "binance_exchange" if exchange_liquidation is not None else "local_estimate"
         out.append(
             Condition(

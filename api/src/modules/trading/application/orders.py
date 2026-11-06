@@ -246,6 +246,7 @@ class OrderExecutor:
                 or (order.product is TradingProduct.SPOT and order.side is Side.BUY)
             ):
                 await self.ensure_native_stop(bot, order.client_order_id)
+
     @_serialized
     async def resolve(self, bot: Bot, order: Order) -> None:
         """Settle an order whose outcome is unknown, by asking the exchange about it."""
@@ -365,14 +366,20 @@ class OrderExecutor:
             portfolio = None if futures else await store.portfolio.get(bot.id)
             ledger = await store.perpetual_portfolio.get(bot.id) if futures else None
             position = ledger.position if ledger is not None else None
-            quantity_value = position.quantity if position else (
-                portfolio.quantity if portfolio is not None else Decimal(0)
+            quantity_value = (
+                position.quantity
+                if position
+                else (portfolio.quantity if portfolio is not None else Decimal(0))
             )
-            stop_price = position.stop_price if position else (
-                portfolio.stop_price if portfolio is not None else None
+            stop_price = (
+                position.stop_price
+                if position
+                else (portfolio.stop_price if portfolio is not None else None)
             )
-            existing_stop = ledger.stop_order_client_id if ledger is not None else (
-                portfolio.stop_order_client_id if portfolio is not None else None
+            existing_stop = (
+                ledger.stop_order_client_id
+                if ledger is not None
+                else (portfolio.stop_order_client_id if portfolio is not None else None)
             )
             if quantity_value <= 0 or stop_price is None or existing_stop is not None:
                 if futures and quantity_value > 0 and stop_price is None:
@@ -610,9 +617,10 @@ class OrderExecutor:
         if stop is None or venue is None or venue.status in (OrderStatus.OPEN, stop.status):
             return
         await self._apply(bot, stop.id, venue)
-        if (
-            bot.config.product is TradingProduct.LINEAR_PERPETUAL
-            and venue.status in (OrderStatus.CANCELED, OrderStatus.EXPIRED, OrderStatus.REJECTED)
+        if bot.config.product is TradingProduct.LINEAR_PERPETUAL and venue.status in (
+            OrderStatus.CANCELED,
+            OrderStatus.EXPIRED,
+            OrderStatus.REJECTED,
         ):
             await self.ensure_native_stop(bot, stop.client_order_id)
 
@@ -729,10 +737,7 @@ class OrderExecutor:
         self, store: TradingStore, bot: Bot, order: Order, venue: VenueOrder
     ) -> bool:
         """Apply futures executions to the isolated ledger, never to the Spot portfolio."""
-        if (
-            venue.client_order_id != order.client_order_id
-            or venue.symbol != order.symbol
-        ):
+        if venue.client_order_id != order.client_order_id or venue.symbol != order.symbol:
             raise RuntimeError("exchange response does not match the perpetual order intent")
         ledger = await store.perpetual_portfolio.get(bot.id)
         if ledger is None:
@@ -743,11 +748,14 @@ class OrderExecutor:
             for fill in order.fills
         }
         new_fills = [
-            fill for fill in venue.fills
+            fill
+            for fill in venue.fills
             if (fill.trade_id is not None and fill.trade_id not in known_ids)
-            or (fill.trade_id is None and
-                (fill.time, fill.side, fill.quantity, fill.price, fill.fee, fill.fee_base)
-                not in known_signatures)
+            or (
+                fill.trade_id is None
+                and (fill.time, fill.side, fill.quantity, fill.price, fill.fee, fill.fee_base)
+                not in known_signatures
+            )
         ]
         order.exchange_order_id = venue.exchange_order_id or order.exchange_order_id
         applied: list[Fill] = []
@@ -816,10 +824,18 @@ class OrderExecutor:
                 pnl_delta = Decimal(0)
             inserted = await store.perpetual_portfolio.append_entry(
                 PerpetualLedgerEntry(
-                    id=self._ids.new_id(), bot_id=bot.id, occurred_at=fill.time, kind=kind,
-                    wallet_delta=wallet_delta, isolated_margin_delta=margin_delta,
-                    realized_pnl_delta=pnl_delta, fee=fee, quantity=fill.quantity,
-                    side=side, price=fill.price, source="exchange_fill",
+                    id=self._ids.new_id(),
+                    bot_id=bot.id,
+                    occurred_at=fill.time,
+                    kind=kind,
+                    wallet_delta=wallet_delta,
+                    isolated_margin_delta=margin_delta,
+                    realized_pnl_delta=pnl_delta,
+                    fee=fee,
+                    quantity=fill.quantity,
+                    side=side,
+                    price=fill.price,
+                    source="exchange_fill",
                     external_reference=fill_reference,
                 )
             )
@@ -855,14 +871,19 @@ class OrderExecutor:
             order.reserved_margin = Decimal(0)
         await store.perpetual_portfolio.save(ledger)
         await store.orders.update(order, applied)
-        await self._audit(store, bot, self._event_for(order), {
-            "client_order_id": order.client_order_id,
-            "product": order.product.value,
-            "position_side": order.position_side.value if order.position_side else None,
-            "status": order.status.value,
-            "filled_quantity": str(order.filled_quantity),
-            "avg_price": None if order.avg_fill_price is None else str(order.avg_fill_price),
-        })
+        await self._audit(
+            store,
+            bot,
+            self._event_for(order),
+            {
+                "client_order_id": order.client_order_id,
+                "product": order.product.value,
+                "position_side": order.position_side.value if order.position_side else None,
+                "status": order.status.value,
+                "filled_quantity": str(order.filled_quantity),
+                "avg_price": None if order.avg_fill_price is None else str(order.avg_fill_price),
+            },
+        )
         return order.reduce_only and bool(applied)
 
     async def _append_margin_release(

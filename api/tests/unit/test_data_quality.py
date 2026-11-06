@@ -47,9 +47,7 @@ def test_perpetual_funding_coverage_is_reported_as_uncertified_without_interval_
 def test_same_time_regular_and_special_funding_events_remain_distinct_inputs() -> None:
     at = T0 + H
     regular = FundingRate("BTC/USDT", Decimal("0.001"), at, Decimal("100"))
-    special = FundingRate(
-        "BTC/USDT", Decimal("0.002"), at, Decimal("100"), rate_type="special"
-    )
+    special = FundingRate("BTC/USDT", Decimal("0.002"), at, Decimal("100"), rate_type="special")
 
     regular_hash = hash_perpetual_inputs([], [], [regular], [], liquidation_fee_rate=Decimal(0))
     both_hash = hash_perpetual_inputs(

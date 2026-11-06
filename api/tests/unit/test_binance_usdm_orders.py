@@ -401,12 +401,25 @@ async def test_canceling_a_native_stop_completes_the_side_missing_from_the_respo
     class _AlgoClient(FakeCcxtClient):
         async def cancel_order(self, *args):
             self.last_lookup = args
-            return {"id": "6612", "clientOrderId": "x-short-sl", "side": "none", "amount": None,
-                    "status": "canceled", "type": None}
+            return {
+                "id": "6612",
+                "clientOrderId": "x-short-sl",
+                "side": "none",
+                "amount": None,
+                "status": "canceled",
+                "type": None,
+            }
 
         async def fetch_order(self, *args):
-            return {"id": "6612", "clientOrderId": "x-short-sl", "side": "buy", "amount": "0.013",
-                    "type": "stop_market", "stopPrice": "2300", "status": "canceled"}
+            return {
+                "id": "6612",
+                "clientOrderId": "x-short-sl",
+                "side": "buy",
+                "amount": "0.013",
+                "type": "stop_market",
+                "stopPrice": "2300",
+                "status": "canceled",
+            }
 
     client = _AlgoClient()
     client.market_data = _market()
@@ -544,12 +557,24 @@ async def test_live_usdm_adapter_refuses_every_order_write() -> None:
     # Second barrier behind the call sites: live Futures execution is not enabled.
     live = BinanceUsdmExchange(FakeCcxtClient(), credentials=CREDENTIALS)
     entry = MarketOrderRequest(
-        CID, SYMBOL, Side.BUY, Decimal("0.01"), product=TradingProduct.LINEAR_PERPETUAL,
-        position_side=PositionSide.LONG, leverage=2, margin_mode=MarginMode.ISOLATED,
+        CID,
+        SYMBOL,
+        Side.BUY,
+        Decimal("0.01"),
+        product=TradingProduct.LINEAR_PERPETUAL,
+        position_side=PositionSide.LONG,
+        leverage=2,
+        margin_mode=MarginMode.ISOLATED,
     )
     stop = StopOrderRequest(
-        f"{CID}-sl", SYMBOL, Decimal("0.01"), Decimal("59000"), side=Side.SELL,
-        product=TradingProduct.LINEAR_PERPETUAL, position_side=PositionSide.LONG, reduce_only=True,
+        f"{CID}-sl",
+        SYMBOL,
+        Decimal("0.01"),
+        Decimal("59000"),
+        side=Side.SELL,
+        product=TradingProduct.LINEAR_PERPETUAL,
+        position_side=PositionSide.LONG,
+        reduce_only=True,
     )
 
     with pytest.raises(ExchangeRejected, match="Demo/testnet"):
@@ -577,24 +602,47 @@ async def test_a_triggered_native_stop_is_settled_through_the_order_that_traded(
             order_id = args[0]
             if order_id == "x-short-sl":
                 return {
-                    "id": "1000000274955935", "clientOrderId": "x-short-sl", "symbol": SYMBOL,
-                    "side": "sell", "type": "market", "status": "closed", "amount": "0.013",
-                    "filled": "0", "timestamp": 1_700_000_000_000, "stopPrice": None,
-                    "info": {"algoStatus": "FINISHED", "actualOrderId": "16850088655",
-                             "triggerPrice": "2238.33"},
+                    "id": "1000000274955935",
+                    "clientOrderId": "x-short-sl",
+                    "symbol": SYMBOL,
+                    "side": "sell",
+                    "type": "market",
+                    "status": "closed",
+                    "amount": "0.013",
+                    "filled": "0",
+                    "timestamp": 1_700_000_000_000,
+                    "stopPrice": None,
+                    "info": {
+                        "algoStatus": "FINISHED",
+                        "actualOrderId": "16850088655",
+                        "triggerPrice": "2238.33",
+                    },
                 }
             assert order_id == "16850088655"
             return {
-                "id": "16850088655", "clientOrderId": "x-short-sl", "symbol": SYMBOL,
-                "side": "sell", "type": "market", "status": "closed", "amount": "0.013",
-                "filled": "0.013", "timestamp": 1_700_000_001_000, "info": {},
+                "id": "16850088655",
+                "clientOrderId": "x-short-sl",
+                "symbol": SYMBOL,
+                "side": "sell",
+                "type": "market",
+                "status": "closed",
+                "amount": "0.013",
+                "filled": "0.013",
+                "timestamp": 1_700_000_001_000,
+                "info": {},
             }
 
         async def fetch_my_trades(self, symbol, since=None, limit=None, params=None):
             assert params == {"orderId": "16850088655"}
-            return [{"id": "347889420", "amount": "0.013", "price": "2237.99",
-                     "timestamp": 1_700_000_001_000,
-                     "fee": {"cost": "0.01163754", "currency": "USDT"}}]
+            return [
+                {
+                    "id": "347889420",
+                    "amount": "0.013",
+                    "price": "2237.99",
+                    "timestamp": 1_700_000_001_000,
+                    "fee": {"cost": "0.01163754", "currency": "USDT"},
+                }
+            ]
 
     client = _TriggeredClient()
     client.market_data = _market()
