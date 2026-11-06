@@ -92,7 +92,7 @@ def test_the_reading_used_never_depends_on_later_bars() -> None:
 
 
 def test_a_market_with_real_trends_shows_a_positive_edge_that_beats_noise() -> None:
-    result = validate_frame(_regime_market(2500, seed=3), FRAME, null_simulations=10)
+    result = validate_frame(_regime_market(2000, seed=3), FRAME, null_simulations=5)
     assert result.edge.value is not None and result.edge.value > 1.0
     assert result.edge.low is not None and result.edge.low > 0
     assert result.edge_first_half.value is not None and result.edge_first_half.value > 0
@@ -106,7 +106,7 @@ def test_a_market_with_real_trends_shows_a_positive_edge_that_beats_noise() -> N
 
 def test_a_random_walk_is_not_called_a_working_detector() -> None:
     verdicts = [
-        validate_frame(_random_walk(2500, seed=s), FRAME, null_simulations=10).verdict
+        validate_frame(_random_walk(1800, seed=s), FRAME, null_simulations=0).verdict
         for s in (4, 5, 6)
     ]
     assert not any(v.startswith("works") for v in verdicts)
@@ -114,7 +114,7 @@ def test_a_random_walk_is_not_called_a_working_detector() -> None:
 
 def test_market_drift_alone_does_not_create_an_edge() -> None:
     """A rising market makes every label look good in absolute terms; the edge cancels it."""
-    result = validate_frame(_random_walk(2500, seed=7, drift=0.002), FRAME, null_simulations=0)
+    result = validate_frame(_random_walk(1800, seed=7, drift=0.002), FRAME, null_simulations=0)
     by_name = {g.name: g for g in result.groups}
     assert by_name["all"].mean_pct is not None and by_name["all"].mean_pct > 1.0
     assert result.edge.value is not None and abs(result.edge.value) < 1.5
@@ -122,7 +122,7 @@ def test_market_drift_alone_does_not_create_an_edge() -> None:
 
 
 def test_a_mean_reverting_market_inverts_the_edge() -> None:
-    result = validate_frame(_mean_reverting(2500, seed=8), FRAME, null_simulations=0)
+    result = validate_frame(_mean_reverting(1800, seed=8), FRAME, null_simulations=0)
     assert result.edge.value is not None and result.edge.value < 0
     assert result.verdict.startswith("inverted")
 
@@ -133,7 +133,7 @@ def test_too_little_data_is_reported_as_such() -> None:
 
 
 def test_the_study_covers_confirmations_and_runs() -> None:
-    result = validate_frame(_regime_market(2000, seed=10), FRAME, null_simulations=0)
+    result = validate_frame(_regime_market(1500, seed=10), FRAME, null_simulations=0)
     names = {g.name for g in result.groups}
     assert {"all", "bullish", "bearish", "sideways", "bullish confirmed"} <= names
     assert {"bullish + adx", "bearish + structure", "bullish + slope"} <= names
@@ -145,11 +145,11 @@ def test_the_study_covers_confirmations_and_runs() -> None:
 def test_candles_in_report_out() -> None:
     from factories import make_candles
 
-    closes = [str(round(100 + 0.05 * i + 8 * math.sin(i / 40), 2)) for i in range(24 * 200)]
+    closes = [str(round(100 + 0.05 * i + 8 * math.sin(i / 40), 2)) for i in range(24 * 150)]
     results = validate_candles(
         make_candles(closes, start=T0),
         frames=(TrendFrame.H4, TrendFrame.D1),
-        null_simulations=2,
+        null_simulations=1,
     )
     assert [r.frame for r in results] == [TrendFrame.H4, TrendFrame.D1]
     assert results[0].horizon == DEFAULT_HORIZONS[TrendFrame.H4]

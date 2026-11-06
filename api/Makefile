@@ -67,6 +67,7 @@ TEST_DB_URL ?= postgresql+asyncpg://lostcrypto:lostcrypto@localhost:5432/lostcry
 test-integration: export DATABASE_URL := $(TEST_DB_URL)
 test-integration: ## Testes de integração em banco separado (requer: make db)
 	-$(COMPOSE) exec -T postgres psql -U lostcrypto -c "CREATE DATABASE lostcrypto_test"
+	-$(COMPOSE) exec -T postgres psql -U lostcrypto -c "ALTER DATABASE lostcrypto_test SET synchronous_commit = off"  # testes: sem esperar o fsync a cada commit
 	$(UV) run alembic upgrade head
 	$(UV) run pytest -m integration
 

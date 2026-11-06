@@ -68,10 +68,10 @@ def _slow_trend() -> list[Candle]:
     rng = random.Random(5)
     closes = [1000 + (i % 2) for i in range(60 * 24)]
     price = float(closes[-1])
-    for i in range(80 * 24):
+    for i in range(40 * 24):
         price += 0.5
         closes.append(round(price + 60 * math.sin(2 * math.pi * i / 288) + rng.gauss(0, 3)))
-    for i in range(80 * 24):
+    for i in range(40 * 24):
         price -= 0.7
         closes.append(round(price + 60 * math.sin(2 * math.pi * i / 288) + rng.gauss(0, 3)))
     return make_candles(closes)

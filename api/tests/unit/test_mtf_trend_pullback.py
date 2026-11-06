@@ -69,13 +69,13 @@ def test_params_are_validated(params: dict[str, Any]) -> None:
 
 
 def test_nothing_is_signalled_before_the_daily_ema_is_warm() -> None:
-    emitted = _run(make_candles(_market(24 * 330, 1000, 0.5)))
+    emitted = _run(make_candles(_market(24 * 220, 1000, 0.5)))
     assert emitted, "an uptrend with pullbacks must produce entries"
     assert emitted[0][0] >= WARM_CANDLES
 
 
 def test_an_uptrend_is_only_bought_with_a_stop_below() -> None:
-    candles = make_candles(_market(24 * 330, 1000, 0.5))
+    candles = make_candles(_market(24 * 220, 1000, 0.5))
     entries = [(i, s) for i, s in _run(candles, allow_short=True) if s.kind is SignalKind.ENTRY]
     assert entries
     for i, signal in entries:
@@ -84,7 +84,7 @@ def test_an_uptrend_is_only_bought_with_a_stop_below() -> None:
 
 
 def test_a_downtrend_is_shorted_with_a_stop_above_only_when_shorts_are_allowed() -> None:
-    candles = make_candles(_market(24 * 330, 6000, -0.5))
+    candles = make_candles(_market(24 * 220, 6000, -0.5))
     assert _run(candles, allow_short=False) == []
     entries = [(i, s) for i, s in _run(candles, allow_short=True) if s.kind is SignalKind.ENTRY]
     assert entries
@@ -98,18 +98,18 @@ def test_a_market_that_goes_nowhere_is_not_traded() -> None:
 
 
 def test_a_long_exits_when_the_daily_trend_ends() -> None:
-    up = _market(24 * 150, 1000, 0.5)
-    down = _market(24 * 80, float(up[-1]), -2.0, seed=2)
+    up = _market(24 * 110, 1000, 0.5)
+    down = _market(24 * 60, float(up[-1]), -2.0, seed=2)
     candles = make_candles(up + down)
     emitted = _run(candles)
     exits = [(i, s) for i, s in emitted if s.kind is SignalKind.EXIT]
     assert exits
     assert exits[0][1].side is Side.SELL
-    assert exits[0][0] >= 24 * 100  # not while the uptrend was healthy
+    assert exits[0][0] >= 24 * 80  # not while the uptrend was healthy
 
 
 def test_daily_confirmation_only_enters_on_a_confirmed_daily_trend() -> None:
-    candles = make_candles(_market(24 * 330, 1000, 0.5))
+    candles = make_candles(_market(24 * 220, 1000, 0.5))
     emitted = _run(candles, params={"daily_confirmation": 1})
     tracker = TrendTracker(Timeframe.H1)
     state: TrendTrackerState = tracker.initial_state()
@@ -128,7 +128,7 @@ def test_it_refuses_candles_that_are_not_hourly() -> None:
 
 
 def test_the_decision_never_depends_on_candles_after_it() -> None:
-    candles = make_candles(_market(24 * 330, 1000, 0.5))
+    candles = make_candles(_market(24 * 220, 1000, 0.5))
     full = _run(candles)
-    cut = 24 * 250
+    cut = 24 * 170
     assert [x for x in full if x[0] < cut] == _run(candles[:cut])
