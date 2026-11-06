@@ -328,6 +328,20 @@ class CcxtExchange(Exchange):
         except ccxt.BaseError as exc:
             raise self._write_error(exc) from exc
         raw = {**raw, "status": raw.get("status") or "canceled"}
+        if str(raw.get("side") or "").lower() not in {"buy", "sell"}:
+            # Binance's conditional (algo) order cancel response has no side, amount or type
+            # ("none"); the order stays queryable by its client id, so complete it from there.
+            try:
+                known = await self._call(
+                    lambda: self._client.fetch_order(
+                        client_order_id, symbol, self.lookup_params(client_order_id)
+                    )
+                )
+            except ccxt.OrderNotFound as exc:
+                raise UnknownOrder(client_order_id) from exc
+            for key in ("side", "amount", "type", "stopPrice", "id"):
+                if raw.get(key) in (None, "", "none", 0):
+                    raw[key] = known.get(key)
         return parse_order(raw, symbol, trades=[])
 
     async def fetch_open_orders(self, symbol: str) -> list[VenueOrder]:

@@ -396,6 +396,30 @@ async def test_fetch_mark_price_never_uses_the_last_price() -> None:
         await BinanceUsdmExchange(_MarkClient(payload)).fetch_mark_price(SYMBOL)
 
 
+async def test_canceling_a_native_stop_completes_the_side_missing_from_the_response() -> None:
+    # Binance's algo-order cancel response has no side ("none"): real CCXT 4.5.91 behavior.
+    class _AlgoClient(FakeCcxtClient):
+        async def cancel_order(self, *args):
+            self.last_lookup = args
+            return {"id": "6612", "clientOrderId": "x-short-sl", "side": "none", "amount": None,
+                    "status": "canceled", "type": None}
+
+        async def fetch_order(self, *args):
+            return {"id": "6612", "clientOrderId": "x-short-sl", "side": "buy", "amount": "0.013",
+                    "type": "stop_market", "stopPrice": "2300", "status": "canceled"}
+
+    client = _AlgoClient()
+    client.market_data = _market()
+    exchange = BinanceUsdmExchange(client, credentials=CREDENTIALS, demo=True)
+
+    order = await exchange.cancel_order(SYMBOL, "x-short-sl")
+
+    assert order.status is OrderStatus.CANCELED
+    assert order.side is Side.BUY
+    assert order.quantity == Decimal("0.013")
+    assert order.order_type == "stop_loss"
+
+
 async def test_positions_take_leverage_from_symbol_configuration_when_v3_omits_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
