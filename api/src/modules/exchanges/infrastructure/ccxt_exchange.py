@@ -82,6 +82,11 @@ class CcxtExchange(Exchange):
                 client.set_sandbox_mode(True)  # the exchange's test environment, fake money
             if demo:
                 self._set_demo_urls(client)
+                # CCXT's load_markets() also calls the signed SAPI wallet endpoint
+                # (capital/config/getall) when it has credentials. The Demo hosts do not serve
+                # SAPI, so a valid Demo key fails with -2008 "Invalid Api-Key ID" before any
+                # market is loaded. Markets come from the public exchangeInfo, not from SAPI.
+                client.options["fetchCurrencies"] = False
             # An adapter serves exactly one environment. Verify critical trade endpoints before
             # exposing the client, so it cannot silently target the wrong trading environment.
             api_urls = client.urls.get("api")

@@ -94,6 +94,32 @@ async def test_usdm_market_info_accepts_active_usdt_linear_contract() -> None:
     assert info.step_size == Decimal("0.001")
 
 
+async def test_usdm_open_orders_for_a_symbol_include_normalized_native_stops() -> None:
+    exchange, client = _exchange()
+    standard = {
+        "id": "1",
+        "clientOrderId": "entry-order",
+        "symbol": SYMBOL,
+        "side": "buy",
+        "type": "limit",
+        "status": "open",
+        "amount": "0.01",
+        "filled": "0",
+        "timestamp": 1_700_000_000_000,
+    }
+    stop = {**standard, "id": "2", "clientOrderId": "entry-order-sl", "type": "stop_market"}
+
+    async def fetch_open_orders(symbol, since=None, limit=None, params=None):
+        return [stop] if params and params.get("trigger") else [standard]
+
+    client.fetch_open_orders = fetch_open_orders  # type: ignore[method-assign]
+
+    orders = await exchange.fetch_open_orders(SYMBOL)
+
+    # Reconciler and supervisor read ``order.client_order_id`` on every item.
+    assert [order.client_order_id for order in orders] == ["entry-order", "entry-order-sl"]
+
+
 async def test_usdm_can_list_open_orders_across_the_account() -> None:
     exchange, client = _exchange()
     calls: list[tuple[object, ...]] = []
@@ -336,6 +362,85 @@ async def test_usdm_short_protective_stop_uses_algo_order_parameters() -> None:
         "clientAlgoId": "x-short-sl",
         "trigger": True,
     }
+
+
+class _MarkClient(FakeCcxtClient):
+    def __init__(self, payload: dict[str, object]) -> None:
+        super().__init__()
+        self.payload = payload
+
+    async def fetch_mark_price(self, symbol: str) -> dict[str, object]:
+        return self.payload
+
+
+async def test_fetch_mark_price_reads_the_ccxt_ticker_structure() -> None:
+    # Real CCXT 4.5.91 shape for USD-M premiumIndex (captured from the Demo host).
+    payload = {
+        "symbol": SYMBOL,
+        "timestamp": 1793926611000,
+        "last": None,
+        "markPrice": 2243.85,
+        "indexPrice": 2244.47674419,
+        "info": {"markPrice": "2243.85000000", "time": "1793926611000"},
+    }
+    mark = await BinanceUsdmExchange(_MarkClient(payload)).fetch_mark_price(SYMBOL)
+
+    assert mark.price == Decimal("2243.85")
+    assert mark.timestamp == datetime.fromtimestamp(1793926611, UTC)
+
+
+async def test_fetch_mark_price_never_uses_the_last_price() -> None:
+    payload = {"symbol": SYMBOL, "timestamp": 1793926611000, "last": 99, "info": {}}
+
+    with pytest.raises(ExchangeRejected):
+        await BinanceUsdmExchange(_MarkClient(payload)).fetch_mark_price(SYMBOL)
+
+
+async def test_positions_take_leverage_from_symbol_configuration_when_v3_omits_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Position Information V3 (CCXT 4.5 default) has no "leverage" field: real Demo payload shape.
+    _, client = _exchange()
+    exchange = BinanceUsdmExchange(client, credentials=CREDENTIALS, demo=True)
+    configuration_reads: list[str] = []
+
+    async def fetch_positions(symbols):
+        return [
+            {
+                "symbol": SYMBOL,
+                "contracts": 0.013,
+                "side": "short",
+                "marginMode": "isolated",
+                "entryPrice": 2243.85,
+                "markPrice": 2243.0,
+                "liquidationPrice": 3349.04,
+                "notional": 29.18,
+                "unrealizedPnl": 0.01,
+                "info": {"positionAmt": "-0.013", "isolatedWallet": "14.59"},
+            }
+        ]
+
+    async def fetch_margin_mode(symbol):
+        configuration_reads.append(symbol)
+        return {"marginMode": "isolated", "info": {"leverage": "2"}}
+
+    monkeypatch.setattr(client, "fetch_positions", fetch_positions, raising=False)
+    monkeypatch.setattr(client, "fetch_margin_mode", fetch_margin_mode, raising=False)
+
+    (position,) = await exchange.fetch_positions([SYMBOL])
+
+    assert position.leverage == 2
+    assert configuration_reads == [SYMBOL]
+
+
+def test_demo_client_does_not_load_currencies_through_sapi() -> None:
+    # The Demo hosts have no SAPI: with credentials CCXT would call capital/config/getall during
+    # load_markets() and fail with -2008 for a valid Demo key.
+    demo = BinanceUsdmExchange(credentials=CREDENTIALS, demo=True)
+    live = BinanceUsdmExchange(credentials=CREDENTIALS)
+
+    assert demo._client.options["fetchCurrencies"] is False
+    assert live._client.options["fetchCurrencies"] is not False
 
 
 async def test_installed_ccxt_routes_usdm_stop_to_algo_order_with_expected_fields() -> None:

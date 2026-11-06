@@ -94,10 +94,19 @@ class BinanceUsdmExchange(CcxtExchange):
 
     async def fetch_mark_price(self, symbol: str) -> MarkPrice:
         raw = await self._call(lambda: self._client.fetch_mark_price(symbol))
+        # CCXT 4.5 returns the ticker structure with "markPrice"; the raw premiumIndex payload
+        # keeps the same field in "info". Never fall back to "last": it is not the mark price.
+        info = raw.get("info")
+        value = raw.get("markPrice") or raw.get("mark")
+        if value is None and isinstance(info, dict):
+            value = info.get("markPrice")
+        timestamp = raw.get("timestamp") or (info.get("time") if isinstance(info, dict) else None)
+        if value is None or timestamp is None:
+            raise ExchangeRejected(f"{symbol}: the exchange did not return a mark price")
         return MarkPrice(
             symbol=symbol,
-            price=Decimal(str(raw["mark"])),
-            timestamp=datetime.fromtimestamp(int(raw["timestamp"]) / 1000, UTC),
+            price=Decimal(str(value)),
+            timestamp=datetime.fromtimestamp(int(timestamp) / 1000, UTC),
         )
 
     async def fetch_mark_candles(
@@ -244,11 +253,17 @@ class BinanceUsdmExchange(CcxtExchange):
             can_trade_derivatives=bool(raw.get("enableFutures")),
         )
 
+    async def _configured_leverage(self, symbol: str) -> int | None:
+        configuration = await self._call(lambda: self._client.fetch_margin_mode(symbol))
+        info = configuration.get("info") if isinstance(configuration, dict) else None
+        return _optional_integer(info.get("leverage")) if isinstance(info, dict) else None
+
     async def fetch_positions(self, symbols: list[str] | None = None) -> list[ExchangePosition]:
         """Read non-zero USD-M positions and normalize Binance/CCXT account fields."""
         self._require_authentication()
         raws = await self._call(lambda: self._client.fetch_positions(symbols))
         positions: list[ExchangePosition] = []
+        configured_leverage: dict[str, int | None] = {}
         for raw in raws:
             info = raw.get("info") or {}
             contracts = _optional_decimal(raw.get("contracts"))
@@ -278,15 +293,24 @@ class BinanceUsdmExchange(CcxtExchange):
             )
             if isolated_margin is None and margin_mode is MarginMode.ISOLATED:
                 isolated_margin = _optional_decimal(raw.get("initialMargin"))
+            symbol = str(raw.get("symbol") or "")
+            leverage = _optional_integer(raw.get("leverage"))
+            if leverage is None and symbol:
+                # Position Information V3 (the CCXT default) no longer returns "leverage". It is
+                # a symbol setting, so read it from the symbol's configuration. Without it every
+                # remote position looks different from the ledger and the reconciler pauses bots.
+                if symbol not in configured_leverage:
+                    configured_leverage[symbol] = await self._configured_leverage(symbol)
+                leverage = configured_leverage[symbol]
             positions.append(
                 ExchangePosition(
-                    symbol=str(raw.get("symbol") or ""),
+                    symbol=symbol,
                     side=PositionSide(raw_side),
                     quantity=contracts,
                     entry_price=_positive_decimal(raw.get("entryPrice")),
                     mark_price=_positive_decimal(raw.get("markPrice")),
                     unrealized_pnl=_optional_decimal(raw.get("unrealizedPnl")) or Decimal(0),
-                    leverage=_optional_integer(raw.get("leverage")),
+                    leverage=leverage,
                     margin_mode=margin_mode,
                     isolated_margin=isolated_margin,
                     liquidation_price=_positive_decimal(raw.get("liquidationPrice")),
@@ -469,7 +493,9 @@ class BinanceUsdmExchange(CcxtExchange):
         conditional = await self._call(
             lambda: self._client.fetch_open_orders(symbol, None, None, {"trigger": True})
         )
-        return [*standard, *conditional]
+        # Conditional (algo) orders are raw CCXT dicts: normalize them like the standard ones, or
+        # callers that read ``order.client_order_id`` fail as soon as a native stop is open.
+        return [*standard, *(parse_order(raw, symbol, trades=[]) for raw in conditional)]
 
     async def fetch_all_open_orders(self) -> list[VenueOrder]:
         """Read every standard and conditional USD-M order for account-wide reconciliation."""

@@ -134,7 +134,8 @@ async def test_binance_usdm_demo_order_stop_stream_and_reduce_only_round_trip(
         )
         mark: MarkPrice = await exchange.fetch_mark_price(SYMBOL)
         mark_age = (datetime.now(UTC) - mark.timestamp).total_seconds()
-        assert 0 <= mark_age <= 15, f"Demo mark price is stale or from the future ({mark_age:.1f}s)"
+        # A local clock a second or two behind Binance's makes a fresh mark look "from the future".
+        assert -2 <= mark_age <= 15, f"Demo mark price is stale or off-clock ({mark_age:.1f}s)"
         quantity = normalize_quantity(target_notional / mark.price, mark.price, market)
         actual_notional = quantity * mark.price
         balances = await exchange.fetch_balances()
@@ -146,8 +147,11 @@ async def test_binance_usdm_demo_order_stop_stream_and_reduce_only_round_trip(
             )
 
         # Give the event stream time to establish its Demo listen key and WebSocket before entry.
+        # Opening the stream takes a time sync, a listen-key request and a WebSocket handshake;
+        # 1 s was not enough on a normal connection and the fill event was published before the
+        # socket was open (events are not replayed).
         stream_task = asyncio.create_task(_next_order_update(exchange, entry_id))
-        await asyncio.sleep(1)
+        await asyncio.sleep(5)
         entry_request = MarketOrderRequest(
             entry_id,
             SYMBOL,
