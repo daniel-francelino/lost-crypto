@@ -114,10 +114,10 @@ export function SymbolsPage() {
         open={adding}
         onOpenChange={setAdding}
         title="Adicionar moedas"
-        description="A lista vem direto da Binance, das mais negociadas para as menos. Role para carregar mais."
+        description="A lista vem direto da Binance, das mais negociadas para as menos. Ligue o switch para cadastrar a moeda; desligue para desativá-la."
         className="w-full sm:max-w-xl"
       >
-        <SymbolPicker onAdded={() => setAdding(false)} />
+        <SymbolPicker />
       </Slideover>
     </div>
   );

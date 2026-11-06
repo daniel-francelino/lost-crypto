@@ -6,8 +6,6 @@ import {
 } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, type DataTableColumn } from "lost-ui/data/data-table";
-import { Badge } from "lost-ui/ui/badge";
-import { Button } from "lost-ui/ui/button";
 import { Switch } from "lost-ui/ui/switch";
 import { toast } from "lost-ui/ui/sonner";
 import { Tabs, TabsList, TabsTrigger } from "lost-ui/ui/tabs";
@@ -32,7 +30,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 const STALE_MS = 60_000;
 const ALWAYS_CARDS = Number.MAX_SAFE_INTEGER;
 
-type SymbolPickerProps = { onAdded: () => void };
+type Change = { row: AvailableSymbol; active: boolean };
 
 function PairIdentity({ row }: { row: AvailableSymbol }) {
   return (
@@ -48,37 +46,28 @@ function PairIdentity({ row }: { row: AvailableSymbol }) {
   );
 }
 
-type RowToggle = (row: AvailableSymbol, active: boolean) => void;
-
-function RowState({
-  row,
-  pendingId,
-  onToggle,
-}: {
+type PairSwitchProps = {
   row: AvailableSymbol;
-  pendingId: string | undefined;
-  onToggle: RowToggle;
-}) {
-  if (row.registry_id === null) return null;
+  pending: boolean;
+  onToggle: (change: Change) => void;
+};
+
+function PairSwitch({ row, pending, onToggle }: PairSwitchProps) {
   return (
-    <span className="flex items-center gap-2">
-      <Badge variant="outline">Cadastrada</Badge>
-      <Switch
-        checked={row.active}
-        disabled={pendingId === row.registry_id}
-        onCheckedChange={(active) => onToggle(row, active)}
-        aria-label={`${row.active ? "Desativar" : "Ativar"} ${displaySymbol(row.symbol)}`}
-      />
-    </span>
+    <Switch
+      checked={row.active}
+      disabled={pending}
+      onCheckedChange={(active) => onToggle({ row, active })}
+      aria-label={`${row.active ? "Desativar" : "Ativar"} ${displaySymbol(row.symbol)}`}
+    />
   );
 }
 
-export function SymbolPicker({ onAdded }: SymbolPickerProps) {
+export function SymbolPicker() {
   const client = useQueryClient();
   const [exchange, setExchange] = useState<string>(ExchangeId.BinanceUsdm);
   const [sort, setSort] = useState<string>(AvailableSort.Volume);
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<string[]>([]);
   const available = useInfiniteQuery({
     queryKey: QueryKey.Trends.available(exchange, query, sort),
     queryFn: ({ pageParam, signal }) =>
@@ -94,46 +83,30 @@ export function SymbolPicker({ onAdded }: SymbolPickerProps) {
   const rows = available.data?.pages.flatMap((page) => page.items) ?? [];
   const total = available.data?.pages[0]?.total ?? 0;
   const toggle = useMutation({
-    mutationFn: (change: { id: string; active: boolean }) =>
-      setRegisteredSymbolActive(change.id, change.active),
+    mutationFn: ({ row, active }: Change) =>
+      row.registry_id === null
+        ? addRegisteredSymbol(exchange, row.symbol)
+        : setRegisteredSymbolActive(row.registry_id, active),
     onSuccess: async (updated) => {
       await client.invalidateQueries({ queryKey: QueryKey.Trends.all() });
       toast.success(updated.active ? "Moeda ativada." : "Moeda desativada.");
     },
     onError: (failure) => toast(errorMessage(failure)),
   });
-  const onToggle: RowToggle = (row, active) => {
-    if (row.registry_id !== null) toggle.mutate({ id: row.registry_id, active });
-  };
-  const pendingId = toggle.isPending ? toggle.variables?.id : undefined;
+  const pendingSymbol = toggle.isPending ? toggle.variables?.row.symbol : undefined;
   const columns: DataTableColumn<AvailableSymbol>[] = [
     { id: "coin", header: "Moeda", cell: (row) => <PairIdentity row={row} /> },
     {
-      id: "state",
+      id: "active",
       header: "",
-      cell: (row) => <RowState row={row} pendingId={pendingId} onToggle={onToggle} />,
+      cell: (row) => (
+        <PairSwitch row={row} pending={pendingSymbol === row.symbol} onToggle={toggle.mutate} />
+      ),
     },
   ];
-  const add = useMutation({
-    mutationFn: (symbols: readonly string[]) =>
-      Promise.allSettled(symbols.map((symbol) => addRegisteredSymbol(exchange, symbol))),
-    onSuccess: async (results) => {
-      const refused = results.filter((item) => item.status === "rejected");
-      const added = results.length - refused.length;
-      await client.invalidateQueries({ queryKey: QueryKey.Trends.all() });
-      setSelected([]);
-      if (added > 0) {
-        toast.success(`${added} moeda(s) cadastrada(s). O worker começa a calcular a tendência.`);
-      }
-      refused.forEach((item) => toast(errorMessage(item.reason)));
-      if (added > 0) onAdded();
-    },
-    onError: (failure) => toast(errorMessage(failure)),
-  });
 
   const changeExchange = (value: string) => {
     setExchange(value);
-    setSelected([]);
     setQuery("");
   };
 
@@ -176,13 +149,6 @@ export function SymbolPicker({ onAdded }: SymbolPickerProps) {
           searchDebounce={SEARCH_DEBOUNCE_MS}
           searchPlaceholder="Buscar moeda (BTC, SOL…)"
           onSearchChange={setQuery}
-          selectable
-          selected={selected}
-          onSelectedChange={setSelected}
-          isRowSelectable={(row) => row.registry_id === null}
-          selectionDisabledReason={(row) =>
-            row.registry_id === null ? null : "Já cadastrada: use o switch"
-          }
           paginationMode="infinite"
           hasMore={available.hasNextPage}
           onLoadMore={() => void available.fetchNextPage()}
@@ -193,7 +159,11 @@ export function SymbolPicker({ onAdded }: SymbolPickerProps) {
             <span className="flex items-center gap-3">
               <PairIdentity row={row} />
               <span className="ml-auto">
-                <RowState row={row} pendingId={pendingId} onToggle={onToggle} />
+                <PairSwitch
+                  row={row}
+                  pending={pendingSymbol === row.symbol}
+                  onToggle={toggle.mutate}
+                />
               </span>
             </span>
           )}
@@ -201,22 +171,12 @@ export function SymbolPicker({ onAdded }: SymbolPickerProps) {
           empty={
             <Empty
               title="Nenhum par encontrado"
-              description="Ajuste a busca. Só pares cotados em USDT são oferecidos."
+              description="Ajuste a busca. Só pares de cripto cotados em USDT são oferecidos."
             />
           }
         />
       )}
-      <div className="flex shrink-0 items-center justify-between gap-3 border-t pt-3">
-        <span className="text-xs text-muted-foreground">
-          {total} par(es) · {selected.length} selecionada(s)
-        </span>
-        <Button
-          disabled={selected.length === 0 || add.isPending}
-          onClick={() => add.mutate(selected)}
-        >
-          {selected.length === 0 ? "Adicionar" : `Adicionar ${selected.length}`}
-        </Button>
-      </div>
+      <p className="shrink-0 border-t pt-3 text-xs text-muted-foreground">{total} par(es)</p>
     </div>
   );
 }

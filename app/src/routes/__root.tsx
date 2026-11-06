@@ -37,7 +37,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <App language="pt">
+      <App language="pt" toaster={null}>
         <Outlet />
       </App>
     </QueryClientProvider>
