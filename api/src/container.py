@@ -58,6 +58,10 @@ from modules.trading.application.status import StatusService
 from modules.trading.application.supervisor import BotSupervisor
 from modules.trading.application.trader import BotTrader
 from modules.trading.infrastructure.store import SqlAlchemyStore
+from modules.trends.application.detector import DetectorConfig, TrendDetector
+from modules.trends.application.ports import TrendStore
+from modules.trends.application.service import TrendService
+from modules.trends.infrastructure.repository import SqlAlchemyTrendStore
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +79,9 @@ class Container:
     backtest_stores: Callable[[], AbstractAsyncContextManager[BacktestStore]]
     trading_stores: Callable[[], AbstractAsyncContextManager[TradingStore]]
     alert_stores: Callable[[], AbstractAsyncContextManager[MonitorStore]]
+    trend_stores: Callable[[], AbstractAsyncContextManager[TrendStore]]
     market_data: MarketDataService
+    trends: TrendService
     backtests: BacktestService
     bots: BotService
     kill_switch: KillSwitchService
@@ -106,6 +112,7 @@ def build_container(
     backtest_stores = make_store_factory(session_factory, SqlAlchemyBacktestStore)
     trading_stores = make_store_factory(session_factory, SqlAlchemyStore)
     alert_stores = make_store_factory(session_factory, SqlAlchemyStore)
+    trend_stores = make_store_factory(session_factory, SqlAlchemyTrendStore)
     live = LiveService(trading_stores, settings, clock, ids)
     keys = settings.master_keys
     vault = CredentialVault(keys) if keys else None  # None: connections are unavailable
@@ -149,7 +156,9 @@ def build_container(
         backtest_stores=backtest_stores,
         trading_stores=trading_stores,
         alert_stores=alert_stores,
+        trend_stores=trend_stores,
         market_data=MarketDataService(import_stores, exchanges, clock, ids),
+        trends=TrendService(trend_stores, exchanges, clock, ids),
         backtests=backtests,
         bots=bots,
         kill_switch=KillSwitchService(trading_stores),
@@ -205,6 +214,7 @@ class JobRunner:
         updater: CandleUpdater | None = None,
         alert_monitor: AlertMonitor | None = None,
         futures_user_stream: FuturesUserStreamMonitor | None = None,
+        trend_detector: TrendDetector | None = None,
     ) -> None:
         self._importer = importer
         self._executor = executor
@@ -215,6 +225,7 @@ class JobRunner:
         self._updater = updater
         self._alert_monitor = alert_monitor
         self._futures_user_stream = futures_user_stream
+        self._trend_detector = trend_detector
 
     async def recover(self) -> int:
         """Jobs left 'running' by a crashed worker are queued again (all jobs are idempotent).
@@ -243,6 +254,11 @@ class JobRunner:
                 await self._updater.run_if_due()
             except Exception:
                 logger.exception("candle update failed")
+        if self._trend_detector is not None:
+            try:
+                await self._trend_detector.run_if_due()
+            except Exception:
+                logger.exception("trend detection failed")
         if self._alert_monitor is not None:
             await self._alert_monitor.run_worker_if_due()
         return (
@@ -301,6 +317,20 @@ def build_candle_updater(container: Container) -> CandleUpdater:
             discover_every=timedelta(seconds=settings.candle_update_discover_seconds),
             max_age=timedelta(days=settings.candle_update_max_age_days),
             stale_after_candles=settings.candle_stale_after_candles,
+        ),
+    )
+
+
+def build_trend_detector(container: Container) -> TrendDetector:
+    settings = container.settings
+    return TrendDetector(
+        container.trend_stores,
+        container.exchanges,
+        container.clock,
+        DetectorConfig(
+            interval=timedelta(seconds=settings.trend_detector_interval_seconds),
+            grace=timedelta(seconds=settings.trend_detector_grace_seconds),
+            warmup_bars=settings.trend_warmup_bars,
         ),
     )
 
@@ -389,4 +419,5 @@ def build_job_runner(container: Container) -> JobRunner:
             executor,
             container.clock,
         ),
+        build_trend_detector(container) if settings.trend_detector_enabled else None,
     )

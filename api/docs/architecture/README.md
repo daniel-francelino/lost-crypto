@@ -26,6 +26,7 @@ Architectural reference for the Lost Crypto backend. The documents describe the 
 | 16 | [Futures delivery plan](16-futures-delivery-plan.md) | Phased implementation plan and release gates for operational Binance USDⓈ-M futures |
 | 17 | [Binance USD-M perpetual v1 decision](17-usdm-v1-adr.md) | Product identity, account invariants, margin mode and release constraints |
 | 18 | [Binance Demo integration](18-binance-demo-integration.md) | Demo credentials, Spot and USDⓈ-M endpoints, setup, safeguards, and troubleshooting |
+| 19 | [Trend detector](19-trend-detector.md) | EMA trend per timeframe (1w/1d/4h/1h), confirmation checks, hourly pipeline stored in PostgreSQL, symbol registry |
 
 ## Key decisions (summary)
 

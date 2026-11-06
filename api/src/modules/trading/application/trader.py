@@ -34,6 +34,7 @@ from modules.execution.application.ports import SignalRecord
 from modules.execution.domain.fills import slipped_price
 from modules.execution.domain.orders import Order, make_client_order_id
 from modules.execution.venues.paper import PaperExchangeGateway, StaticPriceFeed
+from modules.market_data.application.candle_fetch import fetch_candles_since
 from modules.market_data.domain.models import Candle, MarketInfo, floor_to_timeframe
 from modules.market_data.domain.quality import CandleProblem, candle_problems
 from modules.portfolio.domain.models import InsufficientFunds, PortfolioSnapshot, PortfolioState
@@ -60,7 +61,6 @@ from modules.risk_management.domain.stops import ExitReason, check_protective_ex
 from modules.strategies.domain.base import Strategy
 from modules.strategies.domain.registry import StrategyRegistry
 from modules.strategies.domain.types import Side, Signal, SignalKind, StrategyContext
-from modules.trading.application.candle_fetch import fetch_candles_since
 from modules.trading.application.orders import OrderExecutor
 from modules.trading.application.perpetual_paper import PerpetualDemoTrader, PerpetualPaperTrader
 from modules.trading.application.ports import TradingStore

@@ -71,6 +71,12 @@ class Settings(BaseSettings):
     candle_update_discover_seconds: float = 600.0
     candle_update_max_age_days: float = 7.0
     candle_stale_after_candles: int = 3
+    # Trend detector (worker): a pass looks for timeframes whose bar just closed; only those are
+    # fetched and classified. Warm-up is the bars of history a timeframe starts from.
+    trend_detector_enabled: bool = True
+    trend_detector_interval_seconds: float = 60.0
+    trend_detector_grace_seconds: float = 5.0
+    trend_warmup_bars: int = 150
     # In-app alerts: how often conditions are checked, how long a resolved alert may be
     # reopened instead of duplicated, and how long resolved and read alerts are kept.
     alert_evaluation_seconds: float = 15.0

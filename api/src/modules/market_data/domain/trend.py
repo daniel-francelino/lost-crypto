@@ -347,6 +347,15 @@ def _geometry(frame: TrendFrame) -> tuple[int, int]:
     return int(frame.delta.total_seconds()), _WEEK_OFFSET_SECONDS if frame is TrendFrame.W1 else 0
 
 
+def frame_floor(frame: TrendFrame, moment: datetime) -> datetime:
+    """Start of the ``frame`` bar containing ``moment`` (UTC; weeks start on Monday)."""
+    if moment.tzinfo is None:
+        raise ValueError("naive datetime not allowed; use timezone-aware UTC")
+    length, offset = _geometry(frame)
+    seconds = int(moment.timestamp()) - offset
+    return datetime.fromtimestamp(seconds - seconds % length + offset, UTC)
+
+
 def add_candle(
     bucket: Bucket, candle: Candle, frame: TrendFrame, base_seconds: int
 ) -> tuple[Bucket, Bar | None]:
@@ -464,7 +473,10 @@ class TrendTracker:
 
     def serialize(self, state: TrendTrackerState) -> dict[str, Any]:
         return {
-            frame.value: {"bucket": _dump_bucket(fs.bucket), "indicators": _dump(fs.indicators)}
+            frame.value: {
+                "bucket": _dump_bucket(fs.bucket),
+                "indicators": dump_indicators(fs.indicators),
+            }
             for frame, fs in state.frames.items()
         }
 
@@ -475,7 +487,7 @@ class TrendTracker:
             frames[frame] = (
                 FrameState()
                 if item is None
-                else FrameState(_load_bucket(item["bucket"]), _load(item["indicators"]))
+                else FrameState(_load_bucket(item["bucket"]), load_indicators(item["indicators"]))
             )
         return TrendTrackerState(frames)
 
@@ -521,7 +533,7 @@ def _load_bucket(raw: Mapping[str, Any]) -> Bucket:
                   _num(raw["low"]))  # fmt: skip
 
 
-def _dump(s: IndicatorState) -> dict[str, Any]:
+def dump_indicators(s: IndicatorState) -> dict[str, Any]:
     return {
         "bars": s.bars,
         "last_open_time": None if s.last_open_time is None else s.last_open_time.isoformat(),
@@ -539,7 +551,7 @@ def _dump(s: IndicatorState) -> dict[str, Any]:
     }  # fmt: skip
 
 
-def _load(raw: Mapping[str, Any]) -> IndicatorState:
+def load_indicators(raw: Mapping[str, Any]) -> IndicatorState:
     def trend(value: str | None) -> Trend | None:
         return None if value is None else Trend(value)
 

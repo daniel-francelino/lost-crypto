@@ -11,6 +11,7 @@ import modules.notifications.infrastructure.orm
 import modules.portfolio.infrastructure.orm
 import modules.risk_management.infrastructure.orm
 import modules.trading.infrastructure.orm
+import modules.trends.infrastructure.orm
 
 __all__ = [
     "modules",

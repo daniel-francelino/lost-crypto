@@ -27,6 +27,7 @@ from modules.execution.application.ports import SignalRecord
 from modules.execution.domain.fills import simulate_market_fill
 from modules.execution.domain.normalizer import OrderRejected, normalize_quantity, round_price
 from modules.execution.domain.orders import Fill, Order, make_client_order_id
+from modules.market_data.application.candle_fetch import fetch_candles_since
 from modules.market_data.domain.models import (
     Candle,
     FundingRate,
@@ -55,7 +56,6 @@ from modules.risk_management.domain.perpetual import size_linear_perpetual_entry
 from modules.strategies.domain.base import Strategy
 from modules.strategies.domain.registry import StrategyRegistry
 from modules.strategies.domain.types import Side, Signal, SignalKind, StrategyContext
-from modules.trading.application.candle_fetch import fetch_candles_since
 from modules.trading.application.orders import OrderExecutor
 from modules.trading.application.ports import TradingStore
 from modules.trading.domain.models import TradingSession, max_signal_age, warmup_candles

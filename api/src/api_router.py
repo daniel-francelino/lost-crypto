@@ -11,6 +11,7 @@ from modules.market_data.presentation.router import router as market_data_router
 from modules.notifications.presentation.router import router as alerts_router
 from modules.risk_management.presentation.router import router as system_router
 from modules.strategies.presentation.router import router as strategies_router
+from modules.trends.presentation.router import router as trends_router
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(health_router)  # health checks stay open for probes
@@ -27,6 +28,7 @@ for _router in (
     system_router,
     audit_router,
     alerts_router,
+    trends_router,
 ):
     api_router.include_router(_router, dependencies=_protected)
 # Accepts secrets: also refuses to work while no token is configured at all.
