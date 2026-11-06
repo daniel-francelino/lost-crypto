@@ -22,6 +22,8 @@ from modules.trading.application.trader import TradingStoreFactory
 
 logger = logging.getLogger(__name__)
 ACCOUNT_WIDE_ORDER_SCAN_SECONDS = 60.0
+# Binance disconnects a private socket after 24 h; an end after ~23 h is the scheduled one.
+PLANNED_STREAM_END_SECONDS = 23 * 3600.0
 
 
 def _is_active(bot: Bot) -> bool:
@@ -84,6 +86,8 @@ class FuturesUserStreamMonitor:
     async def _run_connection(self, connection_id: UUID) -> None:
         delay = 2
         while True:
+            stream_started: float | None = None
+            key_expired = False
             try:
                 exchange = await self._resolver.exchange_for(connection_id)
                 if exchange.capabilities.exchange_id != "binance-usdm":
@@ -94,9 +98,12 @@ class FuturesUserStreamMonitor:
                 await self._reconcile_clean(connection_id, inspect_unowned_futures_orders=True)
                 last_reconcile = 0.0
                 last_account_order_scan = asyncio.get_running_loop().time()
+                stream_started = asyncio.get_running_loop().time()
                 async for event in exchange.stream_user_events():
                     delay = 2
                     event_type = str(event.get("e") or event.get("eventType") or "")
+                    if event_type == "listenKeyExpired":
+                        key_expired = True
                     if event_type in {"MARGIN_CALL", "ACCOUNT_CONFIG_UPDATE"}:
                         await self._pause_connection(
                             connection_id,
@@ -132,6 +139,17 @@ class FuturesUserStreamMonitor:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
+                if self._is_planned_end(stream_started, key_expired):
+                    # Binance closes every private socket after 24 h and expires listen keys:
+                    # that is routine, not a fault. The top of this loop re-reads the account
+                    # over REST (orders, stops, funding, reconciliation) before reconnecting,
+                    # and the positions keep their resting native stops meanwhile.
+                    logger.info(
+                        "Binance USD-M private stream for connection %s ended as scheduled; "
+                        "resyncing and reconnecting",
+                        connection_id,
+                    )
+                    continue
                 logger.error(
                     "Binance USD-M private stream unavailable for connection %s (%s)",
                     connection_id,
@@ -168,6 +186,14 @@ class FuturesUserStreamMonitor:
                         delay = min(delay * 2, 60)
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, 60)
+
+    @staticmethod
+    def _is_planned_end(stream_started: float | None, key_expired: bool) -> bool:
+        if key_expired:
+            return True
+        if stream_started is None:
+            return False
+        return asyncio.get_running_loop().time() - stream_started >= PLANNED_STREAM_END_SECONDS
 
     async def _reconcile_clean(
         self, connection_id: UUID, *, inspect_unowned_futures_orders: bool

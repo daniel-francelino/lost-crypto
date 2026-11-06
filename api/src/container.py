@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import timedelta
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
@@ -319,6 +320,16 @@ def build_job_runner(container: Container) -> JobRunner:
         timedelta(seconds=settings.reconcile_absent_after_seconds),
         live_limits,
     )
+    # A Futures position whose protective stop cannot be placed is closed (reduce-only) instead
+    # of being left unprotected behind a paused bot.
+    close_service = PerpetualCloseService(
+        container.trading_stores, container.resolver, executor, container.clock, container.ids
+    )
+
+    async def emergency_close(bot_id: UUID, reason: str) -> object:
+        return await close_service.close(bot_id, actor="system", reason=reason)
+
+    executor.emergency_close = emergency_close
     reconciler = Reconciler(container.trading_stores, container.resolver, executor, container.clock)
     trader = BotTrader(
         container.trading_stores,

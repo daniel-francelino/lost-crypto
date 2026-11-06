@@ -76,3 +76,42 @@ async def test_paper_trader_keeps_maintenance_tiers_beyond_entry_leverage_limit(
         ConflictError, match="no Binance leverage tier covers notional 60000 at 10x"
     ):
         _tier_for(tiers, D("60000"), leverage=10)
+
+
+class _DemoResolver:
+    async def environment_for(self, connection_id):
+        from modules.exchanges.domain.connections import Environment
+
+        return Environment.DEMO
+
+
+class _CountingExchanges:
+    def __init__(self) -> None:
+        self.market_data_calls = 0
+
+    def market_data(self, exchange: str):
+        self.market_data_calls += 1
+        raise AssertionError("no network call is expected before the next candle closes")
+
+
+@pytest.mark.asyncio
+async def test_paper_trader_makes_no_network_call_until_the_next_candle_has_closed() -> None:
+    from types import SimpleNamespace
+
+    bot = _bot()
+    exchanges = _CountingExchanges()
+    trader = PerpetualPaperTrader(
+        stores=None,  # type: ignore[arg-type]
+        strategies=None,  # type: ignore[arg-type]
+        exchanges=exchanges,  # type: ignore[arg-type]
+        resolver=_DemoResolver(),  # type: ignore[arg-type]
+        clock=None,  # type: ignore[arg-type]
+        ids=None,  # type: ignore[arg-type]
+    )
+    last = datetime(2024, 1, 1, 10, tzinfo=UTC)  # the 10:00 candle was processed
+    session = SimpleNamespace(last_processed_bar_time=last)
+
+    # The 11:00 candle closes at 12:00; plus the 2 s publication grace.
+    await trader.process(bot, session, datetime(2024, 1, 1, 12, 0, 1, tzinfo=UTC))  # type: ignore[arg-type]
+
+    assert exchanges.market_data_calls == 0

@@ -575,3 +575,102 @@ async def test_funding_income_pagination_rejects_a_page_that_moves_backwards() -
             start + timedelta(days=1),
             Exchange(),  # type: ignore[arg-type]
         )
+
+
+def _scripted_monitor(streams):
+    """A monitor whose exchange serves the scripted streams one after another."""
+    from types import SimpleNamespace
+
+    calls: list[str] = []
+    pauses: list[str] = []
+    reconnected = asyncio.Event()
+
+    class Exchange:
+        capabilities = SimpleNamespace(exchange_id="binance-usdm")
+
+        def __init__(self) -> None:
+            self.opened = 0
+
+        async def stream_user_events(self):
+            script = streams[min(self.opened, len(streams) - 1)]
+            self.opened += 1
+            if self.opened >= 2:
+                reconnected.set()
+            for item in script:
+                if isinstance(item, Exception):
+                    raise item
+                yield item
+            if self.opened >= 2:
+                await asyncio.sleep(3600)  # the second connection simply stays up
+
+    exchange = Exchange()
+
+    class Resolver:
+        async def exchange_for(self, _connection_id):
+            return exchange
+
+    class Reconciler:
+        async def resolve_pending(self, _connection_id):
+            calls.append("resolve_pending")
+
+        async def reconcile_connection(self, _connection_id, **_kwargs) -> int:
+            calls.append("reconcile")
+            return 0
+
+    monitor = FuturesUserStreamMonitor(
+        _stores, Resolver(), Reconciler(), _Executor(), None  # type: ignore[arg-type]
+    )
+
+    async def noop(*_args, **_kwargs) -> None:
+        return None
+
+    async def record_pause(_connection_id, event_type: str, reason: str) -> None:
+        pauses.append(event_type)
+
+    monitor._sync_protective_stops = noop  # type: ignore[method-assign]
+    monitor._recover_funding_income = noop  # type: ignore[method-assign]
+    monitor._pause_connection = record_pause  # type: ignore[method-assign]
+    return monitor, calls, pauses, reconnected
+
+
+@pytest.mark.asyncio
+async def test_expired_listen_key_resyncs_and_reconnects_without_pausing_the_bots() -> None:
+    monitor, calls, pauses, reconnected = _scripted_monitor([[{"e": "listenKeyExpired"}]])
+    task = asyncio.create_task(monitor._run_connection(uuid4()))
+
+    await asyncio.wait_for(reconnected.wait(), timeout=2)
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+
+    assert pauses == []
+    # Resynced over REST before each connection: the startup pass and the scheduled reconnect.
+    assert calls.count("reconcile") >= 2
+
+
+@pytest.mark.asyncio
+async def test_unexpected_stream_end_still_pauses_the_bots() -> None:
+    from modules.exchanges.errors import ExchangeError
+
+    monitor, _calls, pauses, reconnected = _scripted_monitor(
+        [[ExchangeError("Binance USD-M private stream disconnected")], []]
+    )
+    task = asyncio.create_task(monitor._run_connection(uuid4()))
+
+    await asyncio.wait_for(reconnected.wait(), timeout=5)
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+
+    assert pauses == ["risk.futures_user_stream_disconnected"]
+
+
+def test_only_a_stream_that_lived_about_a_day_counts_as_a_scheduled_end() -> None:
+    from modules.trading.application.futures_user_stream import PLANNED_STREAM_END_SECONDS
+
+    async def check() -> None:
+        now = asyncio.get_running_loop().time()
+        assert FuturesUserStreamMonitor._is_planned_end(None, False) is False
+        assert FuturesUserStreamMonitor._is_planned_end(now, False) is False
+        assert FuturesUserStreamMonitor._is_planned_end(now - PLANNED_STREAM_END_SECONDS, False)
+        assert FuturesUserStreamMonitor._is_planned_end(now, True) is True
+
+    asyncio.run(check())

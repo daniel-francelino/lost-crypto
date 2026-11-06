@@ -15,8 +15,9 @@ order is never re-sent blindly.
 """
 
 import asyncio
+import functools
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, suppress
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -51,11 +52,26 @@ from modules.portfolio.domain.perpetual_ledger import PerpetualLedgerEntry, Perp
 from modules.portfolio.domain.perpetuals import PerpetualLedger
 from modules.risk_management.domain.models import LiveLimits, consecutive_losses_breached
 from modules.strategies.domain.types import Side
+from modules.trading.application.bot_locks import hold_bots
 from modules.trading.application.ports import TradingStore
 
 logger = logging.getLogger(__name__)
 
 TradingStoreFactory = Callable[[], AbstractAsyncContextManager[TradingStore]]
+
+
+_STOP_RETRY_DELAYS = (0.5, 1.0)  # a stop that was NOT placed is retried; 3 attempts in all
+
+
+def _serialized[**P, R](method: Callable[..., Awaitable[R]]) -> Callable[..., Awaitable[R]]:
+    """Run an OrderExecutor entry point under the bot's lock (re-entrant for nested calls)."""
+
+    @functools.wraps(method)
+    async def wrapper(self: "OrderExecutor", bot: Bot, *args: object, **kwargs: object) -> R:
+        async with hold_bots([bot.id]):
+            return await method(self, bot, *args, **kwargs)
+
+    return wrapper
 
 
 class OrderExecutor:
@@ -74,6 +90,9 @@ class OrderExecutor:
         self._ids = ids
         self._absent_after = absent_after
         self._live_limits = live_limits or LiveLimits()
+        # Set by the worker's container: closes a Futures position that has no protective stop.
+        self.emergency_close: Callable[[UUID, str], Awaitable[object]] | None = None
+        self._stop_retry_delays: tuple[float, ...] = _STOP_RETRY_DELAYS
 
     # --- phase 1 (called by the trader inside the candle's transaction) -----------------------
 
@@ -108,6 +127,7 @@ class OrderExecutor:
 
     # --- phase 2 -----------------------------------------------------------------------------
 
+    @_serialized
     async def submit(self, bot: Bot, order_id: UUID) -> None:
         """Send a SUBMITTING order to the exchange and apply what comes back."""
         if (
@@ -226,6 +246,7 @@ class OrderExecutor:
                 or (order.product is TradingProduct.SPOT and order.side is Side.BUY)
             ):
                 await self.ensure_native_stop(bot, order.client_order_id)
+    @_serialized
     async def resolve(self, bot: Bot, order: Order) -> None:
         """Settle an order whose outcome is unknown, by asking the exchange about it."""
         exchange = await self._exchange(bot)
@@ -242,6 +263,7 @@ class OrderExecutor:
                 bot, order.id, "never reached the exchange (not found after waiting)"
             )
 
+    @_serialized
     async def cancel_opening_perpetual_orders(self, bot: Bot) -> int:
         """Cancel this bot's non-reduce-only USD-M orders and apply any racing fills.
 
@@ -299,6 +321,7 @@ class OrderExecutor:
 
     # --- native stop-loss --------------------------------------------------------------------
 
+    @_serialized
     async def ensure_native_stop(self, bot: Bot, entry_client_order_id: str) -> None:
         """Rest the position's stop-loss on the exchange when it supports that.
 
@@ -425,13 +448,63 @@ class OrderExecutor:
             reduce_only=stop.reduce_only,
         )
         try:
-            venue = await asyncio.shield(exchange.create_stop_order(request))
+            venue = await self._create_stop_with_retry(exchange, request)
         except (ExchangeRejected, TransientExchangeError) as exc:
             await self._reject(bot, stop.id, str(exc), event="stop.placement_failed")
         except Exception as exc:
             await self._mark_unknown(bot, stop.id, f"{type(exc).__name__}: {exc}")
         else:
             await self._apply(bot, stop.id, venue)
+
+    async def _create_stop_with_retry(
+        self, exchange: Exchange, request: StopOrderRequest
+    ) -> VenueOrder:
+        """Place the stop, retrying only failures where the exchange definitely did not get it.
+
+        The client order id is stable, so a retry can never create a second stop. A rejection
+        (for example "would trigger immediately") is final and is not retried; an unknown
+        outcome is not caught here: the reconciler resolves it.
+        """
+        delays = iter(self._stop_retry_delays)
+        while True:
+            try:
+                return await asyncio.shield(exchange.create_stop_order(request))
+            except TransientExchangeError:
+                delay = next(delays, None)
+                if delay is None:
+                    raise
+                await asyncio.sleep(delay)
+
+    async def _flatten_unprotected(self, bot: Bot, reason: str) -> None:
+        """Close a Futures position whose protective stop could not be placed.
+
+        An unprotected leveraged position is the worst state we can be in, and pausing the bot
+        does not protect it. The close is reduce-only through the normal close service.
+        """
+        if bot.config.product is not TradingProduct.LINEAR_PERPETUAL:
+            return
+        async with self._stores() as store:
+            ledger = await store.perpetual_portfolio.get(bot.id)
+            exposed = ledger is not None and ledger.position is not None
+        if not exposed:
+            return
+        if self.emergency_close is None:
+            logger.error(
+                "bot %s has a Futures position without a stop and no emergency close", bot.id
+            )
+            return
+        try:
+            await self.emergency_close(bot.id, f"protective stop failed: {reason}")
+        except Exception as exc:
+            logger.exception("emergency close failed for bot %s", bot.id)
+            async with self._stores() as store:
+                await self._audit(
+                    store,
+                    bot,
+                    "risk.futures_unprotected_position",
+                    {"reason": reason, "close_error": f"{type(exc).__name__}: {exc}"},
+                )
+                await store.commit()
 
     async def _resize_perpetual_stop(
         self, bot: Bot, exchange: Exchange, market: MarketInfo
@@ -508,6 +581,7 @@ class OrderExecutor:
         if has_position and stop_missing:
             await self.ensure_native_stop(bot, client_order_id)
 
+    @_serialized
     async def sync_native_stop(self, bot: Bot) -> None:
         """Notice a stop that fired (or vanished) while we were not looking."""
         async with self._stores() as store:
@@ -829,6 +903,7 @@ class OrderExecutor:
     async def _reject(
         self, bot: Bot, order_id: UUID, reason: str, event: str = "order.rejected"
     ) -> None:
+        unprotected = False
         async with self._stores() as store:
             order = await store.orders.get(order_id)
             if order is None or order.is_final:
@@ -854,6 +929,7 @@ class OrderExecutor:
                 ):
                     ledger.stop_order_client_id = None
                     await store.perpetual_portfolio.save(ledger)
+                    unprotected = ledger.position is not None
                     await self._pause(
                         store,
                         bot,
@@ -875,6 +951,8 @@ class OrderExecutor:
                 {"client_order_id": order.client_order_id, "reason": reason},
             )
             await store.commit()
+        if unprotected:
+            await self._flatten_unprotected(bot, reason)
 
     async def _mark_unknown(self, bot: Bot, order_id: UUID, reason: str) -> None:
         """Keep the capital reserved: the order may be live on the exchange."""

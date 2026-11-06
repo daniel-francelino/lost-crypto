@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 _MAX_ATTEMPTS = 4
 _BASE_DELAY_SECONDS = 1.0
 _USED_WEIGHT_HEADER = "x-mbx-used-weight-1m"
-_USED_WEIGHT_WARN = 3000  # half of Binance's 6000/min IP budget
+_DEFAULT_WEIGHT_BUDGET = 6000  # Spot and the USD-M Demo host (measured from exchangeInfo)
 
 
 class CcxtExchange(Exchange):
@@ -74,7 +74,12 @@ class CcxtExchange(Exchange):
         self._sandbox = sandbox
         self._demo = demo
         if client is None:
-            config: dict[str, Any] = {"enableRateLimit": True}
+            # adjustForTimeDifference: sign requests with the exchange's clock (measured once when
+            # markets load), so a PC clock that is a second off does not produce -1021 errors.
+            config: dict[str, Any] = {
+                "enableRateLimit": True,
+                "options": {"adjustForTimeDifference": True},
+            }
             if credentials is not None:
                 config.update(apiKey=credentials.api_key, secret=credentials.api_secret)
             client = getattr(ccxt_async, self.CCXT_EXCHANGE_ID)(config)
@@ -446,9 +451,13 @@ class CcxtExchange(Exchange):
         except ValueError:
             return None
 
+    def _weight_budget(self) -> int:
+        """Request weight allowed per minute and IP on this adapter's host."""
+        return _DEFAULT_WEIGHT_BUDGET
+
     def _watch_used_weight(self) -> None:
         raw = self._response_headers().get(_USED_WEIGHT_HEADER)
-        if raw is not None and raw.isdigit() and int(raw) >= _USED_WEIGHT_WARN:
+        if raw is not None and raw.isdigit() and int(raw) >= self._weight_budget() // 2:
             logger.warning(
                 "%s: used request weight %s in the last minute", self.PROFILE.exchange_id, raw
             )

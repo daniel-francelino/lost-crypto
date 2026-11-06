@@ -15,6 +15,7 @@ import logging
 from collections import defaultdict
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
+from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -25,6 +26,8 @@ from modules.bots.domain.models import Bot, BotState, ExecutionMode
 from modules.exchanges.application.connections import ConnectionResolver
 from modules.exchanges.domain.models import MarginMode, TradingProduct
 from modules.exchanges.errors import AuthenticationFailed
+from modules.execution.domain.orders import OrderStatus
+from modules.trading.application.bot_locks import hold_bots
 from modules.trading.application.orders import OrderExecutor
 from modules.trading.application.ports import TradingStore
 
@@ -33,6 +36,7 @@ logger = logging.getLogger(__name__)
 TradingStoreFactory = Callable[[], AbstractAsyncContextManager[TradingStore]]
 
 OUR_ORDER_PREFIX = "lc-"
+IN_FLIGHT_GRACE = timedelta(seconds=15)  # a SUBMITTING order this young is still being sent
 _ABSOLUTE_TOLERANCE = Decimal("0.00000001")
 _RELATIVE_TOLERANCE = Decimal("0.000001")
 
@@ -193,12 +197,38 @@ class Reconciler:
         bots: list[Bot],
         inspect_unowned_futures_orders: bool = False,
     ) -> int:
+        # Hold every bot's lock: an order being sent or settled must not look "unresolved" or
+        # leave the ledger behind the exchange while we compare them.
+        async with hold_bots([bot.id for bot in bots]):
+            return await self._reconcile_connection_locked(
+                connection_id, bots, inspect_unowned_futures_orders
+            )
+
+    async def _reconcile_connection_locked(
+        self,
+        connection_id: UUID,
+        bots: list[Bot],
+        inspect_unowned_futures_orders: bool = False,
+    ) -> int:
         started = self._clock.now()
         unresolved_bots: list[UUID] = []
+        in_flight_only = True
         async with self._stores() as store:
-            for bot in bots:
-                if await store.orders.count_unresolved(bot.id):
-                    unresolved_bots.append(bot.id)
+            unresolved = await store.orders.list_unresolved()
+        for bot in bots:
+            bot_orders = [order for order in unresolved if order.bot_id == bot.id]
+            if bot_orders:
+                unresolved_bots.append(bot.id)
+                # An order created moments ago that is still SUBMITTING is simply on its way
+                # out (the candle's transaction commits it just before the send): not a fault.
+                if any(
+                    order.status is not OrderStatus.SUBMITTING
+                    or started - order.created_at >= IN_FLIGHT_GRACE
+                    for order in bot_orders
+                ):
+                    in_flight_only = False
+        if unresolved_bots and in_flight_only:
+            return 0  # try again on the next pass instead of pausing the connection
         if unresolved_bots:
             # An unresolved intent means the exchange position may already have changed. Do not
             # treat the account as clean or reconnect the private stream on that assumption.

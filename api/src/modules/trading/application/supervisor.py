@@ -13,7 +13,7 @@ from modules.bots.domain.models import Bot, BotState, ExecutionMode
 from modules.exchanges.application.connections import ConnectionResolver, InvalidConnection
 from modules.exchanges.domain.connections import Environment
 from modules.exchanges.domain.models import TradingProduct
-from modules.exchanges.errors import AuthenticationFailed
+from modules.exchanges.errors import AuthenticationFailed, RateLimited
 from modules.risk_management.domain.models import KillSwitchState
 from modules.strategies.domain.registry import StrategyRegistry
 from modules.trading.application.orders import OrderExecutor
@@ -25,6 +25,7 @@ from modules.trading.domain.models import MAX_CONSECUTIVE_FAILURES, SessionStatu
 logger = logging.getLogger(__name__)
 
 _MAX_BACKOFF_SECONDS = 60
+_DEFAULT_RATE_LIMIT_PAUSE_SECONDS = 60.0  # when a 429/418 carries no Retry-After
 # Retrying cannot fix these: stop the bot and let the operator look.
 _FATAL = (AuthenticationFailed, InvalidConnection, VaultError, VaultNotConfigured)
 
@@ -64,6 +65,8 @@ class BotSupervisor:
         self._ids = ids
         self._failures: dict[UUID, int] = {}
         self._retry_at: dict[UUID, datetime] = {}
+        # A 429/418 applies to the whole IP, so every bot waits, not only the one that hit it.
+        self._rate_limited_until: datetime | None = None
         self._resolver = resolver
         self._executor = executor
         self._reconciler = reconciler
@@ -193,6 +196,9 @@ class BotSupervisor:
                 return
             retry_at = self._retry_at.get(bot.id)
             if retry_at is not None and self._clock.now() < retry_at:
+                return
+            until = self._rate_limited_until
+            if until is not None and self._clock.now() < until:
                 return
             await self._trader.process(bot)
             self._failures.pop(bot.id, None)
@@ -618,6 +624,17 @@ class BotSupervisor:
                 await store.commit()
 
     async def _on_failure(self, bot: Bot, exc: Exception) -> None:
+        if isinstance(exc, RateLimited):
+            # Not a bot fault and never a reason to retry on our own timer: wait what Binance
+            # asked (Retry-After), or a minute, with every bot, or the IP gets banned (418).
+            wait = exc.retry_after_seconds or _DEFAULT_RATE_LIMIT_PAUSE_SECONDS
+            until = self._clock.now() + timedelta(seconds=max(wait, 1.0))
+            if self._rate_limited_until is None or until > self._rate_limited_until:
+                self._rate_limited_until = until
+            logger.warning(
+                "exchange rate limit hit by bot %s; all bots wait %.0f s", bot.id, wait
+            )
+            return
         if isinstance(exc, _FATAL):
             logger.error("bot %s cannot continue: %s", bot.id, exc)
             await self._enter_error(bot, f"{type(exc).__name__}: {exc}"[:500])

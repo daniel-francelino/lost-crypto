@@ -377,6 +377,49 @@ class BinanceUsdmExchange(CcxtExchange):
                 )
         return sorted(result, key=lambda item: (item.occurred_at, item.transaction_id))
 
+    async def _complete(self, raw: dict[str, Any], symbol: str) -> VenueOrder:
+        """Settle a conditional (algo) order that already fired through the order that traded.
+
+        A triggered stop is ``FINISHED`` with ``filled`` 0 and no trades: the fill belongs to the
+        market order Binance created (``actualOrderId``). Without this the ledger would record
+        the stop as filled with nothing executed and lose the realized PnL.
+        """
+        raw_info = raw.get("info")
+        info: dict[str, Any] = raw_info if isinstance(raw_info, dict) else {}
+        actual_id = info.get("actualOrderId")
+        if actual_id not in (None, "") and str(info.get("algoStatus", "")).upper() in {
+            "FINISHED",
+            "TRIGGERED",
+        }:
+            actual = await self._call(lambda: self._client.fetch_order(str(actual_id), symbol))
+            raw = {
+                **actual,  # id, status, amount, filled, average: the order that really traded
+                "clientOrderId": raw.get("clientOrderId") or actual.get("clientOrderId"),
+                "type": "stop_market",  # keep it classified as our protective stop
+                "stopPrice": raw.get("stopPrice") or info.get("triggerPrice"),
+            }
+        return await super()._complete(raw, symbol)
+
+    def _weight_budget(self) -> int:
+        # Measured from exchangeInfo.rateLimits: the Demo host allows 6000 weight per minute,
+        # the live USD-M host only 2400.
+        return super()._weight_budget() if self._demo or self._sandbox else 2400
+
+    def _require_non_live_for_writes(self) -> None:
+        """Second barrier behind the call sites: live USD-M orders are not enabled."""
+        if not (self._demo or self._sandbox):
+            raise ExchangeRejected(
+                "Binance USD-M order writes are enabled only for the Demo/testnet environment"
+            )
+
+    async def create_market_order(self, request: MarketOrderRequest) -> VenueOrder:
+        self._require_non_live_for_writes()
+        return await super().create_market_order(request)
+
+    async def create_stop_order(self, request: StopOrderRequest) -> VenueOrder:
+        self._require_non_live_for_writes()
+        return await super().create_stop_order(request)
+
     async def prepare_market_order(self, request: MarketOrderRequest) -> None:
         if request.product is not TradingProduct.LINEAR_PERPETUAL:
             raise ExchangeRejected("Binance USD-M accepts only linear perpetual orders")

@@ -483,3 +483,121 @@ async def test_rejected_futures_stop_is_rearmed_while_position_remains_open(
     assert ledger.position is not None
     assert ledger.stop_order_client_id is None
     assert replacements == [stop_id]
+
+
+class _FlakyStopExchange:
+    def __init__(self, failures: list[Exception]) -> None:
+        self.failures = failures
+        self.calls = 0
+
+    async def create_stop_order(self, _request) -> str:
+        self.calls += 1
+        if self.failures:
+            raise self.failures.pop(0)
+        return "placed"
+
+
+@pytest.mark.asyncio
+async def test_stop_placement_retries_only_failures_that_never_reached_the_exchange() -> None:
+    from modules.exchanges.errors import ExchangeRejected, TransientExchangeError
+
+    bot = _bot()
+    order = _order(bot)
+    store = _Store(PerpetualLedger.new(bot.id, D("1000")), order)
+    executor = _executor(store)
+    executor._stop_retry_delays = (0, 0)
+
+    flaky = _FlakyStopExchange([TransientExchangeError("blip"), TransientExchangeError("blip")])
+    assert await executor._create_stop_with_retry(flaky, object()) == "placed"  # type: ignore[arg-type]
+    assert flaky.calls == 3
+
+    exhausted = _FlakyStopExchange([TransientExchangeError("down")] * 5)
+    with pytest.raises(TransientExchangeError):
+        await executor._create_stop_with_retry(exhausted, object())  # type: ignore[arg-type]
+    assert exhausted.calls == 3  # first try + two retries
+
+    rejected = _FlakyStopExchange([ExchangeRejected("-2021 would trigger immediately")])
+    with pytest.raises(ExchangeRejected):
+        await executor._create_stop_with_retry(rejected, object())  # type: ignore[arg-type]
+    assert rejected.calls == 1  # a rejection is final
+
+
+def _protected_ledger(bot: Bot, stop_client_id: str) -> PerpetualLedger:
+    from modules.portfolio.domain.perpetuals import LinearPerpetualPosition
+
+    ledger = PerpetualLedger.new(bot.id, D("1000"))
+    ledger.position = LinearPerpetualPosition(
+        PositionSide.LONG, D("1"), D("100"), 2, D("50"), stop_price=D("90")
+    )
+    ledger.stop_order_client_id = stop_client_id
+    return ledger
+
+
+@pytest.mark.asyncio
+async def test_rejected_protective_stop_closes_the_unprotected_position() -> None:
+    bot = _bot()
+    stop = _order(bot)
+    stop.client_order_id = "lc-stop"
+    stop.order_type = "stop_loss"
+    stop.reserved_margin = D(0)
+    ledger = _protected_ledger(bot, "lc-stop")
+    store = _Store(ledger, stop)
+    executor = _executor(store)
+    closed: list[tuple[object, str]] = []
+
+    async def emergency_close(bot_id, reason: str) -> None:
+        closed.append((bot_id, reason))
+
+    executor.emergency_close = emergency_close
+
+    await executor._reject(
+        bot, stop.id, "-2021 would trigger immediately", event="stop.placement_failed"
+    )
+
+    assert stop.status is OrderStatus.REJECTED
+    assert ledger.stop_order_client_id is None
+    assert store.desired_state is BotState.PAUSED  # still paused for the operator
+    assert closed == [(bot.id, "protective stop failed: -2021 would trigger immediately")]
+
+
+@pytest.mark.asyncio
+async def test_failed_emergency_close_is_audited_and_the_bot_stays_paused() -> None:
+    bot = _bot()
+    stop = _order(bot)
+    stop.client_order_id = "lc-stop"
+    stop.order_type = "stop_loss"
+    stop.reserved_margin = D(0)
+    store = _Store(_protected_ledger(bot, "lc-stop"), stop)
+    executor = _executor(store)
+
+    async def emergency_close(bot_id, reason: str) -> None:
+        raise RuntimeError("mark price is stale")
+
+    executor.emergency_close = emergency_close
+
+    await executor._reject(bot, stop.id, "boom", event="stop.placement_failed")
+
+    assert store.desired_state is BotState.PAUSED
+    assert store.events[-1].event_type == "risk.futures_unprotected_position"
+
+
+@pytest.mark.asyncio
+async def test_a_rejected_stop_without_an_open_position_closes_nothing() -> None:
+    bot = _bot()
+    stop = _order(bot)
+    stop.client_order_id = "lc-stop"
+    stop.order_type = "stop_loss"
+    stop.reserved_margin = D(0)
+    ledger = PerpetualLedger.new(bot.id, D("1000"))
+    ledger.stop_order_client_id = "lc-stop"
+    executor = _executor(_Store(ledger, stop))
+    closed: list[object] = []
+
+    async def emergency_close(bot_id, reason: str) -> None:
+        closed.append(bot_id)
+
+    executor.emergency_close = emergency_close
+
+    await executor._reject(bot, stop.id, "boom", event="stop.placement_failed")
+
+    assert closed == []

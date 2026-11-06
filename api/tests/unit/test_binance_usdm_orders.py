@@ -45,7 +45,7 @@ def _exchange() -> tuple[BinanceUsdmExchange, FakeCcxtClient]:
             ],
         },
     }
-    return BinanceUsdmExchange(client, credentials=CREDENTIALS), client
+    return BinanceUsdmExchange(client, credentials=CREDENTIALS, demo=True), client
 
 
 def _market(**overrides: object) -> dict[str, object]:
@@ -538,3 +538,77 @@ async def test_installed_ccxt_routes_usdm_stop_to_algo_order_with_expected_field
     assert captured["reduceOnly"] is True
     assert venue.status is OrderStatus.OPEN
     assert venue.client_order_id == "x-short-sl"
+
+
+async def test_live_usdm_adapter_refuses_every_order_write() -> None:
+    # Second barrier behind the call sites: live Futures execution is not enabled.
+    live = BinanceUsdmExchange(FakeCcxtClient(), credentials=CREDENTIALS)
+    entry = MarketOrderRequest(
+        CID, SYMBOL, Side.BUY, Decimal("0.01"), product=TradingProduct.LINEAR_PERPETUAL,
+        position_side=PositionSide.LONG, leverage=2, margin_mode=MarginMode.ISOLATED,
+    )
+    stop = StopOrderRequest(
+        f"{CID}-sl", SYMBOL, Decimal("0.01"), Decimal("59000"), side=Side.SELL,
+        product=TradingProduct.LINEAR_PERPETUAL, position_side=PositionSide.LONG, reduce_only=True,
+    )
+
+    with pytest.raises(ExchangeRejected, match="Demo/testnet"):
+        await live.create_market_order(entry)
+    with pytest.raises(ExchangeRejected, match="Demo/testnet"):
+        await live.create_stop_order(stop)
+
+
+def test_usdm_weight_budget_follows_the_environment() -> None:
+    assert BinanceUsdmExchange(FakeCcxtClient(), demo=True)._weight_budget() == 6000
+    assert BinanceUsdmExchange(FakeCcxtClient())._weight_budget() == 2400
+
+
+def test_clients_sign_requests_with_the_exchange_clock() -> None:
+    client = BinanceUsdmExchange(credentials=CREDENTIALS, demo=True)._client
+
+    assert client.options["adjustForTimeDifference"] is True
+
+
+async def test_a_triggered_native_stop_is_settled_through_the_order_that_traded() -> None:
+    # Real Demo payloads (ETHUSDT): the FINISHED algo order has filled 0 and an actualOrderId;
+    # the fill and its commission live on the market order that Binance created.
+    class _TriggeredClient(FakeCcxtClient):
+        async def fetch_order(self, *args):
+            order_id = args[0]
+            if order_id == "x-short-sl":
+                return {
+                    "id": "1000000274955935", "clientOrderId": "x-short-sl", "symbol": SYMBOL,
+                    "side": "sell", "type": "market", "status": "closed", "amount": "0.013",
+                    "filled": "0", "timestamp": 1_700_000_000_000, "stopPrice": None,
+                    "info": {"algoStatus": "FINISHED", "actualOrderId": "16850088655",
+                             "triggerPrice": "2238.33"},
+                }
+            assert order_id == "16850088655"
+            return {
+                "id": "16850088655", "clientOrderId": "x-short-sl", "symbol": SYMBOL,
+                "side": "sell", "type": "market", "status": "closed", "amount": "0.013",
+                "filled": "0.013", "timestamp": 1_700_000_001_000, "info": {},
+            }
+
+        async def fetch_my_trades(self, symbol, since=None, limit=None, params=None):
+            assert params == {"orderId": "16850088655"}
+            return [{"id": "347889420", "amount": "0.013", "price": "2237.99",
+                     "timestamp": 1_700_000_001_000,
+                     "fee": {"cost": "0.01163754", "currency": "USDT"}}]
+
+    client = _TriggeredClient()
+    client.market_data = _market()
+    exchange = BinanceUsdmExchange(client, credentials=CREDENTIALS, demo=True)
+
+    order = await exchange.fetch_order(SYMBOL, "x-short-sl")
+
+    assert order is not None
+    assert order.status is OrderStatus.FILLED
+    assert order.filled_quantity == Decimal("0.013")
+    assert [(fill.quantity, fill.price) for fill in order.fills] == [
+        (Decimal("0.013"), Decimal("2237.99"))
+    ]
+    assert order.fills[0].fee == Decimal("0.01163754")
+    assert order.order_type == "stop_loss"
+    assert order.stop_price == Decimal("2238.33")
+    assert order.client_order_id == "x-short-sl"

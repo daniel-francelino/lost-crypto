@@ -101,6 +101,9 @@ async def test_reconciliation_reads_and_flags_positions_on_unassigned_usdm_symbo
         async def count_unresolved(self, _bot_id: object) -> int:
             return 0
 
+        async def list_unresolved(self) -> list[object]:
+            return []
+
         async def get_by_client_id(self, _bot_id: object, _client_order_id: str) -> None:
             return None
 

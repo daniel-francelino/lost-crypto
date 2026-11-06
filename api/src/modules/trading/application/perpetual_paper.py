@@ -63,6 +63,9 @@ TradingStoreFactory = Callable[[], AbstractAsyncContextManager[TradingStore]]
 _TIER_CACHE_AGE = timedelta(minutes=30)
 _FUNDING_PAGE = 1000
 _VOLUME_WINDOW = 20
+# Same grace as the spot trader (kept local: trader.py imports this module): the exchange needs a
+# moment to publish a closed candle, and a still-forming last kline must never be processed.
+_CANDLE_CLOSE_GRACE = timedelta(seconds=2)
 
 
 class _PerpetualTrader:
@@ -100,6 +103,8 @@ class _PerpetualTrader:
             raise ConflictError("Futures paper mode requires a Binance Demo connection")
 
         last = session.last_processed_bar_time
+        if last is not None and now < last + 2 * cfg.timeframe.delta + _CANDLE_CLOSE_GRACE:
+            return  # the next candle has not closed yet: no network call (2 s polls add up)
         since = (
             last + cfg.timeframe.delta
             if last is not None
@@ -111,7 +116,8 @@ class _PerpetualTrader:
             (
                 c
                 for c in raw_candles
-                if c.close_time <= now and (last is None or c.open_time > last)
+                if c.close_time + _CANDLE_CLOSE_GRACE <= now
+                and (last is None or c.open_time > last)
             ),
             key=lambda c: c.open_time,
         )
