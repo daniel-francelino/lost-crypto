@@ -1,7 +1,6 @@
 """Multi-timeframe trend pullback: 1d decides the side, 4h confirms, 1h times the entry."""
 
 import math
-from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -10,8 +9,9 @@ import pytest
 from factories import make_candles
 from modules.exchanges.domain.models import PositionSide
 from modules.market_data.domain.models import Candle, Timeframe
+from modules.market_data.domain.trend import TrendTrackerState
 from modules.strategies.domain.base import InvalidStrategyParams
-from modules.strategies.domain.mtf_trend_pullback import MtfTrendPullbackStrategy, MtfTrendState
+from modules.strategies.domain.mtf_trend_pullback import MtfTrendPullbackStrategy
 from modules.strategies.domain.types import Side, Signal, SignalKind, StrategyContext
 from modules.trading.domain.models import MAX_WARMUP_CANDLES, warmup_candles
 
@@ -29,7 +29,7 @@ def _wavy(count: int, start: float, drift: float, amplitude: float = 8.0) -> lis
 
 def _run(
     candles: list[Candle], *, allow_short: bool = False, params: dict[str, Any] | None = None
-) -> tuple[list[tuple[int, Signal]], MtfTrendState]:
+) -> tuple[list[tuple[int, Signal]], TrendTrackerState]:
     strategy = MtfTrendPullbackStrategy.from_params(params or {})
     state = strategy.initial_state()
     quantity, side = Decimal(0), None
@@ -110,41 +110,6 @@ def test_a_long_exits_when_the_higher_timeframes_turn_down() -> None:
     assert exits
     assert exits[0][1].side is Side.SELL
     assert exits[0][0] >= 900  # not while the uptrend was healthy
-
-
-def test_higher_timeframe_bars_count_only_when_complete() -> None:
-    strategy = MtfTrendPullbackStrategy.from_params({})
-    candles = make_candles(["100"] * 49)  # starts at 00:00 UTC: two full days and one more hour
-    state = strategy.initial_state()
-    counts = []
-    for candle in candles:
-        state = strategy.evaluate(StrategyContext(SYMBOL, candle, Decimal(0)), state).state
-        counts.append((state.daily.count, state.h4.count))
-    assert counts[22] == (0, 5)  # 23rd hour of day 1: the day is still open
-    assert counts[23] == (1, 6)  # its last hour closes the day
-    assert counts[47] == (2, 12)
-    assert counts[48] == (2, 12)  # first hour of day 3 closes nothing
-
-
-def test_a_day_that_started_mid_way_is_never_counted() -> None:
-    strategy = MtfTrendPullbackStrategy.from_params({})
-    start = datetime(2024, 1, 1, 5, tzinfo=UTC)  # history begins at 05:00
-    candles = make_candles(["100"] * 43, start=start)  # 05:00 day1 .. 23:00 day2
-    state = strategy.initial_state()
-    for candle in candles:
-        state = strategy.evaluate(StrategyContext(SYMBOL, candle, Decimal(0)), state).state
-    assert state.daily.count == 1  # only day 2 is complete
-    assert state.h4.count == (43 - 3) // 4  # 05:00-07:00 is a partial 4h bar: skipped
-
-
-def test_a_missing_candle_drops_the_bar_it_belongs_to() -> None:
-    strategy = MtfTrendPullbackStrategy.from_params({})
-    candles = make_candles(["100"] * 48)
-    del candles[10]  # a hole in day 1
-    state = strategy.initial_state()
-    for candle in candles:
-        state = strategy.evaluate(StrategyContext(SYMBOL, candle, Decimal(0)), state).state
-    assert state.daily.count == 1
 
 
 def test_it_refuses_candles_that_are_not_hourly() -> None:
