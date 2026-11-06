@@ -180,6 +180,8 @@ class ListedMarket:
     quote: str | None = None
     settlement: str | None = None
     contract_size: Decimal = Decimal(1)
+    # False for contracts on stocks, commodities, currencies or pre-IPO shares (Binance "TradFi").
+    crypto: bool = True
 
 
 @dataclass(frozen=True, slots=True)

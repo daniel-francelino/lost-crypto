@@ -129,7 +129,7 @@ export function CoinCard({ item, trends, canManage, pending, onToggle }: CoinCar
         ) : null}
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
           {FRAME_ORDER.map((frame) => (
             <TrendTile
               key={frame}

@@ -524,8 +524,10 @@ class _CatalogExchange(FakeExchange):
         self.volume_calls = 0
 
     async def list_markets(self) -> list[ListedMarket]:
-        def market(base: str, active: bool = True, quote: str = "USDT") -> ListedMarket:
-            return ListedMarket(f"{base}/{quote}", active, "spot", base, quote)
+        def market(
+            base: str, active: bool = True, quote: str = "USDT", crypto: bool = True
+        ) -> ListedMarket:
+            return ListedMarket(f"{base}/{quote}", active, "spot", base, quote, crypto=crypto)
 
         return [
             market("BTC"),
@@ -534,6 +536,8 @@ class _CatalogExchange(FakeExchange):
             market("PEPE"),
             market("OLD", active=False),
             market("BTC", quote="EUR"),
+            market("SOXL", crypto=False),
+            market("XAU", crypto=False),
         ]
 
     async def fetch_quote_volumes(self) -> dict[str, Decimal]:
@@ -558,7 +562,7 @@ async def test_available_pairs_come_most_traded_first_and_only_usdt() -> None:
     env, _ = _catalog_env()
     page = await env.service.available(EXCHANGE)
     assert [i.base for i in page.items] == ["BTC", "ETH", "DOGE", "PEPE"]  # no volume: last
-    assert page.total == 4  # the inactive and the EUR pair are not offered
+    assert page.total == 4  # not the inactive, the EUR pair, nor stocks and gold
     assert page.items[0].quote_volume == Decimal(5_000) and page.items[3].quote_volume is None
 
 
@@ -573,16 +577,17 @@ async def test_available_pairs_can_be_sorted_by_name_searched_and_paged() -> Non
     assert first.total == second.total == 4
 
 
-async def test_available_pairs_say_which_are_already_followed() -> None:
+async def test_available_pairs_say_which_are_registered_and_whether_they_are_on() -> None:
     env, _ = _catalog_env()
-    await env.service.add_symbol(EXCHANGE, "ETH/USDT")
+    eth = await env.service.add_symbol(EXCHANGE, "ETH/USDT")
+    btc = await env.service.add_symbol(EXCHANGE, "BTC/USDT")
+    await env.service.set_active(btc.id, False)  # registered but switched off
+
     page = await env.service.available(EXCHANGE)
-    assert {i.base: i.registered for i in page.items} == {
-        "BTC": False,
-        "ETH": True,
-        "DOGE": False,
-        "PEPE": False,
-    }
+    by_base = {i.base: i for i in page.items}
+    assert (by_base["ETH"].registry_id, by_base["ETH"].active) == (eth.id, True)
+    assert (by_base["BTC"].registry_id, by_base["BTC"].active) == (btc.id, False)
+    assert (by_base["DOGE"].registry_id, by_base["DOGE"].active) == (None, False)
 
 
 async def test_volumes_are_fetched_once_per_five_minutes() -> None:
@@ -599,3 +604,12 @@ async def test_an_unknown_exchange_is_not_found() -> None:
     env, _ = _catalog_env()
     with pytest.raises(NotFoundError):
         await env.service.available("nowhere")
+
+
+async def test_only_crypto_is_offered_and_only_crypto_can_be_registered() -> None:
+    env, _ = _catalog_env()
+    offered = {i.base for i in (await env.service.available(EXCHANGE)).items}
+    assert not offered & {"SOXL", "XAU"}
+    with pytest.raises(InvalidTrendSymbol, match="not a crypto asset"):
+        await env.service.add_symbol(EXCHANGE, "SOXL/USDT")
+    assert (await env.service.add_symbol(EXCHANGE, "ETH/USDT")).symbol == "ETH/USDT"

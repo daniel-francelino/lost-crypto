@@ -4675,9 +4675,23 @@
             "title": "Quote Volume",
             "description": "Traded volume of the last 24 h, in USDT"
           },
-          "registered": {
+          "registry_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registry Id",
+            "description": "Set when the pair is in the registry"
+          },
+          "active": {
             "type": "boolean",
-            "title": "Registered"
+            "title": "Active",
+            "description": "In the registry and switched on"
           }
         },
         "type": "object",
@@ -4685,7 +4699,8 @@
           "symbol",
           "base",
           "quote_volume",
-          "registered"
+          "registry_id",
+          "active"
         ],
         "title": "AvailableSymbolOut"
       },

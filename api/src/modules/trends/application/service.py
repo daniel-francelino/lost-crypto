@@ -35,7 +35,8 @@ class AvailableSymbol:
     symbol: str
     base: str
     quote_volume: Decimal | None
-    registered: bool
+    registry_id: UUID | None  # set when the pair is in the registry, active or not
+    active: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +75,7 @@ class TrendService:
         The exchange must list it. A pair that was switched off is switched back on."""
         self._exchanges.profile(exchange)  # unknown or disabled exchange: a clear error
         unified = normalize_symbol(exchange, symbol)
+        await self._require_crypto(exchange, unified)
         try:
             await self._exchanges.market_data(exchange).fetch_market_info(unified)
         except UnknownSymbolError:
@@ -93,6 +95,17 @@ class TrendService:
             await store.commit()
             return created
 
+    async def _require_crypto(self, exchange: str, symbol: str) -> None:
+        try:
+            markets = await self._exchanges.exchange(exchange).list_markets()
+        except NotImplementedError:
+            return
+        listed = next((m for m in markets if m.symbol == symbol), None)
+        if listed is not None and not listed.crypto:
+            raise InvalidTrendSymbol(
+                f"{symbol} is not a crypto asset (stocks, commodities and currencies are not used)"
+            )
+
     async def available(
         self,
         exchange: str,
@@ -101,10 +114,10 @@ class TrendService:
         limit: int = 30,
         offset: int = 0,
     ) -> AvailablePage:
-        """The pairs the exchange offers (USDT only), one page at a time, to pick from.
+        """The crypto pairs the exchange offers (USDT only), one page at a time, to pick from.
 
-        Sorted by 24h traded volume (the closest thing to "most used") or by name; ``registered``
-        marks the ones already followed."""
+        Sorted by 24h traded volume (the closest thing to "most used") or by name;
+        ``registry_id`` and ``active`` say which are already in the registry and switched on."""
         try:
             self._exchanges.profile(exchange)
         except UnknownExchangeError as exc:
@@ -114,9 +127,9 @@ class TrendService:
         volumes = await self._quote_volumes(exchange)
         perpetual = "usdm" in exchange
         async with self._stores() as store:
-            followed = {
-                s.symbol
-                for s in await store.trends.list_symbols(active_only=True)
+            registry = {
+                s.symbol: s
+                for s in await store.trends.list_symbols(active_only=False)
                 if s.exchange == exchange
             }
         needle = query.strip().upper()
@@ -125,10 +138,12 @@ class TrendService:
                 m.symbol,
                 m.base or m.symbol.split("/")[0],
                 volumes.get(m.symbol),
-                m.symbol in followed,
+                registry[m.symbol].id if m.symbol in registry else None,
+                m.symbol in registry and registry[m.symbol].active,
             )
             for m in markets
             if m.active
+            and m.crypto
             and (
                 (m.product == "linear_perpetual" and m.settlement == QUOTE)
                 if perpetual

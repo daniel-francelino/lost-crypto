@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Coins, Plus } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "lost-ui/app/page-header";
 import { Slideover } from "lost-ui/elements/slideover";
@@ -42,8 +42,15 @@ export function SymbolsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Moedas"
-        description="Só as moedas cadastradas aqui podem ser usadas por bots, backtests e importações de candles. A tendência é calculada a cada fechamento de candle."
+        title={
+          <span className="flex items-center gap-3">
+            <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Coins className="size-5" aria-hidden="true" />
+            </span>
+            Moedas
+          </span>
+        }
+        description="Moedas que o sistema acompanha."
         actions={
           <div className="flex items-center gap-3">
             <UpdatedAt updatedAtMs={trends.dataUpdatedAt} failed={trends.isError} />
@@ -56,6 +63,10 @@ export function SymbolsPage() {
           </div>
         }
       />
+      <p className="-mt-3 text-sm text-muted-foreground">
+        Bots, backtests e importações de candles só aceitam as moedas cadastradas aqui. A tendência
+        é calculada a cada fechamento de candle.
+      </p>
       {symbols.isError && symbols.data === undefined ? (
         <ErrorBlock error={symbols.error} onRetry={() => void symbols.refetch()} />
       ) : null}

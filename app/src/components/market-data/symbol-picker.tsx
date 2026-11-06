@@ -8,6 +8,7 @@ import { useState } from "react";
 import { DataTable, type DataTableColumn } from "lost-ui/data/data-table";
 import { Badge } from "lost-ui/ui/badge";
 import { Button } from "lost-ui/ui/button";
+import { Switch } from "lost-ui/ui/switch";
 import { toast } from "lost-ui/ui/sonner";
 import { Tabs, TabsList, TabsTrigger } from "lost-ui/ui/tabs";
 import { EmptyState as Empty } from "@/components/shared/feedback/empty-state";
@@ -17,6 +18,7 @@ import {
   type AvailableSymbol,
   addRegisteredSymbol,
   listAvailableSymbols,
+  setRegisteredSymbolActive,
 } from "@/lib/market-data/registry.api";
 import { errorMessage } from "@/lib/shared/api/messages";
 import { QueryKey } from "@/lib/shared/api/query-keys";
@@ -46,13 +48,30 @@ function PairIdentity({ row }: { row: AvailableSymbol }) {
   );
 }
 
-const registeredBadge = (row: AvailableSymbol) =>
-  row.registered ? <Badge variant="outline">Cadastrada</Badge> : null;
+type RowToggle = (row: AvailableSymbol, active: boolean) => void;
 
-const columns: DataTableColumn<AvailableSymbol>[] = [
-  { id: "coin", header: "Moeda", cell: (row) => <PairIdentity row={row} /> },
-  { id: "state", header: "", cell: registeredBadge },
-];
+function RowState({
+  row,
+  pendingId,
+  onToggle,
+}: {
+  row: AvailableSymbol;
+  pendingId: string | undefined;
+  onToggle: RowToggle;
+}) {
+  if (row.registry_id === null) return null;
+  return (
+    <span className="flex items-center gap-2">
+      <Badge variant="outline">Cadastrada</Badge>
+      <Switch
+        checked={row.active}
+        disabled={pendingId === row.registry_id}
+        onCheckedChange={(active) => onToggle(row, active)}
+        aria-label={`${row.active ? "Desativar" : "Ativar"} ${displaySymbol(row.symbol)}`}
+      />
+    </span>
+  );
+}
 
 export function SymbolPicker({ onAdded }: SymbolPickerProps) {
   const client = useQueryClient();
@@ -74,6 +93,27 @@ export function SymbolPicker({ onAdded }: SymbolPickerProps) {
   });
   const rows = available.data?.pages.flatMap((page) => page.items) ?? [];
   const total = available.data?.pages[0]?.total ?? 0;
+  const toggle = useMutation({
+    mutationFn: (change: { id: string; active: boolean }) =>
+      setRegisteredSymbolActive(change.id, change.active),
+    onSuccess: async (updated) => {
+      await client.invalidateQueries({ queryKey: QueryKey.Trends.all() });
+      toast.success(updated.active ? "Moeda ativada." : "Moeda desativada.");
+    },
+    onError: (failure) => toast(errorMessage(failure)),
+  });
+  const onToggle: RowToggle = (row, active) => {
+    if (row.registry_id !== null) toggle.mutate({ id: row.registry_id, active });
+  };
+  const pendingId = toggle.isPending ? toggle.variables?.id : undefined;
+  const columns: DataTableColumn<AvailableSymbol>[] = [
+    { id: "coin", header: "Moeda", cell: (row) => <PairIdentity row={row} /> },
+    {
+      id: "state",
+      header: "",
+      cell: (row) => <RowState row={row} pendingId={pendingId} onToggle={onToggle} />,
+    },
+  ];
   const add = useMutation({
     mutationFn: (symbols: readonly string[]) =>
       Promise.allSettled(symbols.map((symbol) => addRegisteredSymbol(exchange, symbol))),
@@ -139,8 +179,10 @@ export function SymbolPicker({ onAdded }: SymbolPickerProps) {
           selectable
           selected={selected}
           onSelectedChange={setSelected}
-          isRowSelectable={(row) => !row.registered}
-          selectionDisabledReason={(row) => (row.registered ? "Já cadastrada" : null)}
+          isRowSelectable={(row) => row.registry_id === null}
+          selectionDisabledReason={(row) =>
+            row.registry_id === null ? null : "Já cadastrada: use o switch"
+          }
           paginationMode="infinite"
           hasMore={available.hasNextPage}
           onLoadMore={() => void available.fetchNextPage()}
@@ -150,7 +192,9 @@ export function SymbolPicker({ onAdded }: SymbolPickerProps) {
           renderCard={(row) => (
             <span className="flex items-center gap-3">
               <PairIdentity row={row} />
-              <span className="ml-auto">{registeredBadge(row)}</span>
+              <span className="ml-auto">
+                <RowState row={row} pendingId={pendingId} onToggle={onToggle} />
+              </span>
             </span>
           )}
           cardBreakpoint={ALWAYS_CARDS}

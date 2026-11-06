@@ -107,3 +107,26 @@ async def test_aclose_closes_the_client() -> None:
     client = FakeCcxtClient()
     await BinanceExchange(client).aclose()
     assert client.closed
+
+
+@pytest.mark.parametrize(
+    ("info", "expected"),
+    [
+        ({"underlyingType": "COIN", "underlyingSubType": ["PoW", "Crypto"]}, True),
+        ({"underlyingType": "COIN", "underlyingSubType": ["Alpha"]}, True),
+        ({"underlyingType": "INDEX", "underlyingSubType": ["Index", "Crypto"]}, True),
+        ({"underlyingType": "EQUITY", "underlyingSubType": ["TradFi"]}, False),
+        ({"underlyingType": "COMMODITY", "underlyingSubType": ["TradFi"]}, False),
+        ({"underlyingType": "KR_EQUITY", "underlyingSubType": ["TradFi"]}, False),
+        ({"underlyingType": "FX", "underlyingSubType": ["TradFi"]}, False),
+        ({"underlyingType": "PREMARKET", "underlyingSubType": ["Pre-IPO", "TradFi"]}, False),
+        ({"underlyingType": "COIN", "underlyingSubType": ["Crypto", "TradFi"]}, False),
+        ({}, True),
+    ],
+)
+def test_binance_labels_tell_crypto_from_traditional_assets(
+    info: dict[str, object], expected: bool
+) -> None:
+    from modules.exchanges.infrastructure.ccxt_exchange import _is_crypto
+
+    assert _is_crypto({"info": info}) is expected

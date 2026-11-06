@@ -1662,8 +1662,16 @@ export interface components {
              * @description Traded volume of the last 24 h, in USDT
              */
             quote_volume: string | null;
-            /** Registered */
-            registered: boolean;
+            /**
+             * Registry Id
+             * @description Set when the pair is in the registry
+             */
+            registry_id: string | null;
+            /**
+             * Active
+             * @description In the registry and switched on
+             */
+            active: boolean;
         };
         /** BacktestCreate */
         BacktestCreate: {

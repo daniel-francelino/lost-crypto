@@ -35,7 +35,8 @@ class AvailableSymbolOut(BaseModel):
     symbol: str
     base: str
     quote_volume: Decimal | None = Field(description="Traded volume of the last 24 h, in USDT")
-    registered: bool
+    registry_id: UUID | None = Field(description="Set when the pair is in the registry")
+    active: bool = Field(description="In the registry and switched on")
 
 
 class AvailablePageOut(BaseModel):
@@ -144,7 +145,11 @@ async def available_symbols(
     return AvailablePageOut(
         items=[
             AvailableSymbolOut(
-                symbol=i.symbol, base=i.base, quote_volume=i.quote_volume, registered=i.registered
+                symbol=i.symbol,
+                base=i.base,
+                quote_volume=i.quote_volume,
+                registry_id=i.registry_id,
+                active=i.active,
             )
             for i in page.items
         ],

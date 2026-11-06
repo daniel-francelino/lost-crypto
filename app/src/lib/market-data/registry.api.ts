@@ -9,7 +9,8 @@ const availableSymbolSchema = z.object({
   symbol: z.string(),
   base: z.string(),
   quote_volume: z.string().nullable(),
-  registered: z.boolean(),
+  registry_id: z.string().nullable(),
+  active: z.boolean(),
 });
 export type AvailableSymbol = z.infer<typeof availableSymbolSchema>;
 

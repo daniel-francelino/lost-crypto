@@ -80,7 +80,7 @@ missing candles in the stored range make the frame wait instead of computing on 
 | GET | `/symbols` | the registry |
 | POST | `/symbols` | follow a pair: `{"exchange": "binance-usdm", "symbol": "BTCUSDT"}` (the exchange must list it) |
 | POST | `/symbols/{id}/deactivate`, `/activate` | stop / resume following (readings are kept) |
-| GET | `/available` | the exchange's USDT pairs to pick from, paged (`limit`, `offset`), searchable (`q`) and sorted by 24 h traded volume (`sort=volume`, the closest thing to "most used") or by name; each item says if it is already registered. Volumes are cached for 5 minutes |
+| GET | `/available` | the exchange's **crypto** USDT pairs to pick from (Binance's stock, commodity, currency and pre-IPO contracts, tagged `TradFi`, are left out, and `POST /symbols` refuses them), paged (`limit`, `offset`), searchable (`q`) and sorted by 24 h traded volume (`sort=volume`, the closest thing to "most used") or by name; each item says if it is already registered. Volumes are cached for 5 minutes |
 | GET | `/` | newest reading of each timeframe, per followed pair (`?symbol=`, `?exchange=`) |
 | GET | `/history` | readings of one timeframe, newest first (`frame`, `limit`, `before`) |
 

@@ -204,6 +204,7 @@ class CcxtExchange(Exchange):
                 quote=str(m["quote"]) if m.get("quote") else None,
                 settlement=str(m["settle"]) if m.get("settle") else None,
                 contract_size=Decimal(str(m.get("contractSize") or 1)),
+                crypto=_is_crypto(m),
             )
             for m in self._client.markets.values()
             if self.is_supported_market(m)
@@ -479,3 +480,15 @@ def _is_duplicate(exc: Exception) -> bool:
 
 def _to_decimal(value: Any) -> Decimal:
     return Decimal(str(value)) if value not in (None, "") else Decimal(0)
+
+
+def _is_crypto(market: dict[str, Any]) -> bool:
+    """Binance tags every contract: ``COIN`` (or a ``Crypto`` subtype) is a crypto asset, while
+    stocks, commodities, currencies and pre-IPO shares carry ``EQUITY``/``COMMODITY``/``FX``/…
+    and the ``TradFi`` subtype. Markets without the tag (spot) are crypto."""
+    info = market.get("info") or {}
+    kind = info.get("underlyingType")
+    if kind is None:
+        return True
+    subtypes = info.get("underlyingSubType") or []
+    return "TradFi" not in subtypes and (kind == "COIN" or "Crypto" in subtypes)
