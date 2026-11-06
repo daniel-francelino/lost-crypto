@@ -8,8 +8,8 @@ The first supported release is deliberately narrow:
 - Binance USD-M perpetuals settled in USDT (for example CCXT `BTC/USDT:USDT`).
 - One-way position mode, one directional position per bot: long **or** short.
 - Isolated margin only; leverage configurable from 1x through 10x, default 1x.
-- Paper simulation first, then Binance Futures testnet; live remains behind existing approval and
-  risk safeguards and is enabled only after testnet sign-off.
+- Paper simulation first, then Binance Futures Demo; live remains behind existing approval and
+  risk safeguards and is enabled only after Demo sign-off.
 - Existing spot bots, API payloads, portfolio accounting, and defaults remain spot with 1x.
 
 Cross margin, hedge mode (simultaneous long and short for one symbol), COIN-M contracts, options,
@@ -17,13 +17,28 @@ multi-exchange futures, and portfolio-margin accounts are out of the first relea
 different collateral and position semantics. Isolated margin is the initial choice so a loss on
 one position does not draw on the shared account collateral as cross margin can.
 
-## Current baseline
+## Current implementation status
 
-The exchange profile and market catalog are spot-only; strategy context and portfolio accounting
-are long-only spot; orders contain only buy/sell and quantity; backtests have no collateral,
-funding, or liquidation model. A preliminary product/position/leverage contract and pure linear
-perpetual accounting primitives are present in the code, but they are not connected to bot config,
-the worker, storage, backtests, or a futures adapter. They must not be presented as futures support.
+The repository has moved beyond the original spot-only baseline. It now has separate Binance Spot
+and USDⓈ-M adapters, `demo` as a persisted connection environment, Demo REST host validation,
+product/leverage/margin fields in bot configuration, a Futures-specific ledger, a paper worker for
+long and short positions, and an initial USD-M bot workflow. These are implementation components,
+not evidence that the release gates below have passed.
+
+| Phase | Current state | Remaining before its gate passes |
+|---|---|---|
+| 0–1 | Product constraints and bot persistence/configuration are implemented. Deterministic API schema tests prove that bot/backtest endpoints accept 10x, reject 10.01x and 11x, and preserve legacy Spot/1x/long-only defaults. Unit mapping tests round-trip Spot and Futures configurations and confirm Futures risk fields appear in config diffs (which bump the approval version). The public API schema exposes isolated margin only, rejects cross margin for bots/backtests, and the generated frontend enum matches OpenAPI. The update service preserves the Demo connection when a Futures bot changes to paper, keeps Spot paper accountless, and refuses edits/product switches while either ledger has exposure, reservations, or unresolved orders. The PostgreSQL integration test now PATCHes an approved bot, reads back the persisted config/approval columns, verifies the pending token is bound to the prior version, and confirms the old token cannot start the bot. An isolated PostgreSQL schema completed the full upgrade to 0039, Spot/Futures create and read, Futures update/read, defaulted legacy Spot read, and downgrade to 0035. The 0036 downgrade emits a database-side duplicate-owner guard before restoring the stricter unique index. Futures account/symbol uniqueness applies to active bots; the locked start check also considers open exposure and unresolved orders. | Run the full PostgreSQL integration suite at the current migration head; keep the user's shared database migration state separate from verification databases. |
+| 2 | USD-M market catalog, market rules, mark prices/candles, funding reads, and leverage tiers exist. Market-rule lookup rejects spot, inactive, inverse, non-USDT-settled, and mismatched symbols before their rules can be used. Persistence primary keys include exchange identity for trade and mark candles; repository and frontend query-key tests now guard isolation between Binance Spot and USD-M for BTC/USDT. | Prove runtime data freshness under an active exchange connection; auxiliary historical completeness remains explicitly uncertified. |
+| 3 | Futures ledger, isolated margin model, fees, funding, maintenance tiers, and liquidation simulation exist. Funding now debits unreserved wallet balance before isolated margin, credits receipts to wallet balance, preserves pending-order reservations, and caps settlement at available wallet plus isolated collateral. Entry leverage is checked before division and against the opening notional bracket; paper marking retains higher maintenance brackets if notional grows after entry. The exchange executor replaces a native stop when a partial fill changes position size, uses a fresh client order ID, and pauses the bot if Binance does not confirm cancellation of the stale stop. Deterministic tests cover maintenance-bracket boundary selection, partial entry fill deduplication and margin reservation/release, cumulative partial reduce-only fills and realized PnL, stop replacement after a partial close, fail-closed behavior on cancel uncertainty, funding cash-flow paths, collateral accounting, and the 10x domain cap. | Run full database integration at the current migration head and verify exact settlement parity against Binance Demo account events. |
+| 4 | The paper Futures path supports directional long/short accounting. Futures sessions pin leverage-tier inputs, and parity replay uses stored signal, mark, and funding series with the isolated-perpetual simulator. Replay refuses sessions whose bot configuration changed afterward. Signal-close replay evaluates warmup candles to initialize strategy state while suppressing warmup fills, matching paper startup semantics. Golden tests execute the actual paper worker and replay for mirrored long/short mean-reversion and trend-breakout sessions and assert identical signals, fills, and final equity. Intrabar mark exits use the candle close as their observable timestamp because OHLC data cannot identify the exact trigger time. Strategy tests also cover mirrored short breakout levels, same-candle reversal rejection, and mean-reversion short exits when new shorts are disabled. | Golden worker/replay parity now covers both enabled Futures strategies in both directions; retain Spot sequence regression coverage and extend golden coverage when strategies are added. |
+| 5 | Futures backtests are wired through separate signal/mark candles, event-time funding (including same-time Regular and Special events), pinned leverage tiers, fees, liquidation, data hashes, cost sensitivity, and distinct funding/liquidation outputs, including minimum intrabar liquidation distance. The run refuses missing or misaligned mark candles, funding events without event-time mark prices, empty funding history on ranges of at least eight hours, and observed funding gaps longer than eight hours. Results expose funding coverage as `not_certified` because historical interval schedules are not stored. Deterministic coverage checks long/short PnL and funding direction, adverse gap liquidation fills, maintenance-tier changes when mark notional crosses a bracket, mirrored long/short stop, target, and stop-gap exits, missing-data rejections, repeatability, partial closes that retain protective stops, and cost-ladder parity with a full Futures run; Spot backtest regression cases pass alongside them. | Deterministic tests cover hourly funding settlements, event-time accounting, an observable missing hourly observation, and inclusive import of a settlement at the requested end boundary. Partial closes, full-run reproducibility, and the Futures cost-ladder base path also have deterministic unit coverage. Historical funding completeness remains uncertified because Binance does not provide the historical interval schedule alongside each rate row. |
+| 6 | USD-M REST adapter, account reads, position normalization, start-time market configuration, available-USDT check, protective Algo Order mapping (including a request-level regression against the locked CCXT version), REST reconciliation, Demo private-stream monitor, and explicit kill-switch close policy exist. `BotTrader` routes futures PAPER and TESTNET to separate `PerpetualPaperTrader` and `PerpetualDemoTrader` classes. Demo commits entry/reduce-only intents and margin reservations before calling `OrderExecutor`; only exchange fills mutate positions. Before a Demo entry intent is persisted, the signal must contain a protective stop and its stop/target geometry is validated against the directional position. Paper funding estimates are not applied in Demo. Funding `ACCOUNT_UPDATE` events resolve to signed REST `FUNDING_FEE` income and update the ledger once by transaction ID using the exchange-reported isolated wallet; reconciliation detects isolated-margin drift. Unit tests cover Demo entry/close intent behavior, actual funding cash-flow accounting, duplicate event delivery, restart backfill idempotency, fail-closed recovery when isolated-margin drift is unexplained or funding predates a later local position change, and full-page funding pagination with overlap deduplication and backwards-cursor rejection. An ambiguous Futures order outcome retains its margin reservation and cannot be submitted again before resolution; a deterministic executor test covers this unknown state. A defensive `OrderExecutor` gate rejects and audits any residual Futures LIVE order before exchange resolution while releasing its collateral reservation. Funding recovery pages the Binance income history for up to 89 days after a stream gap or restart. It applies missing entries only when the local position has not changed since those funding events and the current exchange position and isolated margin are explainable; ambiguous histories fail closed. Futures reconciliation reads all non-zero USD-M positions for the account whenever it has Futures bots, including symbols not assigned to a bot, so unowned/manual exposure becomes a mismatch and pauses the connection's bots. An account-wide open-order scan at startup/recovery and every 60 seconds flags unknown standard or Algo orders on unassigned contracts; assigned contracts remain checked on the regular reconciliation pass. A unit test covers an unowned ETH position and an unowned manual open order alongside a BTC bot. Futures kill-switch success is audited only after Binance Demo reports no open position or orders and the local ledger has no position or unresolved orders; tests cover stale exposure, including remote exposure absent from the local ledger. The kill switch checks Demo even when the local ledger is flat and fails closed on orphan exposure. Every Demo start/resume resolves connection-scoped pending orders, requires a clean account-wide reconciliation, and validates aggregate capital reserved by bots not fully stopped against total USDT. Connection-scoped queries avoid the global bot-list limit. The USD-M adapter refuses the live-host SAPI permission endpoint in Demo/Testnet. A session start does not alter leverage or margin while an existing owned position is open. An explicitly opted-in smoke test now covers capped long and short Demo entries, private order events, native stops, reduce-only closes, and residual cleanup. No Binance Demo runtime evidence exists. | Run the opt-in smoke test and test partial/unknown fills, stop arming/replacement, restart recovery and kill behavior end to end; verify every exchange position against its ledger in Binance Demo. Keep the worker opt-in required and live blocked until the gate passes. |
+| 7 | Initial product selection, Futures risk fields, and bot detail/accounting views exist. The Futures backtest form selects the USD-M Demo account for leverage tiers, imports mark/funding data, and displays funding-coverage quality. Opening a backtest from a bot now preserves product, symbol, leverage, short mode, account, capital, fees, slippage, parameters, and risk. Existing Futures Demo bot edits display the persisted Demo mode and explain that exchange orders are sent; creating a new Futures bot remains paper-only pending the Demo release gate. System status reports Futures Demo positions without a confirmed active native stop. Deduplicated worker alerts cover exposed positions, stale mark prices (15-second freshness limit), narrow liquidation distance (configured minimum or 10%, critical below half), stream/margin/reconciliation recovery pauses, and net funding paid above 1% (warning) or 2% (critical) of allocated capital, offset by funding received. Liquidation alert payloads identify whether the price is Binance-reported or locally estimated; the alerts table exposes bot ID and diagnostic payload, and the audit table supports expanded event payloads. OpenAPI and frontend types include the position product and alert kinds so the UI distinguishes Spot from USD-M. Local verification: frontend typecheck/lint, 147 unit tests, and production build pass; the available login accessibility/shell E2E checks pass (3 passed), while 14 authenticated/backend-dependent E2E cases, including the 360 px review and logged-in accessibility scans, were skipped because E2E users/API were unavailable. | Responsive/accessibility review on authenticated screens and end-to-end consistency across bot configuration, backtests, dashboard, alerts, and audit remain incomplete. |
+| 8 | Futures paper is locally opt-in; Binance Demo endpoints are configured per connection. | Complete phases 5–7 and the phase 6 fault/recovery gates before enabling automated Futures Demo orders. Live remains disabled. |
+
+Do not describe USDⓈ-M exchange execution as operational until its phase 6 gate passes in Binance
+Demo and every release gate below has auditable evidence. Paper results are simulated results and
+do not establish exchange execution parity.
 
 ## Delivery phases and gates
 
@@ -125,7 +140,9 @@ repeatable results.
 ### 6. Implement the Binance USDⓈ-M execution adapter
 
 - Use a separate authenticated USDⓈ-M client and environment configuration for production and
-  testnet; spot credentials/endpoints must not be reused implicitly.
+  Binance Demo; spot credentials/endpoints must not be reused implicitly.
+- Wire Futures Demo bots to an exchange execution path distinct from `PerpetualPaperTrader`; a
+  Demo bot must never book a simulated paper fill as an exchange execution.
 - At start, verify account futures permission, one-way position mode, margin mode, and existing
   position/order state. Configure isolated margin and requested leverage for the exact symbol;
   read them back and block start if they differ or exceed 10x/venue tier limits.
@@ -138,7 +155,7 @@ repeatable results.
 - Add a global kill path that cancels opening orders and closes positions only under an explicit,
   audited policy; a kill switch must never silently leave an unprotected position.
 
-**Gate:** contract tests and Binance USDⓈ-M testnet prove start/configuration, long/short open and
+**Gate:** contract tests and Binance USDⓈ-M Demo prove start/configuration, long/short open and
 reduce-only close, protective stop, restart reconciliation, duplicate/unknown outcomes, stream
 reconnect, and kill-switch behavior. Every scenario verifies exchange position against the local
 ledger.
@@ -162,9 +179,9 @@ audit, and alerts; accessibility and responsive layouts are verified.
 ### 8. Staged release
 
 1. Run migrations and all API/frontend checks in CI; retain existing spot regression coverage.
-2. Enable paper futures behind a feature flag and reconcile paper ledger invariants.
-3. Enable testnet for an allowlisted account and symbols. Require operator review of each testnet
-   result and perform fault-injection/restart checks.
+2. Enable paper futures behind `FUTURES_PAPER_ENABLED` and reconcile paper ledger invariants.
+3. Enable Binance Demo execution for an allowlisted account and symbols. Require operator review
+   of each Demo result and perform fault-injection/restart checks.
 4. Ship read-only live account/position monitoring first.
 5. Enable live futures only behind a separate capability and approval, with a 1x default, hard 10x
    cap, small notional cap, one symbol/account collision guard, and tested emergency procedures.
@@ -177,7 +194,7 @@ funding history path, or unknown order outcome is accepted. Live remains disable
 ## Suggested implementation order
 
 Phases 0–3 form the backend foundation. Phase 4 enables short-capable strategy semantics. Phase 5
-is a hard dependency for meaningful paper and testnet comparisons. Phase 6 then connects exchange
+is a hard dependency for meaningful paper and Demo comparisons. Phase 6 then connects exchange
 execution; phase 7 adds the user workflow. Release phase 8 only begins after all gates pass.
 
 ## Current code to reuse or replace
@@ -191,6 +208,8 @@ execution; phase 7 adds the user workflow. Release phase 8 only begins after all
 
 ## Primary references
 
+- [Project USD-M v1 decisions](17-usdm-v1-adr.md)
+- [Project Binance Demo integration guide](18-binance-demo-integration.md)
 - [Binance Developer Docs: USD-M Futures](https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/Introduction)
 - [Binance Developer Docs: New USD-M Order](https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/rest-api/New-Order)
 - [Binance Developer Docs: USD-M user data stream order updates](https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/user-data-streams#event-order-update)

@@ -249,3 +249,100 @@ Período todo de cada par (dominado pelo desenvolvimento); a tabela completa est
 * **Regra do projeto:** o operador investe no máximo **1.000 USDT**, então os resultados precisam ser lidos em dólares. Por isso todo par é cotado em **USDT** (a API recusa outra cotação com 422 em backtests, bots e importações) e o backtest começa com **100 ou 1.000 USDT** (seletor no formulário; o padrão da API já era 1.000).
 * **Todos os backtests anteriores foram apagados** a pedido (61 execuções, 5.070 operações e 1 varredura), junto com os candles de ETH/BTC. As tabelas das seções 10 a 12 ficam como **registro histórico** do estudo, feito com 10.000 de capital; o par ETH/BTC deixou de existir no banco. Os números relativos (Sharpe, drawdown, retorno em %) não dependem do capital, mas o valor em dólares sim: com 1.000 USDT, +100% é +1.000 USDT, não +10.000.
 * **Seleção de moedas com ícone:** os formulários de bot, de backtest e de dados de mercado usam um seletor com os pares oferecidos por `GET /market-data/symbols` (14 pares USDT, lista curada em `market_data/domain/pairs.py`), e as listas de bots, backtests e dados mostram o ícone ao lado do par. Os ícones são SVG servidos pelo próprio app em `app/public/coins/` (sem depender de CDN externa, que quebraria sem rede e vazaria a navegação); se faltar o arquivo de uma moeda, aparece a inicial. Origem: pacote `@web3icons/core` (licença MIT), versão 4.0.58, arquivos `branded` das 14 moedas.
+
+## 14. Backtests com 1.000 USDT (2026-11-02)
+
+Os dois últimos backtests da estratégia antiga (EMA Crossover) foram apagados. Rodei a `trend_quality_breakout` (40/20/3, `er_min` 0, saída móvel de 3 ATRs) em 1d nos **14 pares USDT** do app, com **1.000 USDT** de capital, taxa de 0,1%, slippage de 5 bps, divisão de teste em 2023-01-01, de duas formas: caixa todo investido e risco de 1% por operação com stop obrigatório (28 execuções no banco). A tabela mostra o que **1.000 USDT em 2023-01-01** valeriam hoje.
+
+| Par | Estratégia, caixa todo investido | Estratégia, risco de 1% | Comprar-e-segurar | Drawdown 2023+ (caixa / risco) |
+|---|---|---|---|---|
+| ADA | 2.118 | 1.154 | 785 | 66% / 8% |
+| ATOM | 928 | 1.008 | 160 | 66% / 8% |
+| AVAX | 2.366 | 1.123 | 787 | 53% / 8% |
+| BNB | 2.686 | 1.284 | 2.864 | 31% / 7% |
+| BTC | 1.456 | 1.069 | 4.672 | 31% / 4% |
+| DOGE | 1.803 | 1.088 | 1.106 | 45% / 6% |
+| DOT | 1.289 | 1.044 | 220 | 59% / 8% |
+| ETC | 929 | 1.008 | 453 | 58% / 7% |
+| ETH | 2.261 | 1.103 | 1.880 | 36% / 5% |
+| LINK | 1.317 | 1.055 | 2.093 | 55% / 6% |
+| LTC | 358 | 936 | 795 | 70% / 8% |
+| SOL | 3.986 | 1.197 | 9.583 | 51% / 6% |
+| TRX | 2.573 | 1.149 | 5.587 | 28% / 5% |
+| XRP | 1.294 | 1.128 | 3.629 | 51% / 9% |
+| **Mediana** | **1.629** | **1.096** | **1.493** | |
+
+* Com **caixa todo investido**, 11 de 14 pares terminam acima de 1.000, a mediana é de 1.629, mas o drawdown é de 28% a 70% (uma conta de 1.000 chegou a valer 300 a 700 no pior ponto).
+* Com **risco de 1% por operação**, 13 de 14 pares terminam acima de 1.000, a mediana é de 1.096 (+9,6% em quase quatro anos) e o drawdown fica em 4% a 9%. É o perfil realista de um bot assim: ganho modesto, perda pequena.
+* O **comprar-e-segurar** ganhou da estratégia em BTC, SOL, XRP, TRX, LINK e BNB (os pares que mais subiram); a estratégia ganhou nos outros oito e, principalmente, evitou as quedas. A mediana dos dois é parecida (1.629 e 1.493).
+* **Não leia os resultados do período todo** (desde 2017–2020): a conta de 1.000 vira dezenas de milhares nos pares de 2020–21 só por causa do ciclo de alta daquele trecho, e isso não deve ser esperado de novo.
+* Todos os números são de um **único** período de quatro anos, com 8 a 16 operações por par: a incerteza é grande, e nada garante repetição. Taxas e slippage estão incluídos, mas **impostos e spread real não**.
+
+## 15. Operar na alta e na queda: análise (2026-11-02)
+
+**Pergunta:** a estratégia só compra rompimentos e fica parada nas quedas. Dá para torná-la flexível, operando também quando o mercado cai, e isso melhora o resultado?
+
+### O que os livros dizem
+
+* **Kaufman (cap. 8, 19; Chan, livro 2, cap. 2–3):** um sistema de tendência de verdade é **simétrico**: compra na alta e **vende a descoberto** na baixa. A nossa versão é só comprada porque o produto é spot sem alavancagem (baseline do sistema), então na queda ela só pode ficar **fora do mercado**. Isso não é falha de lógica; é o que a plataforma permite.
+* **Kaufman cap. 19 C1–C2:** use um período **longo** para a direção (regime) e um **curto** para a entrada. Um filtro de regime é a ferramenta que o livro oferece para saber "alta ou queda".
+* **Kaufman cap. 9 C7 e cap. 16 C7:** osciladores e reversão à média **contra a direção do preço têm alto risco**; "melhor usá-los como timing dentro de uma tendência". Dentro de uma queda, comprar recuo é ir contra a tendência maior.
+* **Chan (livro 2, cap. 2–3):** reversão à média funciona em séries estacionárias. Na Fase 0 (seção 10) nenhuma série de cripto foi estacionária, o que já avisava.
+* **Aronson (cap. 9 C7; Kaufman cap. 20 C11):** cada regra nova "elimina boas operações, na esperança de eliminar mais ruins" e precisa provar isso fora da amostra. Vale também para esta mudança.
+
+### Desenho declarado antes de rodar
+
+Regime = fechamento acima (alta) ou abaixo (queda) da média simples de **200 dias** (valor do livro para tendência longa, sem ajuste). Cinco variantes, mesmas regras de custo (taxa 0,1%, slippage 5 bps), caixa todo investido, 1.000 USDT, **14 pares em 1d**, desenvolvimento antes de 2023 e avaliação depois:
+
+| Variante | Regra |
+|---|---|
+| `trend` | A estratégia atual (rompimento 40/20, stop e saída móvel de 3 ATRs), sempre ligada |
+| `mr` | Só reversão: compra com z-score de 20 dias ≤ −2, sai em z ≥ 0 ou 10 candles, stop de 3 ATRs, sempre ligada |
+| `gated_trend` | `trend` só quando o mercado está em alta (acima da média de 200) |
+| `bear_mr` | `mr` só quando o mercado está em queda |
+| `switch` | A proposta: `trend` na alta e `mr` na queda |
+
+### Resultado (mediana dos 14 pares; retorno / Sharpe / drawdown / operações / acerto)
+
+| Avaliação (2023–2026) | Retorno | Sharpe | DD | Operações | Acerto | 1.000 USDT viram |
+|---|---|---|---|---|---|---|
+| Comprar-e-segurar | 48% | – | – | – | – | 1.480 |
+| `trend` | 106% | 0,60 | 52% | 10 | 39% | 2.060 |
+| `mr` (sempre) | −1% | 0,14 | 45% | 28 | 58% | 992 |
+| `gated_trend` | 95% | 0,62 | 44% | 8 | 47% | 1.946 |
+| `bear_mr` (só na queda) | 2% | 0,17 | 43% | 23 | 60% | 1.018 |
+| **`switch`** | **51%** | **0,47** | **58%** | 30 | 56% | **1.515** |
+
+| Desenvolvimento (antes de 2023) | Retorno | Sharpe | DD |
+|---|---|---|---|
+| `trend` | 199% | 0,76 | 58% |
+| `mr` (sempre) | −41% | −0,05 | 57% |
+| `gated_trend` | 127% | 0,68 | 44% |
+| `bear_mr` | −23% | 0,04 | 48% |
+| `switch` | 81% | 0,61 | 70% |
+
+### O que isso diz
+
+* **Operar a queda comprando recuos não ajudou.** A reversão sozinha (`mr`) ficou em zero no teste e negativa no treino, e só nas quedas (`bear_mr`) ficou em +2%, praticamente nada. O acerto de 56% a 60% parece bom, mas os ganhos são pequenos e as perdas (quando o recuo vira queda de verdade) são grandes: é o problema de **ganhar muitas vezes pouco e perder poucas vezes muito**.
+* **A combinação `switch` ficou pior que a tendência pura:** retorno de 51% contra 106%, Sharpe de 0,47 contra 0,60 e drawdown **maior** (58% contra 52%). Em 14 pares, ela superou `trend` em 7 e perdeu em 7: **cara ou coroa**. Aconteceu o que o Aronson avisa: a regra extra tirou mais boas operações do que ruins.
+* **O que o regime faz de útil é reduzir risco**, não achar operação nova: `gated_trend` (tendência só quando acima da média de 200 dias) teve retorno e Sharpe parecidos com `trend` e **drawdown menor** (44% contra 52% no teste e contra 58% no treino), com menos operações (8 contra 10). Em bom português: o filtro de regime tira da frente uma parte das perdas, sem trazer operações novas.
+* **O padrão `trend` bateu comprar-e-segurar de novo** (1.000 viram 2.060 contra 1.480, na mediana). Mas o acerto de `trend` (39%) é o de uma estratégia de tendência, e isso tem a ver com a sua pergunta anterior: acerto alto e retorno alto são duas coisas diferentes.
+
+### Limites desta análise
+
+* Uma única regra de reversão, sem ajuste (z = −2, 20 dias, 10 candles). Outra regra pode se sair melhor, mas ajustar agora olhando estes dados repetiria o erro de seleção que o Aronson descreve.
+* Caixa todo investido, que exagera retornos e drawdowns; os rankings entre variantes valem mais que os números absolutos.
+* Um período de quatro anos, 14 pares correlacionados entre si, 8 a 30 operações por par.
+* Só 1d. Reversão pode se comportar diferente em 1h/15m, onde o custo por operação pesa mais.
+
+### Recomendação
+
+1. **Não implementar reversão na queda** (`switch`/`bear_mr`): não melhorou e piorou o risco. O critério de abandono da seção 6 vale: não passou fora da amostra.
+2. **Candidato a implementar, se você quiser flexibilidade defensiva:** o **filtro de regime** (`gated_trend`): entrada só com o fechamento acima da média de 200 dias, que cortou drawdown em 8 a 14 pontos sem derrubar o Sharpe. Problema: a estratégia já usa os 5 parâmetros permitidos (`entry_period`, `exit_period`, `atr_multiple`, `er_min`, `trail_atr_multiple`). Como `er_min` não mostrou valor (seção 10), a troca natural é **`er_min` sair e `regime_period` entrar** (0 = desligado, 200 sugerido).
+3. **A queda só rende com posição vendida.** Para ganhar quando o mercado cai é preciso vender a descoberto (futuros perpétuos ou margem), o que **quebra as regras atuais da plataforma** (spot, sem alavancagem, sem liquidação). Se for o caminho, é decisão sua, com requisitos próprios (custo de financiamento, liquidação, limite de alavancagem e reconciliação), e não deve ser feita junto com esta mudança.
+
+### Decisões que preciso de você
+
+1. Implemento o filtro de regime (`regime_period`), trocando `er_min` por ele?
+2. Quer investigar posição vendida (perpétuos/margem) como um projeto separado, fora do baseline spot?
+3. A estratégia intradiária (acerto de 80%): continuo os testes que você interrompeu (custo zero e custo baixo) ou deixamos de lado?

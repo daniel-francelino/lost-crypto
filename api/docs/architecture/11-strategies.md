@@ -41,9 +41,7 @@ flowchart TB
 | `evaluate(ctx, state)` | One **closed** candle in, `StrategyResult(signals, new_state)` out. Pure and deterministic; never mutates `state`; no signals while warming up |
 | `serialize_state` / `deserialize_state` | JSON round trip of the state (Decimals as strings) |
 
-Signals are *intent* (`BUY`/`SELL`, a reason, optional `stop_loss` / `take_profit` price levels).
-Sizing, risk, execution and the stop monitoring belong to other modules, which is what lets the
-same file run in backtest and in paper trading unchanged. Helpers shared by strategies live next
+Signals are *intent* (`BUY`/`SELL`, a reason, optional `stop_loss` / `take_profit` price levels). An exit may set `exit_fraction` in `(0, 1]` to close that fraction of the current position; omission keeps the historical full-exit behavior. Partial exits retain the remaining position and its protective levels. Sizing, risk and execution belong to other modules, which is what lets the same strategy run in backtest and paper trading unchanged. Helpers shared by strategies live next
 to the contract: `parse_numeric_params`, `percent_below_above`, `validate_percent`.
 
 ## Files
