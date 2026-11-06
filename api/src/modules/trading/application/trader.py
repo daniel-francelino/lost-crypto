@@ -60,6 +60,7 @@ from modules.risk_management.domain.stops import ExitReason, check_protective_ex
 from modules.strategies.domain.base import Strategy
 from modules.strategies.domain.registry import StrategyRegistry
 from modules.strategies.domain.types import Side, Signal, SignalKind, StrategyContext
+from modules.trading.application.candle_fetch import fetch_candles_since
 from modules.trading.application.orders import OrderExecutor
 from modules.trading.application.perpetual_paper import PerpetualDemoTrader, PerpetualPaperTrader
 from modules.trading.application.ports import TradingStore
@@ -178,7 +179,7 @@ class BotTrader:
             )
 
         source = self._exchanges.market_data(cfg.exchange)
-        fetched = await source.fetch_candles(cfg.symbol, cfg.timeframe, since, FETCH_LIMIT)
+        fetched = await fetch_candles_since(source, cfg.symbol, cfg.timeframe, since, now)
         candles = sorted(
             (c for c in fetched if c.close_time <= now and (last is None or c.open_time > last)),
             key=lambda c: c.open_time,

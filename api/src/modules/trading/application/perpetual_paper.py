@@ -55,6 +55,7 @@ from modules.risk_management.domain.perpetual import size_linear_perpetual_entry
 from modules.strategies.domain.base import Strategy
 from modules.strategies.domain.registry import StrategyRegistry
 from modules.strategies.domain.types import Side, Signal, SignalKind, StrategyContext
+from modules.trading.application.candle_fetch import fetch_candles_since
 from modules.trading.application.orders import OrderExecutor
 from modules.trading.application.ports import TradingStore
 from modules.trading.domain.models import TradingSession, max_signal_age, warmup_candles
@@ -113,7 +114,7 @@ class _PerpetualTrader:
             - warmup_candles(strategy.required_history_candles()) * cfg.timeframe.delta
         )
         source = self._exchanges.market_data(cfg.exchange)
-        raw_candles = await source.fetch_candles(cfg.symbol, cfg.timeframe, since, 1000)
+        raw_candles = await fetch_candles_since(source, cfg.symbol, cfg.timeframe, since, now)
         candles = sorted(
             (
                 c

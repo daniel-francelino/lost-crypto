@@ -1,42 +1,53 @@
 """Market trend per timeframe: BULLISH, BEARISH or SIDEWAYS for 1h, 4h, 1d and 1w.
 
-A pure utility (no I/O, no clock) meant to be shared by strategies, risk, bots and dashboards.
-Feed it closed candles of one base timeframe (1h is typical) and it builds the 4h / 1d / 1w bars
-itself, in UTC like Binance (weeks start on Monday 00:00 UTC). It only ever reads *completed*
-bars, so a reading never contains the future.
+A pure utility (no I/O, no clock) shared by strategies, risk, bots, the trend detector and
+dashboards. Feed it closed candles of one base timeframe (1h is typical) and it builds the 4h /
+1d / 1w bars itself, in UTC like Binance (weeks start on Monday 00:00 UTC). It only ever reads
+*completed* bars, so a reading never contains the future.
 
-How a frame is classified, from its last completed bar:
+**The rule** (two EMAs of the bar closes, per timeframe):
 
-* ``ema``: EMA of the bar closes (seeded with the plain average of the first ``ema_period``).
-* ``slope``: how far the EMA moved over the last ``SLOPE_BARS`` bars, measured in ATRs of that
-  frame, so the same threshold means the same thing on BTC and on a small altcoin, on 1h and on
-  1w.
-* BULLISH: the close is above the EMA *and* the EMA rose by more than ``flat_band`` ATRs.
-  BEARISH: the mirror image. Anything else, including a close on one side of an EMA that is not
-  going anywhere, is SIDEWAYS.
+* BULLISH:  close > fast EMA > slow EMA
+* BEARISH:  close < fast EMA < slow EMA
+* SIDEWAYS: any other order (no alignment, or a transition)
 
-A frame without enough completed bars has ``trend = None`` (unknown), which is not the same as
-SIDEWAYS: callers decide what to do while warming up.
+Defaults: 1w, 1d and 4h use EMA 20 / 50; 1h uses EMA 9 / 21. Every length is a parameter.
+
+**Confirmation** of a directional trend, four independent checks (each True / False, or None
+while its data is warming up). ``TrendReading.confirmed`` needs all four:
+
+* ``distance``: the fast and slow EMAs are at least ``min_distance_pct`` % apart;
+* ``slope``: the slow EMA moved in the trend's direction over the last ``slope_bars`` bars;
+* ``adx``: Wilder's ADX is at least ``adx_min`` (the trend has strength);
+* ``structure``: the last two swing highs and lows are both higher (bullish) / lower (bearish).
+  A swing needs ``swing_window`` bars on each side, so it is only known that many bars later.
+
+A frame with fewer than ``slow`` completed bars has ``trend = None`` (unknown, not the same as
+SIDEWAYS): callers decide what to do while warming up.
 
 Two ways to use it::
 
-    readings = analyze_trend(candles)                    # one shot, e.g. a dashboard or a report
+    readings = analyze_trend(candles)                    # one shot, e.g. a report
     tracker = TrendTracker(Timeframe.H1)                 # incremental, e.g. inside a strategy
     state = tracker.update(state, candle)                # state is immutable and serialisable
     tracker.read(state, TrendFrame.D1).trend
+
+``FrameTrend`` is the per-timeframe engine underneath: it works on ``Bar`` objects, so a series
+of bars that did not come from candles (a test, a simulation) can be classified too.
 """
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 
 from modules.market_data.domain.models import Candle, Timeframe
 
-SLOPE_BARS = 3  # the EMA is compared with its own value this many bars ago
 _WEEK_OFFSET_SECONDS = 4 * 86_400  # the epoch was a Thursday; weeks start on Monday
+_ZERO = Decimal(0)
+_HUNDRED = Decimal(100)
 
 
 class Trend(StrEnum):
@@ -58,9 +69,8 @@ class TrendFrame(StrEnum):
     @classmethod
     def parse(cls, text: str) -> "TrendFrame":
         """Accepts the values (``1h``) and plain words (``hour``, ``day``, ``week``)."""
-        key = text.strip().lower()
         try:
-            return _ALIASES[key]
+            return _ALIASES[text.strip().lower()]
         except KeyError:
             raise ValueError(f"unknown trend timeframe {text!r}") from None
 
@@ -89,89 +99,310 @@ _ALIASES = {
 
 @dataclass(frozen=True, slots=True)
 class TrendSettings:
-    ema_period: int = 20
-    atr_period: int = 14
-    # |EMA change over SLOPE_BARS bars| must exceed this many ATRs to count as a trend.
-    flat_band: Decimal = Decimal("0.25")
+    fast: int = 20
+    slow: int = 50
+    min_distance_pct: Decimal = Decimal("1.0")  # EMA gap needed to confirm, in % of the slow EMA
+    adx_min: Decimal = Decimal(25)
+    adx_period: int = 14  # also the ATR period
+    slope_bars: int = 5
+    swing_window: int = 2
 
     def __post_init__(self) -> None:
-        if self.ema_period < 2 or self.atr_period < 2:
-            raise ValueError("ema_period and atr_period must be >= 2")
-        if self.flat_band < 0:
-            raise ValueError("flat_band must be >= 0")
+        if not (2 <= self.fast < self.slow):
+            raise ValueError("EMA lengths must satisfy 2 <= fast < slow")
+        if self.min_distance_pct < 0 or self.adx_min < 0:
+            raise ValueError("min_distance_pct and adx_min must be >= 0")
+        if self.adx_period < 2 or self.slope_bars < 1 or self.swing_window < 1:
+            raise ValueError("adx_period >= 2, slope_bars >= 1 and swing_window >= 1 are required")
 
     @property
     def bars_needed(self) -> int:
-        """Completed bars before the frame can be read."""
-        return max(self.ema_period + SLOPE_BARS, self.atr_period)
+        """Completed bars before every number of a reading is available."""
+        return max(self.slow + self.slope_bars, 2 * self.adx_period + 1)
 
 
-# A weekly EMA of 20 would need 140 days of history; 10 weeks is the same "few months" horizon.
+# EMA 20/50 on the long frames, 9/21 on the short one. The distance gates grow with the frame
+# because a bigger bar moves more; they are starting points that the validation study checks.
 DEFAULT_SETTINGS: Mapping[TrendFrame, TrendSettings] = {
-    TrendFrame.H1: TrendSettings(),
-    TrendFrame.H4: TrendSettings(),
-    TrendFrame.D1: TrendSettings(),
-    TrendFrame.W1: TrendSettings(ema_period=10),
+    TrendFrame.W1: TrendSettings(20, 50, Decimal("3.0")),
+    TrendFrame.D1: TrendSettings(20, 50, Decimal("1.5")),
+    TrendFrame.H4: TrendSettings(20, 50, Decimal("0.7")),
+    TrendFrame.H1: TrendSettings(9, 21, Decimal("0.3")),
 }
 
 
-def classify_trend(
-    *, close: Decimal, ema: Decimal, slope: Decimal, atr: Decimal, flat_band: Decimal
-) -> Trend:
-    """The classification rule on its own (``slope`` = EMA now minus EMA ``SLOPE_BARS`` ago)."""
-    if atr <= 0:
-        return Trend.SIDEWAYS
-    threshold = flat_band * atr
-    if close > ema and slope > threshold:
+def classify_trend(*, close: Decimal, fast: Decimal, slow: Decimal) -> Trend:
+    """The rule on its own."""
+    if close > fast > slow:
         return Trend.BULLISH
-    if close < ema and -slope > threshold:
+    if close < fast < slow:
         return Trend.BEARISH
     return Trend.SIDEWAYS
+
+
+@dataclass(frozen=True, slots=True)
+class Bar:
+    """A completed bar of one timeframe."""
+
+    open_time: datetime
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
 
 
 @dataclass(frozen=True, slots=True)
 class TrendReading:
     frame: TrendFrame
     trend: Trend | None  # None: not enough completed bars yet
+    previous_trend: Trend | None
     bars: int  # completed bars seen so far
+    bar_open_time: datetime | None  # the last completed bar
     close: Decimal | None = None
-    previous_close: Decimal | None = None
-    ema: Decimal | None = None
-    previous_ema: Decimal | None = None
+    ema_fast: Decimal | None = None
+    ema_slow: Decimal | None = None
+    ema_distance_pct: Decimal | None = None  # (fast - slow) / slow, in %; signed
+    slow_slope_pct: Decimal | None = None  # slow EMA change over ``slope_bars`` bars, in %
+    adx: Decimal | None = None
     atr: Decimal | None = None
-    #: EMA change over SLOPE_BARS bars, in ATRs (positive = rising).
-    slope_atr: Decimal | None = None
+    structure: Trend | None = None  # from the last two swing highs and lows
+    #: distance / slope / adx / structure → True, False or None (unknown). Empty when SIDEWAYS.
+    checks: Mapping[str, bool | None] = field(default_factory=dict)
 
     @property
     def ready(self) -> bool:
         return self.trend is not None
 
+    @property
+    def confirmed(self) -> bool:
+        """A directional trend that passes all four checks."""
+        return bool(self.checks) and all(value is True for value in self.checks.values())
+
+    @property
+    def is_directional(self) -> bool:
+        return self.trend in (Trend.BULLISH, Trend.BEARISH)
+
+
+@dataclass(frozen=True, slots=True)
+class IndicatorState:
+    bars: int = 0
+    last_open_time: datetime | None = None
+    close: Decimal | None = None
+    high: Decimal | None = None
+    low: Decimal | None = None
+    ema_fast: Decimal | None = None
+    ema_slow: Decimal | None = None
+    slow_recent: tuple[Decimal, ...] = ()  # last slope_bars + 1 slow EMA values
+    trend: Trend | None = None
+    previous_trend: Trend | None = None
+    # Wilder smoothing for ATR / ADX.
+    diffs: int = 0  # bars that had a previous bar to compare with
+    tr_sum: Decimal = _ZERO
+    pdm_sum: Decimal = _ZERO
+    mdm_sum: Decimal = _ZERO
+    dx_count: int = 0
+    dx_sum: Decimal = _ZERO
+    adx: Decimal | None = None
+    # Swing structure.
+    window: tuple[tuple[Decimal, Decimal], ...] = ()  # (high, low) of the last 2w+1 bars
+    swing_highs: tuple[Decimal, ...] = ()  # last two
+    swing_lows: tuple[Decimal, ...] = ()
+
+
+def _ema(value: Decimal | None, count: int, period: int, close: Decimal) -> Decimal:
+    if value is None:
+        return close
+    if count < period:  # seed with the plain average of the first ``period`` closes
+        return (value * count + close) / (count + 1)
+    return value + Decimal(2) / (period + 1) * (close - value)
+
+
+class FrameTrend:
+    """Trend engine of one timeframe, working bar by bar."""
+
+    def __init__(self, frame: TrendFrame, settings: TrendSettings | None = None) -> None:
+        self.frame = frame
+        self.settings = DEFAULT_SETTINGS[frame] if settings is None else settings
+
+    def initial_state(self) -> IndicatorState:
+        return IndicatorState()
+
+    def update(self, s: IndicatorState, bar: Bar) -> IndicatorState:
+        """State after one more completed bar (``s`` is never changed)."""
+        cfg = self.settings
+        ema_fast = _ema(s.ema_fast, s.bars, cfg.fast, bar.close)
+        ema_slow = _ema(s.ema_slow, s.bars, cfg.slow, bar.close)
+        recent = (*s.slow_recent, ema_slow)[-(cfg.slope_bars + 1) :]
+        bars = s.bars + 1
+        trend = (
+            classify_trend(close=bar.close, fast=ema_fast, slow=ema_slow)
+            if bars >= cfg.slow
+            else None
+        )
+
+        n = cfg.adx_period
+        diffs, tr_sum, pdm_sum, mdm_sum = s.diffs, s.tr_sum, s.pdm_sum, s.mdm_sum
+        dx_count, dx_sum, adx = s.dx_count, s.dx_sum, s.adx
+        if s.close is not None and s.high is not None and s.low is not None:
+            true_range = max(bar.high - bar.low, abs(bar.high - s.close), abs(bar.low - s.close))
+            up, down = bar.high - s.high, s.low - bar.low
+            pdm = up if up > down and up > 0 else _ZERO
+            mdm = down if down > up and down > 0 else _ZERO
+            diffs += 1
+            if diffs <= n:
+                tr_sum, pdm_sum, mdm_sum = tr_sum + true_range, pdm_sum + pdm, mdm_sum + mdm
+            else:
+                tr_sum = tr_sum - tr_sum / n + true_range
+                pdm_sum = pdm_sum - pdm_sum / n + pdm
+                mdm_sum = mdm_sum - mdm_sum / n + mdm
+            if diffs >= n and tr_sum > 0:
+                pdi, mdi = _HUNDRED * pdm_sum / tr_sum, _HUNDRED * mdm_sum / tr_sum
+                dx = _HUNDRED * abs(pdi - mdi) / (pdi + mdi) if pdi + mdi > 0 else _ZERO
+                if dx_count < n:
+                    dx_count, dx_sum = dx_count + 1, dx_sum + dx
+                    if dx_count == n:
+                        adx = dx_sum / n
+                elif adx is not None:
+                    adx = (adx * (n - 1) + dx) / n
+
+        w = cfg.swing_window
+        window = (*s.window, (bar.high, bar.low))[-(2 * w + 1) :]
+        highs, lows = s.swing_highs, s.swing_lows
+        if len(window) == 2 * w + 1:
+            centre = window[w]
+            others = (*window[:w], *window[w + 1 :])
+            if all(centre[0] > high for high, _ in others):
+                highs = (*highs, centre[0])[-2:]
+            if all(centre[1] < low for _, low in others):
+                lows = (*lows, centre[1])[-2:]
+
+        return IndicatorState(
+            bars, bar.open_time, bar.close, bar.high, bar.low, ema_fast, ema_slow, recent,
+            trend, s.trend, diffs, tr_sum, pdm_sum, mdm_sum, dx_count, dx_sum, adx, window,
+            highs, lows,
+        )  # fmt: skip
+
+    def read(self, s: IndicatorState) -> TrendReading:
+        cfg = self.settings
+        if s.trend is None or s.ema_fast is None or s.ema_slow is None or s.close is None:
+            return TrendReading(
+                self.frame, None, None, s.bars, s.last_open_time, s.close, s.ema_fast, s.ema_slow
+            )
+        distance = (s.ema_fast - s.ema_slow) / s.ema_slow * _HUNDRED if s.ema_slow != 0 else None
+        slope = None
+        if s.bars >= cfg.slow + cfg.slope_bars and len(s.slow_recent) == cfg.slope_bars + 1:
+            base = s.slow_recent[0]
+            slope = (s.ema_slow - base) / base * _HUNDRED if base != 0 else None
+        atr = s.tr_sum / cfg.adx_period if s.diffs >= cfg.adx_period else None
+        structure = self._structure(s)
+        checks: dict[str, bool | None] = {}
+        if s.trend is not Trend.SIDEWAYS:
+            up = s.trend is Trend.BULLISH
+            checks = {
+                "distance": None if distance is None else abs(distance) >= cfg.min_distance_pct,
+                "slope": None if slope is None else (slope > 0 if up else slope < 0),
+                "adx": None if s.adx is None else s.adx >= cfg.adx_min,
+                "structure": None if structure is None else structure is s.trend,
+            }
+        return TrendReading(
+            self.frame, s.trend, s.previous_trend, s.bars, s.last_open_time, s.close, s.ema_fast,
+            s.ema_slow, distance, slope, s.adx, atr, structure, checks,
+        )  # fmt: skip
+
+    @staticmethod
+    def _structure(s: IndicatorState) -> Trend | None:
+        if len(s.swing_highs) < 2 or len(s.swing_lows) < 2:
+            return None
+        higher_high, higher_low = (
+            s.swing_highs[1] > s.swing_highs[0],
+            s.swing_lows[1] > s.swing_lows[0],
+        )
+        lower_high, lower_low = (
+            s.swing_highs[1] < s.swing_highs[0],
+            s.swing_lows[1] < s.swing_lows[0],
+        )
+        if higher_high and higher_low:
+            return Trend.BULLISH
+        if lower_high and lower_low:
+            return Trend.BEARISH
+        return Trend.SIDEWAYS
+
+
+# --- building bars from candles -------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Bucket:
+    """A higher-timeframe bar being assembled from base candles."""
+
+    index: int | None = None
+    seen: int = 0  # base candles collected; stays below the bar length for a partial bar
+    open: Decimal | None = None
+    high: Decimal | None = None
+    low: Decimal | None = None
+
+
+def _geometry(frame: TrendFrame) -> tuple[int, int]:
+    """(bar length in seconds, UTC offset of the first bar)."""
+    return int(frame.delta.total_seconds()), _WEEK_OFFSET_SECONDS if frame is TrendFrame.W1 else 0
+
+
+def add_candle(
+    bucket: Bucket, candle: Candle, frame: TrendFrame, base_seconds: int
+) -> tuple[Bucket, Bar | None]:
+    """Add one closed candle to a bar; returns the bar when this candle completes it.
+
+    A bar that began before the history did, or that lost a candle, is dropped, never
+    half-counted."""
+    length_seconds, offset = _geometry(frame)
+    timestamp = int(candle.open_time.timestamp())
+    index = (timestamp - offset) // length_seconds
+    if bucket.index == index and bucket.high is not None and bucket.low is not None:
+        seen = bucket.seen + 1
+        opened, high, low = bucket.open, max(bucket.high, candle.high), min(bucket.low, candle.low)
+    else:
+        starts_bar = (timestamp - offset) % length_seconds == 0
+        seen, opened, high, low = (1 if starts_bar else 0), candle.open, candle.high, candle.low
+    complete = (timestamp + base_seconds - offset) % length_seconds == 0 and seen == (
+        length_seconds // base_seconds
+    )
+    if not complete or opened is None:
+        return Bucket(index, seen, opened, high, low), None
+    start = datetime.fromtimestamp(index * length_seconds + offset, UTC)
+    return Bucket(index, 0), Bar(start, opened, high, low, candle.close)
+
+
+def build_bars(candles: Sequence[Candle], frame: TrendFrame) -> list[Bar]:
+    """Every completed ``frame`` bar of a candle series (oldest first, one timeframe)."""
+    if not candles:
+        return []
+    base = candles[0].timeframe
+    _check_buildable(frame, base)
+    bucket, bars = Bucket(), []
+    for candle in candles:
+        bucket, bar = add_candle(bucket, candle, frame, int(base.delta.total_seconds()))
+        if bar is not None:
+            bars.append(bar)
+    return bars
+
+
+def _check_buildable(frame: TrendFrame, base: Timeframe) -> None:
+    if frame.delta < base.delta or frame.delta % base.delta != timedelta(0):
+        raise ValueError(f"{frame.value} cannot be built from {base.value} candles")
+
+
+# --- incremental multi-timeframe tracker ----------------------------------------------------
+
 
 @dataclass(frozen=True, slots=True)
 class FrameState:
-    # The bar being assembled from base candles.
-    index: int | None = None
-    seen: int = 0
-    high: Decimal | None = None
-    low: Decimal | None = None
-    # Completed bars.
-    bars: int = 0
-    ema: Decimal | None = None
-    recent: tuple[Decimal, ...] = ()  # last SLOPE_BARS + 1 EMA values, current included
-    close: Decimal | None = None
-    previous_close: Decimal | None = None
-    ranges: tuple[Decimal, ...] = ()
+    bucket: Bucket = Bucket()
+    indicators: IndicatorState = IndicatorState()
 
 
 @dataclass(frozen=True, slots=True)
 class TrendTrackerState:
     frames: Mapping[TrendFrame, FrameState] = field(default_factory=dict)
-
-
-def _true_range(high: Decimal, low: Decimal, previous_close: Decimal | None) -> Decimal:
-    if previous_close is None:
-        return high - low
-    return max(high - low, abs(high - previous_close), abs(low - previous_close))
 
 
 class TrendTracker:
@@ -181,172 +412,72 @@ class TrendTracker:
         self, base: Timeframe, settings: Mapping[TrendFrame, TrendSettings] | None = None
     ) -> None:
         self.base = base
-        self.settings = dict(DEFAULT_SETTINGS if settings is None else settings)
-        if not self.settings:
+        chosen = DEFAULT_SETTINGS if settings is None else settings
+        if not chosen:
             raise ValueError("at least one timeframe is needed")
+        self._engines = {frame: FrameTrend(frame, cfg) for frame, cfg in chosen.items()}
         self._base_seconds = int(base.delta.total_seconds())
-        self._length: dict[TrendFrame, int] = {}
-        for frame in self.settings:
-            if frame.delta < base.delta or frame.delta % base.delta != timedelta(0):
-                raise ValueError(f"{frame.value} cannot be built from {base.value} candles")
-            self._length[frame] = frame.delta // base.delta
+        for frame in self._engines:
+            _check_buildable(frame, base)
 
     @property
     def frames(self) -> tuple[TrendFrame, ...]:
-        return tuple(self.settings)
+        return tuple(self._engines)
+
+    def settings_of(self, frame: TrendFrame) -> TrendSettings:
+        return self._engines[frame].settings
 
     def required_base_candles(self) -> int:
-        """Base candles to feed before every frame can be read.
+        """Base candles to feed before every frame can be read completely.
 
         Counts the bars each frame needs, one bar lost to a history that starts mid-bar and one
         bar of margin."""
-        return max((s.bars_needed + 2) * self._length[f] for f, s in self.settings.items())
+        return max(
+            (engine.settings.bars_needed + 2) * (engine.frame.delta // self.base.delta)
+            for engine in self._engines.values()
+        )
 
     def initial_state(self) -> TrendTrackerState:
-        return TrendTrackerState({frame: FrameState() for frame in self.settings})
+        return TrendTrackerState({frame: FrameState() for frame in self._engines})
 
     def update(self, state: TrendTrackerState, candle: Candle) -> TrendTrackerState:
         """State after one more closed base candle (``state`` itself is never changed)."""
         if candle.timeframe is not self.base:
             raise ValueError(f"expected {self.base.value} candles, got {candle.timeframe.value}")
-        timestamp = int(candle.open_time.timestamp())
-        return TrendTrackerState(
-            {
-                frame: self._advance(
-                    frame,
-                    self.settings[frame],
-                    state.frames.get(frame, FrameState()),
-                    candle,
-                    timestamp,
-                )
-                for frame in self.settings
-            }
-        )
+        frames: dict[TrendFrame, FrameState] = {}
+        for frame, engine in self._engines.items():
+            current = state.frames.get(frame, FrameState())
+            bucket, bar = add_candle(current.bucket, candle, frame, self._base_seconds)
+            indicators = (
+                current.indicators if bar is None else engine.update(current.indicators, bar)
+            )
+            frames[frame] = FrameState(bucket, indicators)
+        return TrendTrackerState(frames)
 
     def read(self, state: TrendTrackerState, frame: TrendFrame) -> TrendReading:
-        settings = self.settings[frame]
-        fs = state.frames.get(frame, FrameState())
-        warm = (
-            fs.bars >= settings.bars_needed
-            and len(fs.recent) == SLOPE_BARS + 1
-            and len(fs.ranges) >= settings.atr_period
-            and fs.ema is not None
-            and fs.close is not None
-        )
-        if not warm or fs.ema is None or fs.close is None:
-            return TrendReading(frame, None, fs.bars, fs.close, fs.previous_close, fs.ema)
-        atr = sum(fs.ranges, Decimal(0)) / len(fs.ranges)
-        slope = fs.ema - fs.recent[0]
-        trend = classify_trend(
-            close=fs.close, ema=fs.ema, slope=slope, atr=atr, flat_band=settings.flat_band
-        )
-        return TrendReading(
-            frame,
-            trend,
-            fs.bars,
-            fs.close,
-            fs.previous_close,
-            fs.ema,
-            fs.recent[-2],
-            atr,
-            slope / atr if atr > 0 else Decimal(0),
-        )
+        return self._engines[frame].read(state.frames.get(frame, FrameState()).indicators)
 
     def read_all(self, state: TrendTrackerState) -> dict[TrendFrame, TrendReading]:
-        return {frame: self.read(state, frame) for frame in self.settings}
+        return {frame: self.read(state, frame) for frame in self._engines}
 
     # --- persistence ---------------------------------------------------------------------
 
     def serialize(self, state: TrendTrackerState) -> dict[str, Any]:
-        return {frame.value: _dump(fs) for frame, fs in state.frames.items()}
+        return {
+            frame.value: {"bucket": _dump_bucket(fs.bucket), "indicators": _dump(fs.indicators)}
+            for frame, fs in state.frames.items()
+        }
 
     def deserialize(self, raw: Mapping[str, Any]) -> TrendTrackerState:
-        return TrendTrackerState(
-            {
-                frame: _load(raw[frame.value]) if frame.value in raw else FrameState()
-                for frame in self.settings
-            }
-        )
-
-    # --- internals -----------------------------------------------------------------------
-
-    def _advance(
-        self,
-        frame: TrendFrame,
-        settings: TrendSettings,
-        fs: FrameState,
-        candle: Candle,
-        timestamp: int,
-    ) -> FrameState:
-        frame_seconds = int(frame.delta.total_seconds())
-        offset = _WEEK_OFFSET_SECONDS if frame is TrendFrame.W1 else 0
-        index = (timestamp - offset) // frame_seconds
-        starts_bar = (timestamp - offset) % frame_seconds == 0
-        if fs.index == index and fs.high is not None and fs.low is not None:
-            seen, high, low = fs.seen + 1, max(fs.high, candle.high), min(fs.low, candle.low)
-        else:
-            # A bar joined mid-way (history starting inside it) can never be complete: seen = 0.
-            seen, high, low = (1 if starts_bar else 0), candle.high, candle.low
-        last_of_bar = (timestamp + self._base_seconds - offset) % frame_seconds == 0
-        if not (last_of_bar and seen == self._length[frame]):
-            return FrameState(
-                index,
-                seen,
-                high,
-                low,
-                fs.bars,
-                fs.ema,
-                fs.recent,
-                fs.close,
-                fs.previous_close,
-                fs.ranges,
+        frames: dict[TrendFrame, FrameState] = {}
+        for frame in self._engines:
+            item = raw.get(frame.value)
+            frames[frame] = (
+                FrameState()
+                if item is None
+                else FrameState(_load_bucket(item["bucket"]), _load(item["indicators"]))
             )
-        close = candle.close
-        ranges = (*fs.ranges, _true_range(high, low, fs.close))[-settings.atr_period :]
-        if fs.ema is None:
-            ema = close
-        elif fs.bars < settings.ema_period:
-            ema = (fs.ema * fs.bars + close) / (fs.bars + 1)  # plain average while seeding
-        else:
-            ema = fs.ema + Decimal(2) / (settings.ema_period + 1) * (close - fs.ema)
-        recent = (*fs.recent, ema)[-(SLOPE_BARS + 1) :]
-        return FrameState(index, 0, None, None, fs.bars + 1, ema, recent, close, fs.close, ranges)
-
-
-def _dump(fs: FrameState) -> dict[str, Any]:
-    def text(value: Decimal | None) -> str | None:
-        return None if value is None else str(value)
-
-    return {
-        "index": fs.index,
-        "seen": fs.seen,
-        "high": text(fs.high),
-        "low": text(fs.low),
-        "bars": fs.bars,
-        "ema": text(fs.ema),
-        "recent": [str(v) for v in fs.recent],
-        "close": text(fs.close),
-        "previous_close": text(fs.previous_close),
-        "ranges": [str(v) for v in fs.ranges],
-    }
-
-
-def _load(raw: Mapping[str, Any]) -> FrameState:
-    def number(value: str | None) -> Decimal | None:
-        return None if value is None else Decimal(value)
-
-    return FrameState(
-        raw["index"],
-        int(raw["seen"]),
-        number(raw["high"]),
-        number(raw["low"]),
-        int(raw["bars"]),
-        number(raw["ema"]),
-        tuple(Decimal(v) for v in raw["recent"]),
-        number(raw["close"]),
-        number(raw["previous_close"]),
-        tuple(Decimal(v) for v in raw["ranges"]),
-    )
+        return TrendTrackerState(frames)
 
 
 def analyze_trend(
@@ -354,19 +485,75 @@ def analyze_trend(
 ) -> dict[TrendFrame, TrendReading]:
     """One-shot reading of every timeframe from closed candles (oldest first, one timeframe).
 
-    Frames longer than the data allows come back with ``trend = None``."""
+    Frames the base timeframe cannot build are left out; frames with too little history come
+    back with ``trend = None``."""
     if not candles:
         raise ValueError("no candles to analyze")
-    tracker = TrendTracker(candles[0].timeframe, _usable(candles[0].timeframe, settings))
+    base = candles[0].timeframe
+    chosen = DEFAULT_SETTINGS if settings is None else settings
+    tracker = TrendTracker(base, {f: s for f, s in chosen.items() if f.delta >= base.delta})
     state = tracker.initial_state()
     for candle in candles:
         state = tracker.update(state, candle)
     return tracker.read_all(state)
 
 
-def _usable(
-    base: Timeframe, settings: Mapping[TrendFrame, TrendSettings] | None
-) -> dict[TrendFrame, TrendSettings]:
-    """Default frames that the base timeframe can actually build (1h candles give all four)."""
-    chosen = DEFAULT_SETTINGS if settings is None else settings
-    return {f: s for f, s in chosen.items() if f.delta >= base.delta}
+# --- (de)serialisation helpers --------------------------------------------------------------
+
+
+def _text(value: Decimal | None) -> str | None:
+    return None if value is None else str(value)
+
+
+def _num(value: str | None) -> Decimal | None:
+    return None if value is None else Decimal(value)
+
+
+def _dump_bucket(b: Bucket) -> dict[str, Any]:
+    return {
+        "index": b.index, "seen": b.seen, "open": _text(b.open), "high": _text(b.high),
+        "low": _text(b.low),
+    }  # fmt: skip
+
+
+def _load_bucket(raw: Mapping[str, Any]) -> Bucket:
+    return Bucket(raw["index"], int(raw["seen"]), _num(raw["open"]), _num(raw["high"]),
+                  _num(raw["low"]))  # fmt: skip
+
+
+def _dump(s: IndicatorState) -> dict[str, Any]:
+    return {
+        "bars": s.bars,
+        "last_open_time": None if s.last_open_time is None else s.last_open_time.isoformat(),
+        "close": _text(s.close), "high": _text(s.high), "low": _text(s.low),
+        "ema_fast": _text(s.ema_fast), "ema_slow": _text(s.ema_slow),
+        "slow_recent": [str(v) for v in s.slow_recent],
+        "trend": None if s.trend is None else s.trend.value,
+        "previous_trend": None if s.previous_trend is None else s.previous_trend.value,
+        "diffs": s.diffs, "tr_sum": str(s.tr_sum), "pdm_sum": str(s.pdm_sum),
+        "mdm_sum": str(s.mdm_sum), "dx_count": s.dx_count, "dx_sum": str(s.dx_sum),
+        "adx": _text(s.adx),
+        "window": [[str(h), str(low)] for h, low in s.window],
+        "swing_highs": [str(v) for v in s.swing_highs],
+        "swing_lows": [str(v) for v in s.swing_lows],
+    }  # fmt: skip
+
+
+def _load(raw: Mapping[str, Any]) -> IndicatorState:
+    def trend(value: str | None) -> Trend | None:
+        return None if value is None else Trend(value)
+
+    opened = raw["last_open_time"]
+    return IndicatorState(
+        int(raw["bars"]),
+        None if opened is None else datetime.fromisoformat(opened),
+        _num(raw["close"]), _num(raw["high"]), _num(raw["low"]),
+        _num(raw["ema_fast"]), _num(raw["ema_slow"]),
+        tuple(Decimal(v) for v in raw["slow_recent"]),
+        trend(raw["trend"]), trend(raw["previous_trend"]),
+        int(raw["diffs"]), Decimal(raw["tr_sum"]), Decimal(raw["pdm_sum"]),
+        Decimal(raw["mdm_sum"]), int(raw["dx_count"]), Decimal(raw["dx_sum"]), _num(raw["adx"]),
+        tuple((Decimal(h), Decimal(low)) for h, low in raw["window"]),
+        tuple(Decimal(v) for v in raw["swing_highs"]),
+        tuple(Decimal(v) for v in raw["swing_lows"]),
+    )  # fmt: skip

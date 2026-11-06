@@ -31,9 +31,9 @@ from modules.strategies.domain.types import (
 
 TRUNCATIONS = (10, 50, 100)
 N_CANDLES = 600
-# Strategies that read the daily trend from 1h candles warm up over weeks: give them 100 days.
+# Strategies that read the daily trend from 1h candles warm up over weeks: give them 250 days.
 SLOW_STRATEGIES = frozenset({"mtf_trend_pullback"})
-SLOW_N_CANDLES = 2400
+SLOW_N_CANDLES = 6000
 
 
 def _series(n: int = N_CANDLES) -> list[str]:

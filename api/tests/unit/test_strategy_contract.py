@@ -7,6 +7,7 @@ well-formed signals).
 
 import json
 import math
+import random
 from decimal import Decimal
 from typing import Any
 
@@ -61,17 +62,18 @@ def _trend() -> list[Candle]:
 
 
 def _slow_trend() -> list[Candle]:
-    """The same shape as ``_trend`` on a scale of days, for strategies that read the daily trend
-    from hourly candles: a month of quiet, then a rising and a falling market, both with the
-    10-hour pullbacks a 1h entry needs."""
-    closes = [1000 + (i % 2) for i in range(30 * 24)]
+    """The same shape as ``_trend`` on a scale of months, for strategies that read the daily trend
+    from hourly candles: two months of quiet, then a rising and a falling market, both with the
+    pullbacks and the hourly noise an entry needs."""
+    rng = random.Random(5)
+    closes = [1000 + (i % 2) for i in range(60 * 24)]
     price = float(closes[-1])
-    for i in range(40 * 24):
+    for i in range(80 * 24):
         price += 0.5
-        closes.append(round(price + 8 * math.sin(2 * math.pi * i / 10)))
-    for i in range(40 * 24):
+        closes.append(round(price + 60 * math.sin(2 * math.pi * i / 288) + rng.gauss(0, 3)))
+    for i in range(80 * 24):
         price -= 0.7
-        closes.append(round(price + 8 * math.sin(2 * math.pi * i / 10)))
+        closes.append(round(price + 60 * math.sin(2 * math.pi * i / 288) + rng.gauss(0, 3)))
     return make_candles(closes)
 
 

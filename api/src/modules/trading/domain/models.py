@@ -8,8 +8,8 @@ from modules.market_data.domain.models import Timeframe
 
 # Candles fetched on a fresh start only to warm the strategy up (never traded on).
 WARMUP_CANDLES = 300
-# One exchange page of candles: a strategy cannot ask for more history than this.
-MAX_WARMUP_CANDLES = 1000
+# A few exchange pages of candles: a strategy cannot ask for more history than this.
+MAX_WARMUP_CANDLES = 3000
 
 
 def warmup_candles(required: int) -> int:
